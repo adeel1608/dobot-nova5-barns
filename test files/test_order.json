@@ -1,0 +1,15 @@
+{
+  "id": 3,
+  "cups": [
+    {
+      "type": "latte",
+      "size": "large",
+      "addons": ["extra_shot"]
+    },
+    {
+      "type": "americano",
+      "size": "regular",
+      "addons": []
+    }
+  ]
+} 

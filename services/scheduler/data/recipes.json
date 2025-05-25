@@ -1,0 +1,42 @@
+{
+    "Latte": [
+      { "action": "pick_cup",      "assigned_arm": "Arm1" },
+      { "action": "pull_espresso", "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
+      { "action": "steam_milk",    "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
+      { "action": "pour_milk",     "assigned_arm": "Arm2", "depends_on": ["pull_espresso", "steam_milk"] },
+      { "action": "serve",         "assigned_arm": "Arm1", "depends_on": ["pour_milk"] }
+    ],
+  
+    "Cappuccino": [
+      { "action": "pick_cup",      "assigned_arm": "Arm1" },
+      { "action": "pull_espresso", "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
+      { "action": "steam_milk",    "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
+      { "action": "pour_milk",     "assigned_arm": "Arm2", "depends_on": ["pull_espresso", "steam_milk"] },
+      { "action": "sprinkle_cocoa","assigned_arm": "Arm1", "depends_on": ["pour_milk"] },
+      { "action": "serve",         "assigned_arm": "Arm1", "depends_on": ["sprinkle_cocoa"] }
+    ],
+  
+    "Espresso": [
+      { "action": "pick_cup",      "assigned_arm": "Arm1" },
+      { "action": "pull_espresso", "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
+      { "action": "serve",         "assigned_arm": "Arm1", "depends_on": ["pull_espresso"] }
+    ],
+  
+    "Americano": [
+      { "action": "pick_cup",      "assigned_arm": "Arm1" },
+      { "action": "pull_espresso", "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
+      { "action": "heat_water",    "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
+      { "action": "pour_water",    "assigned_arm": "Arm2", "depends_on": ["pull_espresso", "heat_water"] },
+      { "action": "serve",         "assigned_arm": "Arm1", "depends_on": ["pour_water"] }
+    ],
+  
+    "Mocha": [
+      { "action": "pick_cup",        "assigned_arm": "Arm1" },
+      { "action": "add_chocolate_syrup", "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
+      { "action": "pull_espresso",   "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
+      { "action": "steam_milk",      "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
+      { "action": "pour_milk",       "assigned_arm": "Arm2", "depends_on": ["pull_espresso", "steam_milk", "add_chocolate_syrup"] },
+      { "action": "serve",           "assigned_arm": "Arm1", "depends_on": ["pour_milk"] }
+    ]
+  }
+  

@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # Database services
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_password
+      POSTGRES_DB: barns_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database_init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Service - Order Management System
+  oms:
+    build: 
+      context: .
+      dockerfile: services/oms/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: barns_db
+      DB_USER: barns_user
+      DB_PASSWORD: barns_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SCHEDULER_SERVICE_URL: http://scheduler:8000
+    ports:
+      - "8000:8000"
+
+  # Service - Scheduler
+  scheduler:
+    build:
+      context: .
+      dockerfile: services/scheduler/Dockerfile
+    environment:
+      ROUTINE_SERVICE_URL: http://routine:8000
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8001:8000"
+
+  # Service - Routine
+  routine:
+    build:
+      context: .
+      dockerfile: services/routine/Dockerfile
+    environment:
+      SCHEDULER_SERVICE_URL: http://scheduler:8000
+      VALIDATION_SERVICE_URL: http://validation:8000
+      ROUTINE_CONFIG_PATH: /app/config/tasks.json
+    volumes:
+      - ./config:/app/config
+    ports:
+      - "8002:8000"
+
+  # Service - Validation
+  validation:
+    build:
+      context: .
+      dockerfile: services/validation/Dockerfile
+    ports:
+      - "8003:8000"
+
+  # Service - Video Stream
+  video-stream:
+    build:
+      context: .
+      dockerfile: services/video-stream/Dockerfile
+    environment:
+      CAMERA_SOURCES: "rtsp://arm1-camera:554/stream,rtsp://arm2-camera:554/stream"
+    ports:
+      - "8004:8000"
+
+  # Service - Dashboard
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/barns-dashboard/Dockerfile
+    environment:
+      REACT_APP_OMS_URL: http://localhost:8000
+      REACT_APP_SCHEDULER_URL: http://localhost:8001
+      REACT_APP_ROUTINE_URL: http://localhost:8002
+      REACT_APP_VALIDATION_URL: http://localhost:8003
+      REACT_APP_VIDEO_STREAM_URL: http://localhost:8004
+    ports:
+      - "3000:80"  # Expose on port 3000
+    depends_on:
+      - oms
+      - scheduler
+      - routine
+      - validation
+      - video-stream
+
+volumes:
+  postgres_data: 

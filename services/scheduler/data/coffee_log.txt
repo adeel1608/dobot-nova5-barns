@@ -1,0 +1,182 @@
+[14:15:19] Starting coffee order simulation for 30 orders...
+[14:15:19] Arm1 is picking up cup_001
+[14:15:20] Arm1 is pulling an espresso for cup_001
+[14:15:20] Arm2 is steaming milk for cup_001
+[14:15:22] Arm1 is picking up cup_002
+[14:15:23] Arm1 is pulling an espresso for cup_002
+[14:15:23] Arm2 is pouring milk into cup_001
+[14:15:24] Arm2 is steaming milk for cup_002
+[14:15:25] Arm1 is serving cup_001
+[14:15:26]  --- Order complete: Latte for cup_001 ---
+[14:15:26] Arm1 is picking up cup_003
+[14:15:27] Arm1 is pulling an espresso for cup_003
+[14:15:27] Arm2 is pouring milk into cup_002
+[14:15:29] Arm1 is sprinkling cocoa on cup_002
+[14:15:30] Arm1 is serving cup_002
+[14:15:31]  --- Order complete: Cappuccino for cup_002 ---
+[14:15:31] Arm1 is serving cup_003
+[14:15:32]  --- Order complete: Espresso for cup_003 ---
+[14:15:32] Arm1 is picking up cup_004
+[14:15:33] Arm1 is pulling an espresso for cup_004
+[14:15:33] Arm2 is heating water for cup_004
+[14:15:35] Arm1 is picking up cup_005
+[14:15:35] Arm2 is pouring hot water into cup_004
+[14:15:36] Arm1 is pulling an espresso for cup_005
+[14:15:36] Arm2 is adding chocolate syrup to cup_005
+[14:15:37] Arm2 is steaming milk for cup_005
+[14:15:38] Arm1 is serving cup_004
+[14:15:39]  --- Order complete: Americano for cup_004 ---
+[14:15:39] Arm1 is picking up cup_006
+[14:15:40] Arm1 is pulling an espresso for cup_006
+[14:15:40] Arm2 is pouring milk into cup_005
+[14:15:41] Arm2 is steaming milk for cup_006
+[14:15:42] Arm1 is serving cup_005
+[14:15:43]  --- Order complete: Mocha for cup_005 ---
+[14:15:43] Arm1 is picking up cup_007
+[14:15:44] Arm1 is pulling an espresso for cup_007
+[14:15:44] Arm2 is pouring milk into cup_006
+[14:15:45] Arm2 is steaming milk for cup_007
+[14:15:46] Arm1 is serving cup_006
+[14:15:47]  --- Order complete: Latte for cup_006 ---
+[14:15:47] Arm1 is picking up cup_008
+[14:15:48] Arm1 is pulling an espresso for cup_008
+[14:15:48] Arm2 is pouring milk into cup_007
+[14:15:50] Arm1 is sprinkling cocoa on cup_007
+[14:15:51] Arm1 is serving cup_007
+[14:15:52]  --- Order complete: Cappuccino for cup_007 ---
+[14:15:52] Arm1 is serving cup_008
+[14:15:53]  --- Order complete: Espresso for cup_008 ---
+[14:15:53] Arm1 is picking up cup_009
+[14:15:54] Arm1 is pulling an espresso for cup_009
+[14:15:54] Arm2 is heating water for cup_009
+[14:15:56] Arm1 is picking up cup_010
+[14:15:56] Arm2 is pouring hot water into cup_009
+[14:15:57] Arm1 is pulling an espresso for cup_010
+[14:15:57] Arm2 is adding chocolate syrup to cup_010
+[14:15:58] Arm2 is steaming milk for cup_010
+[14:15:59] Arm1 is serving cup_009
+[14:16:00]  --- Order complete: Americano for cup_009 ---
+[14:16:00] Arm1 is picking up cup_011
+[14:16:01] Arm1 is pulling an espresso for cup_011
+[14:16:01] Arm2 is pouring milk into cup_010
+[14:16:02] Arm2 is steaming milk for cup_011
+[14:16:03] Arm1 is serving cup_010
+[14:16:04]  --- Order complete: Mocha for cup_010 ---
+[14:16:04] Arm1 is picking up cup_012
+[14:16:05] Arm1 is pulling an espresso for cup_012
+[14:16:05] Arm2 is pouring milk into cup_011
+[14:16:06] Arm2 is steaming milk for cup_012
+[14:16:07] Arm1 is serving cup_011
+[14:16:08]  --- Order complete: Latte for cup_011 ---
+[14:16:08] Arm1 is picking up cup_013
+[14:16:09] Arm1 is pulling an espresso for cup_013
+[14:16:09] Arm2 is pouring milk into cup_012
+[14:16:11] Arm1 is sprinkling cocoa on cup_012
+[14:16:12] Arm1 is serving cup_012
+[14:16:13]  --- Order complete: Cappuccino for cup_012 ---
+[14:16:13] Arm1 is serving cup_013
+[14:16:14]  --- Order complete: Espresso for cup_013 ---
+[14:16:14] Arm1 is picking up cup_014
+[14:16:15] Arm1 is pulling an espresso for cup_014
+[14:16:15] Arm2 is heating water for cup_014
+[14:16:17] Arm1 is picking up cup_015
+[14:16:17] Arm2 is pouring hot water into cup_014
+[14:16:18] Arm1 is pulling an espresso for cup_015
+[14:16:18] Arm2 is adding chocolate syrup to cup_015
+[14:16:19] Arm2 is steaming milk for cup_015
+[14:16:20] Arm1 is serving cup_014
+[14:16:21]  --- Order complete: Americano for cup_014 ---
+[14:16:21] Arm1 is picking up cup_016
+[14:16:22] Arm1 is pulling an espresso for cup_016
+[14:16:22] Arm2 is pouring milk into cup_015
+[14:16:23] Arm2 is steaming milk for cup_016
+[14:16:24] Arm1 is serving cup_015
+[14:16:25]  --- Order complete: Mocha for cup_015 ---
+[14:16:25] Arm1 is picking up cup_017
+[14:16:26] Arm1 is pulling an espresso for cup_017
+[14:16:26] Arm2 is pouring milk into cup_016
+[14:16:27] Arm2 is steaming milk for cup_017
+[14:16:28] Arm1 is serving cup_016
+[14:16:29]  --- Order complete: Latte for cup_016 ---
+[14:16:29] Arm1 is picking up cup_018
+[14:16:30] Arm1 is pulling an espresso for cup_018
+[14:16:30] Arm2 is pouring milk into cup_017
+[14:16:32] Arm1 is sprinkling cocoa on cup_017
+[14:16:33] Arm1 is serving cup_017
+[14:16:34]  --- Order complete: Cappuccino for cup_017 ---
+[14:16:34] Arm1 is serving cup_018
+[14:16:35]  --- Order complete: Espresso for cup_018 ---
+[14:16:35] Arm1 is picking up cup_019
+[14:16:36] Arm1 is pulling an espresso for cup_019
+[14:16:36] Arm2 is heating water for cup_019
+[14:16:38] Arm1 is picking up cup_020
+[14:16:38] Arm2 is pouring hot water into cup_019
+[14:16:39] Arm1 is pulling an espresso for cup_020
+[14:16:39] Arm2 is adding chocolate syrup to cup_020
+[14:16:40] Arm2 is steaming milk for cup_020
+[14:16:41] Arm1 is serving cup_019
+[14:16:42]  --- Order complete: Americano for cup_019 ---
+[14:16:42] Arm1 is picking up cup_021
+[14:16:43] Arm1 is pulling an espresso for cup_021
+[14:16:43] Arm2 is pouring milk into cup_020
+[14:16:44] Arm2 is steaming milk for cup_021
+[14:16:45] Arm1 is serving cup_020
+[14:16:46]  --- Order complete: Mocha for cup_020 ---
+[14:16:46] Arm1 is picking up cup_022
+[14:16:47] Arm1 is pulling an espresso for cup_022
+[14:16:47] Arm2 is pouring milk into cup_021
+[14:16:48] Arm2 is steaming milk for cup_022
+[14:16:49] Arm1 is serving cup_021
+[14:16:50]  --- Order complete: Latte for cup_021 ---
+[14:16:50] Arm1 is picking up cup_023
+[14:16:51] Arm1 is pulling an espresso for cup_023
+[14:16:51] Arm2 is pouring milk into cup_022
+[14:16:53] Arm1 is sprinkling cocoa on cup_022
+[14:16:54] Arm1 is serving cup_022
+[14:16:55]  --- Order complete: Cappuccino for cup_022 ---
+[14:16:55] Arm1 is serving cup_023
+[14:16:56]  --- Order complete: Espresso for cup_023 ---
+[14:16:56] Arm1 is picking up cup_024
+[14:16:57] Arm1 is pulling an espresso for cup_024
+[14:16:57] Arm2 is heating water for cup_024
+[14:16:59] Arm1 is picking up cup_025
+[14:16:59] Arm2 is pouring hot water into cup_024
+[14:17:00] Arm1 is pulling an espresso for cup_025
+[14:17:00] Arm2 is adding chocolate syrup to cup_025
+[14:17:01] Arm2 is steaming milk for cup_025
+[14:17:02] Arm1 is serving cup_024
+[14:17:03]  --- Order complete: Americano for cup_024 ---
+[14:17:03] Arm1 is picking up cup_026
+[14:17:04] Arm1 is pulling an espresso for cup_026
+[14:17:04] Arm2 is pouring milk into cup_025
+[14:17:05] Arm2 is steaming milk for cup_026
+[14:17:06] Arm1 is serving cup_025
+[14:17:07]  --- Order complete: Mocha for cup_025 ---
+[14:17:07] Arm1 is picking up cup_027
+[14:17:08] Arm1 is pulling an espresso for cup_027
+[14:17:08] Arm2 is pouring milk into cup_026
+[14:17:09] Arm2 is steaming milk for cup_027
+[14:17:10] Arm1 is serving cup_026
+[14:17:11]  --- Order complete: Latte for cup_026 ---
+[14:17:11] Arm1 is picking up cup_028
+[14:17:12] Arm1 is pulling an espresso for cup_028
+[14:17:12] Arm2 is pouring milk into cup_027
+[14:17:14] Arm1 is sprinkling cocoa on cup_027
+[14:17:15] Arm1 is serving cup_027
+[14:17:16]  --- Order complete: Cappuccino for cup_027 ---
+[14:17:16] Arm1 is serving cup_028
+[14:17:17]  --- Order complete: Espresso for cup_028 ---
+[14:17:17] Arm1 is picking up cup_029
+[14:17:18] Arm1 is pulling an espresso for cup_029
+[14:17:18] Arm2 is heating water for cup_029
+[14:17:20] Arm1 is picking up cup_030
+[14:17:20] Arm2 is pouring hot water into cup_029
+[14:17:21] Arm1 is pulling an espresso for cup_030
+[14:17:21] Arm2 is adding chocolate syrup to cup_030
+[14:17:22] Arm2 is steaming milk for cup_030
+[14:17:23] Arm1 is serving cup_029
+[14:17:24]  --- Order complete: Americano for cup_029 ---
+[14:17:25] Arm2 is pouring milk into cup_030
+[14:17:26] Arm1 is serving cup_030
+[14:17:27]  --- Order complete: Mocha for cup_030 ---
+[14:17:27] All orders completed.

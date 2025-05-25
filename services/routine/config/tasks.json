@@ -1,0 +1,79 @@
+{
+    "pull_espresso": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "check_cup_present",
+          "params": {}
+        },
+        {
+          "type": "validation",
+          "function": "check_beans",
+          "params": {"min_grams": 18}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_espresso_head",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_pump",
+          "params": {"duration_sec": 30}
+        },
+        {
+          "type": "validation",
+          "function": "check_weight",
+          "params": {"min_weight": 30}
+        }
+      ]
+    },
+    "steam_milk": {
+      "steps": [
+        {
+          "type": "robot",
+          "function": "move_to_steam_wand",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_steam",
+          "params": {"duration_sec": 20}
+        },
+        {
+          "type": "validation",
+          "function": "check_temperature",
+          "params": {"min_temp_c": 60}
+        }
+      ]
+    },
+    "pour_milk": {
+      "steps": [
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "pour_liquid",
+          "params": {"volume_ml": 150}
+        }
+      ]
+    },
+    "sprinkle_cocoa": {
+      "steps": [
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_sprinkle",
+          "params": {"amount_g": 2}
+        }
+      ]
+    }
+  }
+  
