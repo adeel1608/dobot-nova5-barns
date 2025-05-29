@@ -72,6 +72,7 @@ services:
     environment:
       SCHEDULER_SERVICE_URL: http://scheduler:8000
       VALIDATION_SERVICE_URL: http://validation:8000
+      AUTOMATION_SERVICE_URL: http://automation:8000
       ROUTINE_CONFIG_PATH: /app/config/tasks.json
     volumes:
       - ./config:/app/config
@@ -85,6 +86,14 @@ services:
       dockerfile: services/validation/Dockerfile
     ports:
       - "8003:8000"
+
+  # Service - Automation
+  automation:
+    build:
+      context: .
+      dockerfile: services/automation/Dockerfile
+    ports:
+      - "8005:8000"
 
   # Service - Video Stream
   video-stream:
@@ -107,6 +116,7 @@ services:
       REACT_APP_ROUTINE_URL: http://localhost:8002
       REACT_APP_VALIDATION_URL: http://localhost:8003
       REACT_APP_VIDEO_STREAM_URL: http://localhost:8004
+      REACT_APP_AUTOMATION_URL: http://localhost:8005
     ports:
       - "3000:80"  # Expose on port 3000
     depends_on:
@@ -114,6 +124,7 @@ services:
       - scheduler
       - routine
       - validation
+      - automation
       - video-stream
 
 volumes:

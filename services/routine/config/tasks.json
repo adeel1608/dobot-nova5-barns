@@ -12,6 +12,16 @@
           "params": {"min_grams": 18}
         },
         {
+          "type": "automation",
+          "function": "grind_beans",
+          "params": {"grind_size": "fine", "amount_g": 18}
+        },
+        {
+          "type": "automation",
+          "function": "heat_water",
+          "params": {"target_temp_c": 93, "volume_ml": 250}
+        },
+        {
           "type": "robot",
           "function": "move_to_espresso_head",
           "params": {}
@@ -30,6 +40,11 @@
     },
     "steam_milk": {
       "steps": [
+        {
+          "type": "automation",
+          "function": "dispense_milk",
+          "params": {"milk_type": "soya", "amount": 120}
+        },
         {
           "type": "robot",
           "function": "move_to_steam_wand",
@@ -72,6 +87,79 @@
           "type": "robot",
           "function": "activate_sprinkle",
           "params": {"amount_g": 2}
+        }
+      ]
+    },
+    "automated_cleaning": {
+      "steps": [
+        {
+          "type": "automation",
+          "function": "clean_system",
+          "params": {"cycle_type": "full"}
+        },
+        {
+          "type": "automation",
+          "function": "activate_conveyor",
+          "params": {"direction": "forward", "duration_sec": 10, "speed": "slow"}
+        },
+        {
+          "type": "validation",
+          "function": "check_cup_present",
+          "params": {}
+        }
+      ]
+    },
+    "soya_latte": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "check_cup_present",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "grind_beans",
+          "params": {"grind_size": "fine", "amount_g": 18}
+        },
+        {
+          "type": "automation",
+          "function": "heat_water",
+          "params": {"target_temp_c": 93, "volume_ml": 250}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_espresso_head",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_pump",
+          "params": {"duration_sec": 30}
+        },
+        {
+          "type": "automation",
+          "function": "dispense_milk",
+          "params": {"milk_type": "soya", "amount": 120}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_steam_wand",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_steam",
+          "params": {"duration_sec": 20}
+        },
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "pour_liquid",
+          "params": {"volume_ml": 120}
         }
       ]
     }
