@@ -56,14 +56,24 @@ def check_cup_present(params: dict):
     # for success case:
     return {"passed": True, "details": "cup detected"}
 
+def update_inventory(params: dict):
+    # update the inventory levels
+    # e.g.
+    INVENTORY_LEVELS[params["ingredient"]]["level"] -= params["amount"]
+    return {"success": True, "details": f"Inventory updated for {params['ingredient']}"}
+
+
 
 
 # Map function names to actual implementations
 VALIDATORS = {
     "check_cup_present": check_cup_present,
+    "update_inventory": update_inventory,
     # ... other validation functions ...
 }
 
+
+# ---- Endpoint for Routine Handler ----
 @app.post("/validate")
 def validate(request: ValidationRequest):
     """Run a validation function by name with given parameters."""
@@ -75,99 +85,8 @@ def validate(request: ValidationRequest):
     
     return result
 
-@app.post("/inventory/refill")
-def handle_refill_acknowledgment(request: InventoryRefillRequest):
-    """Handle refill acknowledgment from Dashboard - refill the ingredient in validation service database"""
-    try:
-        ingredient = request.ingredient.lower()
-        
-        # Validate ingredient
-        if ingredient not in INVENTORY_LEVELS:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unknown ingredient: {ingredient}. Valid ingredients: {list(INVENTORY_LEVELS.keys())}"
-            )
-        
-        # Refill the ingredient
-        result = refill_inventory(ingredient)
-        
-        if result["success"]:
-            return {
-                "status": "success",
-                "message": f"Ingredient {ingredient} refilled successfully",
-                "ingredient": ingredient,
-                "old_level": result["old_level"],
-                "new_level": result["new_level"],
-                "refilled_at": result["refilled_at"]
-            }
-        else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Failed to refill ingredient"))
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error during refill: {str(e)}")
 
-@app.get("/inventory/status")
-def get_inventory_status():
-    """Get current inventory status"""
-    try:
-        # Format the response to match what the dashboard expects
-        formatted_inventory = {}
-        
-        for ingredient, data in INVENTORY_LEVELS.items():
-            level = data["level"]
-            
-            # Determine level category
-            if level <= data["threshold_low"]:
-                level_category = "low"
-            elif level <= data["threshold_medium"]:
-                level_category = "medium"
-            else:
-                level_category = "high"
-            
-            formatted_inventory[ingredient] = {
-                "level": level_category,
-                "actual_amount": level,
-                "last_refilled": data["last_refilled"]
-            }
-        
-        return {
-            "status": "success",
-            "inventory": formatted_inventory,
-            "timestamp": datetime.now().isoformat()
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get inventory status: {str(e)}")
 
-@app.post("/inventory/check")
-def check_ingredient(request: IngredientCheckRequest):
-    """Check ingredient availability (used by other services)"""
-    try:
-        ingredient = request.ingredient.lower()
-        amount = request.amount_needed
-        
-        if ingredient not in INVENTORY_LEVELS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown ingredient: {ingredient}. Valid ingredients: {list(INVENTORY_LEVELS.keys())}"
-            )
-        
-        result = check_ingredient_level(ingredient, amount)
-        
-        return {
-            "ingredient": ingredient,
-            "available": result["available"],
-            "current_level": result["current_level"],
-            "amount_requested": amount,
-            "remaining_after": result["remaining_after"],
-            "severity": result["severity"]
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to check ingredient: {str(e)}")
 
 @app.get("/health")
 def health_check():

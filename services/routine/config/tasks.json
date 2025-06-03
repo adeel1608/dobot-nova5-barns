@@ -4,7 +4,7 @@
         {
           "type": "validation",
           "function": "check_cup_present",
-          "params": {}
+          "params": {"cup": [cup_obj]}
         },
         {
           "type": "validation",
