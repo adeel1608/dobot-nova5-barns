@@ -59,8 +59,10 @@ def check_cup_present(params: dict):
 def update_inventory(params: dict):
     # update the inventory levels
     # e.g.
-    INVENTORY_LEVELS[params["ingredient"]]["level"] -= params["amount"]
-    return {"success": True, "details": f"Inventory updated for {params['ingredient']}"}
+    # e.g for failed case:
+    return {"passed": False, "details": "cup not detected"}
+    # for success case:
+    return {"passed": True, "details": "cup detected"}
 
 
 
