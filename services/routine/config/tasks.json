@@ -3,13 +3,30 @@
       "steps": [
         {
           "type": "validation",
-          "function": "check_cup_present",
-          "params": {"cup": [cup_obj]}
-        },
-        {
-          "type": "validation",
-          "function": "check_beans",
-          "params": {"min_grams": 18}
+          "function": "pre_check",
+          "params": {
+            "request_id": "275ceafa-59e7-4639-b35f-61234f2ec634",
+            "client_type": "scheduler",
+            "function_name": "pre_check",
+            "payload": {
+                "items": [{
+                    "drink_name": "cappuccino",
+                    "size": "small", 
+                    "cup_id": "H9",
+                    "temperature": "hot",
+                    "ingredients": {
+                    "espresso": {
+                        "type": "regular",
+                        "amount": 1
+                    },
+                    "milk": {
+                        "type": "whole",
+                        "amount": 150
+                    }
+                }
+                }]
+            }
+        }
         },
         {
           "type": "automation",
@@ -34,7 +51,30 @@
         {
           "type": "validation",
           "function": "update_ingredients",
-          "params": {"cup": [cup_obj], "ingredients": [cup_obj.coffe]}
+          "params": {
+            "request_id": "594d9767-33b6-4e3e-a424-05ccf08f27d8",
+            "client_type": "scheduler",
+            "function_name": "update_inventory",
+            "payload": {
+                "items": [{
+                    "drink_name": "cappuccino",
+                    "size": "small", 
+                    "cup_id": "H9",
+                    "temperature": "hot",
+                    "ingredients": {
+                    "espresso": {
+                        "type": "regular",
+                        "amount": 1
+                    },
+                    "milk": {
+                        "type": "whole",
+                        "amount": 150
+                    }
+                }
+            }],
+                "ingredients": [{"cup_id": "H9", "amount": 1}]
+            }
+        }
         }
       ]
     },
