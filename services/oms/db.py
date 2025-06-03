@@ -229,6 +229,50 @@ def update_order_status(order_id: int, status: str, reason: Optional[str] = None
     finally:
         release_connection(conn)
 
+def delete_order(order_id: int) -> bool:
+    """Delete an order and all its related data from the database.
+    
+    Args:
+        order_id: The ID of the order to delete
+        
+    Returns:
+        bool: True if the order was deleted successfully, False if order not found
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # Check if order exists
+            cur.execute("SELECT id FROM orders WHERE id = %s", (order_id,))
+            if not cur.fetchone():
+                return False
+            
+            # Delete related data in correct order (due to foreign key constraints)
+            # Delete task steps first
+            cur.execute(
+                """
+                DELETE FROM task_steps 
+                WHERE task_id IN (SELECT id FROM tasks WHERE order_id = %s)
+                """,
+                (order_id,)
+            )
+            
+            # Delete tasks
+            cur.execute("DELETE FROM tasks WHERE order_id = %s", (order_id,))
+            
+            # Delete order items
+            cur.execute("DELETE FROM order_items WHERE order_id = %s", (order_id,))
+            
+            # Delete the order itself
+            cur.execute("DELETE FROM orders WHERE id = %s", (order_id,))
+            
+            conn.commit()
+            return True
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        release_connection(conn)
+
 def save_task(order_id: int, item_id: int, arm_id: int, function_name: str) -> int:
     """Save a new task to the database.
     

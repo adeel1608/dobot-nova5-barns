@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import useStore from '../store';
 
 export default function AlertPanel() {
-  const { alerts, mockAlerts, resumeOperation, isLoading, errors, clearError } = useStore();
+  const { alerts, mockAlerts, resumeOperation, refillInventory, isLoading, errors, clearError } = useStore();
   const [selectedAlert, setSelectedAlert] = useState(null);
+  const [refilling, setRefilling] = useState(false);
 
   // Use mock data if there's an API error
   const displayAlerts = errors.alerts ? mockAlerts : alerts;
@@ -25,6 +26,56 @@ export default function AlertPanel() {
   const retryFetchAlerts = () => {
     clearError('alerts');
     useStore.getState().fetchAlerts();
+  };
+
+  const handleRefillFromAlert = async (ingredient) => {
+    setRefilling(true);
+    try {
+      const success = await refillInventory(ingredient);
+      if (success) {
+        // Close alert details after successful refill
+        setTimeout(() => {
+          setSelectedAlert(null);
+          setRefilling(false);
+        }, 1000);
+      } else {
+        setRefilling(false);
+      }
+    } catch (error) {
+      setRefilling(false);
+    }
+  };
+
+  const getAlertIcon = (alertType) => {
+    switch (alertType) {
+      case 'ingredient_threshold':
+        return '🥛'; // Milk icon for ingredient alerts
+      case 'hardware':
+        return '⚙️';
+      case 'order_halted':
+        return '⏸️';
+      case 'emergency_stop':
+        return '🛑';
+      default:
+        return '⚠️';
+    }
+  };
+
+  const getIngredientFromAlert = (alert) => {
+    // Extract ingredient from alert payload or event data
+    if (alert.payload && typeof alert.payload === 'string') {
+      try {
+        const payload = JSON.parse(alert.payload);
+        return payload.ingredient;
+      } catch (e) {
+        // If parsing fails, try to extract from message
+      }
+    }
+    
+    // Try to extract ingredient from message
+    const message = alert.message || '';
+    const ingredients = ['milk', 'cup', 'beans', 'syrup'];
+    return ingredients.find(ing => message.toLowerCase().includes(ing));
   };
 
   // Helper function to get the severity badge
@@ -99,18 +150,27 @@ export default function AlertPanel() {
                 key={alert.id}
                 onClick={() => handleAlertClick(alert)}
                 className={`p-3 rounded border-l-4 cursor-pointer hover:bg-gray-50 ${
-                  alert.type === 'ingredient'
+                  alert.alert_type === 'ingredient_threshold'
                     ? 'border-yellow-500 bg-yellow-50'
-                    : alert.type === 'hardware'
+                    : alert.alert_type === 'order_halted'
+                    ? 'border-orange-500 bg-orange-50'
+                    : alert.alert_type === 'emergency_stop'
                     ? 'border-red-500 bg-red-50'
                     : 'border-blue-500 bg-blue-50'
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <div>
-                    <div className="font-medium">{alert.message || alert.type}</div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {alert.timestamp ? new Date(alert.timestamp).toLocaleString() : 'Just now'}
+                  <div className="flex items-start space-x-2">
+                    <span className="text-lg">{getAlertIcon(alert.alert_type)}</span>
+                    <div>
+                      <div className="font-medium">
+                        {alert.alert_type === 'ingredient_threshold' 
+                          ? `Low ${getIngredientFromAlert(alert) || 'ingredient'} level`
+                          : alert.message || alert.alert_type}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Just now'}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -127,7 +187,43 @@ export default function AlertPanel() {
                     </button>
                   </div>
                 </div>
-                {alert.type === 'ingredient' && (
+                
+                {/* Quick refill button for ingredient threshold alerts */}
+                {alert.alert_type === 'ingredient_threshold' && (
+                  <div className="mt-2 flex space-x-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const ingredient = getIngredientFromAlert(alert);
+                        if (ingredient) {
+                          handleRefillFromAlert(ingredient);
+                        }
+                      }}
+                      disabled={refilling}
+                      className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white text-xs font-semibold px-3 py-1 rounded flex items-center space-x-1"
+                    >
+                      {refilling ? (
+                        <>
+                          <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Refilling...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                          <span>Refill {getIngredientFromAlert(alert)}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+                
+                {/* Resume operation button for other alert types */}
+                {alert.alert_type === 'order_halted' && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -136,7 +232,7 @@ export default function AlertPanel() {
                       }
                     }}
                     disabled={isLoading || errors.system}
-                    className="mt-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white text-xs font-semibold px-3 py-1 rounded flex items-center space-x-1"
+                    className="mt-2 bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white text-xs font-semibold px-3 py-1 rounded flex items-center space-x-1"
                   >
                     {isLoading ? (
                       <>
@@ -188,15 +284,15 @@ export default function AlertPanel() {
             
             <div className="bg-gray-50 p-4 rounded mb-4">
               <div className="flex justify-between items-center mb-2">
-                <h4 className="font-medium">{selectedAlert.message || selectedAlert.type}</h4>
+                <h4 className="font-medium">{selectedAlert.message || selectedAlert.alert_type}</h4>
                 {selectedAlert.severity && getSeverityBadge(selectedAlert.severity)}
               </div>
               <p className="text-sm text-gray-600 mb-2">
-                <span className="font-medium">Type:</span> {selectedAlert.type}
+                <span className="font-medium">Type:</span> {selectedAlert.alert_type}
               </p>
-              {selectedAlert.timestamp && (
+              {selectedAlert.created_at && (
                 <p className="text-sm text-gray-600 mb-2">
-                  <span className="font-medium">Time:</span> {new Date(selectedAlert.timestamp).toLocaleString()}
+                  <span className="font-medium">Time:</span> {new Date(selectedAlert.created_at).toLocaleString()}
                 </p>
               )}
               {selectedAlert.location && (
@@ -229,7 +325,7 @@ export default function AlertPanel() {
               >
                 Acknowledge
               </button>
-              {selectedAlert.type === 'ingredient' && (
+              {selectedAlert.alert_type === 'ingredient_threshold' && (
                 <button
                   onClick={() => {
                     if (!errors.system) {

@@ -24,6 +24,14 @@ const useStore = create((set, get) => ({
   schedulerStatus: null,
   isLoading: false,
   
+  // Inventory data
+  inventoryStatus: {
+    milk: { level: 'unknown', last_refilled: null },
+    cup: { level: 'unknown', last_refilled: null },
+    beans: { level: 'unknown', last_refilled: null },
+    syrup: { level: 'unknown', last_refilled: null }
+  },
+  
   // Service-specific errors and logs
   errors: {
     orders: null,
@@ -33,7 +41,8 @@ const useStore = create((set, get) => ({
     scheduler: null,
     routine: null,
     validation: null,
-    videoStream: null
+    videoStream: null,
+    inventory: null
   },
   
   // System logs for the new logs tab
@@ -73,7 +82,8 @@ const useStore = create((set, get) => ({
           scheduler: null,
           routine: null,
           validation: null,
-          videoStream: null
+          videoStream: null,
+          inventory: null
         }
       });
     }
@@ -237,6 +247,44 @@ const useStore = create((set, get) => ({
       const errorMsg = 'Failed to create order: ' + (error.response?.data?.detail || error.message);
       addLog('OMS', 'error', errorMsg, error);
       return null;
+    }
+  },
+
+  // Delete order
+  deleteOrder: async (orderId) => {
+    const { addLog, extractErrorMessage } = get();
+    
+    try {
+      // Get the order first to check its status
+      const currentOrders = get().orders;
+      const orderToDelete = currentOrders.find(o => o.id === orderId);
+      const orderStatus = orderToDelete?.status?.toUpperCase() || 'UNKNOWN';
+      
+      if (orderStatus === 'PROCESSING') {
+        addLog('OMS', 'warning', `Force deleting processing order ${orderId}...`);
+      } else {
+        addLog('OMS', 'info', `Deleting order ${orderId} (status: ${orderStatus})...`);
+      }
+      
+      const res = await axios.delete(`${API_ENDPOINTS.OMS}/orders/${orderId}`);
+      
+      if (orderStatus === 'PROCESSING') {
+        addLog('OMS', 'warning', `Processing order ${orderId} force deleted successfully`);
+      } else {
+        addLog('OMS', 'info', `Order ${orderId} deleted successfully`);
+      }
+      
+      // Refresh orders after deleting
+      await get().fetchOrders();
+      return true;
+    } catch (error) {
+      const userFriendlyMessage = extractErrorMessage(error);
+      addLog('OMS', 'error', userFriendlyMessage, {
+        operation: 'delete_order',
+        order_id: orderId,
+        technical_details: error.message
+      });
+      return false;
     }
   },
 
@@ -428,8 +476,15 @@ const useStore = create((set, get) => ({
           const data = JSON.parse(e.data);
           addLog('WebSocket', 'info', 'Received orders update', data);
           
-          // Refresh orders when we get updates
-          get().fetchOrders();
+          // Handle different event types
+          if (data.event === 'threshold_warning') {
+            get().handleThresholdWarning(data.ingredient, data.severity);
+          } else if (data.event === 'inventory_refilled') {
+            get().handleInventoryRefilled(data.ingredient);
+          } else {
+            // Refresh orders for other events
+            get().fetchOrders();
+          }
         } catch (error) {
           addLog('WebSocket', 'error', 'Error parsing WebSocket data', error);
         }
@@ -558,6 +613,118 @@ const useStore = create((set, get) => ({
       });
       return false;
     }
+  },
+
+  // Inventory Management Functions
+  
+  // Fetch inventory status
+  fetchInventoryStatus: async () => {
+    const { addLog, extractErrorMessage } = get();
+    
+    try {
+      addLog('OMS', 'info', 'Fetching inventory status...');
+      const res = await axios.get(`${API_ENDPOINTS.OMS}/inventory/status`);
+      
+      set(state => ({
+        inventoryStatus: res.data.inventory || state.inventoryStatus,
+        errors: { ...state.errors, inventory: null }
+      }));
+      
+      addLog('OMS', 'info', 'Inventory status fetched successfully');
+      return res.data.inventory;
+    } catch (error) {
+      const userFriendlyMessage = extractErrorMessage(error);
+      addLog('OMS', 'error', userFriendlyMessage, {
+        operation: 'fetch_inventory_status',
+        technical_details: error.message
+      });
+      
+      set(state => ({
+        errors: { ...state.errors, inventory: userFriendlyMessage }
+      }));
+      return null;
+    }
+  },
+
+  // Refill inventory for a specific ingredient
+  refillInventory: async (ingredient) => {
+    const { addLog, extractErrorMessage } = get();
+    
+    try {
+      addLog('OMS', 'info', `Initiating refill for ${ingredient}...`);
+      const res = await axios.post(`${API_ENDPOINTS.OMS}/inventory/refill`, {
+        ingredient: ingredient.toLowerCase()
+      });
+      
+      addLog('OMS', 'info', `Refill initiated for ${ingredient} successfully`);
+      
+      // Refresh inventory status after refill
+      await get().fetchInventoryStatus();
+      
+      // Also refresh alerts in case this resolves any threshold warnings
+      await get().fetchAlerts();
+      
+      return true;
+    } catch (error) {
+      const userFriendlyMessage = extractErrorMessage(error);
+      addLog('OMS', 'error', userFriendlyMessage, {
+        operation: 'refill_inventory',
+        ingredient: ingredient,
+        technical_details: error.message
+      });
+      return false;
+    }
+  },
+
+  // Handle threshold warning (called when WebSocket receives threshold warning)
+  handleThresholdWarning: (ingredient, severity) => {
+    const { addLog } = get();
+    
+    addLog('Validation', 'warning', `Threshold warning: ${ingredient} level is ${severity}`, {
+      ingredient,
+      severity,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Update inventory status to reflect the warning
+    set(state => ({
+      inventoryStatus: {
+        ...state.inventoryStatus,
+        [ingredient]: {
+          ...state.inventoryStatus[ingredient],
+          level: severity
+        }
+      }
+    }));
+    
+    // Refresh alerts to show the new threshold warning
+    get().fetchAlerts();
+  },
+
+  // Handle inventory refill confirmation (called when WebSocket receives refill confirmation)
+  handleInventoryRefilled: (ingredient) => {
+    const { addLog } = get();
+    
+    addLog('Validation', 'info', `Inventory refilled: ${ingredient}`, {
+      ingredient,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Update inventory status to reflect the refill
+    set(state => ({
+      inventoryStatus: {
+        ...state.inventoryStatus,
+        [ingredient]: {
+          ...state.inventoryStatus[ingredient],
+          level: 'high',
+          last_refilled: new Date().toISOString()
+        }
+      }
+    }));
+    
+    // Refresh inventory status and alerts
+    get().fetchInventoryStatus();
+    get().fetchAlerts();
   },
 }));
 

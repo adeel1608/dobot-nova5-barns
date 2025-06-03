@@ -7,6 +7,7 @@ import LiveCameraFeed from './components/LiveCameraFeed';
 import StatusBoard from './components/StatusBoard';
 import LogsPanel from './components/LogsPanel';
 import NewOrderPanel from './components/NewOrderPanel';
+import InventoryPanel from './components/InventoryPanel';
 import barnsLogo from './assets/BARNS-Logo.png';
 import './index.css';
 
@@ -15,6 +16,7 @@ export default function App() {
     fetchOrders, 
     fetchAlerts, 
     fetchSchedulerStatus,
+    fetchInventoryStatus,
     checkSystemHealth,
     connectOrderWS, 
     connectAlertWS, 
@@ -30,6 +32,7 @@ export default function App() {
         await fetchOrders();
         await fetchAlerts();
         await fetchSchedulerStatus();
+        await fetchInventoryStatus();
         
         // Check all services health
         await checkSystemHealth();
@@ -50,7 +53,7 @@ export default function App() {
     }, 120000);
 
     return () => clearInterval(healthCheckInterval);
-  }, [fetchOrders, fetchAlerts, fetchSchedulerStatus, checkSystemHealth, connectOrderWS, connectAlertWS]);
+  }, [fetchOrders, fetchAlerts, fetchSchedulerStatus, fetchInventoryStatus, checkSystemHealth, connectOrderWS, connectAlertWS]);
 
   // Mobile menu toggle
   const toggleSidebar = () => {
@@ -233,6 +236,9 @@ export default function App() {
                   
                   {/* Status board */}
                   <StatusBoard />
+                  
+                  {/* Inventory panel */}
+                  <InventoryPanel />
                 </div>
               </div>
             </div>

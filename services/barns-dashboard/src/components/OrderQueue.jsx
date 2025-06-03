@@ -9,7 +9,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import useStore from '../store';
 
-function SortableItem({ order, index, onStartOrder, onResumeOrder, onViewDetails, isStarting, getStatusBadge }) {
+function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, isStarting, isDeleting, getStatusBadge }) {
   // Debug: Log that this component is rendering
   console.log(`📦 SortableItem rendering for order ${order.id} with status: ${order.status}`);
   
@@ -155,6 +155,47 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onViewDetails
               </svg>
               Details
             </button>
+
+            {/* Delete Button - Now available for all order types */}
+            <button 
+              onClick={() => {
+                console.log('🗑️ Delete button clicked for order:', order.id);
+                onDeleteOrder && onDeleteOrder(order.id);
+              }}
+              disabled={isDeleting}
+              className={`text-xs px-2 py-1 rounded flex items-center ${
+                isDeleting 
+                  ? 'bg-red-300 text-white cursor-not-allowed' 
+                  : order.status === 'PROCESSING'
+                    ? 'bg-red-600 hover:bg-red-700 text-white border-2 border-yellow-400'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+              title={isDeleting ? "Deleting..." : order.status === 'PROCESSING' ? "⚠️ Force delete processing order (DANGER)" : "Delete order"}
+            >
+              {isDeleting ? (
+                <>
+                  <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  {order.status === 'PROCESSING' && (
+                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  {order.status !== 'PROCESSING' && (
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  )}
+                  Delete
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -163,11 +204,12 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onViewDetails
 }
 
 export default function OrderQueue() {
-  const { orders, sendReorder, startOrder, resumeOrder, isLoading, errors, clearError } = useStore();
+  const { orders, sendReorder, startOrder, resumeOrder, deleteOrder, isLoading, errors, clearError } = useStore();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startingOrderId, setStartingOrderId] = useState(null);
+  const [deletingOrderId, setDeletingOrderId] = useState(null);
 
   // Debug: Log component render and orders data
   console.log('🚀 OrderQueue component rendering');
@@ -250,6 +292,44 @@ export default function OrderQueue() {
       }
     } catch (error) {
       console.error('🔄 Error in handleResumeOrder:', error);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
+    
+    // Find the order to get its status
+    const order = displayOrders.find(o => o.id === orderId);
+    const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
+    
+    // Show different confirmation messages based on order status
+    let confirmMessage;
+    if (orderStatus === 'PROCESSING') {
+      confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
+    } else {
+      confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
+    }
+    
+    const confirmed = window.confirm(confirmMessage);
+    if (!confirmed) {
+      return;
+    }
+    
+    setDeletingOrderId(orderId);
+    try {
+      console.log('🗑️ About to call deleteOrder from store...');
+      const success = await deleteOrder(orderId);
+      console.log('🗑️ deleteOrder returned:', success);
+      
+      if (success) {
+        console.log(`✅ Order ${orderId} deleted successfully`);
+      } else {
+        console.error(`❌ Failed to delete order ${orderId}`);
+      }
+    } catch (error) {
+      console.error('🗑️ Error in handleDeleteOrder:', error);
+    } finally {
+      setDeletingOrderId(null);
     }
   };
 
@@ -393,8 +473,10 @@ export default function OrderQueue() {
                   index={idx} 
                   onStartOrder={handleStartOrder}
                   onResumeOrder={handleResumeOrder}
+                  onDeleteOrder={handleDeleteOrder}
                   onViewDetails={viewOrderDetails}
                   isStarting={startingOrderId === order.id}
+                  isDeleting={deletingOrderId === order.id}
                   getStatusBadge={getStatusBadge}
                 />
               ))}

@@ -28,7 +28,7 @@ async def call_validation(func_name: str, params: dict):
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"Validation service error: {response.status_code} - {response.text}")
+                print(f"Validation s    ervice error: {response.status_code} - {response.text}")
                 return {"passed": False, "details": f"Validation service error: {response.status_code}"}
     except Exception as e:
         print(f"Error calling validation service: {str(e)}")

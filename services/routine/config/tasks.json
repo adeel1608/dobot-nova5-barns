@@ -33,8 +33,8 @@
         },
         {
           "type": "validation",
-          "function": "check_weight",
-          "params": {"min_weight": 30}
+          "function": "update_ingredients",
+          "params": {"cup": [cup_obj], "ingredients": [cup_obj.coffe]}
         }
       ]
     },

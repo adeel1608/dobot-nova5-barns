@@ -42,6 +42,13 @@ class AlertCreate(BaseModel):
 class SystemStopRequest(BaseModel):
     reason: Optional[str] = ""
 
+class ThresholdWarning(BaseModel):
+    ingredient: str
+    severity: str = Field(..., regex="^(low|medium|high)$")
+
+class InventoryRefill(BaseModel):
+    ingredient: str
+
 # Order status constants
 ORDER_STATUS = {
     'QUEUED': 'queued',
@@ -362,6 +369,39 @@ def complete_order(order_id: int = Path(..., title="The ID of the order to compl
     
     return {"msg": "order_completed", "order": order_id}
 
+@app.delete("/orders/{order_id}")
+def delete_order(order_id: int = Path(..., title="The ID of the order to delete")):
+    """Delete an order from the system."""
+    order = db.get_order(order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+    
+    # Remove from queue if it's still queued
+    if order.get("status") == ORDER_STATUS['QUEUED']:
+        queue.remove(order_id)
+    
+    # Delete from database (now allows deletion of all order types including processing)
+    success = db.delete_order(order_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete order from database")
+    
+    # Log the deletion event
+    event_id = db.log_event("order_deleted", {
+        "order_id": order_id,
+        "previous_status": order.get("status"),
+        "timestamp": "now"
+    })
+    
+    # Broadcast the deletion event
+    broadcast({
+        "event": "order_deleted",
+        "order": order_id,
+        "previous_status": order.get("status"),
+        "timestamp": "now"
+    })
+    
+    return {"msg": "order_deleted", "order": order_id, "previous_status": order.get("status")}
+
 @app.post("/orders/{order_id}/fail")
 def fail_order(
     order_id: int = Path(..., title="The ID of the order to fail"),
@@ -561,6 +601,133 @@ def sync_queue():
             return {"status": "error", "message": "Failed to sync queue with database"}
     except Exception as e:
         return {"status": "error", "message": f"Sync error: {str(e)}"}
+
+# Inventory Management Endpoints
+
+@app.post("/inventory/threshold-warning")
+def receive_threshold_warning(warning: ThresholdWarning):
+    """Receive threshold warning from Validation Service."""
+    try:
+        # Map severity to alert severity
+        alert_severity_map = {
+            "low": "warning",
+            "medium": "warning", 
+            "high": "critical"
+        }
+        
+        alert_severity = alert_severity_map.get(warning.severity.lower(), "warning")
+        
+        # Log the threshold warning event
+        event_id = db.log_event("threshold_warning", {
+            "ingredient": warning.ingredient,
+            "severity": warning.severity.lower(),
+            "timestamp": "now"
+        })
+        
+        # Create an alert for the threshold warning
+        alert_id = db.create_alert(event_id, "ingredient_threshold", alert_severity)
+        
+        # Broadcast the threshold warning to dashboard
+        broadcast({
+            "event": "threshold_warning",
+            "ingredient": warning.ingredient,
+            "severity": warning.severity.lower(),
+            "alert_id": alert_id,
+            "timestamp": "now"
+        })
+        
+        return {
+            "status": "success",
+            "message": f"Threshold warning received for {warning.ingredient}",
+            "ingredient": warning.ingredient,
+            "severity": warning.severity.lower(),
+            "alert_id": alert_id
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process threshold warning: {str(e)}")
+
+@app.post("/inventory/refill")
+def refill_inventory(refill: InventoryRefill):
+    """Manually refill a specific ingredient inventory."""
+    try:
+        # Validate ingredient
+        valid_ingredients = ["milk", "cup", "beans", "syrup"]
+        if refill.ingredient.lower() not in valid_ingredients:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid ingredient. Must be one of: {valid_ingredients}"
+            )
+        
+        # Log the refill event
+        event_id = db.log_event("inventory_refilled", {
+            "ingredient": refill.ingredient.lower(),
+            "timestamp": "now"
+        })
+        
+        # Send refill request to Validation Service
+        validation_url = "http://localhost:8003/inventory/refill"
+        
+        try:
+            import httpx
+            import asyncio
+            
+            async def send_refill_to_validation():
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(validation_url, json={"ingredient": refill.ingredient.lower()})
+                    response.raise_for_status()
+                    return response.json()
+            
+            # Run the async function
+            try:
+                loop = asyncio.get_running_loop()
+                # Create a task to run the async function
+                task = loop.create_task(send_refill_to_validation())
+                # Note: In a real implementation, you might want to await this properly
+                # For now, we'll continue without waiting for the response
+            except RuntimeError:
+                # No running loop, create a new one
+                validation_response = asyncio.run(send_refill_to_validation())
+                print(f"✅ Validation Service response: {validation_response}")
+            
+        except Exception as validation_error:
+            print(f"⚠️ Warning: Could not reach Validation Service: {validation_error}")
+            # Continue anyway - the refill might be manual
+        
+        # Broadcast the refill event to dashboard
+        broadcast({
+            "event": "inventory_refilled",
+            "ingredient": refill.ingredient.lower(),
+            "timestamp": "now"
+        })
+        
+        return {
+            "status": "success",
+            "message": f"Inventory refill initiated for {refill.ingredient}",
+            "ingredient": refill.ingredient.lower()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process inventory refill: {str(e)}")
+
+@app.get("/inventory/status")
+def get_inventory_status():
+    """Get current inventory status (placeholder - would typically query Validation Service)."""
+    try:
+        # This would typically query the Validation Service for current inventory levels
+        # For now, return a placeholder response
+        return {
+            "status": "success",
+            "inventory": {
+                "milk": {"level": "medium", "last_refilled": "2024-01-15T10:30:00Z"},
+                "cup": {"level": "high", "last_refilled": "2024-01-15T08:00:00Z"},
+                "beans": {"level": "low", "last_refilled": "2024-01-14T16:45:00Z"},
+                "syrup": {"level": "medium", "last_refilled": "2024-01-15T09:15:00Z"}
+            },
+            "timestamp": "now"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get inventory status: {str(e)}")
 
 async def send_to_scheduler(order_data: dict):
     """Call Scheduler service to initiate processing of the order."""
