@@ -50,7 +50,7 @@
         },
         {
           "type": "validation",
-          "function": "update_ingredients",
+          "function": "update_inventory",
           "params": {
             "request_id": "594d9767-33b6-4e3e-a424-05ccf08f27d8",
             "client_type": "scheduler",

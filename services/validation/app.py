@@ -86,8 +86,8 @@ async def update_inventory(request: ValidationRequest):
     result = {"passed": True, "details": {}}
     return result
 
-@app.post("/check_cup_present")
-async def check_cup_present(request: ValidationRequest):
+@app.post("/check_cup_placed")
+async def check_cup_placed(request: ValidationRequest):
     """Run a validation function by name with given parameters."""
     # func_name = request.function
     # if func_name not in VALIDATORS:
@@ -105,6 +105,17 @@ async def check_cup_picked(request: ValidationRequest):
 
     result = {"passed": True, "details": {}}
     return result
+
+@app.post("/pre_check") 
+async def pre_check(request: ValidationRequest):
+    """Run a validation function by name with given parameters."""
+    # func_name = request.function
+    # if func_name not in VALIDATORS:
+    #     return {"error": f"No such validation function '{func_name}'", "passed": False}
+    
+    result = {"passed": True, "details": {}}
+    return result
+
 
 # ------------------------------------------------------------
 # TODO: @uzair @mais complete the health check endpoint

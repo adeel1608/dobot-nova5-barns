@@ -18,7 +18,10 @@ async def call_validation(func_name: str, params: dict):
     Calls the validation service with the given function name and parameters.
     """
     func_name_to_end_point = {
-        "check_cup_present": "check_cup_present", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
+        "pre_check": "pre_check", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
+        # this function is used to make sure if the required inventory is present to make the item
+
+        "check_cup_placed": "check_cup_placed", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
         # this function is used to make sure if the cup is placed and present on the required position
 
         "update_inventory": "update_inventory", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
