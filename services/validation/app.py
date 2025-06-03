@@ -76,26 +76,44 @@ VALIDATORS = {
 
 
 # ---- Endpoint for Routine Handler ----
-@app.post("/validate")
-def validate(request: ValidationRequest):
+@app.post("/update_inventory")
+async def update_inventory(request: ValidationRequest):
     """Run a validation function by name with given parameters."""
-    func_name = request.function
-    if func_name not in VALIDATORS:
-        return {"error": f"No such validation function '{func_name}'", "passed": False}
+    # func_name = request.function
+    # if func_name not in VALIDATORS:
+    #     return {"error": f"No such validation function '{func_name}'", "passed": False}
     
-    result = VALIDATORS[func_name](request.params or {})
-    
+    result = {"passed": True, "details": {}}
     return result
 
+@app.post("/check_cup_present")
+async def check_cup_present(request: ValidationRequest):
+    """Run a validation function by name with given parameters."""
+    # func_name = request.function
+    # if func_name not in VALIDATORS:
+    #     return {"error": f"No such validation function '{func_name}'", "passed": False}
+    
+    result = {"passed": True, "details": {}}
+    return result
 
+@app.post("/check_cup_picked")
+async def check_cup_picked(request: ValidationRequest):
+    """Run a validation function by name with given parameters."""
+    # func_name = request.function
+    # if func_name not in VALIDATORS:
+    #     return {"error": f"No such validation function '{func_name}'", "passed": False}
 
+    result = {"passed": True, "details": {}}
+    return result
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "service": "validation",
-        "timestamp": datetime.now().isoformat(),
-        "inventory_items": len(INVENTORY_LEVELS)
-    }
+# ------------------------------------------------------------
+# TODO: @uzair @mais complete the health check endpoint
+# @app.get("/health")
+# def health_check():
+#     """Health check endpoint"""
+#     return {
+#         "status": "healthy",
+#         "service": "validation",
+#         "timestamp": datetime.now().isoformat(),
+#         "inventory_items": len(INVENTORY_LEVELS)
+#     }

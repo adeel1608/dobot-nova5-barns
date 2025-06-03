@@ -17,7 +17,21 @@ async def call_validation(func_name: str, params: dict):
     """
     Calls the validation service with the given function name and parameters.
     """
-    url = f"{VALIDATION_SERVICE_URL}/validate"
+    func_name_to_end_point = {
+        "check_cup_present": "check_cup_present", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
+        # this function is used to make sure if the cup is placed and present on the required position
+
+        "update_inventory": "update_inventory", # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
+        # this function is used to make update the inventory after the robot has completed the task and needs to update the inventory
+
+        "check_cup_picked": "check_cup_picked" # TODO: @momin add the function name you want to trigger based on the JSON in routine/config/tasks.json
+        # this function is used to make sure if the cup is picked up by the robot
+
+        # NOTE: we will continue to add more functions as we need them here
+    }
+
+
+    url = f"{VALIDATION_SERVICE_URL}/{func_name_to_end_point[func_name]}" #TODO: @momin verify if this is correct
     payload = {
         "function": func_name,
         "params": params
