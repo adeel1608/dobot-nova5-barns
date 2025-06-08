@@ -118,19 +118,19 @@ async def pre_check(request: ValidationRequest):
                             "current": 5,
                             "needed": 1,
                             "critical_threshold": 10,
-                            "status": "insufficient"
+                            "status": False
                         },
                         "espresso": {
-                            "current": 100,
-                            "needed": 1,
+                            "current": 400,
+                            "needed": 16,
                             "critical_threshold": 50,
-                            "status": "sufficient"
+                            "status": True
                         },
                         "milk": {
                             "current": 100,
                             "needed": 150,
                             "critical_threshold": 200,
-                            "status": "insufficient"
+                            "status": False
                         }
                     }
                 }
