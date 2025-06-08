@@ -108,7 +108,36 @@ async def check_cup_picked(request: ValidationRequest):
 
 @app.post("/pre_check") 
 async def pre_check(request: ValidationRequest):
-    """Run a validation function by name with given parameters."""
+    """Run a validation function by name with given parameters.
+    ## EXAMPLE RESPONSE:
+                {
+                "passed": false,
+                "details": {
+                    "cappuccino": {
+                        "cup": {
+                            "current": 5,
+                            "needed": 1,
+                            "critical_threshold": 10,
+                            "status": "insufficient"
+                        },
+                        "espresso": {
+                            "current": 100,
+                            "needed": 1,
+                            "critical_threshold": 50,
+                            "status": "sufficient"
+                        },
+                        "milk": {
+                            "current": 100,
+                            "needed": 150,
+                            "critical_threshold": 200,
+                            "status": "insufficient"
+                        }
+                    }
+                }
+            }
+    #NOTE: we're keeping it above the threshold to make sure the machine doesn't run out of inventory to amount for the error window
+    # this threshold is tunable from the loadup of the validation service 
+    """
     # func_name = request.function
     # if func_name not in VALIDATORS:
     #     return {"error": f"No such validation function '{func_name}'", "passed": False}
