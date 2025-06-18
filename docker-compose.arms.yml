@@ -127,7 +127,7 @@ services:
       retries: 3
       start_period: 45s
 
-  # Robot Arm Service
+  # Robot Arm Service (Software Control)
   robot-arm-service:
     build:
       context: .
@@ -135,7 +135,7 @@ services:
     container_name: barns-robot-arm
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
-      ROBOT_SIMULATION: "true"  # Set to false for hardware mode
+      ROBOT_SIMULATION: "false"  # Hardware mode for arms deployment
       PYTHONPATH: /app
     depends_on:
       rabbitmq:
@@ -285,6 +285,130 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  # ============================================================================
+  # ROBOT ARM SERVICES
+  # ============================================================================
+  
+  # Robot Arm 1 (Dobot Nova5)
+  robot1:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_1:dev
+    container_name: oms_robot_1
+    
+    # Robot arms use both host and bridge networking 
+    # - Host networking for Fast-DDS multicast communication with hardware
+    # - Bridge networking via networks section for RabbitMQ service communication
+    network_mode: host
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.100.249  # Robot 1 IP address
+      - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
+      - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
+
+    # Device access for cameras and USB connections
+    devices:
+      - "/dev/video0:/dev/video0"
+      - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
+      - "/dev/video3:/dev/video3"
+      - "/dev/video4:/dev/video4"
+      - "/dev/video5:/dev/video5"
+      - "/dev/video6:/dev/video6"
+      - "/dev/video7:/dev/video7"
+      - "/dev/media0:/dev/media0"
+      - "/dev/media1:/dev/media1"
+      - "/dev/ttyUSB0:/dev/ttyUSB0"  # USB connection to robot
+
+    volumes:
+      - ./services/robot_container/ros_ws:/root/ros_ws
+      - ./shared:/app/shared:ro  # Mount shared directory for RabbitMQ client
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    user: "${UID}:${GID}"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5901:5901"  # VNC access for robot 1
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    
+    restart: unless-stopped
+
+  # Robot Arm 2 (Dobot Nova5)
+  robot2:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_2:dev
+    container_name: oms_robot_2
+    
+    # Robot arms use host networking for Fast-DDS multicast communication
+    network_mode: host
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.100.248  # Robot 2 IP address
+      - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
+      - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
+
+    # Device access for cameras and USB connections (different devices)
+    devices:
+      - "/dev/video10:/dev/video10"
+      - "/dev/video11:/dev/video11"
+      - "/dev/video12:/dev/video12"
+      - "/dev/video13:/dev/video13"
+      - "/dev/video14:/dev/video14"
+      - "/dev/video15:/dev/video15"
+      - "/dev/video16:/dev/video16"
+      - "/dev/video17:/dev/video17"
+      - "/dev/media3:/dev/media3"
+      - "/dev/media4:/dev/media4"
+      - "/dev/ttyUSB1:/dev/ttyUSB1"  # USB connection to robot
+
+    volumes:
+      - ./services/robot_container/ros_ws:/root/ros_ws
+      - ./shared:/app/shared:ro  # Mount shared directory for RabbitMQ client
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    user: "${UID}:${GID}"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5902:5901"  # VNC access for robot 2
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    
+    restart: unless-stopped
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:

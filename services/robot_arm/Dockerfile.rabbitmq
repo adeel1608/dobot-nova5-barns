@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY services/robot_arm/requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy shared modules
+COPY shared/ /app/shared/
+
+# Copy robot arm service
+COPY services/robot_arm/ /app/services/robot_arm/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Expose ports (though robot service uses RabbitMQ primarily)
+EXPOSE 50051
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import socket; socket.create_connection(('localhost', 50051), timeout=5)" || exit 1
+
+# Run the robot arm service
+CMD ["python", "-m", "services.robot_arm.app"] 

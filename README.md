@@ -182,7 +182,7 @@ sequenceDiagram
     participant RT as Routine Service
     participant V as Validation Service
     participant A as Automation Service
-    participant ARM as Robot Arm
+    participant R as Robot Arm Service
     participant S as Scheduler
 
     Note over RT: Process task steps sequentially
@@ -190,11 +190,14 @@ sequenceDiagram
     RT->>V: validate (check_ingredient_availability)
     V->>RT: {passed: true, details: "sufficient ingredients"}
     
-    RT->>ARM: robot (grind_beans)
-    ARM->>RT: {success: true, message: "beans ground"}
+    RT->>R: robot_action (grind_beans, arm_id: 1)
+    R->>RT: {success: true, message: "beans ground"}
     
     RT->>A: automate (heat_water)
     A->>RT: {success: true, details: "water heated to 93°C"}
+    
+    RT->>R: robot_action (move_to_position, arm_id: 1)
+    R->>RT: {success: true, message: "moved to position"}
     
     RT->>V: validate (update_inventory)
     V->>RT: {passed: true, details: "inventory updated"}
@@ -244,6 +247,26 @@ Routine Service                    Automation Service
      ├─ continue/abort based on result     │
 ```
 
+#### Routine ↔ Robot Arm Communication
+```
+Routine Service                    Robot Arm Service                    Robot Container
+     │                                     │                                 │
+     ├─ robot step execution               │                                 │
+     ├─ send_request("robot_arm", ...)─────┤                                 │
+     │                                     ├─ Test Functions:               │
+     │                                     │   ├─ robot_test1/test2()       │
+     │                                     │   └─ (executed locally)        │
+     │                                     ├─ Real Robot Functions:         │
+     │                                     │   ├─ RabbitMQ Bridge ─────────►│
+     │                                     │   └─ send_request(...)         ├─ ACTION_MAP functions:
+     │                                     │                                 │   ├─ home()
+     │                                     │                                 │   ├─ move_to_position()
+     │                                     │                                 │   ├─ pick_and_place()
+     ├─ await response ◄───────────────────┤◄─────────────────────────────────┤   ├─ sequences.home.*()
+     ├─ continue/abort based on result     │                                 │   ├─ sequences.cups.*()
+     ├─ arm_id specific targeting          │                                 │   └─ sequences.espresso.*()
+```
+
 ### Complete System Communication Flow
 
 ```
@@ -268,12 +291,26 @@ Routine Service                    Automation Service
                                               RabbitMQ Messages      Robot
                                                         │           Control
                                                         ▼             │
-                                        ┌─────────────┐   ┌─────────────┐
-                                        │ Validation  │   │ Automation  │
-                                        └─────────────┘   └─────────────┘
-                                        │             │   │             │
-                                   Inventory       Test   Equipment    Test
-                                  Management    Functions   Control  Functions
+                                                                            ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+                                    │ Validation  │   │ Automation  │   │ Robot Arm   │
+                                    └─────────────┘   └─────────────┘   └─────────────┘
+                                    │             │   │             │   │             │
+                               Inventory       Test   Equipment    Test   Physical     Test
+                              Management    Functions   Control  Functions Movement Functions
+                                    │                               │   │             │
+                                    └─────────────┬─────────────────┘   │             │
+                                                  │                     │             │
+                                         RabbitMQ Coordination          │             │
+                                                  │                     │             │
+                                                  └─────────────────────┴─────────────┘
+                                                                        │
+                                                               Physical Robot Arms
+                                                                 (Optional Hardware)
+                                                                ┌─────────────────┐
+                                                                │ Robot 1 & 2     │
+                                                                │ (Dobot Nova5)   │
+                                                                │ VNC: 5901/5902  │
+                                                                └─────────────────┘
 ```
 
 **Message Flow Summary**:
@@ -293,6 +330,8 @@ Routine Service                    Automation Service
 - Docker Compose v2.0+
 
 ### 1. Launch the System
+
+#### Option A: Software-Only Deployment (No Physical Robot Arms)
 ```bash
 # Clone repository
 git clone https://github.com/QSS-AI-Robotics/BARNS.git
@@ -305,11 +344,47 @@ docker-compose up --build -d
 docker-compose ps
 ```
 
+#### Option B: Full Hardware Deployment (With Physical Robot Arms)
+```bash
+# Clone repository
+git clone https://github.com/QSS-AI-Robotics/BARNS.git
+cd BARNS
+
+# Set environment variables for robot containers
+export UID=$(id -u)
+export GID=$(id -g)
+export DISPLAY=:0
+
+# Start all services including robot arms
+docker-compose -f docker-compose.arms.yml up --build -d
+
+# Verify all services including robot arms are running
+docker-compose -f docker-compose.arms.yml ps
+```
+
 ### 2. Access Interfaces
+
+#### Core System Interfaces
 - **Dashboard**: http://localhost:3000 (Main interface)
 - **RabbitMQ Management**: http://localhost:15672 (admin/admin123)
 - **API Bridge**: http://localhost:8000 (REST API)
 - **Video Streams**: http://localhost:8001 (Camera feeds)
+
+#### Robot Arm Interfaces (Only available with docker-compose.arms.yml)
+- **Robot 1 VNC**: http://localhost:5901 (Direct robot arm 1 control)
+- **Robot 2 VNC**: http://localhost:5902 (Direct robot arm 2 control)
+
+#### Robot Arm Prerequisites
+```bash
+# Install VNC viewer to access robot interfaces
+sudo apt-get install vinagre  # Ubuntu/Debian
+brew install vnc-viewer       # macOS
+
+# Ensure robot hardware is connected:
+# - Dobot Nova5 robots at IP addresses 192.168.100.249 and 192.168.100.248
+# - USB connections available at /dev/ttyUSB0 and /dev/ttyUSB1
+# - Camera devices available at /dev/video0-7 and /dev/video10-17
+```
 
 ### 3. Test Order Flow
 ```bash
@@ -334,9 +409,10 @@ curl -X POST http://localhost:8000/api/orders/create \
 |---------|-----------|----------|---------|
 | **OMS** | `api-bridge`, `scheduler.*`, `validation.*`, `automation.*`, `routine.*` | `scheduler`, `dashboard.*` | Order lifecycle management |
 | **Scheduler** | `oms`, `routine.*` | `routine`, `oms.*` | Task orchestration & dependency resolution |
-| **Routine** | `scheduler` | `validation`, `automation`, `scheduler.*` | Task execution & service coordination |
+| **Routine** | `scheduler` | `validation`, `automation`, `robot_arm`, `scheduler.*` | Task execution & service coordination |
 | **Validation** | `routine`, `inventory.*` | `routine.*`, `oms.*`, `alerts.*` | Ingredient validation & inventory monitoring |
 | **Automation** | `routine`, `system.*` | `routine.*`, `system.*` | Equipment control & automation functions |
+| **Robot Arm** | `routine`, `system.*` | `routine.*`, `system.*` | Physical robot control & movement operations |
 | **API Bridge** | `dashboard`, `all_services.*` | `all_services` | HTTP ↔ RabbitMQ translation |
 
 ### OMS (Order Management Service)
@@ -568,6 +644,74 @@ automation_response = {
 - `automation.error` → Function execution failed
 - `automation.emergency_stopped` → Emergency stop triggered
 
+### Robot Arm Service
+**Port**: Internal (RabbitMQ only)  
+**Role**: Physical robot control & coordinated movement operations with robot container bridge
+
+```python
+# Key Responsibilities
+- Robotic arm movement control (cartesian & joint-space)
+- Gripper and end-effector operations
+- Pick and place task coordination
+- Safety monitoring and emergency stops
+- Robot calibration and homing
+- Hardware/simulation mode switching
+```
+
+**Message Handlers**:
+- `robot_action` → Execute specific robot function
+- `emergency_stop` → Immediate safety stop for specified arm
+- `calibrate` → Perform robot calibration routine
+- `get_status` → Get current robot arm status
+- `list_actions` → Get available robot actions
+
+**Robot Actions**:
+- `move_to_position` → Move to cartesian coordinates (x, y, z)
+- `move_to_joint_position` → Move to joint angles
+- `open_gripper` / `close_gripper` → Gripper control
+- `pick_and_place` → Automated pick and place operation
+- `home_robot` → Return to home position
+- `grind_beans` / `pour_liquid` → Coffee-specific operations
+
+**Communication with Routine**:
+```python
+# Routine calls Robot Arm for physical operations
+robot_request = {
+  "function": "move_to_position",
+  "params": {"x": 300, "y": 200, "z": 150, "speed": 50},
+  "arm_id": 1
+}
+
+robot_response = {
+  "success": True,
+  "message": "Moved to position (300, 200, 150) at 50mm/s",
+  "details": {
+    "arm_id": 1,
+    "final_position": {"x": 300, "y": 200, "z": 150},
+    "execution_time": 2.0,
+    "simulation_mode": False
+  }
+}
+```
+
+**Deployment Modes**:
+- **Simulation Mode** (`ROBOT_SIMULATION=true`): For development and testing
+- **Hardware Mode** (`ROBOT_SIMULATION=false`): For physical robot integration
+
+**Robot Function Routing**:
+The Robot Arm Service intelligently routes function calls:
+- **Test Functions** (`robot_test1`, `robot_test2`): Executed locally for testing
+- **Real Robot Functions** (all others): Routed to robot containers via RabbitMQ
+- **Robot Container Communication**: `robot_container_1` and `robot_container_2` services
+- **ACTION_MAP Integration**: Direct access to robot container's ACTION_MAP functions
+
+**Events Published**:
+- `robot.action_started` → Robot action execution started
+- `robot.action_completed` → Robot action execution completed
+- `robot.action_error` → Robot action execution failed
+- `robot.emergency_stopped` → Emergency stop activated
+- `robot.calibration_completed` → Calibration procedure finished
+
 ### API Bridge Service
 **Port**: 8000 (HTTP + WebSocket)  
 **Role**: Protocol translator and real-time gateway
@@ -656,6 +800,8 @@ services:
   scheduler-service:    # Task orchestration  
   routine-service:      # Task execution
   validation-service:   # Inventory monitoring
+  automation-service:   # Equipment control
+  robot-arm-service:    # Robot control & coordination
   api-bridge:          # HTTP interface
   dashboard:           # Web interface
   
@@ -663,7 +809,15 @@ services:
   rabbitmq:           # Message broker
   postgres:           # Data persistence
   redis:              # Queue management
+  
+  # Robot Hardware (docker-compose.arms.yml only)
+  robot1:             # Dobot Nova5 Robot Arm 1
+  robot2:             # Dobot Nova5 Robot Arm 2
 ```
+
+**Deployment Options**:
+- **Software-Only**: `docker-compose.yml` - For development and testing without physical robots
+- **Full Hardware**: `docker-compose.arms.yml` - Complete system with robot arm integration
 
 ### Production Deployment
 
@@ -755,6 +909,23 @@ curl -X POST http://localhost:8000/api/automation/automate \
   -H "Content-Type: application/json" \
   -d '{"function":"automation_test1","params":{}}'
 
+# Test robot arm service integration (test functions)
+curl -X POST http://localhost:8000/api/robot_arm/robot_action \
+  -H "Content-Type: application/json" \
+  -d '{"function":"robot_test1","params":{},"arm_id":1}'
+
+# Test robot arm service integration (real robot functions via container)
+curl -X POST http://localhost:8000/api/robot_arm/robot_action \
+  -H "Content-Type: application/json" \
+  -d '{"function":"home","params":{},"arm_id":1}'
+
+# Test robot movement
+curl -X POST http://localhost:8000/api/robot_arm/robot_action \
+  -H "Content-Type: application/json" \
+  -d '{"function":"move_to_position","params":{"x":300,"y":200,"z":150},"arm_id":1}'
+
+
+
 # End-to-end order processing test
 curl -X POST http://localhost:8000/api/orders/create \
   -H "Content-Type: application/json" \
@@ -799,6 +970,7 @@ docker logs barns-scheduler -f
 docker logs barns-routine -f
 docker logs barns-validation -f
 docker logs barns-automation -f
+docker logs barns-robot-arm -f
 
 # Verify recipe configuration
 curl http://localhost:8000/api/recipes
@@ -808,6 +980,9 @@ curl -X POST http://localhost:8000/api/validation/health
 
 # Check automation service health  
 curl -X POST http://localhost:8000/api/automation/health
+
+# Check robot arm service health
+curl -X POST http://localhost:8000/api/robot_arm/health
 ```
 
 #### 4. Database Connection Issues
@@ -819,6 +994,36 @@ docker exec -it barns-postgres psql -U barns_user -d barns_oms -c "\dt"
 # Redis connectivity  
 docker logs barns-redis
 docker exec -it barns-redis redis-cli ping
+```
+
+#### 5. Robot Arm Connection Issues (docker-compose.arms.yml only)
+```bash
+# Check robot container status
+docker logs oms_robot_1 -f
+docker logs oms_robot_2 -f
+
+# Verify robot hardware connections
+lsusb | grep -i dobot  # Should show USB connections
+ping 192.168.100.249   # Robot 1 IP
+ping 192.168.100.248   # Robot 2 IP
+
+# Check camera device availability
+ls -la /dev/video*     # Should show camera devices
+
+# Access robot VNC interfaces
+# Robot 1: localhost:5901
+# Robot 2: localhost:5902
+
+# Check ROS 2 domain isolation
+docker exec -it oms_robot_1 bash -c "echo \$ROS_DOMAIN_ID"  # Should be 0
+docker exec -it oms_robot_2 bash -c "echo \$ROS_DOMAIN_ID"  # Should be 1
+
+# Check robot container RabbitMQ service status
+docker logs oms_robot_1 | grep "Robot Container.*service started"
+docker logs oms_robot_2 | grep "Robot Container.*service started"
+
+# Test robot container communication
+curl -X POST http://localhost:8000/api/robot_arm/list_actions  # Should show robot container actions
 ```
 
 ### Performance Monitoring

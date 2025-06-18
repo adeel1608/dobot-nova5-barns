@@ -69,15 +69,31 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
         logger.error(f"Error calling automation service: {str(e)}")
         return {"success": False, "message": f"Error calling automation service: {str(e)}"}
 
-def call_robot(func_name: str, params: dict, arm_id: int):
+async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client: RabbitMQClient):
     """
-    Calls the robot service with the given function name and parameters.
-    Note: This is synchronous for now, but could be made async if robot service supports it
+    Calls the robot service with the given function name and parameters via RabbitMQ.
     """
     try:
-        # TODO: Implement actual robot call via RabbitMQ when robot service is available
-        logger.info(f"Robot call: {func_name} on arm {arm_id} with params {params}")
-        return {"success": True, "message": "robot call successful"}
+        # Add arm_id to params for robot service
+        robot_params = {**params, "arm_id": arm_id}
+        
+        response = await rabbitmq_client.send_request(
+            target_service="robot_arm",
+            action="robot_action",
+            data={
+                "function": func_name,
+                "params": robot_params,
+                "arm_id": arm_id
+            },
+            timeout=60  # Robot actions might take longer
+        )
+        
+        if response.get("error"):
+            logger.error(f"Robot service error: {response['error']}")
+            return {"success": False, "message": f"Robot service error: {response['error']}"}
+        
+        return response
+        
     except Exception as e:
         logger.error(f"Error calling robot service: {str(e)}")
         return {"success": False, "message": f"Error calling robot service: {str(e)}"}
@@ -153,7 +169,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     break  # abort on validation failure
                     
             elif step_type == "robot":
-                res = call_robot(func_name, params, arm_id=arm_id)
+                res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
                 if not res.get("success", False):
                     message = f"Robot error: {res.get('message', '')}"
                     await publish_event("robot.error", 
