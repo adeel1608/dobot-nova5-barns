@@ -4,7 +4,7 @@
 
 A comprehensive microservices-based automation platform for business operations, robotics control, and real-time monitoring with AI integration.
 
-## �� Overview
+## Overview
 
 BARNS is an event-driven microservices platform that orchestrates complex robotic operations through intelligent task decomposition, real-time monitoring, and scalable service communication.
 
@@ -35,7 +35,7 @@ BARNS is an event-driven microservices platform that orchestrates complex roboti
 ### High-Level System Flow
 
 ```
-┌─────────────────┐    HTTP/WebSocket    ┌─────────────────┐
+┌─────────────────┐    HTTP/WebSocket     ┌─────────────────┐
 │   Dashboard     │ ◄───────────────────► │   API Bridge    │
 │   (Frontend)    │                       │  (HTTP→RabbitMQ)│
 └─────────────────┘                       └─────────────────┘
@@ -98,6 +98,17 @@ Feedback ←────────────┘
 ```
 
 **Used for:** Task execution, robotic arm coordination
+
+### 4. Service Coordination Pattern (Synchronous Multi-Service)
+```
+Routine Service → RabbitMQ → Validation Service
+                │                     │
+                ├─ RabbitMQ → Automation Service  
+                │                     │
+                └─ Responses ←────────┘
+```
+
+**Used for:** Multi-step task execution requiring validation and automation coordination
 
 ---
 
@@ -165,6 +176,33 @@ sequenceDiagram
     end
 ```
 
+#### Phase 4: Task Execution with Service Coordination
+```mermaid
+sequenceDiagram
+    participant RT as Routine Service
+    participant V as Validation Service
+    participant A as Automation Service
+    participant ARM as Robot Arm
+    participant S as Scheduler
+
+    Note over RT: Process task steps sequentially
+    
+    RT->>V: validate (check_ingredient_availability)
+    V->>RT: {passed: true, details: "sufficient ingredients"}
+    
+    RT->>ARM: robot (grind_beans)
+    ARM->>RT: {success: true, message: "beans ground"}
+    
+    RT->>A: automate (heat_water)
+    A->>RT: {success: true, details: "water heated to 93°C"}
+    
+    RT->>V: validate (update_inventory)
+    V->>RT: {passed: true, details: "inventory updated"}
+    
+    RT->>S: task_completed event
+    S->>S: Update order progress
+```
+
 ### Real-time Dashboard Updates
 
 ```
@@ -174,7 +212,77 @@ Service Event → RabbitMQ → API Bridge → WebSocket → Dashboard
      └─ task_completed                                  └─ Progress Bar
      └─ system_alert                                    └─ Notification
      └─ inventory_warning                               └─ Alert Panel
+     └─ validation.failed                               └─ Error Dialog
+     └─ automation.error                                └─ Equipment Alert
 ```
+
+### Service Coordination Patterns
+
+#### Routine ↔ Validation Communication
+```
+Routine Service                    Validation Service
+     │                                     │
+     ├─ validation step execution          │
+     ├─ send_request("validation", ...)────┤
+     │                                     ├─ check_ingredient_availability()
+     │                                     ├─ update_inventory()
+     │                                     ├─ validate_test1/test2()
+     ├─ await response ◄───────────────────┤
+     ├─ continue/abort based on result     │
+```
+
+#### Routine ↔ Automation Communication  
+```
+Routine Service                    Automation Service
+     │                                     │
+     ├─ automation step execution          │
+     ├─ send_request("automation", ...)────┤
+     │                                     ├─ heat_water()
+     │                                     ├─ dispense_milk()
+     │                                     ├─ automation_test1/test2()
+     ├─ await response ◄───────────────────┤
+     ├─ continue/abort based on result     │
+```
+
+### Complete System Communication Flow
+
+```
+┌─────────────┐   HTTP    ┌─────────────┐   RabbitMQ   ┌─────────────┐
+│  Dashboard  │◄─────────►│ API Bridge  │◄────────────►│     OMS     │
+└─────────────┘           └─────────────┘              └─────────────┘
+                                │                              │
+                          WebSocket Events                RabbitMQ Messages
+                                │                              │
+                                ▼                              ▼
+                         Real-time Updates              ┌─────────────┐
+                                                        │  Scheduler  │
+                                                        └─────────────┘
+                                                               │
+                                                        RabbitMQ Messages
+                                                               │
+                                                               ▼
+                                                        ┌─────────────┐
+                                                        │   Routine   │
+                                                        └─────────────┘
+                                                        │             │
+                                              RabbitMQ Messages      Robot
+                                                        │           Control
+                                                        ▼             │
+                                        ┌─────────────┐   ┌─────────────┐
+                                        │ Validation  │   │ Automation  │
+                                        └─────────────┘   └─────────────┘
+                                        │             │   │             │
+                                   Inventory       Test   Equipment    Test
+                                  Management    Functions   Control  Functions
+```
+
+**Message Flow Summary**:
+1. **User Interaction**: Dashboard → API Bridge (HTTP)
+2. **Order Management**: API Bridge → OMS (RabbitMQ)
+3. **Task Orchestration**: OMS → Scheduler (RabbitMQ)
+4. **Task Execution**: Scheduler → Routine (RabbitMQ)
+5. **Service Coordination**: Routine ↔ Validation/Automation (RabbitMQ)
+6. **Real-time Updates**: All Services → API Bridge → Dashboard (WebSocket)
 
 ---
 
@@ -224,10 +332,11 @@ curl -X POST http://localhost:8000/api/orders/create \
 
 | Service | Listens To | Sends To | Purpose |
 |---------|-----------|----------|---------|
-| **OMS** | `api-bridge`, `scheduler.*` | `scheduler`, `dashboard.*` | Order lifecycle management |
+| **OMS** | `api-bridge`, `scheduler.*`, `validation.*`, `automation.*`, `routine.*` | `scheduler`, `dashboard.*` | Order lifecycle management |
 | **Scheduler** | `oms`, `routine.*` | `routine`, `oms.*` | Task orchestration & dependency resolution |
-| **Routine** | `scheduler` | `scheduler.*`, `robot_arms` | Task execution & robotic control |
-| **Validation** | `oms`, `routine` | `inventory.*`, `alerts.*` | Ingredient validation & monitoring |
+| **Routine** | `scheduler` | `validation`, `automation`, `scheduler.*` | Task execution & service coordination |
+| **Validation** | `routine`, `inventory.*` | `routine.*`, `oms.*`, `alerts.*` | Ingredient validation & inventory monitoring |
+| **Automation** | `routine`, `system.*` | `routine.*`, `system.*` | Equipment control & automation functions |
 | **API Bridge** | `dashboard`, `all_services.*` | `all_services` | HTTP ↔ RabbitMQ translation |
 
 ### OMS (Order Management Service)
@@ -304,22 +413,160 @@ curl -X POST http://localhost:8000/api/orders/create \
 
 ### Routine Service
 **Port**: Internal (RabbitMQ only)  
-**Role**: Task execution coordinator
+**Role**: Task execution coordinator & service orchestrator
 
 ```python
 # Key Responsibilities
 - Task queue management per robotic arm
-- Task execution via configurable functions
+- Multi-step task execution with service coordination
+- Validation and automation service integration
 - Robotic arm coordination and status
 - Feedback provision to Scheduler
 - Error handling and recovery
 ```
 
 **Architecture**:
-- **Per-Arm Queues**: Separate async queues for each robotic arm
+- **Per-Arm Queues**: Separate async queues for each robotic arm (Arm1, Arm2)
 - **Worker Processes**: Dedicated workers per arm for parallel execution
-- **Task Configurations**: JSON-based function definitions
+- **Task Configurations**: JSON-based step definitions with service calls
+- **Service Coordination**: Direct communication with Validation and Automation
 - **Event-Driven Feedback**: Real-time task completion reporting
+
+**Task Execution Flow**:
+1. **Task Reception**: Receives task from Scheduler service
+2. **Step Processing**: Executes each step sequentially based on type:
+   - `validation` steps → Call Validation service via RabbitMQ
+   - `automation` steps → Call Automation service via RabbitMQ  
+   - `robot` steps → Direct robotic arm control
+3. **Service Coordination**: Waits for responses from called services
+4. **Error Handling**: Aborts task on any step failure
+5. **Feedback**: Reports completion/failure to Scheduler
+
+**Sample Task Configuration**:
+```json
+{
+  "brew_espresso": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "check_ingredient_availability",
+        "params": {"ingredient": "coffee_beans", "amount": 1}
+      },
+      {
+        "type": "robot",
+        "function": "grind_beans",
+        "params": {"grind_size": "fine"}
+      },
+      {
+        "type": "automation",
+        "function": "heat_water",
+        "params": {"target_temp_c": 93, "volume_ml": 250}
+      },
+      {
+        "type": "validation",
+        "function": "update_inventory",
+        "params": {"ingredient": "coffee_beans", "amount_used": 1}
+      }
+    ]
+  }
+}
+```
+
+### Validation Service
+**Port**: Internal (RabbitMQ only)  
+**Role**: Inventory management & quality validation
+
+```python
+# Key Responsibilities
+- Ingredient availability checking
+- Inventory level tracking and updates  
+- Quality control validation functions
+- Threshold monitoring and alerts
+- Test validation for system verification
+```
+
+**Message Handlers**:
+- `validate` → Execute specific validation function
+- `inventory_status` → Get current inventory levels
+- `inventory_refill` → Handle inventory refill operations
+- `inventory_category_summary` → Get categorized inventory data
+
+**Validation Functions**:
+- `check_ingredient_availability` → Verify sufficient ingredients for recipe
+- `update_inventory` → Deduct used ingredients from inventory
+- `validate_test1/test2` → System integration test validations
+- `check_temperature` → Temperature sensor validation
+- `check_cup_present` → Cup detection validation
+
+**Communication with Routine**:
+```python
+# Routine calls Validation for ingredient checks
+validation_request = {
+  "function": "check_ingredient_availability",
+  "params": {"ingredient": "whole_milk", "amount": 2}
+}
+
+validation_response = {
+  "passed": True,
+  "details": "Sufficient whole_milk available: 80 >= 2",
+  "data": {"ingredient": "whole_milk", "available": 80, "needed": 2}
+}
+```
+
+**Events Published**:
+- `validation.threshold_warning` → Low inventory alerts
+- `validation.failed` → Validation failure notifications
+- `validation.inventory_updated` → Inventory change events
+
+### Automation Service
+**Port**: Internal (RabbitMQ only)  
+**Role**: Equipment control & automation functions
+
+```python
+# Key Responsibilities
+- Coffee brewing equipment control
+- Water heating and temperature management
+- Milk dispensing and preparation
+- Automated testing functions
+- Equipment status monitoring
+```
+
+**Message Handlers**:
+- `automate` → Execute specific automation function
+- `list_functions` → Get available automation functions
+- `stop_automation` → Emergency stop automation processes
+- `health` → Service health and function availability
+
+**Automation Functions**:
+- `heat_water` → Heat water to specified temperature
+- `dispense_milk` → Automated milk dispensing system
+- `automation_test1/test2` → Equipment testing functions
+
+**Communication with Routine**:
+```python
+# Routine calls Automation for equipment operations
+automation_request = {
+  "function": "heat_water",
+  "params": {"target_temp_c": 93, "volume_ml": 250}
+}
+
+automation_response = {
+  "success": True,
+  "message": "Heated 250ml water to 93°C",
+  "details": {
+    "target_temperature": 93,
+    "volume": 250,
+    "actual_temperature": 93,
+    "duration_sec": 3
+  }
+}
+```
+
+**Events Published**:
+- `automation.started` → Function execution started
+- `automation.completed` → Function execution completed
+- `automation.error` → Function execution failed
+- `automation.emergency_stopped` → Emergency stop triggered
 
 ### API Bridge Service
 **Port**: 8000 (HTTP + WebSocket)  
@@ -376,11 +623,24 @@ wsManager.connect('main', '/ws', {
 
 **Individual Service Scaling**:
 ```bash
-# Scale specific services independently
+# Scale validation service for high-volume inventory checks
 docker-compose up -d --scale validation-service=3
+
+# Scale automation service for multiple equipment operations
+docker-compose up -d --scale automation-service=2
+
+# Scale routine service for increased robotic arm coordination
 docker-compose up -d --scale routine-service=2
+
+# Scale scheduler for complex order processing
 docker-compose up -d --scale scheduler-service=2
 ```
+
+**Service Scaling Recommendations**:
+- **Validation Service**: Scale when high inventory validation load
+- **Automation Service**: Scale when multiple equipment operations run concurrently  
+- **Routine Service**: Scale for increased robotic arm coordination
+- **Scheduler Service**: Scale for complex recipe processing loads
 
 **Load Distribution**:
 - **RabbitMQ**: Handles message routing and load balancing
@@ -478,12 +738,27 @@ docker exec -it barns-rabbitmq rabbitmqctl list_queues
 ```bash
 # Unit tests per service
 cd services/oms && python -m pytest tests/
+cd services/validation && python -m pytest tests/
+cd services/automation && python -m pytest tests/
 
 # Integration testing
 docker-compose -f docker-compose.test.yml up --build
 
-# End-to-end testing
-curl -X POST http://localhost:8000/api/orders/create && \
+# Service coordination testing
+# Test validation service integration
+curl -X POST http://localhost:8000/api/validation/validate \
+  -H "Content-Type: application/json" \
+  -d '{"function":"validate_test1","params":{}}'
+
+# Test automation service integration  
+curl -X POST http://localhost:8000/api/automation/automate \
+  -H "Content-Type: application/json" \
+  -d '{"function":"automation_test1","params":{}}'
+
+# End-to-end order processing test
+curl -X POST http://localhost:8000/api/orders/create \
+  -H "Content-Type: application/json" \
+  -d '{"cups":[{"type":"pipelinetest","size":"regular","addons":[]}]}' && \
 curl -X POST http://localhost:8000/api/orders/1/start
 ```
 
@@ -522,9 +797,17 @@ curl -X POST http://localhost:8000/api/orders/create
 docker logs barns-oms -f
 docker logs barns-scheduler -f  
 docker logs barns-routine -f
+docker logs barns-validation -f
+docker logs barns-automation -f
 
 # Verify recipe configuration
 curl http://localhost:8000/api/recipes
+
+# Check validation service health
+curl -X POST http://localhost:8000/api/validation/health
+
+# Check automation service health  
+curl -X POST http://localhost:8000/api/automation/health
 ```
 
 #### 4. Database Connection Issues
