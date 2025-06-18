@@ -1,0 +1,207 @@
+{
+    "pull_espresso": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "pre_check",
+          "params": {
+            "request_id": "275ceafa-59e7-4639-b35f-61234f2ec634",
+            "client_type": "scheduler",
+            "function_name": "pre_check",
+            "payload": {
+                "items": [{
+                    "drink_name": "cappuccino",
+                    "size": "small", 
+                    "cup_id": "H9",
+                    "temperature": "hot",
+                    "ingredients": {
+                    "espresso": {
+                        "type": "regular",
+                        "amount": 1
+                    },
+                    "milk": {
+                        "type": "whole",
+                        "amount": 150
+                    }
+                }
+                }]
+            }
+        }
+        },
+        {
+          "type": "automation",
+          "function": "grind_beans",
+          "params": {"grind_size": "fine", "amount_g": 18}
+        },
+        {
+          "type": "automation",
+          "function": "heat_water",
+          "params": {"target_temp_c": 93, "volume_ml": 250}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_espresso_head",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_pump",
+          "params": {"duration_sec": 30}
+        },
+        {
+          "type": "validation",
+          "function": "update_inventory",
+          "params": {
+            "request_id": "594d9767-33b6-4e3e-a424-05ccf08f27d8",
+            "client_type": "scheduler",
+            "function_name": "update_inventory",
+            "payload": {
+                "items": [{
+                    "drink_name": "cappuccino",
+                    "size": "small", 
+                    "cup_id": "H9",
+                    "temperature": "hot",
+                    "ingredients": {
+                    "espresso": {
+                        "type": "regular",
+                        "amount": 1
+                    },
+                    "milk": {
+                        "type": "whole",
+                        "amount": 150
+                    }
+                }
+            }],
+                "ingredients": [{"cup_id": "H9", "amount": 1}]
+            }
+        }
+        }
+      ]
+    },
+    "steam_milk": {
+      "steps": [
+        {
+          "type": "automation",
+          "function": "dispense_milk",
+          "params": {"milk_type": "soya", "amount": 120}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_steam_wand",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_steam",
+          "params": {"duration_sec": 20}
+        },
+        {
+          "type": "validation",
+          "function": "check_temperature",
+          "params": {"min_temp_c": 60}
+        }
+      ]
+    },
+    "pour_milk": {
+      "steps": [
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "pour_liquid",
+          "params": {"volume_ml": 150}
+        }
+      ]
+    },
+    "sprinkle_cocoa": {
+      "steps": [
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_sprinkle",
+          "params": {"amount_g": 2}
+        }
+      ]
+    },
+    "automated_cleaning": {
+      "steps": [
+        {
+          "type": "automation",
+          "function": "clean_system",
+          "params": {"cycle_type": "full"}
+        },
+        {
+          "type": "automation",
+          "function": "activate_conveyor",
+          "params": {"direction": "forward", "duration_sec": 10, "speed": "slow"}
+        },
+        {
+          "type": "validation",
+          "function": "check_cup_present",
+          "params": {}
+        }
+      ]
+    },
+    "soya_latte": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "check_cup_present",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "grind_beans",
+          "params": {"grind_size": "fine", "amount_g": 18}
+        },
+        {
+          "type": "automation",
+          "function": "heat_water",
+          "params": {"target_temp_c": 93, "volume_ml": 250}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_espresso_head",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_pump",
+          "params": {"duration_sec": 30}
+        },
+        {
+          "type": "automation",
+          "function": "dispense_milk",
+          "params": {"milk_type": "soya", "amount": 120}
+        },
+        {
+          "type": "robot",
+          "function": "move_to_steam_wand",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "activate_steam",
+          "params": {"duration_sec": 20}
+        },
+        {
+          "type": "robot",
+          "function": "position_over_cup",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "pour_liquid",
+          "params": {"volume_ml": 120}
+        }
+      ]
+    }
+  }
+  

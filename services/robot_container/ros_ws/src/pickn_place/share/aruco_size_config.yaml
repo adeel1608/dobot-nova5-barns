@@ -1,0 +1,12 @@
+aruco_markers:
+  - id_range: [1, 4] #for calibration
+    size_mm: 60
+  - id_range: [11, 20]
+    size_mm: 25
+  - id_range: [21, 30]
+    size_mm: 40
+  - id_range: [31, 40]
+    size_mm: 50
+  - id_range: [41, 50]
+    size_mm: 60
+

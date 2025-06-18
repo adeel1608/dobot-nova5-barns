@@ -1,0 +1,325 @@
+/**
+ * Logs Page Styles
+ * Light theme design for system logs monitoring
+ */
+
+.logs-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+.logs-page h1 {
+  color: white;
+}
+
+.logs-page p {
+  color: #d1d5db;
+}
+
+/* Light Theme Scrollbar */
+.logs-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* Webkit scrollbar styling for better browser support */
+.logs-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.logs-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.logs-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Log Entry Animations */
+.log-entry-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.log-entry-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Light Theme Log Level Color Classes */
+.log-level-error {
+  color: #dc2626;
+  background-color: #fef2f2;
+  border-left-color: #ef4444;
+}
+
+.log-level-warning {
+  color: #d97706;
+  background-color: #fffbeb;
+  border-left-color: #f59e0b;
+}
+
+.log-level-info {
+  color: #2563eb;
+  background-color: #eff6ff;
+  border-left-color: #3b82f6;
+}
+
+.log-level-success {
+  color: #059669;
+  background-color: #ecfdf5;
+  border-left-color: #10b981;
+}
+
+/* Status Indicator Animation */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-dot-pulse {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Enhanced Light Theme Focus States */
+.logs-input:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #3b82f6;
+  border-color: transparent;
+}
+
+.logs-select:focus {
+  outline: none;
+  ring: 2px;
+  ring-color: #3b82f6;
+  border-color: transparent;
+}
+
+.logs-button {
+  transition: all 0.2s ease;
+}
+
+.logs-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Light Theme Stats Bar */
+.stats-bar {
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Light Theme Filter Bar */
+.filter-bar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Light Theme Service Status */
+.service-status-online {
+  color: #059669;
+}
+
+.service-status-offline {
+  color: #dc2626;
+}
+
+.service-status-unknown {
+  color: #6b7280;
+}
+
+/* Loading States */
+.logs-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.logs-loading-spinner {
+  border: 3px solid #f3f4f6;
+  border-radius: 50%;
+  border-top: 3px solid #3b82f6;
+  width: 2rem;
+  height: 2rem;
+  animation: spin 1s linear infinite;
+  margin-right: 0.75rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.logs-empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #6b7280;
+}
+
+.logs-empty-icon {
+  color: #9ca3af;
+  margin-bottom: 1rem;
+}
+
+.logs-empty-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.5rem;
+}
+
+.logs-empty-description {
+  color: #6b7280;
+}
+
+/* Light Theme Controls */
+.control-button {
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+  color: #374151;
+  transition: all 0.2s ease;
+}
+
+.control-button:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.control-button.active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* Light Theme Toggle Switch */
+.toggle-switch {
+  background-color: #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.toggle-switch.active {
+  background-color: #3b82f6;
+}
+
+.toggle-switch-handle {
+  background-color: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .logs-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .logs-controls {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .logs-page {
+    padding: 0.5rem;
+  }
+  
+  .filter-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .stats-bar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+  
+  .service-status-bar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: flex-start;
+  }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .logs-page {
+    background: #ffffff;
+    color: #000000;
+  }
+  
+  .log-level-error {
+    color: #b91c1c;
+    border-left-color: #b91c1c;
+    background-color: #fef2f2;
+  }
+  
+  .log-level-warning {
+    color: #b45309;
+    border-left-color: #b45309;
+    background-color: #fffbeb;
+  }
+  
+  .log-level-info {
+    color: #1d4ed8;
+    border-left-color: #1d4ed8;
+    background-color: #eff6ff;
+  }
+  
+  .log-level-success {
+    color: #047857;
+    border-left-color: #047857;
+    background-color: #ecfdf5;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .log-entry-enter-active,
+  .logs-button:hover,
+  .status-dot-pulse,
+  .logs-loading-spinner {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}
+
+/* Print Styles */
+@media print {
+  .logs-page {
+    background: white;
+    color: black;
+  }
+  
+  .logs-header,
+  .filter-bar,
+  .stats-bar {
+    background: white;
+    border: 1px solid #000000;
+  }
+  
+  .control-button,
+  .logs-button {
+    display: none;
+  }
+} 

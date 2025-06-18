@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>oms_v1</name>
+  <version>0.0.0</version>
+  <description>Basic ROS2 Humble Python package for oms_v1</description>
+  <maintainer email="adeel@qltyss.com">Adeel Mohammed Khan</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+

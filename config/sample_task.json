@@ -1,0 +1,31 @@
+{
+"pull_espresso": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "check_beans",
+        "params": {"min_grams": 18}
+      },
+      {
+        "type": "automation",
+        "function": "grind_beans",
+        "params": {"grind_size": "fine", "amount_g": 18}
+      },
+      {
+        "type": "automation",
+        "function": "heat_water",
+        "params": {"target_temp_c": 93, "volume_ml": 250}
+      },
+      {
+        "type": "robot",
+        "function": "move_to_espresso_head",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "activate_pump",
+        "params": {"duration_sec": 30}
+      }
+    ]
+  }
+}

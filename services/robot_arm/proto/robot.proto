@@ -1,0 +1,19 @@
+// services/robot_arm/proto/robot.proto
+syntax = "proto3";
+package robot;
+
+service RobotArmService {
+  // Executes a robot action and returns success or failure.
+  rpc ExecuteAction(ActionRequest) returns (ActionResult) {}
+  // (We could define a streaming RPC for feedback, e.g., rpc ExecuteActionStream(ActionRequest) returns (stream ActionProgress) {})
+}
+
+message ActionRequest {
+  string name = 1;            // name of the action, e.g., "pour_espresso"
+  map<string, string> params = 2;  // parameters for the action (could also use specific fields or a oneof for different actions)
+}
+
+message ActionResult {
+  bool success = 1;
+  string message = 2;         // could contain error detail or "OK"
+}

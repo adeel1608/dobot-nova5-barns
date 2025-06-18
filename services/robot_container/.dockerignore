@@ -1,0 +1,68 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Node.js dependencies (uncomment if applicable)
+node_modules
+
+# Python artifacts and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+venv/
+env/
+.venv/
+.env
+.env.local
+.env.*.local
+
+# System files and temp
+*.DS_Store
+*.swp
+*.swo
+*.bak
+*.tmp
+Thumbs.db
+
+# IDE/editor folders
+.vscode/
+.idea/
+
+# Test and coverage
+.coverage
+coverage/
+tests/
+test/
+
+# Log files and directories
+*.log
+log/
+logs/
+ros_logs/
+
+# Build/output artifacts
+dist/
+build/
+install/
+*.egg-info/
+*.out
+*.exe
+*.dll
+*.o
+*.a
+*.so
+
+# Docker build cache
+*.tar
+*.img
+
+# ROS 2 logs and bags
+Log/
+*.bag
+*.db3
+
+# Custom temp
+tmp/
+cache/

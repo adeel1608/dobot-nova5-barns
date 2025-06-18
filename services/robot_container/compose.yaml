@@ -1,0 +1,91 @@
+services:
+  robot1:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_1:dev
+    container_name: oms_robot_1
+
+    # ---------- runtime settings -------------------------------------------
+    network_mode: host        # Fast-DDS multicast
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.100.249
+      - ROS_DOMAIN_ID=0
+
+    devices:
+      - "/dev/video0:/dev/video0"
+      - "/dev/video1:/dev/video1"
+      - "/dev/video2:/dev/video2"
+      - "/dev/video3:/dev/video3"
+      - "/dev/video4:/dev/video4"
+      - "/dev/video5:/dev/video5"
+      - "/dev/video6:/dev/video6"
+      - "/dev/video7:/dev/video7"
+      - "/dev/media0:/dev/media0"
+      - "/dev/media1:/dev/media1"
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+
+    volumes:
+      - ./ros_ws:/root/ros_ws          # mount your source & build space
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    user: "${UID}:${GID}"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    ports:
+      - "5901:5901"
+
+
+  robot2:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_2:dev
+    container_name: oms_robot_2
+
+    # ---------- runtime settings -------------------------------------------
+    network_mode: host        # Fast-DDS multicast
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.100.248
+      - ROS_DOMAIN_ID=1
+
+    devices:
+      - "/dev/video10:/dev/video10"
+      - "/dev/video11:/dev/video11"
+      - "/dev/video12:/dev/video12"
+      - "/dev/video13:/dev/video13"
+      - "/dev/video14:/dev/video14"
+      - "/dev/video15:/dev/video15"
+      - "/dev/video16:/dev/video16"
+      - "/dev/video17:/dev/video17"
+      - "/dev/media3:/dev/media3"
+      - "/dev/media4:/dev/media4"
+      - "/dev/ttyUSB1:/dev/ttyUSB1"
+
+    volumes:
+      - ./ros_ws:/root/ros_ws          # mount your source & build space
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    user: "${UID}:${GID}"
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    ports:
+      - "5902:5901"

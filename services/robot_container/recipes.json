@@ -1,0 +1,77 @@
+{
+  "Espresso": [
+    {
+      "action": "pick_cup",
+      "size": "9oz",
+      "stage": "stage_1"
+    },
+    {
+      "action": "pull_espresso",
+      "port": "port_3"
+    },
+    {
+      "action": "pick_pitcher",
+      "port": "port_3"
+    },
+    {
+      "action": "pour_pitcher",
+      "cup": "cup_1"
+    },
+    {
+      "action": "return_pitcher",
+      "port": "port_3"
+    },
+    {
+      "action": "serve",
+      "stage": "stage_1"
+    },
+    {
+      "action": "clean",
+      "port": "port_3"
+    }
+  ],
+  "Americano": [
+    {
+      "action": "pick_cup",
+      "size": "9oz",
+      "stage": "stage_1"
+    },
+    {
+      "action": "pull_espresso",
+      "port": "port_1"
+    },
+    {
+      "action": "pick_pitcher",
+      "port": "port_1"
+    },
+    {
+      "action": "pour_pitcher",
+      "cup": "cup_1"
+    },
+    {
+      "action": "hot_water"
+    },
+    {
+      "action": "pour_pitcher",
+      "cup": "cup_1"
+    },
+    {
+      "action": "return_pitcher",
+      "port": "port_1"
+    },
+    {
+      "action": "serve",
+      "stage": "stage_1"
+    },
+    {
+      "action": "clean",
+      "port": "port_1"
+    }
+  ],
+  "get_machine_position": [
+    {
+      "action": "get_machine_position"
+    }
+  ]
+}
+

@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+pydantic
+requests          # for validation_client
+grpcio            # for robot_client
+protobuf          # for gRPC codegen
+pika              # for event_publisher

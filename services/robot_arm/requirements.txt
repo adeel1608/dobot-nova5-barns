@@ -1,0 +1,12 @@
+# RabbitMQ dependencies for async messaging
+aio-pika==9.3.1
+
+# Core async and utility libraries  
+asyncio-mqtt==0.13.0
+
+# Optional: Keep gRPC for backwards compatibility with existing robot hardware
+grpcio==1.60.0
+grpcio-tools==1.60.0
+
+# Logging and utilities
+python-dateutil==2.8.2

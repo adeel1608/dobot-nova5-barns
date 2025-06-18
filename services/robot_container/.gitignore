@@ -1,0 +1,28 @@
+# ROS 2 workspace build outputs
+build/
+install/
+log/
+Log/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Docker build cache
+*.tar
+*.img
+*.bak
+
+# VSCode / PyCharm stuff
+.vscode/
+.idea/
+
+# ROS 2 bag files and logs
+*.bag
+*.db3
+ros_logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
