@@ -1,0 +1,423 @@
+/**
+ * Cameras Page Styles
+ * Optimized for maximum space utilization with 2x2 camera grid layout
+ */
+
+.cameras-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* Optimized Camera Grid Container */
+.camera-grid-container {
+  background-color: white;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Enhanced Camera Feed Cards */
+.camera-feed-card {
+  background-color: white;
+  border-radius: 1rem;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.camera-feed-card:hover {
+  box-shadow: 0 8px 25px 0 rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Larger Camera Stream Container */
+.camera-stream-container {
+  aspect-ratio: 16/9;
+  background-color: #111827;
+  position: relative;
+  overflow: hidden;
+  min-height: 300px; /* Ensure minimum size for better visibility */
+}
+
+.camera-stream-active {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.camera-stream-offline {
+  background-color: #1f2937;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  text-align: center;
+  min-height: 300px;
+}
+
+/* Enhanced Camera Overlay */
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.7) 0%,
+    transparent 25%,
+    transparent 75%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
+.camera-info-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.camera-name-badge {
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.camera-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.camera-status-badge.online {
+  background-color: #10b981;
+  color: white;
+}
+
+.camera-status-badge.offline {
+  background-color: #ef4444;
+  color: white;
+}
+
+.camera-status-indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  animation: pulse-smooth 2s infinite;
+}
+
+.camera-status-indicator.online {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.camera-status-indicator.offline {
+  background-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Enhanced Fullscreen Button */
+.camera-fullscreen-button {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  color: white;
+  padding: 0.75rem;
+  border-radius: 1rem;
+  opacity: 0;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.camera-feed-card:hover .camera-fullscreen-button {
+  opacity: 1;
+}
+
+.camera-fullscreen-button:hover {
+  background-color: rgba(0, 0, 0, 0.95);
+  transform: scale(1.1);
+}
+
+.camera-fullscreen-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Optimized 2x2 Grid Layout */
+.camera-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.camera-grid.grid-cols-1 {
+  grid-template-columns: 1fr;
+}
+
+.camera-grid.grid-cols-2 {
+  grid-template-columns: 1fr;
+}
+
+/* Responsive Grid Breakpoints - Optimized for larger cameras */
+@media (min-width: 768px) {
+  .camera-grid.grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+  
+  .camera-stream-container {
+    min-height: 350px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .camera-grid.grid-cols-2 {
+    gap: 2.5rem;
+  }
+  
+  .camera-stream-container {
+    min-height: 400px;
+  }
+  
+  .camera-name-badge {
+    font-size: 1.125rem;
+    padding: 1rem 1.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .camera-grid.grid-cols-2 {
+    gap: 3rem;
+  }
+  
+  .camera-stream-container {
+    min-height: 450px;
+  }
+}
+
+/* Loading States */
+.camera-loading-container {
+  background-color: white;
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.camera-loading-content {
+  padding: 3rem;
+  text-align: center;
+  color: #6b7280;
+}
+
+.camera-loading-spinner {
+  border: 4px solid #f3f4f6;
+  border-radius: 50%;
+  border-top: 4px solid #3b82f6;
+  width: 2.5rem;
+  height: 2.5rem;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1.5rem;
+}
+
+/* Error States */
+.camera-error-container {
+  background-color: #fef3f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.camera-error-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.camera-error-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.camera-error-text {
+  flex: 1;
+}
+
+.camera-error-title {
+  font-weight: 600;
+  color: #991b1b;
+  font-size: 0.875rem;
+}
+
+.camera-error-message {
+  color: #7f1d1d;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Empty State */
+.camera-empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+  color: #6b7280;
+}
+
+.camera-empty-icon {
+  margin: 0 auto 1.5rem;
+  color: #9ca3af;
+}
+
+.camera-empty-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.75rem;
+}
+
+.camera-empty-description {
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+/* Enhanced Fullscreen Modal */
+.camera-fullscreen-modal {
+  position: fixed;
+  inset: 0;
+  background-color: black;
+  z-index: 50;
+}
+
+.camera-fullscreen-header {
+  background-color: #1f2937;
+  border-bottom: 1px solid #374151;
+  padding: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.camera-fullscreen-title {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.camera-fullscreen-subtitle {
+  color: #d1d5db;
+  font-size: 1rem;
+}
+
+.camera-fullscreen-close {
+  color: white;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.camera-fullscreen-close:hover {
+  color: #d1d5db;
+  background-color: #374151;
+}
+
+.camera-fullscreen-content {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.camera-fullscreen-stream {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Enhanced Animations */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulse-smooth {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8; 
+    transform: scale(1.1);
+  }
+}
+
+/* Page Layout Optimizations */
+.cameras-page .container {
+  max-width: none;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .cameras-page .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .cameras-page .container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  .camera-feed-card,
+  .camera-fullscreen-button,
+  .camera-fullscreen-close {
+    transition: none;
+  }
+  
+  .camera-loading-spinner {
+    animation: none;
+    border-top-color: transparent;
+  }
+  
+  .camera-status-indicator {
+    animation: none;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .cameras-page {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  }
+  
+  .camera-grid-container,
+  .camera-feed-card {
+    background-color: #1e293b;
+    border-color: #374151;
+  }
+}

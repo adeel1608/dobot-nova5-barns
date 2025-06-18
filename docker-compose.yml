@@ -1,131 +1,286 @@
 version: '3.8'
 
 services:
-  # Database services
-  postgres:
-    image: postgres:14
-    environment:
-      POSTGRES_USER: barns_user
-      POSTGRES_PASSWORD: barns_password
-      POSTGRES_DB: barns_db
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database_init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_db"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: barns-rabbitmq
     ports:
-      - "5432:5432"
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - barns-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
+  # Redis for OMS queue management
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
+    container_name: barns-redis
     ports:
       - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - barns-network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
+      interval: 30s
+      timeout: 10s
       retries: 5
 
-  # Service - Order Management System
-  oms:
-    build: 
+  # PostgreSQL for OMS data persistence
+  postgres:
+    image: postgres:15-alpine
+    container_name: barns-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: barns_oms
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - barns-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_oms"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Validation Service
+  validation-service:
+    build:
       context: .
-      dockerfile: services/oms/Dockerfile
+      dockerfile: services/validation/Dockerfile.rabbitmq
+    container_name: barns-validation
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
     depends_on:
-      postgres:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Automation Service
+  automation-service:
+    build:
+      context: .
+      dockerfile: services/automation/Dockerfile.rabbitmq
+    container_name: barns-automation
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+
+  # Routine Service
+  routine-service:
+    build:
+      context: .
+      dockerfile: services/routine/Dockerfile.rabbitmq
+    container_name: barns-routine
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      ROUTINE_CONFIG_PATH: /app/config/tasks.json
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # Scheduler Service
+  scheduler-service:
+    build:
+      context: .
+      dockerfile: services/scheduler/Dockerfile.rabbitmq
+    container_name: barns-scheduler
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+      routine-service:
+        condition: service_healthy
+    volumes:
+      - ./services/scheduler/data:/app/services/scheduler/data
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 50s
+
+  # OMS Service
+  oms-service:
+    build:
+      context: .
+      dockerfile: services/oms/Dockerfile.rabbitmq
+    container_name: barns-oms
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: barns_oms
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_pass
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: barns_db
-      DB_USER: barns_user
-      DB_PASSWORD: barns_password
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      SCHEDULER_SERVICE_URL: http://scheduler:8000
+      postgres:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+
+  # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
+  api-bridge:
+    build:
+      context: .
+      dockerfile: services/api-bridge/Dockerfile
+    container_name: barns-api-bridge
     ports:
       - "8000:8000"
-
-  # Service - Scheduler
-  scheduler:
-    build:
-      context: .
-      dockerfile: services/scheduler/Dockerfile
     environment:
-      ROUTINE_SERVICE_URL: http://routine:8000
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+      routine-service:
+        condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
     volumes:
       - ./data:/app/data
-    ports:
-      - "8001:8000"
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
-  # Service - Routine
-  routine:
-    build:
-      context: .
-      dockerfile: services/routine/Dockerfile
-    environment:
-      SCHEDULER_SERVICE_URL: http://scheduler:8000
-      VALIDATION_SERVICE_URL: http://validation:8000
-      AUTOMATION_SERVICE_URL: http://automation:8000
-      ROUTINE_CONFIG_PATH: /app/config/tasks.json
-    volumes:
-      - ./config:/app/config
-    ports:
-      - "8002:8000"
-
-  # Service - Validation
-  validation:
-    build:
-      context: .
-      dockerfile: services/validation/Dockerfile
-    ports:
-      - "8003:8000"
-
-  # Service - Automation
-  automation:
-    build:
-      context: .
-      dockerfile: services/automation/Dockerfile
-    ports:
-      - "8005:8000"
-
-  # Service - Video Stream
-  video-stream:
+  # Video Stream Service (keeping HTTP for streaming)
+  video-stream-service:
     build:
       context: .
       dockerfile: services/video-stream/Dockerfile
-    environment:
-      CAMERA_SOURCES: "rtsp://arm1-camera:554/stream,rtsp://arm2-camera:554/stream"
+    container_name: barns-video-stream
     ports:
-      - "8004:8000"
+      - "8001:8000"
+    environment:
+      PYTHONPATH: /app
+    devices:
+      - /dev/video0:/dev/video0  # Primary webcam
+      - /dev/video1:/dev/video1  # Secondary webcam (if available)
+    privileged: true  # Required for camera access
+    volumes:
+      - /dev:/dev  # Access to device files
+    networks:
+      - barns-network
+    restart: unless-stopped
 
-  # Service - Dashboard
+  # Dashboard (keeping HTTP for web interface)
   dashboard:
     build:
       context: .
-      dockerfile: services/barns-dashboard/Dockerfile
-    environment:
-      REACT_APP_OMS_URL: http://localhost:8000
-      REACT_APP_SCHEDULER_URL: http://localhost:8001
-      REACT_APP_ROUTINE_URL: http://localhost:8002
-      REACT_APP_VALIDATION_URL: http://localhost:8003
-      REACT_APP_VIDEO_STREAM_URL: http://localhost:8004
-      REACT_APP_AUTOMATION_URL: http://localhost:8005
+      dockerfile: services/barns-dashboard/Dockerfile.rabbitmq
+    container_name: barns-dashboard
     ports:
-      - "3000:80"  # Expose on port 3000
+      - "3000:80"
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      VIDEO_STREAM_URL: http://video-stream-service:8000
+      API_BRIDGE_URL: http://api-bridge:8000
     depends_on:
-      - oms
-      - scheduler
-      - routine
-      - validation
-      - automation
-      - video-stream
+      rabbitmq:
+        condition: service_healthy
+      api-bridge:
+        condition: service_healthy
+      oms-service:
+        condition: service_started
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:80/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # RabbitMQ Management Tools (optional)
+  rabbitmq-cli:
+    image: rabbitmq:3.12-management
+    container_name: barns-rabbitmq-cli
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - barns-network
+    profiles:
+      - tools
+    command: ["tail", "-f", "/dev/null"]  # Keep container running for CLI access
 
 volumes:
-  postgres_data: 
+  rabbitmq_data:
+  redis_data:
+  postgres_data:
+
+networks:
+  barns-network:
+    driver: bridge 

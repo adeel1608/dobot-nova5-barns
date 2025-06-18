@@ -1,0 +1,284 @@
+/**
+ * Inventory Page Styles
+ * Responsive styles for the inventory page and components
+ */
+
+.inventory-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f7fafc 100%);
+  width: 100%;
+}
+
+/* Inventory Level Indicators */
+.level-high {
+  background-color: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.level-medium {
+  background-color: #fefce8;
+  color: #a16207;
+  border-color: #fde047;
+}
+
+.level-low {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.level-unknown {
+  background-color: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+/* Progress Bars */
+.progress-bar-high {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.progress-bar-medium {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.progress-bar-low {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.progress-bar-unknown {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+}
+
+/* Refill Button */
+.refill-button {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  transition: all 300ms ease;
+}
+
+.refill-button:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+}
+
+.refill-button:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Inventory Cards - Responsive */
+.inventory-card {
+  background-color: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  padding: 1rem;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  border: 1px solid #e5e7eb;
+  min-width: 0;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .inventory-card {
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .inventory-card {
+    padding: 1.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+.inventory-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+@media (min-width: 1024px) {
+  .inventory-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Last Refilled Badge */
+.last-refilled {
+  font-size: 0.75rem;
+  color: #6b7280;
+  background-color: #f3f4f6;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+}
+
+/* Inventory Stats - Responsive */
+.inventory-stat {
+  text-align: center;
+  padding: 0.75rem;
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  min-width: 0;
+}
+
+@media (min-width: 640px) {
+  .inventory-stat {
+    padding: 1rem;
+  }
+}
+
+.inventory-stat-number {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+@media (min-width: 640px) {
+  .inventory-stat-number {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .inventory-stat-number {
+    font-size: 1.5rem;
+  }
+}
+
+.inventory-stat-label {
+  font-size: 0.75rem;
+  color: #4b5563;
+  margin-top: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  .inventory-stat-label {
+    font-size: 0.875rem;
+  }
+}
+
+/* Responsive Grid Layout */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .inventory-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .inventory-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .inventory-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1536px) {
+  .inventory-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Prevent horizontal overflow */
+* {
+  box-sizing: border-box;
+}
+
+/* Better responsive container */
+.inventory-container {
+  width: 100%;
+  max-width: none;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .inventory-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .inventory-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Responsive flexbox utilities */
+.flex-responsive {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .flex-responsive {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+}
+
+/* Mobile-first button groups */
+.button-group-responsive {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .button-group-responsive {
+    flex-direction: row;
+    width: auto;
+  }
+}
+
+/* Better text truncation */
+.text-truncate-responsive {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .text-truncate-responsive {
+    white-space: normal;
+  }
+}
+
+/* Responsive spacing utilities */
+.spacing-responsive {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .spacing-responsive {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .spacing-responsive {
+    padding: 2rem;
+  }
+} 

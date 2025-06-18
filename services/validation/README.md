@@ -1,450 +1,317 @@
-# Validation Service
+# BARNS Validation Service
 
-## Purpose and Workflow
+A simplified validation service providing essential validation functions and inventory management for the BARNS coffee automation system.
 
-The Validation Service provides quality control and verification functionality for the BARNS system. It performs various checks to ensure ingredients are available, equipment is properly positioned, and quality standards are met throughout the coffee-making process.
+## 🎯 Purpose
 
-### Core Responsibilities
-- **Ingredient Verification**: Check availability and quantity of ingredients (beans, milk, etc.)
-- **Equipment Status**: Verify proper positioning and status of robotic equipment
-- **Quality Control**: Ensure drinks meet quality standards (temperature, weight, etc.)
-- **Safety Checks**: Validate safe operating conditions before proceeding with tasks
-- **Sensor Integration**: Interface with hardware sensors and monitoring equipment
-- **AI-Based Validation**: Integrate with computer vision and AI systems for advanced quality checks
+The Validation Service provides:
+- **Test Validation Functions**: Used by routine service for testing workflows
+- **Inventory Validation**: Ingredient availability checking and inventory updates
+- **Inventory Management**: Real-time inventory tracking and refill handling
+- **Event Publishing**: Threshold warnings and status updates
 
-### Workflow
-1. **Validation Request**: Receives validation requests from Routine service
-2. **Function Lookup**: Maps validation function names to implementations
-3. **Parameter Processing**: Processes validation parameters and thresholds
-4. **Hardware/AI Integration**: Interfaces with sensors, cameras, or AI systems
-5. **Result Evaluation**: Determines pass/fail status based on criteria
-6. **Response Delivery**: Returns detailed validation results with measurements
+## 📁 Structure
 
-### Validation Flow
 ```
-Validation Request → Function Mapping → Hardware/AI Interface → Result Evaluation → Response
+services/validation/
+├── app.py                    # Main service application
+├── validations/              # Validation functions
+│   ├── __init__.py          # Function loader
+│   ├── tests.py             # Test validation functions  
+│   └── inventory.py         # Inventory functions
+├── requirements.txt
+└── README.md
 ```
 
-## API Structure
+## 🔧 Core Functions
 
-### Core Endpoints
+### Test Functions (Used by Routine Service)
+- `validate_test1`: Basic integration test validation
+- `validate_test2`: Comprehensive system test validation
 
-#### Validate Function (Called by Routine Service)
-```http
-POST /validate
-Content-Type: application/json
+### Inventory Functions (Used by Routine Service)
+- `check_ingredient_availability`: Check if sufficient ingredients are available
+- `update_inventory`: Update inventory levels after ingredient usage
 
-{
-  "function": "check_weight",
-  "params": {
-    "min_weight": 30
-  }
-}
-```
+## 📡 API Endpoints (RabbitMQ)
 
-### Request Structure
+### 1. Validation Function Execution
+**Handler:** `validate`
 
-#### ValidationRequest Model
 ```python
+# Request
 {
-  "function": str,        # Validation function name
-  "params": dict         # Parameters for the validation function
-}
-```
-
-### Response Structures
-
-#### Successful Validation
-```json
-{
-  "passed": true,
-  "weight": 35,
-  "details": "Weight check passed"
-}
-```
-
-#### Failed Validation
-```json
-{
-  "passed": false,
-  "weight": 25,
-  "details": "Insufficient weight detected",
-  "required": 30,
-  "actual": 25
-}
-```
-
-#### Error Response
-```json
-{
-  "error": "No such validation function 'invalid_function'",
-  "passed": false,
-  "available_functions": ["check_cup_present", "check_weight", "check_temperature"]
-}
-```
-
-## Available Validation Functions
-
-### Ingredient and Supply Checks
-- **check_cup_present**: Verify cup is properly positioned
-- **check_beans**: Verify sufficient coffee beans are available
-- **check_milk**: Verify sufficient milk is available
-- **check_water**: Verify sufficient water is available
-
-### Quality Control Checks
-- **check_weight**: Verify drink weight meets minimum requirements
-- **check_temperature**: Verify temperature meets minimum requirements
-- **check_volume**: Verify liquid volume is within acceptable range
-- **check_color**: Verify drink color matches expected profile
-
-### Equipment Status Checks
-- **check_arm_position**: Verify robotic arm is in correct position
-- **check_grinder_status**: Verify grinder is ready and functional
-- **check_steam_pressure**: Verify steam system has adequate pressure
-- **check_pump_pressure**: Verify espresso pump has adequate pressure
-
-## Adding New Modules
-
-### 1. Adding New Validation Functions
-
-**Step 1**: Implement validation function:
-```python
-def check_new_parameter(params: dict):
-    """New validation function."""
-    threshold = params.get("threshold", 0)
-    
-    # Interface with hardware/AI system
-    current_value = read_sensor_value()  # Your implementation
-    
-    # Evaluate result
-    passed = current_value >= threshold
-    
-    return {
-        "passed": passed,
-        "current_value": current_value,
-        "threshold": threshold,
-        "details": f"{'Passed' if passed else 'Failed'} threshold check"
+    "function": "check_ingredient_availability",
+    "params": {
+        "ingredient": "whole_milk",
+        "amount_needed": 2
     }
-```
-
-**Step 2**: Register function in VALIDATORS mapping:
-```python
-VALIDATORS = {
-    # ... existing validators
-    "check_new_parameter": check_new_parameter,
 }
-```
 
-### 2. Adding Hardware Sensor Integration
-
-**Step 1**: Create sensor interface:
-```python
-# validation/sensors.py
-class SensorInterface:
-    def __init__(self, sensor_config: dict):
-        self.config = sensor_config
-        self.connection = self.establish_connection()
-    
-    def read_weight_sensor(self) -> float:
-        """Read weight from hardware sensor."""
-        # Hardware interface implementation
-        return self.connection.get_weight()
-    
-    def read_temperature_sensor(self) -> float:
-        """Read temperature from hardware sensor."""
-        # Hardware interface implementation
-        return self.connection.get_temperature()
-```
-
-**Step 2**: Integrate sensor interface:
-```python
-# In app.py
-from .sensors import SensorInterface
-
-sensor_interface = SensorInterface(config)
-
-def check_weight(params: dict):
-    required = params.get("min_weight", 0)
-    current_weight = sensor_interface.read_weight_sensor()  # Real hardware
-    return {"passed": current_weight >= required, "weight": current_weight}
-```
-
-### 3. Adding Computer Vision Integration
-
-**Step 1**: Create vision interface:
-```python
-# validation/vision.py
-import cv2
-import numpy as np
-
-class VisionInterface:
-    def __init__(self, camera_config: dict):
-        self.camera_id = camera_config.get("camera_id", 0)
-        self.models = self.load_ai_models()
-    
-    def detect_cup_presence(self) -> dict:
-        """Use computer vision to detect cup presence."""
-        frame = self.capture_frame()
-        detection_result = self.models.cup_detector(frame)
-        
-        return {
-            "detected": detection_result.confidence > 0.8,
-            "confidence": detection_result.confidence,
-            "bounding_box": detection_result.bbox
-        }
-    
-    def analyze_drink_color(self) -> dict:
-        """Analyze drink color for quality control."""
-        frame = self.capture_frame()
-        color_analysis = self.models.color_analyzer(frame)
-        
-        return {
-            "color_profile": color_analysis.profile,
-            "quality_score": color_analysis.score,
-            "expected_color": color_analysis.expected
-        }
-```
-
-**Step 2**: Integrate vision system:
-```python
-# In app.py
-from .vision import VisionInterface
-
-vision = VisionInterface(vision_config)
-
-def check_cup_present(params: dict):
-    """AI-powered cup detection."""
-    result = vision.detect_cup_presence()
-    return {
-        "passed": result["detected"],
-        "confidence": result["confidence"],
-        "details": f"Cup {'detected' if result['detected'] else 'not detected'}"
-    }
-```
-
-### 4. Adding Advanced Analytics
-
-**Step 1**: Create analytics module:
-```python
-# validation/analytics.py
-class ValidationAnalytics:
-    def __init__(self):
-        self.validation_history = []
-        self.performance_metrics = {}
-    
-    def record_validation(self, function: str, result: dict, params: dict):
-        """Record validation results for analytics."""
-        record = {
-            "timestamp": time.time(),
-            "function": function,
-            "result": result,
-            "params": params
-        }
-        self.validation_history.append(record)
-        self.update_metrics(function, result["passed"])
-    
-    def get_success_rate(self, function: str) -> float:
-        """Calculate success rate for a validation function."""
-        function_results = [r for r in self.validation_history if r["function"] == function]
-        if not function_results:
-            return 0.0
-        
-        successes = sum(1 for r in function_results if r["result"]["passed"])
-        return successes / len(function_results)
-    
-    def detect_anomalies(self) -> list:
-        """Detect anomalous validation patterns."""
-        anomalies = []
-        for function in self.performance_metrics:
-            success_rate = self.get_success_rate(function)
-            if success_rate < 0.8:  # Threshold for anomaly
-                anomalies.append({
-                    "function": function,
-                    "success_rate": success_rate,
-                    "issue": "Low success rate detected"
-                })
-        return anomalies
-```
-
-**Step 2**: Integrate analytics:
-```python
-# In app.py
-from .analytics import ValidationAnalytics
-
-analytics = ValidationAnalytics()
-
-@app.post("/validate")
-def validate(request: ValidationRequest):
-    # ... existing validation logic
-    result = VALIDATORS[func_name](request.params or {})
-    
-    # Record for analytics
-    analytics.record_validation(func_name, result, request.params)
-    
-    return result
-
-@app.get("/analytics")
-def get_validation_analytics():
-    """Get validation analytics and anomaly detection."""
-    return {
-        "success_rates": {func: analytics.get_success_rate(func) for func in VALIDATORS.keys()},
-        "anomalies": analytics.detect_anomalies(),
-        "total_validations": len(analytics.validation_history)
-    }
-```
-
-### 5. Adding Custom Validation Rules
-
-**Step 1**: Create rule engine:
-```python
-# validation/rules.py
-class ValidationRuleEngine:
-    def __init__(self):
-        self.rules = {}
-        self.load_rules()
-    
-    def load_rules(self):
-        """Load validation rules from configuration."""
-        self.rules = {
-            "temperature_rules": {
-                "espresso": {"min": 85, "max": 95},
-                "milk": {"min": 60, "max": 70}
-            },
-            "weight_rules": {
-                "espresso": {"min": 25, "max": 35},
-                "latte": {"min": 200, "max": 250}
-            }
-        }
-    
-    def get_temperature_threshold(self, drink_type: str) -> dict:
-        """Get temperature thresholds for drink type."""
-        return self.rules["temperature_rules"].get(drink_type, {"min": 60, "max": 100})
-    
-    def get_weight_threshold(self, drink_type: str) -> dict:
-        """Get weight thresholds for drink type."""
-        return self.rules["weight_rules"].get(drink_type, {"min": 100, "max": 300})
-```
-
-**Step 2**: Use rules in validation:
-```python
-# In app.py
-from .rules import ValidationRuleEngine
-
-rule_engine = ValidationRuleEngine()
-
-def check_temperature_contextual(params: dict):
-    """Context-aware temperature checking."""
-    drink_type = params.get("drink_type", "default")
-    current_temp = read_temperature_sensor()
-    
-    thresholds = rule_engine.get_temperature_threshold(drink_type)
-    passed = thresholds["min"] <= current_temp <= thresholds["max"]
-    
-    return {
-        "passed": passed,
-        "temperature": current_temp,
-        "thresholds": thresholds,
-        "drink_type": drink_type
-    }
-```
-
-## Environment Variables
-
-```env
-# Hardware Configuration
-SENSOR_PORT=/dev/ttyUSB0              # Serial port for sensors
-CAMERA_ID=0                          # Camera device ID
-SCALE_CALIBRATION_FACTOR=1000        # Scale calibration
-
-# AI/Vision Configuration
-MODEL_PATH=/models/                  # Path to AI models
-VISION_CONFIDENCE_THRESHOLD=0.8      # Minimum confidence for detections
-
-# Quality Thresholds
-DEFAULT_MIN_WEIGHT=25               # Default minimum weight (grams)
-DEFAULT_MIN_TEMP=60                 # Default minimum temperature (°C)
-```
-
-## Configuration Files
-
-### Validation Rules
-```json
+# Response
 {
-  "temperature_rules": {
-    "espresso": {"min": 85, "max": 95},
-    "milk": {"min": 60, "max": 70}
-  },
-  "weight_rules": {
-    "espresso": {"min": 25, "max": 35},
-    "latte": {"min": 200, "max": 250}
-  }
+    "passed": true,
+    "details": "Sufficient whole_milk available: 80 >= 2",
+    "data": {
+        "ingredient": "whole_milk",
+        "available": 80,
+        "needed": 2
+    }
 }
 ```
 
-## Development Setup
+### 2. Health Check
+**Handler:** `health`
 
-1. **Install Dependencies**:
-   ```bash
-   pip install fastapi uvicorn opencv-python numpy
-   ```
+```python
+# Response
+{
+    "status": "healthy",
+    "service": "validation",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "loaded_validators": 4,
+    "available_functions": ["validate_test1", "validate_test2", "check_ingredient_availability", "update_inventory"]
+}
+```
 
-2. **Hardware Setup** (if using real sensors):
-   ```bash
-   # Configure sensor interfaces
-   sudo modprobe usbserial vendor=0x1234 product=0x5678
-   ```
+### 3. Inventory Status (Used by Dashboard & OMS)
+**Handler:** `inventory_status`
 
-3. **Run Service**:
-   ```bash
-   uvicorn services.validation.app:app --host 0.0.0.0 --port 8000 --reload
-   ```
+```python
+# Request - Get all inventory
+{}
 
-## Testing
+# Response
+{
+    "success": true,
+    "inventory": {
+        "whole_milk": {
+            "level": "high",
+            "numeric": 80,
+            "last_refilled": "2024-01-15T08:30:00Z"
+        },
+        "coffee_beans": {
+            "level": "medium",
+            "numeric": 45,
+            "last_refilled": "2024-01-14T10:15:00Z"
+        },
+        "paper_cups": {
+            "level": "low",
+            "numeric": 25,
+            "last_refilled": "2024-01-12T14:20:00Z"
+        }
+    }
+}
 
-### Unit Testing
+# Request - Get specific ingredient
+{
+    "ingredient": "whole_milk"
+}
+
+# Response
+{
+    "success": true,
+    "ingredient": "whole_milk",
+    "status": {
+        "level": 80,
+        "threshold_low": 20,
+        "threshold_medium": 50,
+        "last_refilled": "2024-01-15T08:30:00Z"
+    }
+}
+```
+
+### 4. Inventory Refill (Used by OMS)
+**Handler:** `inventory_refill`
+
+```python
+# Request
+{
+    "ingredient": "whole_milk",
+    "amount": 100
+}
+
+# Response
+{
+    "success": true,
+    "ingredient": "whole_milk",
+    "new_level": 100
+}
+```
+
+### 5. Category Summary (Used by Dashboard)
+**Handler:** `inventory_category_summary`
+
+```python
+# Response
+{
+    "success": true,
+    "category_summary": {
+        "milk": {
+            "level": "medium",
+            "numeric": 45,
+            "last_refilled": null
+        },
+        "beans": {
+            "level": "high",
+            "numeric": 85,
+            "last_refilled": null
+        },
+        "syrups": {
+            "level": "low",
+            "numeric": 15,
+            "last_refilled": null
+        },
+        "cups": {
+            "level": "medium",
+            "numeric": 60,
+            "last_refilled": null
+        }
+    }
+}
+```
+
+## 📦 Current Inventory Items
+
+**Essential ingredients tracked:**
+
+```python
+# Milk products
+"whole_milk", "skim_milk", "almond_milk", "soy_milk"
+
+# Coffee essentials  
+"coffee_beans"
+
+# Basic syrups
+"vanilla_syrup", "caramel_syrup", "chocolate_syrup"
+
+# Cups
+"paper_cups", "plastic_cups"
+```
+
+**Threshold Levels:**
+- **Low**: Red status, triggers high-severity warnings
+- **Medium**: Yellow status, triggers medium-severity warnings  
+- **High**: Green status, normal operation
+
+## 📢 Events Published
+
+### Validation Events
+- `validation.completed`: When a validation function completes
+- `validation.threshold_warning`: When inventory levels drop below thresholds
+
+### Inventory Events
+- `inventory.refilled`: When inventory is successfully refilled
+
+## 🔄 Response Format
+
+All validation functions return:
+
+```python
+{
+    "passed": bool,      # Required: True if validation passed
+    "details": str,      # Required: Human-readable description
+    "data": dict        # Optional: Additional data
+}
+```
+
+All API handlers return:
+
+```python
+{
+    "success": bool,     # Required: True if request succeeded
+    "error": str,       # Optional: Error message if failed
+    "...": "data"       # Response-specific data
+}
+```
+
+## 🚀 Development
+
+### Running the Service
 ```bash
-# Test validation functions
-python -m pytest services/validation/tests/test_validators.py
-
-# Test sensor interfaces
-python -m pytest services/validation/tests/test_sensors.py
+cd services/validation
+python app.py
 ```
 
-### Manual Testing
+### Adding New Test Functions
+1. Add function to `validations/tests.py`:
+```python
+def validate_test3(params: dict) -> dict:
+    return {
+        "passed": True,
+        "details": "Test 3 passed",
+        "data": {"test_name": "validate_test3"}
+    }
+```
+
+2. Register in `validations/__init__.py`:
+```python
+return {
+    "validate_test1": validate_test1,
+    "validate_test2": validate_test2,
+    "validate_test3": validate_test3,  # Add here
+    "check_ingredient_availability": check_ingredient_availability,
+    "update_inventory": update_inventory
+}
+```
+
+### Adding New Inventory Items
+1. Add to `INVENTORY_LEVELS` in `validations/inventory.py`:
+```python
+"new_ingredient": {
+    "level": random.randint(20, 100), 
+    "threshold_low": 20, 
+    "threshold_medium": 50, 
+    "last_refilled": None
+}
+```
+
+2. Update category mapping in `get_category_summary()` if needed.
+
+## 🧪 Testing
+
+### Test Validation Functions
 ```bash
-# Test validation endpoint
-curl -X POST "http://localhost:8000/validate" \
-  -H "Content-Type: application/json" \
-  -d '{"function": "check_weight", "params": {"min_weight": 30}}'
+# Via RabbitMQ message (requires RabbitMQ running)
+{
+    "function": "validate_test1",
+    "params": {"test": "integration"}
+}
 ```
 
-## Integration Points
+### Test Inventory Functions
+```bash
+# Check ingredient availability
+{
+    "function": "check_ingredient_availability", 
+    "params": {"ingredient": "whole_milk", "amount_needed": 5}
+}
 
-### With Routine Service
-- **Receives**: Validation requests during task execution
-- **Provides**: Pass/fail results with detailed measurements
+# Update inventory usage
+{
+    "function": "update_inventory",
+    "params": {"ingredient": "whole_milk", "amount_used": 3}
+}
+```
 
-### With Hardware Systems
-- **Sensors**: Weight scales, temperature probes, pressure sensors
-- **Cameras**: Computer vision for visual quality control
-- **AI Systems**: Machine learning models for advanced validation
+## 🐳 Container Status
 
-## Error Handling
+Check validation service status:
+```bash
+docker ps --filter name=barns-validation
+docker logs barns-validation
+```
 
-### Hardware Failures
-- Sensor communication timeouts
-- Camera connection failures
-- Calibration errors
+The service runs with:
+- **Health monitoring**: Automatic health checks
+- **Auto-restart**: Restart on failure  
+- **Event integration**: Real-time communication with other services
+- **Inventory persistence**: In-memory tracking (would be database in production)
 
-### Validation Failures
-- Threshold violations
-- Quality control failures
-- Safety condition violations
+---
 
-## Performance Considerations
-
-- **Fast Response Times**: Critical for real-time validation during production
-- **Hardware Interface Optimization**: Efficient sensor communication protocols
-- **Caching**: Cache stable measurements to reduce hardware calls
-- **Parallel Processing**: Support concurrent validation requests
-- **Graceful Degradation**: Fallback to basic validation if advanced systems fail 
+**Key Benefits of Simplified Design:**
+- ✅ **Focused**: Only essential functions used by other services
+- ✅ **Maintainable**: Clear, simple codebase
+- ✅ **Reliable**: Fewer components, fewer failure points
+- ✅ **Fast**: Lightweight with minimal overhead 

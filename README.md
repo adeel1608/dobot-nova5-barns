@@ -1,286 +1,259 @@
-# BARNS - Business Automation & Robotics System
+# BARNS - Business Automation & Robotics Network System
 
-## Overview
+![BARNS Logo](BARNS%20Logo.png)
 
-BARNS (Business Automation & Robotics) is a comprehensive coffee automation system that orchestrates the entire coffee-making process from order placement to completion. The system uses a microservices architecture to manage orders, coordinate robotic arms, perform quality validation, and provide real-time monitoring capabilities.
+A comprehensive microservices-based automation platform for business operations, robotics control, and real-time monitoring with AI integration.
 
-## System Architecture
+## 🚀 Overview
 
+BARNS is a modular, scalable platform that combines:
+- **Order Management System (OMS)** - Complete order lifecycle management
+- **Video Streaming** - Real-time camera feeds with lightweight test patterns
+- **Automation Services** - Workflow automation and task scheduling
+- **Real-time Dashboard** - Live monitoring and control interface
+- **Message Queue Architecture** - RabbitMQ-based inter-service communication
+
+## 📋 Table of Contents
+
+- [Architecture](#architecture)
+- [Quick Start](#quick-start)
+- [Services Overview](#services-overview)
+- [API Documentation](#api-documentation)
+- [Development](#development)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+
+## 🏗️ Architecture
+
+### Microservices Architecture
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Dashboard     │    │  Video Stream   │    │   Validation    │
-│  (Frontend UI)  │    │   (Cameras)     │    │   (Quality)     │
+│   Dashboard     │    │   API Bridge    │    │  Video Stream   │
+│   (Port 3000)   │    │   (Port 8000)   │    │   (Port 8001)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┼───────────────────────┘
                                  │
-         ┌─────────────────────────────────────────────────┐
-         │              Order Management Service (OMS)     │
-         │                 (Central Orchestrator)          │
-         └─────────────────────┬───────────────────────────┘
-                               │
-         ┌─────────────────────┼───────────────────────────┐
-         │                     │                           │
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Scheduler     │____│    Routine      │____│   Robot Arm     │
-│ (Task Manager)  │    │  (Executor)     │    │  (Hardware)     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+                    ┌─────────────────┐
+                    │    RabbitMQ     │
+                    │   (Port 5672)   │
+                    │  Management UI  │
+                    │  (Port 15672)   │
+                    └─────────────────┘
+                                 │
+    ┌───────────┬────────────────┼────────────────┬────────────┐
+    │           │                │                │            │
+┌───▼───┐   ┌───▼──────┐     ┌───▼──────┐     ┌───▼─────┐ ┌───▼───┐
+│  OMS  │   │Validation│     │Automation│     │Scheduler│ │Routine│
+│Service│   │ Service  │     │ Service  │     │ Service │ │Service│
+└───────┘   └──────────┘     └──────────┘     └─────────┘ └───────┘
+     │
+┌────▼──────┐                              ┌────────────┐
+│PostgreSQL │                              │    Redis   │
+│(Port 5432)│                              │(Port 6379) │
+└───────────┘                              └────────────┘
 ```
 
-## Microservices
+### Message Flow
+- **HTTP APIs** → API Bridge → RabbitMQ → Services
+- **Real-time Events** → WebSocket → Dashboard
+- **Video Streams** → Direct HTTP → Dashboard
+- **Service Communication** → RabbitMQ Exchanges
 
-### 🎯 [Order Management Service (OMS)](./services/oms/README.md)
-**Port: 8001** | **Purpose: Central Orchestrator**
-- Manages complete order lifecycle from creation to completion
-- Provides REST API for order operations and real-time WebSocket updates
-- Coordinates with Scheduler service and maintains PostgreSQL database
-- Handles system alerts and emergency controls
-
-### 📋 [Scheduler Service](./services/scheduler/README.md)
-**Port: 8000** | **Purpose: Task Coordination**
-- Breaks down orders into individual tasks based on drink recipes
-- Coordinates parallel execution across multiple robotic arms
-- Manages task dependencies and resource allocation
-- Reports completion/failure status back to OMS
-
-### 🔧 [Routine Service](./services/routine/README.md)
-**Port: 8002** | **Purpose: Task Execution**
-- Executes individual robotic tasks by coordinating validation and robot operations
-- Manages multi-step task configurations from `config/tasks.json`
-- Integrates with Validation service for quality checks
-- Publishes step-by-step execution events
-
-### ✅ [Validation Service](./services/validation/README.md)
-**Port: 8003** | **Purpose: Quality Control**
-- Performs quality control and verification checks
-- Interfaces with sensors and AI systems for ingredient/equipment validation
-- Ensures safety conditions and quality standards are met
-- Provides pass/fail results with detailed measurements
-
-### 📹 [Video Stream Service](./services/video-stream/README.md)
-**Port: 8004** | **Purpose: Visual Monitoring**
-- Manages multiple camera feeds for real-time monitoring
-- Provides MJPEG video streams and still image capture
-- Supports computer vision integration for advanced monitoring
-- Handles graceful fallback when cameras are unavailable
-
-### 🖥️ [Dashboard Service](./services/barns-dashboard/README.md)
-**Port: 3000** | **Purpose: User Interface**
-- React-based web application for system monitoring and control
-- Real-time order management with drag-and-drop queue reordering
-- Live video feeds and system status monitoring
-- Alert management and analytics dashboard
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
-- **Docker & Docker Compose**: For containerized deployment
-- **Node.js 18+**: For dashboard development
-- **Python 3.9+**: For backend services development
-- **PostgreSQL**: Database for order management
-- **Redis**: Queue management and caching
+- Docker Desktop
+- Docker Compose
+- 8GB+ RAM recommended
 
-### Development Setup
+### 1. Clone & Start
+```bash
+git clone <repository-url>
+cd BARNS
+docker-compose -f docker-compose.rabbitmq.yml up --build -d
+```
 
-1. **Clone Repository**:
-   ```bash
-   git clone <repository-url>
-   cd BARNS
-   ```
-
-2. **Start All Services**:
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Verify Services**:
-   ```bash
-   # Check service status
-   docker-compose ps
-   
-   # View logs
-   docker-compose logs -f
-   ```
-
-4. **Access Dashboard**:
-   Open [http://localhost:3000](http://localhost:3000) in your browser
-
-### Service URLs
+### 2. Access Services
 - **Dashboard**: http://localhost:3000
-- **OMS API**: http://localhost:8001
-- **Scheduler API**: http://localhost:8000  
-- **Routine API**: http://localhost:8002
-- **Validation API**: http://localhost:8003
-- **Video Stream API**: http://localhost:8004
+- **RabbitMQ Management**: http://localhost:15672 (admin/admin123)
+- **Video Stream**: http://localhost:8001
+- **API**: http://localhost:8000
 
-## Development Workflow
-
-### Working on Individual Services
-
-Each service has its own development environment and documentation:
-
+### 3. Verify Status
 ```bash
-# OMS Service
-cd services/oms
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8001
+# Check all services
+docker-compose -f docker-compose.rabbitmq.yml ps
 
-# Scheduler Service  
-cd services/scheduler
-pip install -r requirements.txt
-uvicorn app:app --reload --port 8000
+# Check video stream
+curl http://localhost:8001/status
 
-# Dashboard
-cd services/barns-dashboard
-npm install
-npm start
+# Check cameras
+curl http://localhost:8001/cameras
 ```
 
-### Database Management
+## 🔧 Services Overview
 
+| Service | Port | Description | Technology |
+|---------|------|-------------|------------|
+| **Dashboard** | 3000 | Web UI for monitoring and control | React + Nginx |
+| **API Bridge** | 8000 | HTTP to RabbitMQ translator | FastAPI + Python |
+| **Video Stream** | 8001 | Camera feeds with test patterns | OpenCV + FastAPI |
+| **OMS** | - | Order management system | Python + PostgreSQL |
+| **Validation** | - | Data validation service | Python |
+| **Automation** | - | Workflow automation | Python |
+| **Scheduler** | - | Task scheduling | Python |
+| **Routine** | - | Routine task management | Python |
+
+### External Services
+- **RabbitMQ**: Message broker (5672, 15672)
+- **PostgreSQL**: OMS database (5432)
+- **Redis**: Queue management (6379)
+
+## 📡 API Documentation
+
+### Video Stream API
 ```bash
-# Access PostgreSQL
-docker-compose exec postgres psql -U postgres -d barns_db
+# Get camera status
+GET /status
 
-# Reset database (clears all data)
-docker-compose exec postgres psql -U postgres -d barns_db -c "
-TRUNCATE TABLE alerts, events, task_steps, tasks, order_items, orders RESTART IDENTITY CASCADE;"
+# List all cameras
+GET /cameras
 
-# Access Redis
-docker-compose exec redis redis-cli
+# Live video stream
+GET /stream/{camera_id}
+
+# Still image capture
+GET /still/{camera_id}
+
+# Debug information
+GET /debug
 ```
+
+### API Bridge Endpoints
+```bash
+# Order management
+POST /api/orders/create
+GET /api/orders/{order_id}
+PUT /api/orders/{order_id}
+
+# System status
+GET /api/status
+
+# Service health
+GET /api/health
+```
+
+## 💻 Development
+
+### Environment Setup
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Development mode (single service)
+cd services/video-stream
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8001
+```
+
+### Service Development
+Each service has its own README.md with specific development instructions:
+- [`services/video-stream/README.md`](services/video-stream/README.md)
+- [`services/oms/README.md`](services/oms/README.md)
+- [`services/automation/README.md`](services/automation/README.md)
+- [See each service directory for details]
 
 ### Testing
-
 ```bash
-# Run individual service tests
-cd services/oms && python -m pytest
-cd services/scheduler && python -m pytest  
-cd services/barns-dashboard && npm test
+# Test video stream
+curl http://localhost:8001/debug
 
-# Integration testing
-curl -X POST "http://localhost:8001/orders/" \
-  -H "Content-Type: application/json" \
-  -d '{"status": "queued", "cups": [{"type": "Latte", "size": "regular"}]}'
+# Test specific camera
+curl http://localhost:8001/stream/test_pattern
+
+# Test API bridge
+curl http://localhost:8000/api/health
 ```
 
-## System Features
+## 🚀 Deployment
 
-### ✨ Core Capabilities
-- **Real-time Order Management**: Create, track, and manage coffee orders
-- **Intelligent Task Scheduling**: Parallel execution across multiple robotic arms
-- **Quality Control Integration**: AI-powered validation and sensor monitoring
-- **Live Video Monitoring**: Multi-camera feeds with computer vision capabilities
-- **Event-Driven Architecture**: Real-time updates and notifications
-- **Comprehensive Analytics**: Performance metrics and system insights
+### Production Docker
+```bash
+# Production build
+docker-compose -f docker-compose.rabbitmq.yml build --no-cache
 
-### 🔄 Workflow Example
-1. **Order Creation**: User creates a Latte order via dashboard
-2. **Queue Management**: Order appears in queue, can be reordered via drag-and-drop
-3. **Processing Start**: User clicks "Start" button to begin processing
-4. **Task Breakdown**: Scheduler breaks order into tasks (pick_cup, pull_espresso, steam_milk, etc.)
-5. **Parallel Execution**: Tasks execute in parallel across arms based on dependencies
-6. **Quality Validation**: Each step validated for safety and quality standards
-7. **Real-time Updates**: Dashboard shows live progress and video feeds
-8. **Completion**: Order marked complete when all tasks finish successfully
+# Start all services
+docker-compose -f docker-compose.rabbitmq.yml up -d
 
-## Configuration
-
-### Environment Variables
-
-```env
-# Database Configuration
-DB_NAME=barns_db
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_HOST=postgres
-DB_PORT=5432
-
-# Redis Configuration  
-REDIS_HOST=redis
-REDIS_PORT=6379
-
-# Service URLs
-OMS_URL=http://oms:8001
-SCHEDULER_URL=http://scheduler:8000
-ROUTINE_URL=http://routine:8002
-VALIDATION_URL=http://validation:8003
-VIDEO_STREAM_URL=http://video-stream:8004
+# Scale specific services
+docker-compose -f docker-compose.rabbitmq.yml up -d --scale validation-service=3
 ```
 
-### Recipe Configuration
+### Configuration
+- **Environment Variables**: Set in docker-compose.rabbitmq.yml
+- **RabbitMQ**: Default credentials admin/admin123
+- **Database**: PostgreSQL with persistent volumes
+- **Video**: Supports real webcams and test patterns
 
-Drink recipes are defined in `services/scheduler/data/recipes.json`:
+### Monitoring
+```bash
+# View all logs
+docker-compose -f docker-compose.rabbitmq.yml logs -f
 
-```json
-{
-  "Latte": [
-    { "action": "pick_cup", "assigned_arm": "Arm1" },
-    { "action": "pull_espresso", "assigned_arm": "Arm1", "depends_on": ["pick_cup"] },
-    { "action": "steam_milk", "assigned_arm": "Arm2", "depends_on": ["pick_cup"] },
-    { "action": "pour_milk", "assigned_arm": "Arm2", "depends_on": ["pull_espresso", "steam_milk"] },
-    { "action": "serve", "assigned_arm": "Arm1", "depends_on": ["pour_milk"] }
-  ]
-}
+# View specific service
+docker logs barns-video-stream -f
+
+# Service status
+docker-compose -f docker-compose.rabbitmq.yml ps
 ```
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
-**🔴 Orders not starting when clicking Start button**
-- Check if backend services are running: `docker-compose ps`
-- Verify scheduler service logs: `docker-compose logs scheduler`
-- Ensure OMS can communicate with Scheduler
-
-**🔴 Dashboard not updating in real-time**
-- Check WebSocket connections in browser dev tools
-- Verify OMS WebSocket endpoint is accessible
-- Check for CORS issues in browser console
-
-**🔴 Video streams not loading**
-- Verify camera permissions and availability
-- Check video-stream service logs: `docker-compose logs video-stream`
-- Test camera access: `curl http://localhost:8004/cameras`
-
-**🔴 Tasks failing with "Unknown function" errors**
-- Check routine service task configurations in `config/tasks.json`
-- Ensure task names in recipes match available routine functions
-- Verify validation service is accessible
-
-### Debugging Commands
-
+#### Dashboard Connection Errors
 ```bash
-# View all service logs
-docker-compose logs -f
-
-# Check service health
-curl http://localhost:8001/system/status  # OMS
-curl http://localhost:8000/status         # Scheduler  
-curl http://localhost:8004/status         # Video Stream
-
-# Database inspection
-docker-compose exec postgres psql -U postgres -d barns_db -c "SELECT * FROM orders;"
-
-# Redis queue inspection  
-docker-compose exec redis redis-cli LLEN order_queue
+# Clear browser cache completely
+# Check port 8001 is accessible
+curl http://localhost:8001/cameras
 ```
 
-## Contributing
+#### Video Stream Issues
+```bash
+# Check video service logs
+docker logs barns-video-stream
 
-### Adding New Services
+# Verify camera endpoints
+curl http://localhost:8001/debug
+```
 
-1. Create service directory under `services/`
-2. Add service to `docker-compose.yml`
-3. Create comprehensive `README.md` following existing patterns
-4. Add integration tests and documentation
-5. Update main architecture documentation
+#### RabbitMQ Connection Issues
+```bash
+# Check RabbitMQ status
+curl http://localhost:15672
 
-### Code Standards
+# Restart message services
+docker-compose -f docker-compose.rabbitmq.yml restart validation-service
+```
 
-- **Python**: Follow PEP 8, use type hints, comprehensive docstrings
-- **TypeScript/React**: Use functional components, proper type definitions
-- **API Design**: RESTful APIs with clear error handling and status codes
-- **Documentation**: Comprehensive README files with examples and troubleshooting
+#### Performance Issues
+- Video streams use lightweight test patterns (10 FPS)
+- For better performance, reduce video quality in configuration
+- Scale services horizontally as needed
 
- 
+### Debug Commands
+```bash
+# Full system status
+docker-compose -f docker-compose.rabbitmq.yml ps
+docker system df
+
+# Network debugging
+docker network ls
+docker network inspect barns-barns-network
+
+# Volume debugging
+docker volume ls
+docker volume inspect barns_postgres_data
+```
+

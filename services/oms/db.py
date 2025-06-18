@@ -18,12 +18,14 @@ def connect():
     
     # Database connection parameters from environment variables
     db_params = {
-        'dbname': os.environ.get('DB_NAME', 'barns_db'),
-        'user': os.environ.get('DB_USER', 'postgres'),
-        'password': os.environ.get('DB_PASSWORD', 'postgres'),
-        'host': os.environ.get('DB_HOST', 'localhost'),
-        'port': os.environ.get('DB_PORT', '5432')
+        'dbname': os.environ.get('POSTGRES_DB', os.environ.get('DB_NAME', 'barns_oms')),
+        'user': os.environ.get('POSTGRES_USER', os.environ.get('DB_USER', 'barns_user')),
+        'password': os.environ.get('POSTGRES_PASSWORD', os.environ.get('DB_PASSWORD', 'barns_pass')),
+        'host': os.environ.get('POSTGRES_HOST', os.environ.get('DB_HOST', 'localhost')),
+        'port': os.environ.get('POSTGRES_PORT', os.environ.get('DB_PORT', '5432'))
     }
+    
+    print(f"Connecting to database with params: {db_params}")
     
     # Create connection pool with min 1, max 10 connections
     conn_pool = SimpleConnectionPool(1, 10, **db_params)
@@ -39,11 +41,11 @@ def release_connection(conn):
     if conn_pool is not None:
         conn_pool.putconn(conn)
 
-def save_order(order: models.Order) -> int:
+def save_order(order) -> int:
     """Save a new order to the database and return its ID.
     
     Args:
-        order: The order object to save
+        order: The order object or dictionary to save
         
     Returns:
         int: The ID of the saved order
@@ -51,6 +53,16 @@ def save_order(order: models.Order) -> int:
     conn = get_connection()
     try:
         with conn.cursor() as cur:
+            # Handle both object and dictionary formats
+            if hasattr(order, 'status'):
+                # Object format (models.Order)
+                status = order.status
+                cups = order.cups
+            else:
+                # Dictionary format (from RabbitMQ)
+                status = order.get('status', 'queued')
+                cups = order.get('cups', [])
+            
             # Insert the order
             cur.execute(
                 """
@@ -58,19 +70,30 @@ def save_order(order: models.Order) -> int:
                 VALUES (%s, %s)
                 RETURNING id
                 """,
-                (order.status, datetime.now())
+                (status, datetime.now())
             )
             order_id = cur.fetchone()[0]
             
             # Insert order items (cups)
-            for idx, cup in enumerate(order.cups):
-                addons_json = json.dumps(cup.addons) if cup.addons else '[]'
+            for idx, cup in enumerate(cups):
+                # Handle both object and dictionary formats for cups
+                if hasattr(cup, 'addons'):
+                    # Object format
+                    addons_json = json.dumps(cup.addons) if cup.addons else '[]'
+                    drink_type = cup.type
+                    cup_size = cup.size
+                else:
+                    # Dictionary format
+                    addons_json = json.dumps(cup.get('addons', cup.get('ingredients', [])))
+                    drink_type = cup.get('type', 'unknown')
+                    cup_size = cup.get('size', 'medium')
+                
                 cur.execute(
                     """
                     INSERT INTO order_items (order_id, cup_id, sequence_index, drink_type, cup_size, addons)
                     VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (order_id, f"cup_{order_id}_{idx+1}", idx, cup.type, cup.size, addons_json)
+                    (order_id, f"cup_{order_id}_{idx+1}", idx, drink_type, cup_size, addons_json)
                 )
             
             conn.commit()
@@ -113,8 +136,16 @@ def get_orders(status: Optional[str] = None) -> List[Dict[str, Any]]:
                 )
             orders = cur.fetchall()
             
-            # For each order, get its items
+            # Convert to regular dicts and handle datetime serialization
+            result_orders = []
             for order in orders:
+                order_dict = dict(order)
+                # Convert datetime fields to strings
+                for key, value in order_dict.items():
+                    if isinstance(value, datetime):
+                        order_dict[key] = value.isoformat()
+                
+                # Get order items
                 cur.execute(
                     """
                     SELECT id, cup_id, sequence_index, drink_type, cup_size, addons
@@ -122,11 +153,13 @@ def get_orders(status: Optional[str] = None) -> List[Dict[str, Any]]:
                     WHERE order_id = %s
                     ORDER BY sequence_index
                     """,
-                    (order['id'],)
+                    (order_dict['id'],)
                 )
-                order['cups'] = cur.fetchall()
+                cups = cur.fetchall()
+                order_dict['cups'] = [dict(cup) for cup in cups]
+                result_orders.append(order_dict)
             
-            return orders
+            return result_orders
     finally:
         release_connection(conn)
 
@@ -155,6 +188,12 @@ def get_order(order_id: int) -> Dict[str, Any]:
             if not order:
                 return None
             
+            # Convert to regular dict and handle datetime serialization
+            order = dict(order)
+            for key, value in order.items():
+                if isinstance(value, datetime):
+                    order[key] = value.isoformat()
+            
             # Get order items
             cur.execute(
                 """
@@ -165,7 +204,8 @@ def get_order(order_id: int) -> Dict[str, Any]:
                 """,
                 (order_id,)
             )
-            order['cups'] = cur.fetchall()
+            cups = cur.fetchall()
+            order['cups'] = [dict(cup) for cup in cups]
             
             # Get tasks
             cur.execute(
@@ -176,7 +216,15 @@ def get_order(order_id: int) -> Dict[str, Any]:
                 """,
                 (order_id,)
             )
-            order['tasks'] = cur.fetchall()
+            tasks = cur.fetchall()
+            order['tasks'] = []
+            for task in tasks:
+                task_dict = dict(task)
+                # Convert datetime fields to strings
+                for key, value in task_dict.items():
+                    if isinstance(value, datetime):
+                        task_dict[key] = value.isoformat()
+                order['tasks'].append(task_dict)
             
             return order
     finally:
@@ -517,7 +565,53 @@ def get_active_alerts() -> List[Dict[str, Any]]:
                 """,
                 (False,)
             )
-            return cur.fetchall()
+            alerts = cur.fetchall()
+            
+            # Convert datetime objects to ISO format strings
+            result_alerts = []
+            for alert in alerts:
+                alert_dict = dict(alert)
+                for key, value in alert_dict.items():
+                    if isinstance(value, datetime):
+                        alert_dict[key] = value.isoformat()
+                result_alerts.append(alert_dict)
+            
+            return result_alerts
+    finally:
+        release_connection(conn)
+
+def get_acknowledged_alerts() -> List[Dict[str, Any]]:
+    """Get all acknowledged alerts.
+    
+    Returns:
+        List of acknowledged alert dictionaries
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT a.id, a.alert_type, a.severity, a.acknowledged, a.acknowledged_at,
+                       e.event_type, e.payload, e.created_at
+                FROM alerts a
+                JOIN events e ON a.event_id = e.id
+                WHERE a.acknowledged = %s
+                ORDER BY a.acknowledged_at DESC
+                """,
+                (True,)
+            )
+            alerts = cur.fetchall()
+            
+            # Convert datetime objects to ISO format strings
+            result_alerts = []
+            for alert in alerts:
+                alert_dict = dict(alert)
+                for key, value in alert_dict.items():
+                    if isinstance(value, datetime):
+                        alert_dict[key] = value.isoformat()
+                result_alerts.append(alert_dict)
+            
+            return result_alerts
     finally:
         release_connection(conn)
 

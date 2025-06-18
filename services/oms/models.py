@@ -14,7 +14,7 @@ class Order(BaseModel):
     cups: List[Cup]
     
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "cups": [
                     {"type": "latte", "size": "large", "addons": ["extra_shot"]},

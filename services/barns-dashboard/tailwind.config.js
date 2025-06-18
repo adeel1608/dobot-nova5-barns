@@ -7,7 +7,7 @@ export default {
     theme: {
         extend: {
             colors: {
-                // BARNS Coffee Theme Colors
+                // BARNS Coffee Theme Colors (extending default colors, not replacing)
                 'coffee': {
                     'dark': '#2D1B14',
                     'medium': '#4A2C1A', 

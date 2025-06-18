@@ -1,116 +1,41 @@
 {
-  "grind_beans": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "move_to_grinder",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "grind",
-        "params": {
-          "duration": 10
+    "test1": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "validate_test1",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "robot_test1",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "automation_test1",
+          "params": {}
         }
-      }
-    ]
-  },
-  "brew_espresso": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "move_to_portafilter",
-        "params": {}
-      },
-      {
-        "type": "robot", 
-        "function": "tamp_grounds",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "brew",
-        "params": {
-          "pressure": 9,
-          "duration": 25
+      ]
+    },
+    "test2": {
+      "steps": [
+        {
+          "type": "validation",
+          "function": "validate_test2",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "robot_test2",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "automation_test2",
+          "params": {}
         }
-      },
-      {
-        "type": "validation",
-        "function": "check_weight",
-        "params": {
-          "min_weight": 25
-        }
-      }
-    ]
-  },
-  "steam_milk": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "move_to_milk_container",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "steam",
-        "params": {
-          "duration": 20,
-          "temperature": 65
-        }
-      },
-      {
-        "type": "validation",
-        "function": "check_temperature",
-        "params": {
-          "min_temp": 60
-        }
-      }
-    ]
-  },
-  "combine": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "pour_milk",
-        "params": {}
-      }
-    ]
-  },
-  "add_water": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "add_hot_water",
-        "params": {
-          "amount": 60
-        }
-      }
-    ]
+      ]
+    }
   }
-} 
+  

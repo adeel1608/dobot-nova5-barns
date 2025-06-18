@@ -1,0 +1,113 @@
+/**
+ * Dashboard Page Styles
+ * Specific styles for the dashboard page and its components
+ */
+
+.dashboard-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+}
+
+/* Order Queue Animations */
+.order-card-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.order-card-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.order-card-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.order-card-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Drag and Drop Styles */
+.dragging {
+  opacity: 0.7;
+  transform: scale(1.02);
+  transition: transform 200ms ease;
+}
+
+.drag-over {
+  border-color: #10b981;
+  background-color: #ecfdf5;
+}
+
+/* Status Indicators */
+.status-online {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.status-offline {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.status-unknown {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+/* System Controls */
+.emergency-stop-button {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  transition: all 300ms ease;
+}
+
+.emergency-stop-button:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(239, 68, 68, 0.3);
+}
+
+/* Dashboard Cards */
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  transition: all 300ms ease;
+}
+
+/* Loading Animations */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f1f5f9, #e2e8f0, #f1f5f9);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .dashboard-page .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .dashboard-page .flex-col {
+    gap: 1rem;
+  }
+} 

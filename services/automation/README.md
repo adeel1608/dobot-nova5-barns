@@ -1,98 +1,27 @@
 # Automation Service
 
-The Automation Service is responsible for controlling automated equipment during routine handling in the BARNS (Barista Automated Robotic Network System). This service provides a standardized API for interacting with various automation equipment such as grinders, water heaters, milk dispensers, cleaning systems, and conveyor belts.
+The Automation Service handles automated equipment control for coffee brewing operations in the BARNS system. It provides standardized automation functions for heating, dispensing, and testing operations.
 
-## Overview
+## Features
 
-This service acts as a bridge between the routine execution system and physical automation equipment. It provides:
-
-- **Standardized API**: Consistent interface for all automation functions
 - **Async Operations**: Non-blocking execution with proper await/response patterns
 - **Error Handling**: Comprehensive error reporting and status tracking
 - **Extensible Design**: Easy to add new automation functions
 - **Health Monitoring**: Built-in health checks and status reporting
-- **Modular Structure**: Automation functions are separated in `automation_functions.py` for better organization
+- **Event-Driven**: Publishes automation events for system coordination
 
 ## File Structure
 
 ```
 services/automation/
-├── app.py                    # Main FastAPI application
-├── automation_functions.py   # All automation function implementations
-├── Dockerfile               # Container configuration
+├── app.py                    # Main service application
+├── automation_functions.py   # Automation function implementations
+├── Dockerfile.rabbitmq      # Container configuration
 ├── requirements.txt         # Python dependencies
 └── README.md               # This documentation
 ```
 
-## API Endpoints
-
-### POST /automate
-Execute an automation function with specified parameters.
-
-**Request Body:**
-```json
-{
-  "function": "function_name",
-  "params": {
-    "param1": "value1",
-    "param2": "value2"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Operation completed successfully",
-  "details": {
-    "duration_sec": 2.5,
-    "additional_info": "..."
-  }
-}
-```
-
-### GET /health
-Health check endpoint for service monitoring.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "automation"
-}
-```
-
-### GET /functions
-List all available automation functions.
-
-**Response:**
-```json
-{
-  "functions": ["grind_beans", "heat_water", "dispense_milk", "clean_system", "activate_conveyor"],
-  "count": 5
-}
-```
-
 ## Available Automation Functions
-
-### grind_beans
-Grind coffee beans with specified settings.
-
-**Parameters:**
-- `grind_size` (string): Grind size ("coarse", "medium", "fine") - default: "medium"
-- `amount_g` (number): Amount in grams - default: 18
-
-**Example:**
-```json
-{
-  "function": "grind_beans",
-  "params": {
-    "grind_size": "fine",
-    "amount_g": 18
-  }
-}
-```
 
 ### heat_water
 Heat water to specified temperature.
@@ -101,13 +30,16 @@ Heat water to specified temperature.
 - `target_temp_c` (number): Target temperature in Celsius - default: 93
 - `volume_ml` (number): Volume in milliliters - default: 250
 
-**Example:**
+**Response:**
 ```json
 {
-  "function": "heat_water",
-  "params": {
-    "target_temp_c": 93,
-    "volume_ml": 250
+  "success": true,
+  "message": "Heated 250ml water to 93°C",
+  "details": {
+    "target_temperature": 93,
+    "volume": 250,
+    "actual_temperature": 93,
+    "duration_sec": 3
   }
 }
 ```
@@ -116,100 +48,89 @@ Heat water to specified temperature.
 Dispense milk from automated milk system.
 
 **Parameters:**
-- `milk_type` (string): Type of milk ("regular", "soya", "almond", "oat") - default: "regular"
+- `milk_type` (string): Type of milk - default: "regular"
 - `amount` (number): Amount in milliliters - default: 120
-- `temperature` (string): Temperature ("cold", "warm") - default: "cold"
+- `temperature` (string): Temperature - default: "cold"
 
-**Example:**
+**Response:**
 ```json
 {
-  "function": "dispense_milk",
-  "params": {
-    "milk_type": "soya",
-    "amount": 120
+  "success": true,
+  "message": "Dispensed 120ml of regular milk",
+  "details": {
+    "milk_type": "regular",
+    "amount_ml": 120,
+    "temperature": "cold",
+    "duration_sec": 1.5
   }
 }
 ```
 
-### clean_system
-Run automated cleaning cycle.
+### automation_test1 / automation_test2
+Test functions for system validation.
 
-**Parameters:**
-- `cycle_type` (string): Type of cleaning ("rinse", "full") - default: "rinse"
-
-**Example:**
+**Response:**
 ```json
 {
-  "function": "clean_system",
-  "params": {
-    "cycle_type": "full"
+  "success": true,
+  "message": "automation_test1 passed successfully",
+  "details": {
+    "test_name": "automation_test1",
+    "params_received": {},
+    "duration_sec": 0.5,
+    "service": "automation"
   }
 }
 ```
 
-### activate_conveyor
-Control conveyor belt movement.
+## API Endpoints (RabbitMQ)
 
-**Parameters:**
-- `direction` (string): Direction ("forward", "backward") - default: "forward"
-- `duration_sec` (number): Duration in seconds - default: 5
-- `speed` (string): Speed ("slow", "normal", "fast") - default: "normal"
-
-**Example:**
-```json
+### Automation Request
+```python
+# Request
 {
-  "function": "activate_conveyor",
-  "params": {
-    "direction": "forward",
-    "duration_sec": 10,
-    "speed": "slow"
-  }
+    "function": "heat_water",
+    "params": {
+        "target_temp_c": 93,
+        "volume_ml": 250
+    }
+}
+
+# Response  
+{
+    "success": true,
+    "message": "Heated 250ml water to 93°C",
+    "details": {...}
 }
 ```
 
-## Integration with Routine Service
-
-The automation service is integrated into the routine execution system through the `executer.py` file. Automation steps can be added to task configurations using the following format:
-
-```json
+### Health Check
+```python
+# Response
 {
-  "type": "automation",
-  "function": "function_name",
-  "params": {
-    "param1": "value1",
-    "param2": "value2"
-  }
+    "status": "healthy",
+    "service": "automation",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "available_functions": 4
 }
 ```
 
-### Example Task Configuration
-
-```json
+### List Functions
+```python
+# Response
 {
-  "soya_latte": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "grind_beans",
-        "params": {"grind_size": "fine", "amount_g": 18}
-      },
-      {
-        "type": "automation",
-        "function": "heat_water",
-        "params": {"target_temp_c": 93, "volume_ml": 250}
-      },
-      {
-        "type": "automation",
-        "function": "dispense_milk",
-        "params": {"milk_type": "soya", "amount": 120}
-      },
-      {
-        "type": "robot",
-        "function": "move_to_steam_wand",
-        "params": {}
-      }
-    ]
-  }
+    "functions": ["heat_water", "dispense_milk", "automation_test1", "automation_test2"],
+    "count": 4,
+    "success": true
+}
+```
+
+### Stop Automation
+```python
+# Response
+{
+    "success": true,
+    "message": "Automation processes stopped"
 }
 ```
 
@@ -219,13 +140,12 @@ To add a new automation function:
 
 1. **Define the function** in `automation_functions.py`:
 ```python
-async def new_automation_function(params: dict):
-    """Description of the function"""
-    # Extract parameters
+async def new_function(params: dict):
+    """Description of the function."""
     param1 = params.get("param1", default_value)
     
-    # Simulate or implement actual automation
-    await asyncio.sleep(duration)  # For simulation
+    # Simulate or implement automation
+    await asyncio.sleep(duration)
     
     return {
         "success": True,
@@ -237,72 +157,70 @@ async def new_automation_function(params: dict):
     }
 ```
 
-2. **Add to function mapping** in `automation_functions.py`:
+2. **Add to function mapping**:
 ```python
 AUTOMATION_FUNCTIONS = {
     # ... existing functions ...
-    "new_automation_function": new_automation_function,
+    "new_function": new_function,
 }
 ```
 
-3. **Update documentation** in this README file.
+## Integration with Routine Service
+
+Automation functions are called by the routine service through RabbitMQ:
+
+```python
+# In task configuration
+{
+    "type": "automation",
+    "function": "heat_water",
+    "params": {"target_temp_c": 85, "volume_ml": 200}
+}
+```
+
+## Events Published
+
+- `automation.started`: When automation function begins
+- `automation.completed`: When automation function completes
+- `automation.error`: When automation function fails
+- `automation.stopped`: When automation is manually stopped
+- `automation.emergency_stopped`: When emergency stop is triggered
 
 ## Error Handling
 
 The service provides comprehensive error handling:
 
 - **Function Not Found**: Returns error when requested function doesn't exist
-- **Parameter Validation**: Validates input parameters
+- **Parameter Validation**: Validates input parameters  
 - **Execution Errors**: Catches and reports runtime errors
-- **Service Communication**: Handles network and communication errors
+- **Event Publishing**: Publishes error events for system coordination
 
-## Development and Testing
+## Testing
 
-### Running Locally
-```bash
-cd services/automation
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
-
-### Testing with curl
-```bash
-# Test automation function with soya milk
-curl -X POST http://localhost:8005/automate \
-  -H "Content-Type: application/json" \
-  -d '{"function": "dispense_milk", "params": {"milk_type": "soya", "amount": 120}}'
-
-# Test grind beans function
-curl -X POST http://localhost:8005/automate \
-  -H "Content-Type: application/json" \
-  -d '{"function": "grind_beans", "params": {"grind_size": "fine", "amount_g": 18}}'
-
-# Health check
-curl http://localhost:8005/health
-
-# List functions
-curl http://localhost:8005/functions
-```
-
-## Docker Deployment
-
-The service is containerized and can be deployed using Docker Compose:
+Test the service using the built-in test functions:
 
 ```bash
-docker-compose up automation
+# Check service health
+docker logs barns-automation
+
+# Verify service is running
+docker ps --filter name=barns-automation
 ```
 
-The service will be available at `http://localhost:8005`.
+## Container Status
 
-## Environment Variables
+The automation service runs as a Docker container with:
+- **Health checks**: Container health monitoring
+- **Auto-restart**: Automatic restart on failure  
+- **RabbitMQ integration**: Event-driven communication
+- **Async execution**: Non-blocking automation operations
 
-- `AUTOMATION_SERVICE_URL`: URL for the automation service (default: "http://automation:8000")
+Check status: `docker ps --filter name=barns-automation`
 
-## Future Enhancements
+## Development Guidelines
 
-- **Real Hardware Integration**: Replace simulation with actual equipment drivers
-- **Status Monitoring**: Real-time status reporting for equipment
-- **Configuration Management**: Dynamic configuration for different equipment types
-- **Logging and Metrics**: Enhanced logging and performance metrics
-- **Safety Interlocks**: Safety checks and emergency stop functionality
-- **Milk Type Validation**: Validate available milk types against inventory
-- **Equipment Status**: Monitor milk dispenser levels and equipment health 
+1. **Keep operations realistic** - Simulate actual equipment timing
+2. **Provide detailed responses** - Include operation details and timing
+3. **Handle errors gracefully** - Return appropriate error responses
+4. **Use descriptive messages** - Clear success/failure messages
+5. **Include duration tracking** - For performance monitoring 

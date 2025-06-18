@@ -6,6 +6,24 @@ from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 from . import db, queue, models  # hypothetical internal modules
 import httpx
+import asyncio
+import json
+import logging
+import os
+import sys
+
+# Add parent directory to path for shared imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from shared.rabbitmq_client import RabbitMQClient, EventListener
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Global RabbitMQ clients
+rabbitmq_client: Optional[RabbitMQClient] = None
+event_listener: Optional[EventListener] = None
 
 # Additional models for request/response data
 class TaskCreate(BaseModel):
@@ -44,7 +62,7 @@ class SystemStopRequest(BaseModel):
 
 class ThresholdWarning(BaseModel):
     ingredient: str
-    severity: str = Field(..., regex="^(low|medium|high)$")
+    severity: str = Field(..., pattern="^(low|medium|high)$")
 
 class InventoryRefill(BaseModel):
     ingredient: str
@@ -72,6 +90,8 @@ TASK_STATUS = {
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    global rabbitmq_client, event_listener
+    
     db.connect()        # Connect to PostgreSQL
     queue.connect()     # Connect to Redis
     
@@ -79,9 +99,36 @@ async def lifespan(app: FastAPI):
     print("Syncing queue with database on startup...")
     queue.sync_with_database()
     
+    # Initialize RabbitMQ clients
+    try:
+        rabbitmq_client = RabbitMQClient("oms")
+        await rabbitmq_client.connect()
+        
+        event_listener = EventListener("oms")
+        await event_listener.connect()
+        
+        # Register RabbitMQ message handlers
+        register_rabbitmq_handlers()
+        
+        # Subscribe to relevant events
+        await event_listener.subscribe_to_events([
+            "scheduler.*", "validation.*", "automation.*", "routine.*", "system.*"
+        ])
+        register_event_handlers()
+        
+        logger.info("OMS service started with RabbitMQ integration")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize RabbitMQ: {e}")
+        # Continue without RabbitMQ if it fails
+    
     yield
+    
     # Shutdown
-    # Add any cleanup code here if needed
+    if rabbitmq_client:
+        await rabbitmq_client.disconnect()
+    if event_listener:
+        await event_listener.disconnect()
 
 app = FastAPI(title="Order Management Service", lifespan=lifespan)
 
@@ -102,6 +149,483 @@ app.add_middleware(
 # In-memory list of websocket connections for broadcasting (simple approach)
 active_connections: list[WebSocket] = []
 alert_connections: list[WebSocket] = []
+
+def register_rabbitmq_handlers():
+    """Register all RabbitMQ message handlers"""
+    if not rabbitmq_client:
+        return
+        
+    rabbitmq_client.register_handler("create_order", handle_create_order_mq)
+    rabbitmq_client.register_handler("list_orders", handle_list_orders_mq)
+    rabbitmq_client.register_handler("get_order", handle_get_order_mq)
+    rabbitmq_client.register_handler("start_order", handle_start_order_mq)
+    rabbitmq_client.register_handler("update_order_status", handle_update_order_status_mq)
+    rabbitmq_client.register_handler("delete_order", handle_delete_order_mq)
+    rabbitmq_client.register_handler("halt_order", handle_halt_order_mq)
+    rabbitmq_client.register_handler("resume_order", handle_resume_order_mq)
+    rabbitmq_client.register_handler("bulk_reorder_queue", handle_bulk_reorder_queue_mq)
+    rabbitmq_client.register_handler("sync_queue", handle_sync_queue_mq)
+    rabbitmq_client.register_handler("emergency_stop", handle_emergency_stop_mq)
+    rabbitmq_client.register_handler("resume_operations", handle_resume_operations_mq)
+    rabbitmq_client.register_handler("get_active_alerts", handle_get_active_alerts_mq)
+    rabbitmq_client.register_handler("get_acknowledged_alerts", handle_get_acknowledged_alerts_mq)
+    rabbitmq_client.register_handler("acknowledge_alert", handle_acknowledge_alert_mq)
+    rabbitmq_client.register_handler("health", handle_health_mq)
+    
+    logger.info("Registered all RabbitMQ message handlers")
+
+def register_event_handlers():
+    """Register event handlers"""
+    if not event_listener:
+        return
+        
+    event_listener.register_event_handler("scheduler.order_completed", handle_order_completed_event)
+    event_listener.register_event_handler("scheduler.order_failed", handle_order_failed_event)
+    event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
+    event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
+    
+    logger.info("Registered all event handlers")
+
+# RabbitMQ Message Handlers
+async def handle_create_order_mq(data: Dict) -> Dict:
+    """Handle create order requests via RabbitMQ"""
+    try:
+        order_data = data.get("order", {})
+        order = models.Order(**order_data)  # Validate with Pydantic model
+        
+        order_id = db.save_order(order)
+        queue.add_order(order_id)
+        
+        # Send event
+        if rabbitmq_client:
+            await rabbitmq_client.send_event("oms.order_created", {
+                "order_id": order_id,
+                "timestamp": "now"
+            })
+        
+        broadcast({"event": "order_received", "order": order_id, "status": "queued"})
+        
+        return {"success": True, "order_id": order_id, "status": "queued"}
+        
+    except Exception as e:
+        logger.error(f"Error creating order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_list_orders_mq(data: Dict) -> Dict:
+    """Handle list orders requests via RabbitMQ"""
+    try:
+        status = data.get("status")
+        orders = db.get_orders(status=status)
+        return {"success": True, "orders": orders}
+        
+    except Exception as e:
+        logger.error(f"Error listing orders via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_get_order_mq(data: Dict) -> Dict:
+    """Handle get order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+            
+        return {"success": True, "order": order}
+        
+    except Exception as e:
+        logger.error(f"Error getting order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_start_order_mq(data: Dict) -> Dict:
+    """Handle start order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+        
+        logger.info(f"🚀 OMS received start_order request for order {order_id}")
+        
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # Update order status to processing
+        db.update_order_status(order_id, "processing")
+        queue.remove(order_id)
+        
+        # Send event
+        if rabbitmq_client:
+            await rabbitmq_client.send_event("oms.order_started", {
+                "order_id": order_id,
+                "timestamp": "now"
+            })
+        
+        # Broadcast to WebSocket clients
+        broadcast({"event": "order_started", "order": order_id})
+        
+        # Send order to Scheduler for processing (async to avoid blocking response)
+        asyncio.create_task(send_to_scheduler(order))
+        
+        logger.info(f"✅ OMS successfully started processing order {order_id}")
+        return {"success": True, "message": "order_sent_to_scheduler", "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"💥 Error starting order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_update_order_status_mq(data: Dict) -> Dict:
+    """Handle update order status requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        status = data.get("status")
+        reason = data.get("reason")
+        
+        if not order_id or not status:
+            return {"success": False, "error": "Missing order_id or status"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # Validate status
+        valid_statuses = list(ORDER_STATUS.values())
+        if status not in valid_statuses:
+            return {"success": False, "error": f"Invalid status. Must be one of: {valid_statuses}"}
+        
+        # Update order status
+        db.update_order_status(order_id, status, reason)
+        
+        # Log event
+        db.log_event("order_status_changed", {
+            "order_id": order_id,
+            "old_status": order.get("status"),
+            "new_status": status,
+            "reason": reason,
+            "timestamp": "now"
+        })
+        
+        # Broadcast update
+        broadcast({
+            "event": "order_status_updated", 
+            "order": order_id, 
+            "status": status,
+            "reason": reason
+        })
+        
+        return {"success": True, "message": "status_updated", "order_id": order_id, "status": status}
+        
+    except Exception as e:
+        logger.error(f"Error updating order status via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_delete_order_mq(data: Dict) -> Dict:
+    """Handle delete order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # Remove from queue if still queued
+        if order.get("status") == ORDER_STATUS['QUEUED']:
+            queue.remove(order_id)
+        
+        # Delete from database
+        success = db.delete_order(order_id)
+        if not success:
+            return {"success": False, "error": "Failed to delete order from database"}
+        
+        # Log deletion event
+        event_id = db.log_event("order_deleted", {
+            "order_id": order_id,
+            "previous_status": order.get("status"),
+            "timestamp": "now"
+        })
+        
+        # Broadcast deletion
+        broadcast({
+            "event": "order_deleted",
+            "order": order_id,
+            "previous_status": order.get("status"),
+            "timestamp": "now"
+        })
+        
+        return {"success": True, "message": "order_deleted", "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"Error deleting order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_halt_order_mq(data: Dict) -> Dict:
+    """Handle halt order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        reason = data.get("reason", "Manual halt")
+        
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # Update status to halted
+        db.update_order_status(order_id, ORDER_STATUS['HALTED'], reason)
+        
+        # Create alert
+        event_id = db.log_event("order_halted", {
+            "order_id": order_id,
+            "reason": reason,
+            "timestamp": "now"
+        })
+        alert_id = db.create_alert(event_id, "order_halted", "warning")
+        
+        # Broadcast halt event
+        broadcast({
+            "event": "order_halted",
+            "order": order_id,
+            "reason": reason,
+            "alert_id": alert_id
+        })
+        
+        return {"success": True, "message": "order_halted", "order_id": order_id, "alert_id": alert_id}
+        
+    except Exception as e:
+        logger.error(f"Error halting order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_resume_order_mq(data: Dict) -> Dict:
+    """Handle resume order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        if order.get("status") != ORDER_STATUS['HALTED']:
+            return {"success": False, "error": "Order is not in halted state"}
+        
+        # Update status back to processing
+        db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
+        
+        # Log resume event
+        db.log_event("order_resumed", {
+            "order_id": order_id,
+            "timestamp": "now"
+        })
+        
+        # Broadcast resume event
+        broadcast({
+            "event": "order_resumed",
+            "order": order_id
+        })
+        
+        return {"success": True, "message": "order_resumed", "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"Error resuming order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_bulk_reorder_queue_mq(data: Dict) -> Dict:
+    """Handle bulk reorder queue requests via RabbitMQ"""
+    try:
+        order_ids = data.get("order_ids", [])
+        if not order_ids:
+            return {"success": False, "error": "order_ids list is required"}
+        
+        # Update the queue order in Redis
+        queue.bulk_reorder(order_ids)
+        
+        # Broadcast the updated queue order to clients
+        broadcast({"event": "queue_bulk_reordered", "order_ids": order_ids})
+        
+        return {"success": True, "message": "queue_reordered", "order_count": len(order_ids)}
+        
+    except Exception as e:
+        logger.error(f"Error bulk reordering queue via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_sync_queue_mq(data: Dict) -> Dict:
+    """Handle sync queue requests via RabbitMQ"""
+    try:
+        success = queue.sync_with_database()
+        if success:
+            current_queue = queue.get_queue()
+            return {
+                "success": True,
+                "message": "Queue synced with database",
+                "queue_length": len(current_queue),
+                "queue": current_queue
+            }
+        else:
+            return {"success": False, "message": "Failed to sync queue with database"}
+            
+    except Exception as e:
+        logger.error(f"Error syncing queue via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_emergency_stop_mq(data: Dict) -> Dict:
+    """Handle emergency stop requests via RabbitMQ"""
+    try:
+        reason = data.get("reason", "Emergency stop requested")
+        
+        # Log the stop event
+        db.log_event("system_stopped", {"reason": reason})
+        
+        # Create an alert for the system stop
+        event_id = db.log_event("emergency_stop", {"reason": reason, "timestamp": "now"})
+        alert_id = db.create_alert(event_id, "emergency_stop", "critical")
+        
+        # Broadcast system stop event
+        broadcast({
+            "event": "system_stopped", 
+            "reason": reason,
+            "alert_id": alert_id,
+            "timestamp": "now"
+        })
+        
+        return {
+            "success": True,
+            "message": "System stopped successfully",
+            "reason": reason,
+            "alert_id": alert_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Error stopping system via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_resume_operations_mq(data: Dict) -> Dict:
+    """Handle resume operations requests via RabbitMQ"""
+    try:
+        # Log the resume event
+        event_id = db.log_event("system_resumed", {"timestamp": "now"})
+        
+        # Broadcast system resume event
+        broadcast({
+            "event": "system_resumed",
+            "timestamp": "now"
+        })
+        
+        return {
+            "success": True,
+            "message": "System operations resumed successfully"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error resuming system via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_get_active_alerts_mq(data: Dict) -> Dict:
+    """Handle get active alerts requests via RabbitMQ"""
+    try:
+        alerts = db.get_active_alerts()
+        return {"success": True, "alerts": alerts}
+        
+    except Exception as e:
+        logger.error(f"Error getting active alerts via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_get_acknowledged_alerts_mq(data: Dict) -> Dict:
+    """Handle get acknowledged alerts requests via RabbitMQ"""
+    try:
+        alerts = db.get_acknowledged_alerts()
+        return {"success": True, "alerts": alerts}
+        
+    except Exception as e:
+        logger.error(f"Error getting acknowledged alerts via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_acknowledge_alert_mq(data: Dict) -> Dict:
+    """Handle acknowledge alert requests via RabbitMQ"""
+    try:
+        alert_id = data.get("alert_id")
+        if not alert_id:
+            return {"success": False, "error": "Missing alert_id"}
+            
+        db.acknowledge_alert(alert_id)
+        
+        # Broadcast acknowledgment
+        broadcast({"event": "alert_acknowledged", "alert_id": alert_id})
+        
+        return {"success": True, "message": "alert_acknowledged", "alert_id": alert_id}
+        
+    except Exception as e:
+        logger.error(f"Error acknowledging alert via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_health_mq(data: Dict) -> Dict:
+    """Handle health check requests via RabbitMQ"""
+    try:
+        return {
+            "status": "healthy",
+            "service": "oms",
+            "timestamp": "now",
+            "queue_length": len(queue.get_queue()) if queue else 0,
+            "rabbitmq_connected": rabbitmq_client is not None
+        }
+    except Exception as e:
+        logger.error(f"Error in health check via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+# Event Handlers
+async def handle_order_completed_event(data: Dict):
+    """Handle order completion events from scheduler"""
+    order_id = data.get("order_id")
+    if order_id:
+        db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
+        broadcast({
+            "event": "order_completed",
+            "order": order_id,
+            "timestamp": "now"
+        })
+
+async def handle_order_failed_event(data: Dict):
+    """Handle order failure events from scheduler"""
+    order_id = data.get("order_id")
+    error = data.get("error", "Unknown error")
+    if order_id:
+        db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
+        broadcast({
+            "event": "order_failed",
+            "order": order_id,
+            "error": error,
+            "timestamp": "now"
+        })
+
+async def handle_threshold_warning_event(data: Dict):
+    """Handle threshold warning events from validation service"""
+    ingredient = data.get("ingredient")
+    severity = data.get("severity")
+    if ingredient and severity:
+        # Create alert for threshold warning
+        event_id = db.log_event("threshold_warning", {
+            "ingredient": ingredient,
+            "severity": severity,
+            "timestamp": "now"
+        })
+        alert_id = db.create_alert(event_id, "ingredient_threshold", severity)
+        
+        broadcast({
+            "event": "threshold_warning",
+            "ingredient": ingredient,
+            "severity": severity,
+            "alert_id": alert_id,
+            "timestamp": "now"
+        })
+
+async def handle_shutdown_event(data: Dict):
+    """Handle system shutdown events"""
+    logger.info("Received shutdown event, stopping OMS service...")
 
 # Order Endpoints
 
@@ -509,6 +1033,12 @@ def get_active_alerts():
     alerts = db.get_active_alerts()
     return {"alerts": alerts}
 
+@app.get("/alerts/acknowledged")
+def get_acknowledged_alerts():
+    """Get all acknowledged alerts."""
+    alerts = db.get_acknowledged_alerts()
+    return {"alerts": alerts}
+
 # System Control Endpoints
 
 @app.post("/system/stop")
@@ -730,9 +1260,9 @@ def get_inventory_status():
         raise HTTPException(status_code=500, detail=f"Failed to get inventory status: {str(e)}")
 
 async def send_to_scheduler(order_data: dict):
-    """Call Scheduler service to initiate processing of the order."""
+    """Send order to Scheduler service via RabbitMQ."""
     
-    scheduler_url = "http://scheduler:8000/process"  # Corrected service name
+    logger.info(f"🔍 DEBUG: send_to_scheduler called with order_data: {order_data}")
     
     # Create a clean payload with only the data scheduler needs
     # Convert database format (drink_type) to scheduler format (type)
@@ -749,15 +1279,43 @@ async def send_to_scheduler(order_data: dict):
         "cups": cups
     }
     
+    logger.info(f"🔍 DEBUG: scheduler_payload: {scheduler_payload}")
+    
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(scheduler_url, json=scheduler_payload)
+        if rabbitmq_client:
+            logger.info(f"📤 OMS sending order {order_data.get('id')} to scheduler via RabbitMQ")
+            logger.info(f"🔍 DEBUG: RabbitMQ client available, sending request...")
+            
+            response = await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="process_order",
+                data=scheduler_payload,
+                timeout=30
+            )
+            
+            logger.info(f"🔍 DEBUG: Scheduler response: {response}")
+            
+            if response.get("success"):
+                logger.info(f"✅ Order {order_data.get('id')} successfully sent to scheduler")
+            else:
+                error_msg = f"Scheduler rejected order: {response.get('error', 'Unknown error')}"
+                logger.error(f"❌ {error_msg}")
+                raise Exception(error_msg)
+        else:
+            error_msg = "RabbitMQ client not available"
+            logger.error(f"❌ {error_msg}")
+            raise Exception(error_msg)
+              
     except Exception as e:
         # Handle error (e.g., log, retry, or publish an "order.failed" event)
-        print(f"Error sending order to scheduler: {e}")
+        logger.error(f"💥 Error sending order to scheduler: {e}")
+        logger.error(f"🔍 DEBUG: Exception type: {type(e)}, args: {e.args}")
         # Update order status to error
-        db.update_order_status(order_data["id"], "error")
-        broadcast({"event": "order_failed", "order": order_data["id"], "error": str(e)})
+        try:
+            db.update_order_status(order_data["id"], "error", str(e))
+            broadcast({"event": "order_failed", "order": order_data["id"], "error": str(e)})
+        except Exception as db_error:
+            logger.error(f"💥 Additional error updating order status: {db_error}")
 
 # WebSocket endpoint for real-time order updates
 @app.websocket("/ws/orders")
@@ -833,3 +1391,7 @@ def broadcast(message: dict):
         # No running loop, create a new one
         asyncio.run(send_to_connections())
         print(f"WebSocket broadcast sent: {message.get('event', 'unknown')}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,405 +1,291 @@
 # Routine Service
 
-## Purpose and Workflow
+The Routine Service orchestrates task execution for robotic arms by managing task queues and coordinating with validation and automation services in the BARNS system.
 
-The Routine Service is responsible for executing individual robotic tasks by coordinating validation checks and robot operations. It serves as the bridge between high-level task requests from the Scheduler and low-level robot/validation operations.
+## Features
 
-### Core Responsibilities
-- **Task Execution**: Executes multi-step robotic routines based on predefined configurations
-- **Validation Integration**: Coordinates with Validation service for quality checks
-- **Robot Coordination**: Manages robot arm operations and movements
-- **Event Publishing**: Publishes step-by-step execution events for monitoring
-- **Feedback Reporting**: Reports task completion status back to Scheduler
-- **Error Handling**: Manages failures and provides detailed error information
+- **Task Queue Management**: Manages separate queues for each robotic arm
+- **Multi-Step Execution**: Executes complex tasks with validation and automation steps
+- **Service Coordination**: Coordinates with validation and automation services
+- **Event-Driven**: Publishes events for task progress and completion
+- **Error Handling**: Comprehensive error handling with feedback to scheduler
+- **Health Monitoring**: Built-in health checks and queue status monitoring
 
-### Workflow
-1. **Task Reception**: Receives task requests from Scheduler service
-2. **Configuration Lookup**: Loads task configuration from `config/tasks.json`
-3. **Step Execution**: Executes validation and robot steps in sequence
-4. **Progress Monitoring**: Publishes events for each completed step
-5. **Error Handling**: Aborts on validation/robot failures with detailed error reporting
-6. **Completion Notification**: Sends success/failure feedback to Scheduler
+## File Structure
 
-### Execution Flow
 ```
-Task Request → Config Lookup → Step Execution (Validation/Robot) → Event Publishing → Feedback to Scheduler
+services/routine/
+├── app.py                    # Main service application with queue management
+├── executer.py              # Task execution logic and service coordination
+├── Dockerfile.rabbitmq      # Container configuration
+├── requirements.txt         # Python dependencies
+└── README.md               # This documentation
 ```
 
-## API Structure
+## Core Workflow
 
-### Core Endpoints
+1. **Task Reception**: Receives task requests from Scheduler service via RabbitMQ
+2. **Queue Management**: Routes tasks to appropriate arm queues (Arm 1 or Arm 2)
+3. **Task Execution**: Workers process tasks by executing configured steps
+4. **Step Processing**: Executes validation and automation steps in sequence
+5. **Service Coordination**: Calls validation and automation services via RabbitMQ
+6. **Feedback**: Reports completion status back to Scheduler
+7. **Event Publishing**: Publishes progress events for monitoring
 
-#### Execute Task (Called by Scheduler)
-```http
-POST /task
-Content-Type: application/json
+## Available Task Configurations
 
+### Default Tasks (when config file not found)
+
+#### test1
+```json
 {
-  "arm_id": 1,
-  "function": "steam_milk",
-  "item": {
-    "cup_id": "123-1",
-    "cup_size": "regular",
-    "drink": "Latte",
-    "addons": []
-  }
+    "steps": [
+        {"type": "validation", "function": "check_cup_present", "params": {}},
+        {"type": "validation", "function": "validate_test1", "params": {}},
+        {"type": "automation", "function": "automation_test1", "params": {}}
+    ]
 }
 ```
 
-#### Health Check
-```http
-GET /health               # Service health status
-```
-
-### Response Structures
-
-#### Task Execution Response
+#### test2
 ```json
 {
-  "status": "accepted",
-  "message": "Task processing started",
-  "arm_id": 1,
-  "function": "steam_milk"
+    "steps": [
+        {"type": "validation", "function": "check_temperature", "params": {"target_temperature": 85}},
+        {"type": "validation", "function": "validate_test2", "params": {}},
+        {"type": "automation", "function": "automation_test2", "params": {}}
+    ]
 }
 ```
 
-#### Error Response
-```json
+## API Endpoints (RabbitMQ)
+
+### Submit Task
+```python
+# Request
 {
-  "detail": "Unknown function",
-  "function": "invalid_task",
-  "available_functions": ["pull_espresso", "steam_milk", "pour_milk", "sprinkle_cocoa"]
+    "arm_id": 1,
+    "function": "test1",
+    "item": {
+        "cup_id": "123-1",
+        "cup_size": "regular", 
+        "drink": "test_drink",
+        "addons": []
+    }
+}
+
+# Response
+{
+    "status": "queued",
+    "arm_id": 1,
+    "function": "test1",
+    "queue_size": 1,
+    "success": True
+}
+```
+
+### Health Check
+```python
+# Response
+{
+    "status": "healthy",
+    "service": "routine",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "arm_queues": {
+        "1": 0,
+        "2": 0
+    },
+    "available_functions": ["test1", "test2"]
+}
+```
+
+### Get Queue Status
+```python
+# Request (specific arm)
+{
+    "arm_id": 1
+}
+
+# Request (all arms)
+{}
+
+# Response
+{
+    "all_arms": {
+        "1": 0,
+        "2": 1
+    },
+    "success": True
+}
+```
+
+### Clear Queue
+```python
+# Request (specific arm)
+{
+    "arm_id": 1
+}
+
+# Request (all arms)
+{}
+
+# Response
+{
+    "cleared_arms": [1, 2],
+    "success": True
 }
 ```
 
 ## Task Configuration System
 
-### Configuration File Structure (`config/tasks.json`)
-```json
-{
-  "pull_espresso": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "check_cup_present",
-        "params": {}
-      },
-      {
-        "type": "validation",
-        "function": "check_beans",
-        "params": {"min_grams": 18}
-      },
-      {
-        "type": "robot",
-        "function": "move_to_espresso_head",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "activate_pump",
-        "params": {"duration_sec": 30}
-      },
-      {
-        "type": "validation",
-        "function": "check_weight",
-        "params": {"min_weight": 30}
-      }
-    ]
-  }
-}
-```
+### Configuration File Location
+- **Path**: `/app/config/tasks.json` (configurable via `ROUTINE_CONFIG_PATH`)
+- **Format**: JSON with task definitions
 
 ### Step Types
-- **validation**: Calls Validation service for quality checks
-- **robot**: Calls Robot service for physical operations
+- **validation**: Calls validation service for quality checks
+- **automation**: Calls automation service for equipment operations
 
 ### Step Properties
-- **type**: Step category ("validation" or "robot")
-- **function**: Specific function to call
+- **type**: Step category ("validation" or "automation")
+- **function**: Specific function to call in the target service
 - **params**: Parameters to pass to the function
 
-## Event Publishing
-
-### Event Types
-- **routine.step_completed**: Individual step completion
-- **routine.completed**: Full task completion
-- **validation.failed**: Validation step failure
-- **robot.error**: Robot operation failure
-
-### Event Structure
+### Example Custom Configuration
 ```json
 {
-  "event_type": "routine.step_completed",
-  "data": {
-    "arm": 1,
-    "cup": "123-1",
-    "step": "check_cup_present"
-  }
+    "custom_task": {
+        "steps": [
+            {
+                "type": "validation",
+                "function": "check_ingredient_availability",
+                "params": {
+                    "ingredient": "milk",
+                    "amount_needed": 2
+                }
+            },
+            {
+                "type": "automation", 
+                "function": "dispense_milk",
+                "params": {
+                    "milk_type": "regular",
+                    "amount": 120
+                }
+            },
+            {
+                "type": "validation",
+                "function": "update_inventory",
+                "params": {
+                    "ingredient": "milk",
+                    "amount_used": 2
+                }
+            }
+        ]
+    }
 }
 ```
 
-## Integration Points
+## Events Published
 
-### With Scheduler Service
-- **Receives**: Task execution requests
-- **Sends**: Task completion feedback
+- `routine.task_queued`: When task is added to queue
+- `routine.task_completed`: When task completes successfully  
+- `routine.task_failed`: When task fails with error details
+- `routine.queue_cleared`: When arm queue is cleared
+- `routine.all_queues_cleared`: When all queues are cleared
+- `routine.completed`: When individual task finishes (legacy)
 
-### With Validation Service
+## Integration with Other Services
+
+### Scheduler Service
+- **Receives**: Task submission requests
+- **Sends**: Task completion/failure feedback
+
+### Validation Service
 - **Calls**: Validation functions for quality checks
 - **Receives**: Pass/fail results with details
 
-### With Robot Service
-- **Calls**: Robot movement and operation functions
-- **Receives**: Success/failure status
+### Automation Service
+- **Calls**: Automation functions for equipment operations
+- **Receives**: Success/failure status with timing information
 
-## Adding New Modules
+## Adding New Tasks
 
-### 1. Adding New Task Configurations
-
-**Step 1**: Add task definition to `config/tasks.json`:
+1. **Create task configuration** in `/app/config/tasks.json`:
 ```json
 {
-  "new_task": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "new_validation_check",
-        "params": {"threshold": 10}
-      },
-      {
-        "type": "robot",
-        "function": "new_robot_action",
-        "params": {"speed": "slow"}
-      }
-    ]
-  }
+    "new_task": {
+        "steps": [
+            {
+                "type": "validation",
+                "function": "your_validation_function",
+                "params": {"param1": "value1"}
+            },
+            {
+                "type": "automation",
+                "function": "your_automation_function", 
+                "params": {"param2": "value2"}
+            }
+        ]
+    }
 }
 ```
 
-**Step 2**: Ensure corresponding functions exist in Validation and Robot services
+2. **Ensure functions exist** in validation and automation services
 
-### 2. Adding New Step Types
-
-**Step 1**: Update step execution logic in `executer.py`:
-```python
-async def process_task(arm_id: int, task, configs: dict):
-    for step in cfg["steps"]:
-        step_type = step["type"]
-        if step_type == "validation":
-            # Existing validation logic
-        elif step_type == "robot":
-            # Existing robot logic
-        elif step_type == "new_step_type":
-            # New step type logic
-            res = await call_new_service(func_name, params)
-            if not res.get("success", False):
-                success = False
-                break
-```
-
-**Step 2**: Implement corresponding service call function:
-```python
-async def call_new_service(func_name: str, params: dict):
-    """Call new service type."""
-    url = f"{NEW_SERVICE_URL}/{func_name}"
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=params)
-            return response.json()
-    except Exception as e:
-        return {"success": False, "error": str(e)}
-```
-
-### 3. Adding Custom Event Publishers
-
-**Step 1**: Create custom event publisher:
-```python
-# routine/custom_events.py
-class CustomEventPublisher:
-    def __init__(self):
-        self.event_handlers = []
-    
-    def publish_custom_event(self, event_type: str, data: dict):
-        """Publish custom events with additional processing."""
-        # Custom processing logic
-        enhanced_data = self.enhance_event_data(data)
-        publish_event(event_type, enhanced_data)
-    
-    def enhance_event_data(self, data: dict) -> dict:
-        """Add custom data enrichment."""
-        return {**data, "timestamp": time.time(), "service": "routine"}
-```
-
-**Step 2**: Integrate custom publisher:
-```python
-# In executer.py
-from .custom_events import CustomEventPublisher
-
-custom_publisher = CustomEventPublisher()
-
-async def process_task(...):
-    # Use custom publisher
-    custom_publisher.publish_custom_event("custom.task_started", {...})
-```
-
-### 4. Adding Task Preprocessing
-
-**Step 1**: Create task preprocessor:
-```python
-# routine/preprocessor.py
-class TaskPreprocessor:
-    def __init__(self):
-        self.optimization_rules = {}
-    
-    def preprocess_task(self, task_request: dict) -> dict:
-        """Preprocess task before execution."""
-        # Add preprocessing logic
-        optimized_params = self.optimize_parameters(task_request)
-        return {**task_request, **optimized_params}
-    
-    def optimize_parameters(self, request: dict) -> dict:
-        """Optimize task parameters based on context."""
-        # Optimization logic
-        pass
-```
-
-**Step 2**: Integrate preprocessing:
-```python
-# In app.py
-from .preprocessor import TaskPreprocessor
-
-preprocessor = TaskPreprocessor()
-
-@app.post("/task")
-async def execute_task(task: TaskRequest):
-    # Preprocess task
-    processed_task = preprocessor.preprocess_task(task.dict())
-    # Continue with execution
-```
-
-### 5. Adding Advanced Error Handling
-
-**Step 1**: Create error handler:
-```python
-# routine/error_handler.py
-class AdvancedErrorHandler:
-    def __init__(self):
-        self.retry_strategies = {}
-        self.error_categories = {}
-    
-    def handle_error(self, error: Exception, context: dict) -> dict:
-        """Handle errors with retry logic and categorization."""
-        error_type = self.categorize_error(error)
-        retry_action = self.get_retry_strategy(error_type)
-        
-        return {
-            "should_retry": retry_action.should_retry,
-            "retry_delay": retry_action.delay,
-            "error_category": error_type,
-            "recovery_action": retry_action.recovery_action
-        }
-```
-
-### 6. Adding Performance Monitoring
-
-**Step 1**: Create performance monitor:
-```python
-# routine/performance_monitor.py
-class PerformanceMonitor:
-    def __init__(self):
-        self.metrics = {}
-        self.timing_data = {}
-    
-    def start_task_timing(self, task_id: str):
-        """Start timing a task."""
-        self.timing_data[task_id] = {"start": time.time()}
-    
-    def end_task_timing(self, task_id: str, success: bool):
-        """End timing and record metrics."""
-        if task_id in self.timing_data:
-            duration = time.time() - self.timing_data[task_id]["start"]
-            self.record_metric(task_id, duration, success)
-```
-
-## Environment Variables
-
-```env
-VALIDATION_SERVICE_URL=http://validation:8000    # Validation service endpoint
-ROBOT_SERVICE_URL=http://robot:8000             # Robot service endpoint
-SCHEDULER_SERVICE_URL=http://scheduler:8000      # Scheduler service endpoint
-```
-
-## Configuration Files
-
-### Task Configurations
-- **Location**: `config/tasks.json`
-- **Purpose**: Defines available tasks and their step sequences
-- **Format**: JSON with task definitions
-
-### Service Endpoints
-- **Validation Service**: Configurable via environment variables
-- **Robot Service**: Configurable via environment variables
-
-## Development Setup
-
-1. **Install Dependencies**:
-   ```bash
-   pip install fastapi uvicorn httpx asyncio
-   ```
-
-2. **Run Service**:
-   ```bash
-   uvicorn services.routine.app:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-3. **Test Task Configuration Loading**:
-   ```python
-   import json
-   with open('services/routine/config/tasks.json') as f:
-       tasks = json.load(f)
-   print(tasks.keys())
-   ```
+3. **Restart service** to reload configuration
 
 ## Error Handling
 
-### Validation Failures
-- Task aborts immediately on validation failure
-- Detailed failure reason provided in feedback
-- Event published for monitoring
+The service provides comprehensive error handling:
 
-### Robot Operation Failures
-- Task aborts on robot operation failure
-- Error details captured and reported
-- Recovery actions can be configured
-
-### Service Communication Failures
-- Timeout handling for external service calls
-- Retry logic for transient failures
-- Fallback operations for critical failures
+- **Invalid Arm ID**: Returns error for unsupported arm IDs
+- **Unknown Function**: Returns error when task configuration doesn't exist
+- **Step Failures**: Aborts task execution on validation/automation failures
+- **Service Communication**: Handles timeouts and connection errors
+- **Queue Management**: Proper cleanup of failed tasks
 
 ## Testing
 
-### Unit Testing
-```bash
-# Test individual functions
-python -m pytest services/routine/tests/test_executer.py
+Test the service using available functions:
 
-# Test configuration loading
-python -m pytest services/routine/tests/test_config.py
+```bash
+# Check service health
+docker logs barns-routine
+
+# Verify service is running and healthy
+docker ps --filter name=barns-routine
+
+# Check queue status
+# (Use RabbitMQ management interface or API Bridge)
 ```
 
-### Integration Testing
-```bash
-# Test with validation service
-curl -X POST "http://localhost:8000/task" \
-  -H "Content-Type: application/json" \
-  -d '{"arm_id": 1, "function": "steam_milk", "item": {"cup_id": "test-1"}}'
-```
+## Container Status
+
+The routine service runs as a Docker container with:
+- **Health checks**: Container health monitoring
+- **Auto-restart**: Automatic restart on failure
+- **RabbitMQ integration**: Event-driven communication
+- **Worker management**: Asynchronous arm workers
+- **Queue persistence**: In-memory task queues
+
+Check status: `docker ps --filter name=barns-routine`
+
+## Development Guidelines
+
+1. **Keep tasks modular** - Break complex operations into simple steps
+2. **Handle failures gracefully** - Provide detailed error information
+3. **Use appropriate step types** - Validation for checks, automation for actions
+4. **Test configurations** - Verify all referenced functions exist
+5. **Monitor performance** - Track task execution times and success rates
+
+## Environment Variables
+
+- `ROUTINE_CONFIG_PATH`: Path to task configuration file (default: `/app/config/tasks.json`)
 
 ## Performance Considerations
 
-- **Async Processing**: All external service calls are asynchronous
-- **Event Publishing**: Non-blocking event publishing to avoid delays
-- **Error Recovery**: Quick failure detection and reporting
-- **Resource Management**: Proper cleanup of resources after task completion
-- **Concurrent Execution**: Support for multiple simultaneous tasks on different arms 
+- **Async Processing**: All service calls are asynchronous
+- **Worker Isolation**: Each arm has dedicated worker to prevent blocking
+- **Event Publishing**: Non-blocking event publishing
+- **Resource Cleanup**: Proper task cleanup on completion/failure
+- **Concurrent Execution**: Support for multiple simultaneous tasks 
