@@ -1,73 +1,43 @@
--- Initialize database schema for BARNS
+-- File: ./database_init.sql (same level as docker-compose.yml)
 
--- 1. ORDERS TABLE
-CREATE TABLE IF NOT EXISTS orders (
-  id              BIGSERIAL PRIMARY KEY,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  status          VARCHAR(20) NOT NULL,          -- e.g. 'queued','processing','completed','error'
-  started_at      TIMESTAMPTZ,
-  completed_at    TIMESTAMPTZ,
-  error_message   TEXT
-);
+-- Create databases
+CREATE DATABASE barns_oms;
+CREATE DATABASE barns_validation;
 
--- 2. ORDER ITEMS (CUPS) TABLE
-CREATE TABLE IF NOT EXISTS order_items (
-  id              BIGSERIAL PRIMARY KEY,
-  order_id        BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  cup_id          TEXT NOT NULL,                 -- e.g. 'cup_001'
-  sequence_index  INT NOT NULL,                  -- position in order
-  drink_type      TEXT NOT NULL,                 -- e.g. 'latte','espresso'
-  cup_size        TEXT NOT NULL,                 -- e.g. 'small','medium','large'
-  addons          JSONB DEFAULT '[]'::JSONB,     -- e.g. ["extra_shot","vanilla"]
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- Create users
+DO $$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'barns_user') THEN
+      CREATE USER barns_user WITH ENCRYPTED PASSWORD 'barns_pass';
+   END IF;
+END
+$$;
 
--- 3. TASKS TABLE
--- One high-level task per arm per cup (assigned by Scheduler)
-CREATE TABLE IF NOT EXISTS tasks (
-  id               BIGSERIAL PRIMARY KEY,
-  order_id         BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-  item_id          BIGINT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
-  arm_id           INT NOT NULL,                 -- 1 or 2
-  function_name    TEXT NOT NULL,                -- e.g. 'pull_espresso'
-  status           VARCHAR(20) NOT NULL,         -- 'queued','running','completed','failed'
-  queued_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  started_at       TIMESTAMPTZ,
-  completed_at     TIMESTAMPTZ,
-  error_message    TEXT
-);
+DO $$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'validation_user') THEN
+      CREATE USER validation_user WITH ENCRYPTED PASSWORD 'validation_pass';
+   END IF;
+END
+$$;
 
--- 4. TASK STEPS LOG
--- Detailed logs of each micro-step within a task (from Routine service)
-CREATE TABLE IF NOT EXISTS task_steps (
-  id               BIGSERIAL PRIMARY KEY,
-  task_id          BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-  step_index       INT NOT NULL,                 -- order in sequence
-  step_type        VARCHAR(10) NOT NULL,         -- 'validation' or 'robot'
-  function_name    TEXT NOT NULL,                -- e.g. 'check_weight', 'activate_pump'
-  params           JSONB NOT NULL,               -- actual parameters used
-  status           VARCHAR(20) NOT NULL,         -- 'pending','running','passed','failed'
-  started_at       TIMESTAMPTZ,
-  completed_at     TIMESTAMPTZ,
-  error_message    TEXT
-);
+-- Grant privileges for OMS
+GRANT ALL PRIVILEGES ON DATABASE barns_oms TO barns_user;
 
--- 5. EVENTS TABLE
--- All published events for auditing/analytics
-CREATE TABLE IF NOT EXISTS events (
-  id               BIGSERIAL PRIMARY KEY,
-  event_type       TEXT NOT NULL,                -- e.g. 'order.received','routine.completed'
-  payload          JSONB NOT NULL,               -- full event JSON
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+-- Grant privileges for Validation  
+GRANT ALL PRIVILEGES ON DATABASE barns_validation TO validation_user;
 
--- 6. ALERTS TABLE
--- Critical alerts extracted from events (ingestion by Event Handler)
-CREATE TABLE IF NOT EXISTS alerts (
-  id               BIGSERIAL PRIMARY KEY,
-  event_id         BIGINT NOT NULL REFERENCES events(id),
-  alert_type       TEXT NOT NULL,                -- e.g. 'validation.failed','ingredient.low'
-  severity         VARCHAR(10) NOT NULL,         -- e.g. 'warning','critical'
-  acknowledged     BOOLEAN NOT NULL DEFAULT FALSE,
-  acknowledged_at  TIMESTAMPTZ
-); 
+-- Connect to each database and grant schema permissions
+\c barns_oms;
+GRANT ALL ON SCHEMA public TO barns_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO barns_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO barns_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO barns_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO barns_user;
+
+\c barns_validation;
+GRANT ALL ON SCHEMA public TO validation_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO validation_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO validation_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO validation_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO validation_user;
