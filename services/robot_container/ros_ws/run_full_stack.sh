@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+
+
 # -----------------------------------------------------------------------------
-# Source your ROS 2 overlay
+# Source your ROS 2 overlay
 # -----------------------------------------------------------------------------
 source /root/ros_ws/install/setup.bash
 
@@ -24,7 +26,7 @@ wait_for_service() {
 echo "=== Launching dobot_bringup_v3 (log‐level=warn) ==="
 ros2 launch dobot_bringup_v3 dobot_bringup_ros2.launch.py __log_level:=warn &
 DOBOT_BRINGUP_PID=$!
-sleep 10
+sleep 5
 
 wait_for_service "/dobot_bringup_v3/srv/ClearError"
 echo "Calling ClearError ..."
@@ -71,7 +73,7 @@ sleep 10
 echo "=== Launching dobot_moveit (silenced) ==="
 ros2 launch dobot_moveit dobot_moveit.launch.py __log_level:=fatal &> /dev/null &
 MOVEIT_PID=$!
-sleep 10
+sleep 5
 
 # -----------------------------------------------------------------------------
 # 3) Launch servo_action server (logs go to console)
@@ -86,15 +88,50 @@ sleep 5
 #/dev/null ensures no logs appear in this terminal.
 # -----------------------------------------------------------------------------
 echo "=== Launching Orbbec camera (silenced) ==="
-ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=fatal &> /dev/null &
+ros2 launch orbbec_camera gemini_330_series.launch.py \
+  camera_name:=${CAM_NAME} \
+  serial_number:=${CAMERA_SERIAL_NUMBER} \
+  __log_level:=fatal &
 CAMERA_PID=$!
+
+# Wait for camera to initialize and verify topics
+echo "Waiting for camera to initialize..."
+MAX_RETRIES=30
+RETRY_COUNT=0
+
+# Function to check if camera info is being published
+check_camera_info() {
+    # Try to get the latest message from the camera info topic
+    MSG_COUNT=$(timeout 2 ros2 topic echo --once /camera/color/camera_info 2>/dev/null | wc -l)
+    if [ $MSG_COUNT -gt 0 ]; then
+        return 0  # Success
+    else
+        return 1  # Failure
+    fi
+}
+
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if check_camera_info; then
+        echo "Camera info topic is actively publishing!"
+        break
+    fi
+    echo "Waiting for camera info messages... ($(( RETRY_COUNT + 1 ))/$MAX_RETRIES)"
+    sleep 1
+    RETRY_COUNT=$(( RETRY_COUNT + 1 ))
+done
+
+if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+    echo "WARNING: Camera info not publishing after $MAX_RETRIES seconds"
+fi
 sleep 10
+ros2 topic list
+sleep 5  # Additional delay for stability
 
 # -----------------------------------------------------------------------------
 # 5) Launch perception nodes (pose_generator, obstacle_generator) silently
 # -----------------------------------------------------------------------------
 echo "=== Spinning up pose_generator (silenced) ==="
-ros2 run pickn_place pose_generator __log_level:=fatal &> /dev/null &
+ros2 run pickn_place pose_generator __log_level:=fatal &
 POSE_GEN_PID=$!
 sleep 5
 
@@ -104,10 +141,18 @@ OBSTACLE_GEN_PID=$!
 sleep 5
 
 # -----------------------------------------------------------------------------
-# 6) Finally, leave the container alive (so dobot_bringup_v3 & servo_action keep running)
+# 6) Launch oms_v1.app service in separate background process
+# -----------------------------------------------------------------------------
+echo "=== Launching oms_v1.app service (log-level=info) ==="
+cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service &
+OMS_APP_PID=$!
+sleep 5
+
+# -----------------------------------------------------------------------------
+# 7) Finally, leave the container alive (so dobot_bringup_v3 & servo_action keep running)
 # -----------------------------------------------------------------------------
 echo "=== All subsystems launched. Only dobot_bringup_v3 and servo_action will print logs. ==="
-echo "=== All subsystems should be ready.  (CLI has been disabled in this script.) ==="
+echo "=== All subsystems should be ready. ==="
 echo "    To start the CLI, open a second shell and run:"
 echo "        docker exec -it <container-name> bash"
 echo "        python3 /root/ros_ws/src/oms_v1/oms_v1/cli.py"
@@ -123,4 +168,5 @@ trap "kill \
   $ACTION_SERVER_PID \
   $CAMERA_PID \
   $POSE_GEN_PID \
-  $OBSTACLE_GEN_PID" EXIT
+  $OBSTACLE_GEN_PID \
+  $OMS_APP_PID" EXIT

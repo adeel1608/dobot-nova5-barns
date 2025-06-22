@@ -302,41 +302,46 @@ services:
     # - Host networking for Fast-DDS multicast communication with hardware
     # - Bridge networking via networks section for RabbitMQ service communication
     network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
     ipc: host
     privileged: true
-    shm_size: "1g"
+    shm_size: "1g"   # second interface (depth/IR)
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
 
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - DOBOT_TYPE=nova5
-      - IP_address=192.168.100.249  # Robot 1 IP address
+      - IP_address=192.168.200.249  # Robot 1 IP address
       - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
       - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
-      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
-
-    # Device access for cameras and USB connections
-    devices:
-      - "/dev/video0:/dev/video0"
-      - "/dev/video1:/dev/video1"
-      - "/dev/video2:/dev/video2"
-      - "/dev/video3:/dev/video3"
-      - "/dev/video4:/dev/video4"
-      - "/dev/video5:/dev/video5"
-      - "/dev/video6:/dev/video6"
-      - "/dev/video7:/dev/video7"
-      - "/dev/media0:/dev/media0"
-      - "/dev/media1:/dev/media1"
-      - "/dev/ttyUSB0:/dev/ttyUSB0"  # USB connection to robot
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128            # host usbfs buffer hint
+      - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000F6
+      - CAM_NAME=cam0
+      - DEVICE_ID=1
 
     volumes:
-      - ./services/robot_container/ros_ws:/root/ros_ws
-      - ./shared:/app/shared:ro  # Mount shared directory for RabbitMQ client
+      - /dev/shm:/dev/shm               # share host shm tmpfs
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
-    user: "${UID}:${GID}"
+    #user: "${UID}:${GID}"  # Restore user permissions
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
     stdin_open: true
     tty: true
     
@@ -361,41 +366,46 @@ services:
     
     # Robot arms use host networking for Fast-DDS multicast communication
     network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
     ipc: host
     privileged: true
     shm_size: "1g"
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
 
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - DOBOT_TYPE=nova5
-      - IP_address=192.168.100.248  # Robot 2 IP address
+      - IP_address=192.168.200.248  # Robot 2 IP address
       - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
       - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
-      - RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
-
-    # Device access for cameras and USB connections (different devices)
-    devices:
-      - "/dev/video10:/dev/video10"
-      - "/dev/video11:/dev/video11"
-      - "/dev/video12:/dev/video12"
-      - "/dev/video13:/dev/video13"
-      - "/dev/video14:/dev/video14"
-      - "/dev/video15:/dev/video15"
-      - "/dev/video16:/dev/video16"
-      - "/dev/video17:/dev/video17"
-      - "/dev/media3:/dev/media3"
-      - "/dev/media4:/dev/media4"
-      - "/dev/ttyUSB1:/dev/ttyUSB1"  # USB connection to robot
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128
+      - ORBBEC_CONNECTION_DELAY=12000
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
+      - CAM_NAME=cam1
+      - DEVICE_ID=2
 
     volumes:
-      - ./services/robot_container/ros_ws:/root/ros_ws
-      - ./shared:/app/shared:ro  # Mount shared directory for RabbitMQ client
+      - /dev/shm:/dev/shm
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
-    user: "${UID}:${GID}"
+    #user: "${UID}:${GID}"  # Restore user permissions
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
     stdin_open: true
     tty: true
     
@@ -407,6 +417,8 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
+      robot1:
+        condition: service_started
     
     restart: unless-stopped
 

@@ -20,6 +20,7 @@ import os
 import yaml
 from ament_index_python.packages import get_package_share_directory
 from std_srvs.srv import Trigger  # <-- Imported Trigger service
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 # =============================================================================
 # Global Configuration Variables
@@ -27,15 +28,15 @@ from std_srvs.srv import Trigger  # <-- Imported Trigger service
 # General visualization and logging parameters
 DEFAULT_VISUALIZE = True
 DEFAULT_LOG_INTERVAL = 5
-
+CAM_NAME = os.getenv('CAM_NAME')
 # Camera and topic settings
 DEFAULT_REPROJECTION_ERROR_THRESHOLD = 0.5
 DEFAULT_CAMERA_FRAME = 'camera_depth_optical_frame'
-DEFAULT_IMAGE_TOPIC = '/camera/color/image_raw'
-DEFAULT_CAMERA_INFO_TOPIC = '/camera/color/camera_info'
-DEFAULT_DEPTH_INFO_TOPIC = '/camera/depth/camera_info'
-DEFAULT_DEPTH_IMAGE_TOPIC = '/camera/depth/image_raw'
-DEFAULT_EXTRINSICS_TOPIC = '/camera/depth_to_color'
+DEFAULT_IMAGE_TOPIC = f"/{CAM_NAME}/color/image_raw"
+DEFAULT_CAMERA_INFO_TOPIC = f"/{CAM_NAME}/color/camera_info"
+DEFAULT_DEPTH_INFO_TOPIC = f"/{CAM_NAME}/depth/camera_info"
+DEFAULT_DEPTH_IMAGE_TOPIC = f"/{CAM_NAME}/depth/image_raw"
+DEFAULT_EXTRINSICS_TOPIC = f"/{CAM_NAME}/depth_to_color"
 
 # ArUco detection parameters
 DEFAULT_ARUCO_DICT = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_5X5_50)
@@ -53,6 +54,14 @@ DEFAULT_TF_BROADCAST_INTERVAL = 0.1
 DEFAULT_CALIBRATION_TF_INTERVAL = 0.1
 DEFAULT_CALIBRATION_FILE_CHECK_INTERVAL = 2.0
 DEFAULT_POSE_SAVE_INTERVAL = 0.035
+
+# QoS profile for sensor data (BEST_EFFORT reliability to match camera)
+SENSOR_DATA_QOS = QoSProfile(
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.VOLATILE,
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=1
+)
 
 # Calibration file and configuration settings
 PACKAGE_NAME = 'pickn_place'
@@ -217,12 +226,12 @@ class ArucoPerceptionNode(Node):
         for item in self.id_name_config.get("aruco_id", []):
             self.marker_name_mapping[item["id"]] = item["name"]
 
-        # Subscriptions
-        self.create_subscription(CameraInfo, self.CAMERA_INFO_TOPIC, self.camera_info_callback, 10)
-        self.create_subscription(Image, self.IMAGE_TOPIC, self.image_callback, 10)
-        self.create_subscription(CameraInfo, self.DEPTH_INFO_TOPIC, self.depth_info_callback, 10)
-        self.create_subscription(Image, self.DEPTH_IMAGE_TOPIC, self.depth_callback, 10)
-        self.create_subscription(TransformStamped, self.EXTRINSICS_TOPIC, self.extrinsics_callback, 10)
+        # Subscriptions with sensor_data QoS profile
+        self.create_subscription(CameraInfo, self.CAMERA_INFO_TOPIC, self.camera_info_callback, SENSOR_DATA_QOS)
+        self.create_subscription(Image, self.IMAGE_TOPIC, self.image_callback, SENSOR_DATA_QOS)
+        self.create_subscription(CameraInfo, self.DEPTH_INFO_TOPIC, self.depth_info_callback, SENSOR_DATA_QOS)
+        self.create_subscription(Image, self.DEPTH_IMAGE_TOPIC, self.depth_callback, SENSOR_DATA_QOS)
+        self.create_subscription(TransformStamped, self.EXTRINSICS_TOPIC, self.extrinsics_callback, SENSOR_DATA_QOS)
 
         self.create_timer(5.0, self.check_input_topics)
 
@@ -357,7 +366,7 @@ class ArucoPerceptionNode(Node):
         return frame[start_y:start_y + crop_y, start_x:start_x + crop_x]
 
     # ------------------------------------
-    # 3D-3D alignment (Horn’s method)
+    # 3D-3D alignment (Horn's method)
     # ------------------------------------
     def estimate_pose_3D_3D(self, object_points, camera_points):
         if object_points.shape[0] < 3:
