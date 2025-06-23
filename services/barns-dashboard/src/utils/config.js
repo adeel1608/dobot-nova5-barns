@@ -5,9 +5,14 @@
 
 // API Configuration
 export const API_CONFIG = {
-  // All API calls go through the API Bridge via nginx proxy
-  API_BASE: '/api',
-  WEBSOCKET_BASE: '/ws',
+  //  ---- PRODUCTION ----
+  // API_BASE: '/api',
+  // WEBSOCKET_BASE: '/ws',
+  // VIDEO_STREAM: 'http://localhost:8001' // Video stream direct connection
+
+  // ---- Development ----
+  API_BASE: process.env.NODE_ENV === 'development' ? 'http://localhost:8000/api' : '/api',
+  WEBSOCKET_BASE: process.env.NODE_ENV === 'development' ? 'ws://localhost:8000/ws' : '/ws',
   VIDEO_STREAM: 'http://localhost:8001' // Video stream direct connection
 };
 
