@@ -581,26 +581,54 @@ async def handle_health_mq(data: Dict) -> Dict:
 async def handle_order_completed_event(data: Dict):
     """Handle order completion events from scheduler"""
     order_id = data.get("order_id")
+    logger.info(f"🎉 [OMS] Received order_completed event from scheduler for order {order_id}")
+    
     if order_id:
+        # Check if order is already completed to prevent duplicate processing
+        order = db.get_order(order_id)
+        if order and order.get("status") == ORDER_STATUS['COMPLETED']:
+            logger.warning(f"⚠️ [OMS] Order {order_id} is already COMPLETED. Ignoring duplicate completion event.")
+            return
+        
+        logger.info(f"✅ [OMS] Updating order {order_id} status to COMPLETED in database")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
+        
+        logger.info(f"📡 [OMS] Broadcasting order_completed event to dashboard for order {order_id}")
         broadcast({
             "event": "order_completed",
             "order": order_id,
             "timestamp": "now"
         })
+        logger.info(f"✅ [OMS] Successfully processed order completion for order {order_id}")
+    else:
+        logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
 
 async def handle_order_failed_event(data: Dict):
     """Handle order failure events from scheduler"""
     order_id = data.get("order_id")
     error = data.get("error", "Unknown error")
+    logger.info(f"❌ [OMS] Received order_failed event from scheduler for order {order_id}, error: {error}")
+    
     if order_id:
+        # Check if order is already in error state to prevent duplicate processing
+        order = db.get_order(order_id)
+        if order and order.get("status") == ORDER_STATUS['ERROR']:
+            logger.warning(f"⚠️ [OMS] Order {order_id} is already in ERROR state. Ignoring duplicate failure event.")
+            return
+        
+        logger.info(f"❌ [OMS] Updating order {order_id} status to ERROR in database")
         db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
+        
+        logger.info(f"📡 [OMS] Broadcasting order_failed event to dashboard for order {order_id}")
         broadcast({
             "event": "order_failed",
             "order": order_id,
             "error": error,
             "timestamp": "now"
         })
+        logger.info(f"❌ [OMS] Successfully processed order failure for order {order_id}")
+    else:
+        logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
 
 async def handle_threshold_warning_event(data: Dict):
     """Handle threshold warning events from validation service"""

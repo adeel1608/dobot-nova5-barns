@@ -452,15 +452,26 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     """Handle feedback from the routine service about task completion."""
     global completed_count, completed, failed_count, failed_tasks
     
+    logger.log(f"🔄 [SCHEDULER] Processing feedback: cup_id={cup_id}, action={action}, success={success}")
+    logger.log(f"🔍 [SCHEDULER] Current counts - completed: {completed_count}, failed: {failed_count}, total: {tasks_total}")
+    
     with lock:
-        # Find the task in our list
+        # Find the first matching task that is not yet completed/failed
+        task_found = False
         for task in tasks:
-            if task["cup"] == cup_id and task["action"] == action:
+            if task["cup"] == cup_id and task["action"] == action and task["status"] not in ["done", "failed"]:
+                task_found = True
+                logger.log(f"✅ [SCHEDULER] Found matching task: {task}")
+                
+                # This task is ready to be processed
+                
                 if success:
                     # Mark task as completed
                     task["status"] = "done"
                     completed[cup_id].add(action)
                     completed_count += 1
+                    logger.log(f"✅ [SCHEDULER] Task marked as completed. New completed_count: {completed_count}")
+                    
                     # Check if this was the final task for this cup
                     if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
                         message = f"Order complete: {task['drink']} for {cup_id}"
@@ -471,8 +482,12 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                     task["status"] = "failed"
                     failed_tasks.append(task)
                     failed_count += 1
-                    logger.log(f"Task failed: {action} for cup {cup_id}")
+                    logger.log(f"❌ [SCHEDULER] Task failed: {action} for cup {cup_id}. New failed_count: {failed_count}")
                 break
+        
+        if not task_found:
+            logger.log(f"⚠️ [SCHEDULER] No matching task found for cup_id={cup_id}, action={action}")
+            logger.log(f"🔍 [SCHEDULER] Available tasks: {[(t['cup'], t['action']) for t in tasks]}")
 
 # Helper function to notify OMS of order completion
 async def notify_oms_completion(order_id: int, success: bool, reason: str = None):

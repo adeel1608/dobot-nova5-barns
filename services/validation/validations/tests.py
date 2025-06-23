@@ -1,5 +1,7 @@
 """Test validation functions for BARNS system testing."""
 
+import asyncio
+
 from . import BaseValidation
 
 
@@ -10,8 +12,9 @@ class ValidationTest1(BaseValidation):
     def function_name(self) -> str:
         return "validate_test1"
     
-    def validate(self, params: dict) -> dict:
+    async def validate(self, params: dict) -> dict:
         """Test function 1 for validation service."""
+        await asyncio.sleep(5)
         return {
             "passed": True,
             "details": "validate_test1 passed successfully",
@@ -31,7 +34,8 @@ class ValidationTest2(BaseValidation):
     def function_name(self) -> str:
         return "validate_test2"
     
-    def validate(self, params: dict) -> dict:
+    async def validate(self, params: dict) -> dict:
+        await asyncio.sleep(5)
         """Test function 2 for validation service."""
         return {
             "passed": True,

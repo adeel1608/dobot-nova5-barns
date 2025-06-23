@@ -7,15 +7,16 @@
           "params": {}
         },
         {
-          "type": "robot",
-          "function": "test",
-          "params": {}
-        },
-        {
           "type": "automation",
           "function": "automation_test1",
           "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "robot_test1",
+          "params": {}
         }
+
       ]
     },
     "test2": {
@@ -26,15 +27,16 @@
           "params": {}
         },
         {
-          "type": "robot",
-          "function": "test",
-          "params": {}
-        },
-        {
           "type": "automation",
           "function": "automation_test2",
           "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "robot_test2",
+          "params": {}
         }
+
       ]
     }
   }

@@ -8,6 +8,7 @@ services:
     ports:
       - "5672:5672"    # AMQP port
       - "15672:15672"  # Management UI
+      - "1883:1883"    # MQTT port      
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin123
@@ -15,6 +16,11 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - barns-network
+    command: >
+      sh -c "
+        rabbitmq-plugins enable --offline rabbitmq_mqtt &&
+        rabbitmq-server
+      "
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
