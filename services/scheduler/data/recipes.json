@@ -55,7 +55,7 @@
     },
     {
       "action": "test2",
-      "assigned_arm": "Arm2",
+      "assigned_arm": "Arm1",
       "depends_on": []
     }
   ]

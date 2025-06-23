@@ -3,21 +3,36 @@
   <name>pickn_place</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
+  
   <maintainer email="erdie@qltyss.com">erds</maintainer>
   <license>TODO: License declaration</license>
+
+  <!-- We assume you still want ament_cmake in case you have a CMakeLists for other reasons, 
+       but you can also remove it if you only use ament_python. -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  
+  <!-- Dependencies for your Python code: -->
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
-  <depend>tf_transformations</depend>
+  <depend>tf-transformations</depend>
   <depend>launch</depend>
   <depend>launch_ros</depend>
+
+  <!-- Depend on the interfaces package so you can import the generated Python modules for your services. -->
+  <depend>pickn_place_interfaces</depend>
+
+  <!-- rosidl_default_generators is no longer needed here since the .srv files have moved. -->
+  <!-- <build_depend>rosidl_default_generators</build_depend> -->
+  <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
+
   <test_depend>python3-pytest</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+
   <export>
     <build_type>ament_python</build_type>
   </export>

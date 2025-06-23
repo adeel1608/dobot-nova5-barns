@@ -8,7 +8,7 @@
         },
         {
           "type": "robot",
-          "function": "robot_test1",
+          "function": "test",
           "params": {}
         },
         {
@@ -27,7 +27,7 @@
         },
         {
           "type": "robot",
-          "function": "robot_test2",
+          "function": "test",
           "params": {}
         },
         {

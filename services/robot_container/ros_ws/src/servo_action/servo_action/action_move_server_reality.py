@@ -39,23 +39,29 @@ class MoveCircleActionServer(Node):
         self.servo_controller_status = 0      # 0 = READY · 2 = BUSY · 1 = ERROR
         self.executing = False
         self.adc = []                         # cached trajectory (deg)
-        self.goal_last_rad = None             # final point (rad)
+        self.goal_last_rad = None             # final point (rad), initialized from actual robot at startup
         self.cache_timestamp = None
         self.jstate_window = deque(maxlen=10)  # for stability checks
 
-        # -------------------- NEW “Mirror‐Back” STATE --------------------
+        # -------------------- NEW “Mirror‐Back” & External‐Motion STATE --------------------
         self._latest_joint = None         # most recent JointState[0:6] (rad)
         self._last_sent_joint = None      # last six‐joint list we actually forwarded
         self._change_threshold = 0.01     # rad tolerance per joint (~0.57°)
+        self._external_moving = False     # flag indicating detection of external motion
 
         # -------------------- PARAMS --------------------
-        self.max_points = 50
+        self.max_points = 35
         self.sleep_timing = 0.12
         # Watchdog disabled: no cache expiry enforced
         self.cache_expiry = None
-        self.verify_tolerance_rad = rad(0.1)  # 0.1° each ⇒ 0.6° total
+        self.verify_tolerance_rad = rad(0.1)  # 0.1° each ⇒ 0.6° total for six joints
         self.epsilon_stable = 0.0001          # ≈ 0.006°
         self.settle_timeout = 2.0             # max time to wait for stability
+
+        # External‐motion detection threshold: if sum of absolute joint‐differences from last plan
+        # exceeds this, we treat it as “external move.” Adjust per your robot’s noise level.
+        # Example: 0.5° ≈ 0.0087 rad per joint, times 6 joints ≈ 0.052 rad total.
+        self.external_move_threshold = rad(0.5) * 6
 
         # -------------------- ROS INTERFACES --------------------
         robot_type = os.getenv("DOBOT_TYPE", "dobot")
@@ -339,7 +345,7 @@ class MoveCircleActionServer(Node):
             sum_rad = sum(diffs_rad)
             self.get_logger().info(
                 f"DATALOG: Σ|Δ| = {deg(sum_rad):.3f}°"
-                f"  (threshold {deg(self.verify_tolerance_rad*6):.2f}°)"
+                f"  (threshold {deg(self.verify_tolerance_rad * 6):.2f}°)"
             )
             if sum_rad <= self.verify_tolerance_rad * 6:
                 success = True
@@ -376,40 +382,73 @@ class MoveCircleActionServer(Node):
             with self._lock:
                 self._latest_joint = list(msg.position[:6])
 
-    # ---------- NEW: TIMER CALLBACK (0.1 s) ----------
+    # ---------- NEW: TIMER CALLBACK (0.1 s) with Startup & External‐Motion Detection ----------
     def _on_timer_tick(self):
         """
-        Fires every 0.1 s. If status == 0 and we have a latest_joint, compare
-        it to last_sent_joint. If any joint moved > threshold, round to 3 decimals
-        and send a new one‐point trajectory goal. Otherwise, skip.
+        Fires every 0.1 s. Handles:
+         1) Startup‐initialization of goal_last_rad from first JointState
+         2) External‐motion detection (if robot moves without a new plan)
+         3) Mirror‐back (one‐point goals) when in READY and small moves occur
         """
         with self._lock:
-            # 1) Only mirror‐back when READY
+            # (A) If we’re in the middle of executing a planned trajectory, do nothing here.
+            if self.executing:
+                return
+
+            # (B) If we’re already handling external motion, check for “stop” using last 3 samples
+            if self._external_moving:
+                if len(self.jstate_window) >= 3:
+                    a = self.jstate_window[-3]
+                    b = self.jstate_window[-2]
+                    c = self.jstate_window[-1]
+                    diffs_ab = [abs(a[i] - b[i]) for i in range(6)]
+                    diffs_bc = [abs(b[i] - c[i]) for i in range(6)]
+                    if (all(d < self.epsilon_stable for d in diffs_ab) and
+                            all(d < self.epsilon_stable for d in diffs_bc)):
+                        # Robot has come to rest after external motion
+                        self._external_moving = False
+                        self.servo_controller_status = 0       # back to READY
+                        self.goal_last_rad = list(c)           # new baseline = actual pose
+                return  # skip mirror-back while external_moving
+
+            # (C) Normal READY logic: Must be in status=0 before doing anything else.
             if self.servo_controller_status != 0:
                 return
 
-            # 2) Must have received at least one JointState
+            # (D) If we haven’t yet received any JointState, we have nothing to work with.
             if self._latest_joint is None:
                 return
 
-            current = self._latest_joint
+            # (NEW 1) Startup‐initialization: if this is our first tick and goal_last_rad is None,
+            #           just copy the robot’s current joints into goal_last_rad and stay in READY.
+            if self.goal_last_rad is None:
+                self.goal_last_rad = list(self._latest_joint)
+                return  # don’t mirror-back on this same tick; baseline has just been set.
+
+            # (NEW 2) External‐drift detection: compare actual pose vs. last “planned endpoint.”
+            diff_to_plan = [
+                abs(self._latest_joint[i] - self.goal_last_rad[i])
+                for i in range(6)
+            ]
+            sum_diff = sum(diff_to_plan)
+            if sum_diff > self.external_move_threshold:
+                # Robot has moved away from where our last plan expected.
+                self._external_moving = True
+                self.servo_controller_status = 2  # BUSY
+                return  # skip mirror-back on this tick
+
+            # (E) Mirror‐back logic: if we get here, we’re in READY & no external drift.
             prev = self._last_sent_joint
-
-            # 3) Decide whether to send
-            if prev is None:
-                should_send = True
+            current = self._latest_joint
+            if prev is None or any(
+                abs(current[i] - prev[i]) > self._change_threshold for i in range(6)
+            ):
+                to_send = [round(x, 3) for x in current]
+                self._last_sent_joint = list(to_send)
             else:
-                diffs = [abs(current[i] - prev[i]) for i in range(6)]
-                should_send = any(diff > self._change_threshold for diff in diffs)
+                return  # no substantial change; do not send a new one‐point goal.
 
-            if not should_send:
-                return
-
-            # 4) Round each to 3 decimals (matching original SubscriberNode logic)
-            to_send = [round(x, 3) for x in current]
-            self._last_sent_joint = list(to_send)
-
-        # 5) Actually send outside the lock
+        # (F) Outside the lock: actually fire _send_goal(to_send)
         self._send_goal(to_send)
 
     # ---------- NEW: BUILD & SEND A SINGLE‐POINT GOAL ----------
