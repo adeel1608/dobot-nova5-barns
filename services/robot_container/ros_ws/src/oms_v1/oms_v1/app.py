@@ -13,6 +13,8 @@ from typing import Dict
 
 # Add shared directory to path for RabbitMQ client
 sys.path.append('/app/shared')
+# Also add the current directory structure for local imports
+sys.path.append('/root/ros_ws/src')
 
 # Import sequence functions
 try:

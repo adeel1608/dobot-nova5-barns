@@ -39,12 +39,15 @@ class AutomationService:
         self.rabbitmq_client.register_handler("list_functions", self.handle_list_functions)
         self.rabbitmq_client.register_handler("stop_automation", self.handle_stop_automation)
         
+        logger.info(f"🔧 [AUTOMATION] Registered handlers: automate, health, list_functions, stop_automation")
+        logger.info(f"📋 [AUTOMATION] Available functions: {list(AUTOMATION_FUNCTIONS.keys())}")
+        
         # Subscribe to events
         await self.event_listener.subscribe_to_events(["system.*", "automation.*"])
         self.event_listener.register_event_handler("system.shutdown", self.handle_shutdown_event)
         self.event_listener.register_event_handler("automation.emergency_stop", self.handle_emergency_stop)
         
-        logger.info("Automation service started and listening for messages")
+        logger.info("🚀 [AUTOMATION] Service started and listening for messages")
         
         try:
             await asyncio.Future()  # Run forever
@@ -65,12 +68,17 @@ class AutomationService:
             function = data.get("function")
             params = data.get("params", {})
             
+            logger.info(f"🤖 [AUTOMATION] Received automation request: function='{function}', params={params}")
+            
             if function not in AUTOMATION_FUNCTIONS:
+                logger.error(f"❌ [AUTOMATION] Unknown function '{function}'. Available: {list(AUTOMATION_FUNCTIONS.keys())}")
                 return {
                     "success": False,
                     "error": f"No such automation function '{function}'",
                     "message": f"Available functions: {list(AUTOMATION_FUNCTIONS.keys())}"
                 }
+            
+            logger.info(f"🚀 [AUTOMATION] Starting execution of '{function}'")
             
             # Send start event
             await self.rabbitmq_client.send_event("automation.started", {
@@ -82,6 +90,8 @@ class AutomationService:
             # Execute automation function
             result = await AUTOMATION_FUNCTIONS[function](params)
             
+            logger.info(f"✅ [AUTOMATION] Function '{function}' completed successfully: {result}")
+            
             # Send completion event
             await self.rabbitmq_client.send_event("automation.completed", {
                 "function": function,
@@ -92,7 +102,8 @@ class AutomationService:
             return result
             
         except Exception as e:
-            logger.error(f"Error in automation: {e}")
+            logger.error(f"💥 [AUTOMATION] Error executing function '{function}': {e}")
+            logger.error(f"💥 [AUTOMATION] Exception details: {type(e).__name__}: {str(e)}")
             
             # Send error event
             await self.rabbitmq_client.send_event("automation.error", {

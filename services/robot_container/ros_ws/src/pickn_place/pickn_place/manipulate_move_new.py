@@ -8,7 +8,7 @@ REFERENCE_FRAME = "base_link"               # Reference frame for TF lookup.
 PLANNER_ID = "OMPL"                         # Planner ID for MoveIt2.
 CARTESIAN = True                            # Use Cartesian planning?
 CARTESIAN_MAX_STEP = 0.001                  # Maximum step size for Cartesian motion.
-CARTESIAN_FRACTION_THRESHOLD = 0.5          # Fraction threshold for Crtesian planning.
+CARTESIAN_FRACTION_THRESHOLD = 0.8          # Fraction threshold for Crtesian planning.
 CARTESIAN_JUMP_THRESHOLD = 0.0              # Jump threshold for Cartesian planning.
 CARTESIAN_AVOID_COLLISIONS = True           # Enable collision avoidance.
 VELOCITY_SCALING = 1.0                      # Velocity scaling factor.
@@ -1136,7 +1136,7 @@ class DirectTfMotionNode(Node):
         from tf_transformations import euler_matrix, quaternion_from_matrix
 
         # fixed offset from Link6 origin → portafilter_link origin (m)
-        d_rel = np.array([0.0, 0.0, 0.276])
+        d_rel = np.array([0.0, 0.0, 0.2825])
 
         # 1) get current Link6 pose (with retries)
         if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):
@@ -1257,6 +1257,8 @@ class DirectTfMotionNode(Node):
 
         self.get_logger().info("enforce_rxry(): Completed with SUCCESS.")
         return True
+
+
 
     def move_portafilter_arc(self, angle_deg: float):
         pf_moveit2 = MoveIt2(

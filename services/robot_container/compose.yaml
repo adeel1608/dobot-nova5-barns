@@ -18,6 +18,8 @@ services:
       - DOBOT_TYPE=nova5
       - IP_address=192.168.100.249
       - ROS_DOMAIN_ID=0
+      - ROBOT_ID=1
+      - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/
 
     devices:
       - "/dev/video0:/dev/video0"
@@ -34,11 +36,12 @@ services:
 
     volumes:
       - ./ros_ws:/root/ros_ws          # mount your source & build space
+      - ../../shared:/app/shared:ro    # Mount shared directory for RabbitMQ client
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
-    user: "${UID}:${GID}"
+    user: "root"
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python3 -m oms_v1.app --service"]
     stdin_open: true
     tty: true
     ports:
@@ -64,6 +67,8 @@ services:
       - DOBOT_TYPE=nova5
       - IP_address=192.168.100.248
       - ROS_DOMAIN_ID=1
+      - ROBOT_ID=2
+      - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/
 
     devices:
       - "/dev/video10:/dev/video10"
@@ -80,11 +85,12 @@ services:
 
     volumes:
       - ./ros_ws:/root/ros_ws          # mount your source & build space
+      - ../../shared:/app/shared:ro    # Mount shared directory for RabbitMQ client
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
 
-    user: "${UID}:${GID}"
+    user: "root"
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh & cd /root/ros_ws/src/oms_v1 && python3 -m oms_v1.app --service"]
     stdin_open: true
     tty: true
     ports:

@@ -19,7 +19,7 @@ class AddObstacleNode(Node):
         box = SolidPrimitive()
         box.type = SolidPrimitive.BOX
         # half-extents in meters (e.g. 0.2×0.2×0.1)
-        box.dimensions = [0.4, 0.4, 1.1]
+        box.dimensions = [0.2, 0.2, 1.1]
 
         # 2) Pose of the box relative to base_link
         p = Pose()

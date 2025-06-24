@@ -121,8 +121,12 @@ class SchedulerService:
             success = data.get("success")
             message = data.get("message", "")
             
+            logger.info(f"📨 [SCHEDULER] Received feedback from routine: action='{action}', cup_id='{cup_id}', success={success}, message='{message}'")
+            
             # Process the feedback through the scheduler
             await scheduler.handle_routine_feedback(cup_id, action, success)
+            
+            logger.info(f"✅ [SCHEDULER] Processed feedback for {action} on cup {cup_id} - {'SUCCESS' if success else 'FAILED'}")
             
             # Notify status subscribers
             status_message = f"{action} for cup {cup_id} {'completed' if success else 'failed'}"
@@ -219,20 +223,13 @@ class SchedulerService:
             })
             
             # Use the scheduler's process_order_async function
+            # Note: The scheduler module handles sending completion/failure events to OMS
             success = await scheduler.process_order_async(order_id, drinks, recipes)
             
-            # Send completion event
+            # Send status notifications (events are already sent by scheduler module)
             if success:
-                await self.rabbitmq_client.send_event("scheduler.order_completed", {
-                    "order_id": order_id,
-                    "timestamp": datetime.now().isoformat()
-                })
                 await self.notify_status(f"Order {order_id} completed successfully")
             else:
-                await self.rabbitmq_client.send_event("scheduler.order_failed", {
-                    "order_id": order_id,
-                    "timestamp": datetime.now().isoformat()
-                })
                 await self.notify_status(f"Failed to process order {order_id}")
                 
         except Exception as e:

@@ -11,11 +11,10 @@ ENV ROS_DISTRO=${ROS_DISTRO}
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-c"]
 
-# ---- 0. Install ROS 2 apt source tool ----
-RUN rm /etc/apt/sources.list.d/ros2-latest.list && \
-    apt update && apt install curl && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+# # ---- 0. Install ROS 2 apt source tool ----
+# RUN apt update && apt install curl && \
+#     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+#     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
 # ---- 1. Build & run-time dependencies (APT) ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -60,7 +59,9 @@ RUN pip3 install --no-cache-dir \
         opencv-contrib-python==4.11.0.86 \
         numpy==1.23.5 \
         scipy==1.15.2 \
-        transformations==2025.1.1
+        transformations==2025.1.1 \
+        aio-pika==9.4.3 \
+        pika==1.3.2
 
 # ---- 3. Initialise rosdep (so container can run as non-root) ----
 RUN rm -f /etc/ros/rosdep/sources.list.d/20-default.list \
@@ -75,6 +76,9 @@ WORKDIR /root/ros_ws
 # ---- 5. Copy in the custom entrypoint that builds & then launches ROS ----
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# ---- 6. Fix the python command issue by creating a symlink ----
+RUN ln -s /usr/bin/python3 /usr/bin/python
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]
