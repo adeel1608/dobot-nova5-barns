@@ -45,29 +45,27 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
         <div 
           {...attributes}
           {...listeners}
-          className={`mb-2 sm:mb-0 flex-1 ${disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
+          className={`mb-2 sm:mb-0 flex-1 ${disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing  border-2 border-red-400'}`}
         >
-          <div className="space-y-1">
           <span className="text-sm font-medium text-gray-500">Order #{order.id}</span>
           <h3 className="font-semibold">{order.itemName}</h3>
              {getStatusBadge(order.status)}
-            {order.manualRequired && (
-              <div className="text-xs text-red-600 mt-1 flex items-center">
-                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                Manual step required
-              </div>
-            )}
-        </div>
+          {order.manualRequired && (
+            <div className="text-xs text-red-600 mt-1 flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Manual step required
+            </div>
+          )}
         </div>
         
         {/* Button area - NOT draggable */}
-        <div className="flex items-center space-x-2 mt-12 ">
+        <div className="flex items-center space-x-2  border-2 border-red-400">
        
           
           {/* Action buttons */}
-          <div className="flex space-x-2  ">
+          <div className="flex space-x-1 border-2 border-red-400">
             {/* Debug: Log button condition */}
             {console.log(`🔍 Order ${order.id}: status="${order.status}", shouldShowButton:`, !['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status))}
             {!['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status) && (
@@ -86,7 +84,6 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                         : 'bg-blue-500 hover:bg-blue-600 text-white'
                     }`}
                     title={isStarting === order.id ? "Starting..." : "Start processing"}
-                    style={{height:'2rem'}}
                   >
                     {isStarting === order.id ? (
                       <>
@@ -116,7 +113,6 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                     }}
                     className="text-xs px-2 py-1 rounded flex items-center bg-orange-500 hover:bg-orange-600 text-white"
                     title="Resume halted order"
-                     style={{height:'2rem'}}
                   >
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -139,7 +135,6 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                         : 'bg-red-500 hover:bg-red-600 text-white'
                     }`}
                     title="Retry failed order"
-                     style={{height:'2rem'}}
                   >
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2m-15.356-2H9" />
@@ -152,9 +147,8 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
 
           <button 
             onClick={() => onViewDetails(order)}
-            className="text-[11px] font-medium px-1.5 py-0.5 barns-dark-bg  text-white rounded flex items-center"
+            className="text-[11px] font-medium px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center"
             title="View order details"
-             style={{height:'2rem'}}
           >
             <svg
               className="w-3 h-3 mr-1 flex-shrink-0"
@@ -194,7 +188,6 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                     : 'bg-red-500 hover:bg-red-600 text-white'
               }`}
               title={isDeleting ? "Deleting..." : order.status === 'PROCESSING' ? "⚠️ Force delete processing order (DANGER)" : "Delete order"}
-               style={{height:'2rem'}}
             >
               {isDeleting ? (
                 <>

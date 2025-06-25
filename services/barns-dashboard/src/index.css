@@ -4,7 +4,7 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: 'Titillium Web',  sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -63,7 +63,9 @@ h2, h3, h4, h5, h6 {
   font-weight: 600;
   letter-spacing: -0.025em;
 }
-
+.barns-text{
+  color: #00784B;
+}
 h1 {
   font-size: 2.5em;
   line-height: 1.1;
@@ -522,4 +524,30 @@ textarea:focus {
   .text-responsive-lg {
     font-size: 1.25rem;
   }
+}
+
+.barns-bg{
+  background-color: #00784B;
+}
+
+.barns-dark-text{
+  color: #233746;
+}
+
+.barns-dark-bg {
+  background-color: #233746;
+  transition: background-color 0.3s;
+}
+
+.barns-dark-bg:hover {
+  background-color: #00784B;
+}
+.barns-border-dark{
+  border:0.5px solid #233746;
+  border-radius: 6px;
+}
+.barns-bg-hover:hover{
+  cursor: pointer;
+  background-color: rgba(0, 120, 75,0.3);
+  color: white !important;
 }

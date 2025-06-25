@@ -195,7 +195,7 @@ export default function AlertsPanel() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+    <div className="bg-white rounded-lg shadow-md flex flex-col h-full">
       {/* Header - Responsive */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0">
         <div className="flex items-center">
@@ -214,22 +214,23 @@ export default function AlertsPanel() {
         
         <div className="flex items-center space-x-2">
           {errors.alerts && (
-            <button
+            <h2
               onClick={retryFetchAlerts}
               disabled={isLoading}
               className="text-xs px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg transition-colors disabled:opacity-50"
             >
               Retry
-            </button>
+            </h2>
           )}
           {unacknowledgedAlerts.length > 0 && (
-            <button
+            <h2
               onClick={handleAcknowledgeAll}
               disabled={isLoading || acknowledging.size > 0}
-              className="text-xs px-2 md:px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
+              className="text-lg md:text-sm font-bold barns-dark-bg text-white px-3 py-1  rounded cursor-pointer "
+              style={{ color:'white'}}
             >
               Ack All
-            </button>
+            </h2>
           )}
         </div>
       </div>
@@ -244,7 +245,7 @@ export default function AlertsPanel() {
       )}
 
       {/* Alerts List - Responsive */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden p-3">
         <div className="h-full overflow-y-auto">
           {isLoading && unacknowledgedAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4 md:p-6">
@@ -263,7 +264,7 @@ export default function AlertsPanel() {
               <p className="text-xs text-gray-400">No active alerts</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100  p-3">
               {unacknowledgedAlerts.map((alert) => (
                 <div key={alert.id} className="p-2 md:p-3 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start space-x-2 md:space-x-3">
