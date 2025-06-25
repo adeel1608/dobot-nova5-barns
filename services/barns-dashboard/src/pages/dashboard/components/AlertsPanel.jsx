@@ -247,7 +247,7 @@ export default function AlertsPanel() {
               Retry
             </h2>
           )}
-          {unacknowledgedAlerts.length > 0 && (
+          {/* {unacknowledgedAlerts.length > 0 && (
             <h2
               onClick={handleAcknowledgeAll}
               disabled={isLoading || acknowledging.size > 0}
@@ -256,7 +256,7 @@ export default function AlertsPanel() {
             >
               Ack All
             </h2>
-          )}
+          )} */}
         </div>
       </div>
 
