@@ -507,3 +507,17 @@ button[data-active="true"] {
 .scrollbar-thin {
   scrollbar-gutter: stable;
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 8px; /* horizontal */
+  width: 8px;  /* vertical */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #afa9aa; /* Tailwind's red-600 */
+  border-radius: 9999px;
+}

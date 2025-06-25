@@ -65,8 +65,8 @@ const InventoryPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-y-auto">
-      <div className="w-full max-w-none px-4 sm:px-6 lg:px-8 py-6 ">
+    <div className="min-h-screen bg-gray-50">
+      <div className="w-full max-w-none px-2 sm:px-2 border lg:px-2 ">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
           <div className="flex flex-col ">
@@ -224,10 +224,10 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium barns-green-text truncate">
-                      Barns
+                      Inventory
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl barns-green-text font-medium text-[#233746]">
-                      Inventory Management
+                       Management
                     </p>
                   </div>
                 </div>
@@ -412,8 +412,8 @@ const InventoryPage = () => {
 
             {/* Low Stock Alert */}
             {lowItems.length > 0 && (
-              <div className="bg-red-50 mt-2 sm:mt-4 border border-red-200 rounded-lg p-3 sm:p-4 flex items-center justify-between shadow-sm">
-                <div className="flex items-start">
+              <div className="bg-red-50 mt-2 sm:mt-4 border border-red-200 rounded-lg p-3 sm:p-4 flex items-center justify-between shadow-sm ">
+                <div className="flex items-start w-full">
                   <svg
                     className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 mt-0.5 mr-2 sm:mr-3 flex-shrink-0"
                     fill="currentColor"
@@ -425,73 +425,86 @@ const InventoryPage = () => {
                       clipRule="evenodd"
                     />
                   </svg>
-                  <div className="flex-1">
-                    <h3 className="text-sm font-medium text-red-800">
-                      Low Stock Alert
-                    </h3>
-                    <div className="mt-1 sm:mt-2 text-sm text-red-700">
+                  <div className="flex-1 ">
+                    <div className="flex justify-between w-full ">
+                      <h3 className="text-sm font-medium  text-red-800">
+                        Low Stock Alert
+                      </h3>
+                    
+                      {hasLowInventory() && (
+                        <button
+                          onClick={handleRefillAllLow}
+                          disabled={isLoading}
+                          className="px-3 sm:px-4 py-1 bg-red-600 text-white text-sm font-small rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap order-2 sm:order-1"
+                          
+                        >
+                          {isLoading ? (
+                            <div className="flex items-center justify-center">
+                              <svg
+                                className="animate-spin -ml-1 mr-1 sm:mr-2 h-4 w-4 text-white"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              <span className="hidden sm:inline  text-sm">Refilling...</span>
+                              <span className="sm:hidden">...</span>
+                            </div>
+                          ) : (
+                            <>
+                              <span className="hidden sm:inline text-sm">
+                                Refill All Low Items
+                              </span>
+                              <span className="sm:hidden">Refill Low Items</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-1 sm:mt-2 text-sm text-red-700 ">
                       <p>{lowItems.length} items are running low:</p>
-                      <ul className="mt-1 list-inside space-y-0.5 space-x-3 flex">
-                        {lowItems
-                          .slice(0, window.innerWidth > 640 ? 5 : 3)
-                          .map((item) => (
-                            <li key={item.key} className="truncate  border px-3 rounded-full border-red-300 border-2">
-                              {item.name} ({item.numeric}%)
+                      <div
+                        className=" max-w-full overflow-x-auto custom-scrollbar "
+                        style={{ width: "85rem" }}
+                      >
+                        <ul className="mt-1 list-inside space-y-0.5 pb-2 space-x-3 flex">
+                          {lowItems
+                            .slice(0, window.innerWidth > 640 ? 5 : 3)
+                            .map((item) => (
+                              <li
+                                key={item.key}
+                                className="truncate min-w-max  px-3 rounded-full border-red-300 border-2"
+                              >
+                                {item.name} ({item.numeric}%)
+                              </li>
+                            ))}
+                          {lowItems.length >
+                            (window.innerWidth > 640 ? 5 : 3) && (
+                            <li>
+                              ...and{" "}
+                              {lowItems.length -
+                                (window.innerWidth > 640 ? 5 : 3)}{" "}
+                              more items
                             </li>
-                          ))}
-                        {lowItems.length >
-                          (window.innerWidth > 640 ? 5 : 3) && (
-                          <li>
-                            ...and{" "}
-                            {lowItems.length -
-                              (window.innerWidth > 640 ? 5 : 3)}{" "}
-                            more items
-                          </li>
-                        )}
-                      </ul>
+                          )}
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
-                {hasLowInventory() && (
-                  <button
-                    onClick={handleRefillAllLow}
-                    disabled={isLoading}
-                    className="px-3 sm:px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap order-2 sm:order-1"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center justify-center">
-                        <svg
-                          className="animate-spin -ml-1 mr-1 sm:mr-2 h-4 w-4 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <span className="hidden sm:inline">Refilling...</span>
-                        <span className="sm:hidden">...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="hidden sm:inline">
-                          Refill All Low Items
-                        </span>
-                        <span className="sm:hidden">Refill Low Items</span>
-                      </>
-                    )}
-                  </button>
-                )}
+               
               </div>
             )}
           </div>
