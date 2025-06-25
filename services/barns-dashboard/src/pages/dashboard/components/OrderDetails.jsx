@@ -1,6 +1,6 @@
 import React from 'react';
 import useStore from '../../../store';
-
+import stop from '../../../assets/stop.png';
 export default function OrderDetails() {
   const { orders } = useStore();
 
@@ -11,10 +11,14 @@ export default function OrderDetails() {
 
   if (!processingOrder) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+      <div className="bg-white rounded-lg shadow-md flex flex-col h-full ">
         {/* Header - Responsive */}
-        <div className="p-2 md:p-3 border-b border-gray-200 flex-shrink-0">
+        <div className="p-2 md:p-3 border-b border-gray-200 flex-shrink-0 flex  justify-between">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
+            <button className="flex text-red bg-red-300 hover:bg-red-600 text-white" style={{ padding: '0.3rem', outline: 'none', }}>
+              {/* Stop */}
+              <img src={stop} alt="Refresh" className="w-6 h-6 cursor-pointer " />
+           </button>
         </div>
 
         {/* No Processing Order - Responsive */}
@@ -51,6 +55,7 @@ export default function OrderDetails() {
       <div className="p-2 md:p-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
+
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
             <span className="text-xs font-medium text-yellow-600">Processing</span>

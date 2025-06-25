@@ -173,7 +173,7 @@ export default function LogsPanel() {
   const services = ['ALL', ...new Set(systemLogs.map(log => log.service))];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
+    <div className="p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: 'calc(100vh - 100px)' }}>
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between">
@@ -191,7 +191,7 @@ export default function LogsPanel() {
           
           <div className="flex items-center space-x-3">
             {/* View Mode Toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            {/* <div className="flex bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('detailed')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
@@ -212,11 +212,11 @@ export default function LogsPanel() {
               >
                 Compact
               </button>
-            </div>
+            </div> */}
             
             {/* Controls */}
             <div className="flex items-center space-x-2">
-              <label className="flex items-center text-sm text-gray-600">
+              {/* <label className="flex items-center text-sm text-gray-600">
                 <input
                   type="checkbox"
                   checked={autoScroll}
@@ -234,11 +234,11 @@ export default function LogsPanel() {
                   className="mr-2 rounded bg-white border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
                 Auto-refresh
-              </label>
+              </label> */}
               
               <button
                 onClick={exportLogs}
-                className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors flex items-center"
+                className="px-3 py-1 barns-dark-bg text-white rounded-md text-sm font-medium transition-colors flex items-center"
               >
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
