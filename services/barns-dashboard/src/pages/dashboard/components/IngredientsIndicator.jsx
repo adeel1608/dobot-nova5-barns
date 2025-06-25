@@ -61,15 +61,9 @@ const handleNavigate = () => {
   return (
     <div className="bg-white rounded-lg shadow-md  p-4">
       <div className="flex items-center justify-between mb-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Ingredients</h3>
-        <div className="flex gap-x-2">
-          {/* <button
-            onClick={handleNavigate}
-            className="barns-dark-bg"
-            style={{ padding: '0.3rem', outline: 'none' }}
-          >
-            <img src={refreshBtn} alt="Refresh" className="w-5 h-5 cursor-pointer" />
-          </button> */}
+        <h3 className="text-lg font-semibold text-gray-900">Inventory</h3>
+        {/* <div className="flex gap-x-2">
+
           <div className="relative group inline-block">
           <button
             onClick={handleNavigate}
@@ -79,7 +73,7 @@ const handleNavigate = () => {
             <img src={refreshBtn} alt="Refresh" className="w-5 h-5 cursor-pointer" />
           </button>
 
-          {/* Tooltip */}
+          
           <div className="absolute bottom-full left-[-50%] transform -translate-x-1/2 mb-2  
                           bg-gray-800 text-white text-xs rounded px-2 py-1 
                           opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
@@ -87,7 +81,7 @@ const handleNavigate = () => {
           </div>
         </div>
 
-        </div>
+        </div> */}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

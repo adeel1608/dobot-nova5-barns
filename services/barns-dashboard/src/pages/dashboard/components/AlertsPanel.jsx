@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../../store';
+import viewAll from '../../../assets/viewall.png';
 
 export default function AlertsPanel() {
   const { 
@@ -24,6 +25,12 @@ export default function AlertsPanel() {
 
     return () => clearInterval(interval);
   }, [fetchAlerts]);
+
+    const { navigateToTab } = useStore();
+    const handleNavigate = () => {
+    navigateToTab('alerts');       // Update state
+    window.location.hash = '#/alerts'; // Update URL
+  };
 
   // Map real alerts data to component format
   const mappedAlerts = alerts.map(alert => ({
@@ -197,10 +204,10 @@ export default function AlertsPanel() {
   return (
     <div className="bg-white rounded-lg shadow-md flex flex-col h-full">
       {/* Header - Responsive */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0">
-        <div className="flex items-center">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0  ">
+        <div className="flex items-center justify-between w-full ">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">Active Alerts</h2>
-          {unacknowledgedAlerts.length > 0 && (
+          {/* {unacknowledgedAlerts.length > 0 && (
             <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
               {unacknowledgedAlerts.length}
             </span>
@@ -209,7 +216,25 @@ export default function AlertsPanel() {
             <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
               API Error
             </span>
-          )}
+          )} */}
+           <div className="flex gap-x-2">
+
+            <div className="relative group inline-block ">
+              <button
+                onClick={handleNavigate}
+                className="barns-dark-bg"
+                style={{ padding: '0.3rem', outline: 'none' }}
+              >
+                <img src={viewAll} alt="Refresh" className="w-5 h-5 cursor-pointer" />
+              </button>
+            <div className="absolute bottom-full left-[-50%] transform -translate-x-1/2 mb-2  
+                            bg-gray-800 text-white text-xs rounded px-2 py-1 
+                            opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
+              Click to More Details
+            </div>
+          </div>
+
+        </div>
         </div>
         
         <div className="flex items-center space-x-2">
