@@ -66,7 +66,7 @@ const InventoryPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full max-w-none px-2 sm:px-2 border lg:px-2 ">
+      <div className="w-full max-w-none px-2 sm:px-2 lg:px-2 ">
         {/* Header */}
         <div className="mb-4 sm:mb-6">
           <div className="flex flex-col ">
@@ -537,7 +537,7 @@ const InventoryPage = () => {
           </div>
         </div> */}
         <div className="mb-4 sm:mb-6">
-          <div className="bg-white/90 backdrop-blur-sm rounded-xl p-2 shadow-md border border-[#00784B]/20">
+          <div className="bg-white/90 backdrop-blur-sm rounded-xl p-3 shadow-md border border-[#00784B]/20">
             <nav className="flex space-x-2 sm:space-x-4 lg:space-x-6 overflow-x-auto scrollbar-hide">
               {tabs.map((tab) => (
                 <button
@@ -547,8 +547,8 @@ const InventoryPage = () => {
             flex items-center gap-2 min-w-[120px] justify-center group
             ${
               activeTab === tab.id
-                ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md"
-                : "bg-white text-[#00784B] hover:bg-[#00784B]/5"
+                ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md hover:text-black"
+                : "bg-white text-[#00784B] hover:bg-[#00784B]/5 hover:text-black"
             }`}
                   data-active={activeTab === tab.id}
                 >

@@ -67,15 +67,15 @@ const CategoryInventoryCard = ({ category, isAllView }) => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
           <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-[#00784B]/10 to-white border-2 border-[#00784B]/20 shadow-inner flex-shrink-0">
-            {typeof categoryInfo.icon === "string" && !categoryInfo.icon.startsWith("/") ? (
+            {/* {typeof categoryInfo.icon === "string" && !categoryInfo.icon.startsWith("/") ? (
               <span className="text-2xl sm:text-3xl text-[#00784B]">{categoryInfo.icon}</span>
-            ) : (
+            ) : ( */}
               <img
-                src={categoryInfo.icon}
+                src={categoryInfo.avatar}
                 alt={categoryInfo.title}
                 className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
               />
-            )}
+            {/* // )} */}
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="text-lg sm:text-xl font-bold text-[#233746] truncate">

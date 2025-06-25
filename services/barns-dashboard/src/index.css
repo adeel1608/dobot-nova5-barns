@@ -100,7 +100,7 @@ button {
 }
 
 button:hover {
-  transform: translateY(-1px);
+  /* transform: translateY(-1px); */
   box-shadow: 0 4px 8px rgba(0, 117, 74, 0.15);
 }
 
