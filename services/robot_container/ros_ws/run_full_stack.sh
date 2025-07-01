@@ -85,12 +85,43 @@ sleep 5
 
 # -----------------------------------------------------------------------------
 # 4) Launch Orbbec camera (silence everything)
-#/dev/null ensures no logs appear in this terminal.
 # -----------------------------------------------------------------------------
 echo "=== Launching Orbbec camera (silenced) ==="
+
+# Validate and set default environment variables to prevent expansion issues
+if [ -z "${CAM_NAME}" ]; then
+    CAM_NAME="camera"
+fi
+if [ -z "${CAMERA_SERIAL_NUMBER}" ]; then
+    CAMERA_SERIAL_NUMBER=""
+fi
+if [ -z "${USB_PORT}" ]; then
+    USB_PORT=""
+fi
+if [ -z "${DEVICE_NUM}" ]; then
+    DEVICE_NUM="1"
+fi
+
+echo "Camera configuration:"
+echo "  - Camera Name: ${CAM_NAME}"
+echo "  - Serial Number: ${CAMERA_SERIAL_NUMBER}"
+echo "  - USB Port: ${USB_PORT}"
+echo "  - Device Num: ${DEVICE_NUM}"
+
+# List available USB devices for debugging
+echo "Available USB devices:"
+lsusb 2>/dev/null || echo "lsusb not available"
+
+# List Orbbec devices and their UIDs
+echo "Orbbec devices and UIDs:"
+ros2 run orbbec_camera list_devices_node 2>/dev/null || echo "list_devices_node not available"
+
+# Launch camera with validated parameters
 ros2 launch orbbec_camera gemini_330_series.launch.py \
-  camera_name:=${CAM_NAME} \
-  serial_number:=${CAMERA_SERIAL_NUMBER} \
+  camera_name:="${CAM_NAME}" \
+  serial_number:="${CAMERA_SERIAL_NUMBER}" \
+  usb_port:="${USB_PORT}" \
+  device_num:="${DEVICE_NUM}" \
   __log_level:=fatal &
 CAMERA_PID=$!
 
@@ -101,8 +132,8 @@ RETRY_COUNT=0
 
 # Function to check if camera info is being published
 check_camera_info() {
-    # Try to get the latest message from the camera info topic
-    MSG_COUNT=$(timeout 2 ros2 topic echo --once /camera/color/camera_info 2>/dev/null | wc -l)
+    # Try to get the latest message from the camera info topic using dynamic camera name
+    MSG_COUNT=$(timeout 2 ros2 topic echo --once /${CAM_NAME}/color/camera_info 2>/dev/null | wc -l)
     if [ $MSG_COUNT -gt 0 ]; then
         return 0  # Success
     else
@@ -126,6 +157,7 @@ fi
 sleep 10
 ros2 topic list
 sleep 5  # Additional delay for stability
+# ros2 run rosbridge_server rosbridge_websocket --ros-args -p port:=9090 -p address:=0.0.0.0
 
 # -----------------------------------------------------------------------------
 # 5) Launch perception nodes (pose_generator, obstacle_generator) silently

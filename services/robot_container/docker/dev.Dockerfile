@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ros-${ROS_DISTRO}-moveit \
         ros-${ROS_DISTRO}-ros2-control \
         ros-${ROS_DISTRO}-ros2-controllers \
+        ros-${ROS_DISTRO}-rosbridge-server \
         libomp-dev \
         nlohmann-json3-dev \
         freeglut3-dev \
@@ -55,7 +56,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ---- 2. Install exactly the pip wheels you need ----
-RUN pip3 install --no-cache-dir \
+RUN pip3 install --no-cache-dir --timeout 300 --retries 3 \
         opencv-contrib-python==4.11.0.86 \
         numpy==1.23.5 \
         scipy==1.15.2 \

@@ -74,8 +74,8 @@ class RobotContainerService:
     async def start(self):
         """Start the robot container service."""
         try:
-            # Import RabbitMQ client
-            from rabbitmq_client import RabbitMQClient
+            # Import RabbitMQ client - may not be available in all environments
+            from rabbitmq_client import RabbitMQClient  # type: ignore
             
             self.rabbitmq_client = RabbitMQClient(self.service_name)
             await self.rabbitmq_client.connect()

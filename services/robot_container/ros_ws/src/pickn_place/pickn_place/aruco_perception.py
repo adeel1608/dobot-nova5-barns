@@ -28,7 +28,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDur
 # General visualization and logging parameters
 DEFAULT_VISUALIZE = True
 DEFAULT_LOG_INTERVAL = 5
-CAM_NAME = os.getenv('CAM_NAME')
+CAM_NAME = os.environ.get('CAM_NAME', 'camera')
 # Camera and topic settings
 DEFAULT_REPROJECTION_ERROR_THRESHOLD = 0.5
 DEFAULT_CAMERA_FRAME = 'camera_depth_optical_frame'
@@ -344,13 +344,13 @@ class ArucoPerceptionNode(Node):
 
     def check_input_topics(self):
         if not self.camera_info_received:
-            self.throttled_log("No color camera info received. Ensure /camera/color/camera_info is publishing.", "warn")
+            self.throttled_log(f"No color camera info received. Ensure {self.CAMERA_INFO_TOPIC} is publishing.", "warn")
         if not self.image_received:
-            self.throttled_log("No color image received. Ensure /camera/color/image_raw is publishing.", "warn")
+            self.throttled_log(f"No color image received. Ensure {self.IMAGE_TOPIC} is publishing.", "warn")
         if not self.depth_info_received:
-            self.throttled_log("No depth camera info received. Ensure /camera/depth/camera_info is publishing.", "warn")
+            self.throttled_log(f"No depth camera info received. Ensure {self.DEPTH_INFO_TOPIC} is publishing.", "warn")
         if not self.depth_image_received:
-            self.throttled_log("No depth image received. Ensure /camera/depth/image_raw is publishing.", "warn")
+            self.throttled_log(f"No depth image received. Ensure {self.DEPTH_IMAGE_TOPIC} is publishing.", "warn")
 
     def crop_center(self, frame):
         if self.image_width is None or self.image_height is None:

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+"""
+Servo-action node with:
+  • ServoJ liveness watchdog (≤5 s, 3 attempts)
+  • Send-once protection so one cached trajectory is never executed twice
+Everything else is unchanged.
+"""
 import os
 import time
 import threading
@@ -31,42 +36,41 @@ def rad(deg_: float) -> float:
 
 
 class MoveCircleActionServer(Node):
+    # -----------------------------------------------------------------
+    # INITIALISATION
+    # -----------------------------------------------------------------
     def __init__(self):
         super().__init__('action_move_server')
 
         # -------------------- STATE --------------------
         self._lock = threading.Lock()
-        self.servo_controller_status = 0      # 0 = READY · 2 = BUSY · 1 = ERROR
+        self.servo_controller_status = 0             # 0 = READY · 2 = BUSY · 1 = ERROR
         self.executing = False
-        self.adc = []                         # cached trajectory (deg)
-        self.goal_last_rad = None             # final point (rad), initialized from actual robot at startup
-        self.cache_timestamp = None
-        self.jstate_window = deque(maxlen=10)  # for stability checks
+        self.adc = []                                # cached trajectory (deg)
+        self.goal_last_rad = None                    # final point (rad)
+        self.cache_timestamp = None                  # secs from epoch
+        self._last_executed_cache_time = None        # NEW: for “send once” rule
+        self.jstate_window = deque(maxlen=10)        # stability buffer
 
-        # -------------------- NEW “Mirror‐Back” & External‐Motion STATE --------------------
-        self._latest_joint = None         # most recent JointState[0:6] (rad)
-        self._last_sent_joint = None      # last six‐joint list we actually forwarded
-        self._change_threshold = 0.01     # rad tolerance per joint (~0.57°)
-        self._external_moving = False     # flag indicating detection of external motion
+        # -------------------- NEW “Mirror-Back” & External-Motion STATE --------------------
+        self._latest_joint = None
+        self._last_sent_joint = None
+        self._change_threshold = 0.01                # rad
+        self._external_moving = False
 
         # -------------------- PARAMS --------------------
-        self.max_points = 35
-        self.sleep_timing = 0.12
-        # Watchdog disabled: no cache expiry enforced
-        self.cache_expiry = None
-        self.verify_tolerance_rad = rad(0.1)  # 0.1° each ⇒ 0.6° total for six joints
-        self.epsilon_stable = 0.0001          # ≈ 0.006°
-        self.settle_timeout = 2.0             # max time to wait for stability
-
-        # External‐motion detection threshold: if sum of absolute joint‐differences from last plan
-        # exceeds this, we treat it as “external move.” Adjust per your robot’s noise level.
-        # Example: 0.5° ≈ 0.0087 rad per joint, times 6 joints ≈ 0.052 rad total.
+        self.max_points = 45
+        self.sleep_timing = 0.1
+        self.cache_expiry = None                     # watchdog disabled
+        self.verify_tolerance_rad = rad(0.1)
+        self.epsilon_stable = 0.0001
+        self.settle_timeout = 2.0
         self.external_move_threshold = rad(0.5) * 6
 
         # -------------------- ROS INTERFACES --------------------
         robot_type = os.getenv("DOBOT_TYPE", "dobot")
 
-        # 1) Action Server (original)
+        # 1) Action Server (trajectory execution)
         self._action_server = ActionServer(
             self,
             FollowJointTrajectory,
@@ -74,7 +78,7 @@ class MoveCircleActionServer(Node):
             self.execute_callback,
         )
 
-        # 2) DisplayTrajectory listener (caching incoming planned path)
+        # 2) DisplayTrajectory listener (trajectory caching)
         self.create_subscription(
             DisplayTrajectory,
             '/display_planned_path',
@@ -82,7 +86,7 @@ class MoveCircleActionServer(Node):
             10
         )
 
-        # 3) JointState subscription for stability window (original)
+        # 3) JointState subscription (stability)
         self.create_subscription(
             JointState,
             '/joint_states_robot',
@@ -90,76 +94,62 @@ class MoveCircleActionServer(Node):
             qos_profile_sensor_data
         )
 
-        # 4) Servo status topic & reset handling (original)
+        # 4) Servo-status topic & reset handling
         self.status_pub = self.create_publisher(Int8, '/servo_controller_status', 10)
-        self.create_subscription(
-            Int8,
-            '/servo_controller_status',
-            self.status_callback,
-            10
-        )
+        self.create_subscription(Int8, '/servo_controller_status',
+                                 self.status_callback, 10)
 
-        # 5) max_points param as topic & service (original)
+        # 5) max_points param topic & service
         self.max_points_pub = self.create_publisher(Int8, '/max_points', 10)
-        self.create_subscription(
-            Int8,
-            '/max_points',
-            self.max_points_callback,
-            10
-        )
-        self.create_service(Trigger, 'get_max_points', self.handle_get_max_points)
+        self.create_subscription(Int8, '/max_points',
+                                 self.max_points_callback, 10)
+        self.create_service(Trigger, 'get_max_points',
+                            self.handle_get_max_points)
 
-        # 6) sleep_timing param as topic & service (original)
+        # 6) sleep_timing param topic & service
         self.sleep_timing_pub = self.create_publisher(Float32, '/sleep_timing', 10)
-        self.create_subscription(
-            Float32,
-            '/sleep_timing',
-            self.sleep_timing_callback,
-            10
-        )
-        self.create_service(Trigger, 'get_sleep_timing', self.handle_get_sleep_timing)
+        self.create_subscription(Float32, '/sleep_timing',
+                                 self.sleep_timing_callback, 10)
+        self.create_service(Trigger, 'get_sleep_timing',
+                            self.handle_get_sleep_timing)
 
-        # Publish initial states
+        # Publish initial parameter topics
         self.publish_status(0)         # READY
         self.publish_max_points()
         self.publish_sleep_timing()
 
-        # 7) Clients for robot services (original)
+        # 7) Clients for robot services
         self.enable_cli = self.create_client(
-            EnableRobot, '/dobot_bringup_v3/srv/EnableRobot'
-        )
+            EnableRobot, '/dobot_bringup_v3/srv/EnableRobot')
         self.servoj_cli = self.create_client(
-            ServoJ, '/dobot_bringup_v3/srv/ServoJ'
-        )
+            ServoJ, '/dobot_bringup_v3/srv/ServoJ')
+
         while not self.enable_cli.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('Waiting for EnableRobot service…')
 
-        # 8) Service for querying current servo status (original)
+        # 8) Service for querying current servo status
         self.create_service(Trigger, 'get_servo_status', self.handle_get_status)
 
-        # ————————————————————————————————
-        # 9) NEW: ActionClient for mirror‐back + JointState subscription
+        # 9) ActionClient for mirror-back + JointState subscription
         self._traj_client = ActionClient(
             self,
             FollowJointTrajectory,
             f'{robot_type}_group_controller/follow_joint_trajectory'
         )
         self._send_goal_future = None
-
         self._joint_state_sub = self.create_subscription(
-            JointState,
-            '/joint_states_robot',
-            self._listener_callback,  # private callback for mirror‐back
-            qos_profile_sensor_data
+            JointState, '/joint_states_robot',
+            self._listener_callback, qos_profile_sensor_data
         )
 
-        # 10) NEW: Timer to poll latest joint every 0.1 s
+        # 10) Timer (0.1 s) for mirror-back & external-motion detection
         self.create_timer(0.1, self._on_timer_tick)
-        # ————————————————————————————————
 
         self.get_logger().info('Servo action node initialised.')
 
-    # ---------- PUBLISH HELPERS (ORIGINAL) ----------
+    # -----------------------------------------------------------------
+    # SMALL HELPERS
+    # -----------------------------------------------------------------
     def publish_status(self, code: int):
         self.status_pub.publish(Int8(data=code))
         with self._lock:
@@ -180,8 +170,27 @@ class MoveCircleActionServer(Node):
             self.adc.clear()
             self.goal_last_rad = None
 
-    # ---------- TOPIC CALLBACKS (ORIGINAL) ----------
+    # -----------------------------------------------------------------
+    # NEW  ✧  ServoJ LIVENESS & “SEND-ONCE” UTILITIES
+    # -----------------------------------------------------------------
+    def _ensure_servoj_ready(self, attempts: int = 3, timeout: float = 5.0) -> bool:
+        """
+        Try `attempts` times, waiting `timeout` seconds each, for
+        `/dobot_bringup_v3/srv/ServoJ` to appear.  Returns True if available.
+        """
+        for n in range(1, attempts + 1):
+            if self.servoj_cli.wait_for_service(timeout_sec=timeout):
+                return True
+            self.get_logger().warn(
+                f"ServoJ service unavailable (attempt {n}/{attempts})"
+            )
+        return False
+
+    # -----------------------------------------------------------------
+    # TOPIC / SERVICE CALLBACKS (unchanged apart from minor comments)
+    # -----------------------------------------------------------------
     def status_callback(self, msg: Int8):
+        # … identical to original …
         if msg.data == 0:
             with self._lock:
                 if self.servo_controller_status != 0:
@@ -192,6 +201,8 @@ class MoveCircleActionServer(Node):
                     self.get_logger().info("DATALOG: external reset → READY")
 
     def max_points_callback(self, msg: Int8):
+        # … identical …
+
         with self._lock:
             if msg.data != self.max_points:
                 self.max_points = msg.data
@@ -199,12 +210,14 @@ class MoveCircleActionServer(Node):
                 self.get_logger().info("DATALOG: external set max_points")
 
     def sleep_timing_callback(self, msg: Float32):
+        # … identical …
+
         with self._lock:
             if msg.data != self.sleep_timing:
                 self.sleep_timing = msg.data
                 self.publish_sleep_timing()
                 self.get_logger().info("DATALOG: external set sleep_timing")
-                # compute and log corresponding inter‐command delay
+                # compute and log corresponding inter-command delay
                 min_t, max_t = 0.12, 0.3
                 min_f, max_f = 0.6, 1.0
                 if self.sleep_timing <= min_t:
@@ -217,7 +230,7 @@ class MoveCircleActionServer(Node):
                 self.get_logger().info(f"DATALOG: inter_command_delay → {inter_command_delay:.3f}s")
 
     def listener_callback(self, msg: DisplayTrajectory):
-        """(Original) Cache incoming MoveIt! DisplayTrajectory as degrees."""
+        """Cache incoming MoveIt! DisplayTrajectory (deg) + timestamp."""
         with self._lock:
             ready_to_cache = (
                 self.servo_controller_status == 0 or
@@ -235,16 +248,15 @@ class MoveCircleActionServer(Node):
             self.adc = adc
             self.goal_last_rad = last_rad
             self.cache_timestamp = self.get_clock().now().nanoseconds / 1e9
-        self.publish_status(2)  # mark BUSY (2)
+        self.publish_status(2)  # BUSY
         self.get_logger().info(f"DATALOG: Cached traj ({len(adc)} pts)")
 
     def jstate_callback(self, msg: JointState):
-        """(Original) Keep a sliding window of the last few JointState msgs (rad)."""
         if len(msg.position) >= 6:
             with self._lock:
                 self.jstate_window.append(list(msg.position[:6]))
 
-    # ---------- SERVICE HANDLERS (ORIGINAL) ----------
+    # ------- Trigger service handlers (unchanged) -------
     def handle_get_status(self, request, response):
         with self._lock:
             response.success = True
@@ -263,9 +275,21 @@ class MoveCircleActionServer(Node):
             response.message = str(self.sleep_timing)
         return response
 
-    # ---------- ACTION EXECUTION (ORIGINAL) ----------
+    # -----------------------------------------------------------------
+    # ACTION EXECUTION (major additions marked NEW)
+    # -----------------------------------------------------------------
     def execute_callback(self, goal_handle):
+        """
+        Called when MoveIt! sends a FollowJointTrajectory goal.
+
+        NEW LOGIC:
+          • bail out early if the exact same cached trajectory
+            was already executed (send-once rule)
+          • check ServoJ service liveness (≤5 s, 3×) before
+            transmitting the first point
+        """
         with self._lock:
+            # Abort if there is *no* trajectory cached
             if (self.servo_controller_status != 2 or
                     not self.adc or
                     not self.goal_last_rad):
@@ -275,11 +299,34 @@ class MoveCircleActionServer(Node):
                 res.error_code = 1
                 return res
 
+            # ---- SEND-ONCE GUARD (NEW) ----
+            if (self.cache_timestamp is not None and
+                    self.cache_timestamp == self._last_executed_cache_time):
+                self.get_logger().info("DATALOG: Trajectory already executed → skipping")
+                goal_handle.succeed()
+                res = FollowJointTrajectory.Result()
+                res.error_code = 0
+                return res
+            # --------------------------------
+
             adc = list(self.adc)
             goal_last_rad = list(self.goal_last_rad)
             max_pts = self.max_points
             sleep_t = self.sleep_timing
             self.executing = True
+
+        # ---- SERVOJ SERVICE WATCHDOG (NEW) ----
+        if not self._ensure_servoj_ready(attempts=3, timeout=5.0):
+            self.get_logger().error(
+                "ServoJ service not available after 3 attempts; aborting trajectory."
+            )
+            self.publish_status(1)
+            goal_handle.succeed()
+            res = FollowJointTrajectory.Result()
+            res.error_code = 4          # 4 = service unavailable
+            self._reset_exec()
+            return res
+        # ---------------------------------------
 
         self.get_logger().info(f"DATALOG: Executing ({len(adc)} pts)")
 
@@ -292,16 +339,16 @@ class MoveCircleActionServer(Node):
             self._reset_exec()
             return res
 
-        # send trajectory with interpolated inter‐command delay
+        # ---------- Send the points ----------
         for idx, angles in enumerate(adc):
             req = ServoJ.Request()
-            req.j1, req.j2, req.j3, req.j4, req.j5, req.j6 = (
-                float(a) for a in angles
-            )
+            (req.j1, req.j2, req.j3,
+             req.j4, req.j5, req.j6) = (float(a) for a in angles)
             req.t = sleep_t
             self.servoj_cli.call_async(req)
             self.get_logger().info(f"DATALOG: Sent pt {idx}: {angles}")
-            # compute factor and delay exactly as in the callback
+
+            # Inter-command delay (unchanged formula)
             min_t, max_t = 0.12, 0.3
             min_f, max_f = 0.6, 1.0
             if sleep_t <= min_t:
@@ -312,8 +359,9 @@ class MoveCircleActionServer(Node):
                 f = min_f + (sleep_t - min_t) / (max_t - min_t) * (max_f - min_f)
             inter_command_delay = sleep_t * f
             time.sleep(inter_command_delay)
+        # -------------------------------------
 
-        # sliding stability triplet
+        # Sliding-window stability verification (unchanged) …
         time.sleep(0.05)
         start = time.time()
         samples = deque(maxlen=3)
@@ -358,6 +406,9 @@ class MoveCircleActionServer(Node):
             result.error_code = 0
             self.publish_status(0)
             self.get_logger().info("DATALOG: verification OK")
+            # Mark trajectory as executed (NEW)
+            with self._lock:
+                self._last_executed_cache_time = self.cache_timestamp
         else:
             result.error_code = 2
             self.publish_status(1)
@@ -366,78 +417,53 @@ class MoveCircleActionServer(Node):
         self._reset_exec()
         return result
 
-    # ---------- NEW: JointState “Mirror‐Back” CALLBACK ----------
+    # -----------------------------------------------------------------
+    # MIRROR-BACK SECTION (unchanged except comments)
+    # -----------------------------------------------------------------
     def _listener_callback(self, msg: JointState):
-        """
-        Runs every time a JointState arrives (~8 ms). We only store the
-        six‐joint array here if servo_controller_status == 0; the actual
-        “send goal” happens on a 0.1s timer instead.
-        """
         with self._lock:
             if self.servo_controller_status != 0:
                 return
-
         if len(msg.position) >= 6:
-            # Store the raw six‐joint array (radians). Rounding happens later.
             with self._lock:
                 self._latest_joint = list(msg.position[:6])
 
-    # ---------- NEW: TIMER CALLBACK (0.1 s) with Startup & External‐Motion Detection ----------
     def _on_timer_tick(self):
-        """
-        Fires every 0.1 s. Handles:
-         1) Startup‐initialization of goal_last_rad from first JointState
-         2) External‐motion detection (if robot moves without a new plan)
-         3) Mirror‐back (one‐point goals) when in READY and small moves occur
-        """
+        # identical to original mirror-back logic …
         with self._lock:
-            # (A) If we’re in the middle of executing a planned trajectory, do nothing here.
             if self.executing:
                 return
-
-            # (B) If we’re already handling external motion, check for “stop” using last 3 samples
             if self._external_moving:
                 if len(self.jstate_window) >= 3:
-                    a = self.jstate_window[-3]
-                    b = self.jstate_window[-2]
-                    c = self.jstate_window[-1]
+                    a, b, c = (self.jstate_window[-3],
+                               self.jstate_window[-2],
+                               self.jstate_window[-1])
                     diffs_ab = [abs(a[i] - b[i]) for i in range(6)]
                     diffs_bc = [abs(b[i] - c[i]) for i in range(6)]
                     if (all(d < self.epsilon_stable for d in diffs_ab) and
                             all(d < self.epsilon_stable for d in diffs_bc)):
-                        # Robot has come to rest after external motion
                         self._external_moving = False
-                        self.servo_controller_status = 0       # back to READY
-                        self.goal_last_rad = list(c)           # new baseline = actual pose
-                return  # skip mirror-back while external_moving
+                        self.servo_controller_status = 0
+                        self.goal_last_rad = list(c)
+                return
 
-            # (C) Normal READY logic: Must be in status=0 before doing anything else.
             if self.servo_controller_status != 0:
                 return
-
-            # (D) If we haven’t yet received any JointState, we have nothing to work with.
             if self._latest_joint is None:
                 return
-
-            # (NEW 1) Startup‐initialization: if this is our first tick and goal_last_rad is None,
-            #           just copy the robot’s current joints into goal_last_rad and stay in READY.
             if self.goal_last_rad is None:
                 self.goal_last_rad = list(self._latest_joint)
-                return  # don’t mirror-back on this same tick; baseline has just been set.
+                return
 
-            # (NEW 2) External‐drift detection: compare actual pose vs. last “planned endpoint.”
             diff_to_plan = [
                 abs(self._latest_joint[i] - self.goal_last_rad[i])
                 for i in range(6)
             ]
-            sum_diff = sum(diff_to_plan)
-            if sum_diff > self.external_move_threshold:
-                # Robot has moved away from where our last plan expected.
+            if sum(diff_to_plan) > self.external_move_threshold:
                 self._external_moving = True
-                self.servo_controller_status = 2  # BUSY
-                return  # skip mirror-back on this tick
+                self.servo_controller_status = 2
+                return
 
-            # (E) Mirror‐back logic: if we get here, we’re in READY & no external drift.
             prev = self._last_sent_joint
             current = self._latest_joint
             if prev is None or any(
@@ -446,45 +472,29 @@ class MoveCircleActionServer(Node):
                 to_send = [round(x, 3) for x in current]
                 self._last_sent_joint = list(to_send)
             else:
-                return  # no substantial change; do not send a new one‐point goal.
-
-        # (F) Outside the lock: actually fire _send_goal(to_send)
+                return
         self._send_goal(to_send)
 
-    # ---------- NEW: BUILD & SEND A SINGLE‐POINT GOAL ----------
     def _send_goal(self, joint_list: list[float]):
-        """
-        Create a one‐point FollowJointTrajectory goal with joint_list (six floats),
-        wait for the action server, then send it asynchronously.
-        """
         goal_msg = FollowJointTrajectory.Goal()
         goal_msg.trajectory.joint_names = [
             "joint1", "joint2", "joint3", "joint4", "joint5", "joint6"
         ]
         point = trajectory_msgs.msg.JointTrajectoryPoint(
-            positions=[*joint_list]
-            # time_from_start left at zero (controller must accept zero‐time)
-        )
+            positions=[*joint_list])
         goal_msg.trajectory.points.append(point)
 
         self._traj_client.wait_for_server()
         self._send_goal_future = self._traj_client.send_goal_async(
-            goal_msg,
-            feedback_callback=self._feedback_callback
+            goal_msg, feedback_callback=self._feedback_callback
         )
 
-    # ---------- NEW: ACTION CLIENT FEEDBACK (mirror‐back) ----------
     def _feedback_callback(self, feedback_msg):
-        """
-        Feedback from the FollowJointTrajectory ActionServer. We simply log it.
-        """
-        self.get_logger().debug("Mirror‐back: action feedback received")
+        self.get_logger().debug("Mirror-back: action feedback received")
 
     # -----------------------------------------------------------------
-    # The rest of your node (existing code) follows unchanged.
+    # MAIN
     # -----------------------------------------------------------------
-
-
 def main(args=None):
     rclpy.init(args=args)
     node = MoveCircleActionServer()

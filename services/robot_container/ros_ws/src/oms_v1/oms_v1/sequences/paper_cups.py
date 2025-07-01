@@ -1,9 +1,8 @@
 import time
 from ..params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
 from ..manipulate_node import run_skill
-
-# Import home positions from espresso module
 Espresso_home = (42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
 
 def grab_paper_cup(**params):

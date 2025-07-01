@@ -27,4 +27,5 @@ aruco_id:
     name: left_steam_wand
   - id: 23
     name: portafilter_cleaner
-    
+  - id:  14
+    name: milk_frother_1

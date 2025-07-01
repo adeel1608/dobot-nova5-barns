@@ -335,9 +335,11 @@ services:
       - USBFS_MEMORY_MB=128            # host usbfs buffer hint
       - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
       - PYTHONPATH=/app/shared:/root/ros_ws/src
-      - CAMERA_SERIAL_NUMBER=CP1Z842000F6
+      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
       - CAM_NAME=cam0
       - DEVICE_ID=1
+      - USB_PORT=2-4              # USB port for robot 1 camera (CP1Z842000F6)
+      - DEVICE_NUM=1              # Device index for robot 1 camera
 
     volumes:
       - /dev/shm:/dev/shm               # share host shm tmpfs
@@ -399,9 +401,11 @@ services:
       - USBFS_MEMORY_MB=128
       - ORBBEC_CONNECTION_DELAY=12000
       - PYTHONPATH=/app/shared:/root/ros_ws/src
-      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
+      - CAMERA_SERIAL_NUMBER=CP1Z842000F6
       - CAM_NAME=cam1
       - DEVICE_ID=2
+      - USB_PORT=2-3              # USB port for robot 2 camera (CP1Z842000YW)
+      - DEVICE_NUM=2              # Device index for robot 2 camera
 
     volumes:
       - /dev/shm:/dev/shm
