@@ -49,6 +49,8 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
     Calls the automation service with the given function name and parameters.
     """
     try:
+        logger.info(f"📞 [ROUTINE] Sending automation request: function='{func_name}', params={params}")
+        
         response = await rabbitmq_client.send_request(
             target_service="automation",
             action="automate",
@@ -56,17 +58,21 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
                 "function": func_name,
                 "params": params
             },
-            timeout=60  # Automation might take longer
+            timeout=120  # Automation functions use 100s MQTT timeout, so allow extra buffer
         )
         
+        logger.info(f"📨 [ROUTINE] Received automation response: {response}")
+        
         if response.get("error"):
-            logger.error(f"Automation service error: {response['error']}")
+            logger.error(f"❌ [ROUTINE] Automation service error: {response['error']}")
             return {"success": False, "message": f"Automation service error: {response['error']}"}
         
+        logger.info(f"✅ [ROUTINE] Automation request completed successfully")
         return response
         
     except Exception as e:
-        logger.error(f"Error calling automation service: {str(e)}")
+        logger.error(f"❌ [ROUTINE] Error calling automation service: {str(e)}")
+        logger.error(f"❌ [ROUTINE] Exception details: {type(e).__name__}: {str(e)}")
         return {"success": False, "message": f"Error calling automation service: {str(e)}"}
 
 async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client: RabbitMQClient):
@@ -85,7 +91,7 @@ async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client:
                 "params": robot_params,
                 "arm_id": arm_id
             },
-            timeout=60  # Robot actions might take longer
+            timeout=100  # Robot actions might take longer
         )
         
         if response.get("error"):
@@ -179,14 +185,18 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     break  # abort on robot error
                     
             elif step_type == "automation":
+                logger.info(f"🤖 [ROUTINE] Processing automation step: {func_name} for cup {cup_id}")
                 res = await call_automation(func_name, params, rabbitmq_client)
                 if not res.get("success", False):
                     message = f"Automation error: {res.get('message', '')}"
+                    logger.error(f"❌ [ROUTINE] Automation step failed: {func_name} - {message}")
                     await publish_event("automation.error", 
                                 {"arm": arm_id, "cup": cup_id,
                                 "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
                     success = False
                     break  # abort on automation error
+                else:
+                    logger.info(f"✅ [ROUTINE] Automation step completed: {func_name} for cup {cup_id}")
                     
             # publish a step-completed event
             await publish_event("routine.step_completed", 

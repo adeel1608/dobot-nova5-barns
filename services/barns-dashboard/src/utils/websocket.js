@@ -20,11 +20,20 @@ export class WebSocketManager {
     this.disconnect(name);
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      
       // If endpoint is empty, connect directly to WEBSOCKET_BASE
       const fullEndpoint = endpoint ? `${API_CONFIG.WEBSOCKET_BASE}${endpoint}` : API_CONFIG.WEBSOCKET_BASE;
-      const wsUrl = `${protocol}//${window.location.host}${fullEndpoint}`;
+      
+      // In development mode, use the full WebSocket URL directly
+      // In production, construct relative URL from current host  --------------- Change In Production -----------
+      let wsUrl;
+      if (API_CONFIG.WEBSOCKET_BASE.startsWith('ws://') || API_CONFIG.WEBSOCKET_BASE.startsWith('wss://')) {
+        // Development mode - use full URL
+        wsUrl = fullEndpoint;
+      } else {
+        // Production mode - construct from current host
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${protocol}//${window.location.host}${fullEndpoint}`;
+      }
       
       addLog('WebSocket', 'info', `Connecting to WebSocket: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);

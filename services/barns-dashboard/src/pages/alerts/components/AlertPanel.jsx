@@ -123,7 +123,7 @@ export default function AlertPanel() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-2">
       {/* Compact Header */}
       <div className="px-4 py-3 border-b border-gray-200">
         <div className="flex justify-between items-center mb-3">
@@ -184,7 +184,7 @@ export default function AlertPanel() {
       )}
       
       {/* Dense Alerts List */}
-      <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+      <div className="overflow-y-auto p-2" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         {/* Active Alerts Tab */}
         {!showAcknowledged && (
           <>

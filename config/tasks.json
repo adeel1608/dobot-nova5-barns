@@ -7,15 +7,26 @@
           "params": {}
         },
         {
-          "type": "robot",
-          "function": "test",
-          "params": {}
+          "type": "automation",
+          "function": "slush_machine",
+          "params": {"slush_type": "slush_2", "cup": "C12"}
         },
         {
           "type": "automation",
-          "function": "automation_test1",
+          "function": "dispense_milk",
+          "params": {"milk_type": "whole", "amount": 100}
+        },
+        {
+          "type": "automation",
+          "function": "coffee_machine",
+          "params": {"coffee_type": "espresso", "cup": "C12"}
+        },
+        {
+          "type": "robot",
+          "function": "robot_test1",
           "params": {}
         }
+
       ]
     },
     "test2": {
@@ -27,14 +38,10 @@
         },
         {
           "type": "robot",
-          "function": "test",
-          "params": {}
-        },
-        {
-          "type": "automation",
-          "function": "automation_test2",
+          "function": "robot_test2",
           "params": {}
         }
+
       ]
     }
   }

@@ -16,7 +16,7 @@ async def robot_test1(params: dict):
     simulation_mode = params.get("simulation_mode", True)
     
     # Simulate robot operation time
-    await asyncio.sleep(0.8)
+    await asyncio.sleep(5)
     
     return {
         "success": True,
@@ -37,7 +37,7 @@ async def robot_test2(params: dict):
     simulation_mode = params.get("simulation_mode", True)
     
     # Simulate robot operation time
-    await asyncio.sleep(1.2)
+    await asyncio.sleep(5)
     
     return {
         "success": True,

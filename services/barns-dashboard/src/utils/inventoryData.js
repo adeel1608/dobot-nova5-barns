@@ -2,7 +2,10 @@
  * Inventory Data Structure
  * Defines all inventory items organized by categories
  */
-
+import milk from '../assets/milk.png';
+import beans from '../assets/beans.png';
+import syrups from '../assets/syrup.png';
+import cups from '../assets/cup.png';
 export const INVENTORY_CATEGORIES = {
   MILK: 'milk',
   BEANS: 'beans', 
@@ -67,24 +70,28 @@ export const ALL_INVENTORY_ITEMS = {
 // Category display information
 export const CATEGORY_INFO = {
   milk: {
-    title: 'Milk Products',
+    title: 'Milk',
     icon: '🥛',
-    description: 'Various types of milk and dairy products'
+    description: 'Various types of milk and dairy products',
+    avatar: milk
   },
   beans: {
-    title: 'Coffee Beans',
+    title: 'Coffee',
     icon: '☕',
-    description: 'Coffee bean inventory'
+    description: 'Coffee bean inventory',
+    avatar: beans
   },
   syrups: {
-    title: 'Flavor Syrups',
+    title: 'Syrups',
     icon: '🍯',
-    description: 'Flavor syrups and additives'
+    description: 'Flavor syrups and additives',
+    avatar: syrups
   },
   cups: {
-    title: 'Cups & Containers',
+    title: 'Cups',
     icon: '🥤',
-    description: 'Paper and plastic cups in various sizes'
+    description: 'Paper and plastic cups in various sizes',
+    avatar: cups
   }
 };
 

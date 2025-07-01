@@ -5,7 +5,7 @@
 
 .cameras-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  /* background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); */
 }
 
 /* Optimized Camera Grid Container */
@@ -34,7 +34,7 @@
 /* Larger Camera Stream Container */
 .camera-stream-container {
   aspect-ratio: 16/9;
-  background-color: #111827;
+  /* background-color: #111827; */
   position: relative;
   overflow: hidden;
   min-height: 300px; /* Ensure minimum size for better visibility */
@@ -412,7 +412,7 @@
 /* Dark mode support */
 @media (prefers-color-scheme: dark) {
   .cameras-page {
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    /* background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); */
   }
   
   .camera-grid-container,

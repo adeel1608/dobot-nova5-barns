@@ -79,7 +79,7 @@ class ValidationService:
                 }
             
             # Execute validation function
-            result = self.validators[function](params)
+            result = await self.validators[function](params)
             
             # Publish completion event
             await self.rabbitmq_client.send_event("validation.completed", {
