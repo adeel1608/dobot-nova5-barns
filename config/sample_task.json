@@ -8,13 +8,18 @@
       },
       {
         "type": "automation",
-        "function": "grind_beans",
-        "params": {"grind_size": "fine", "amount_g": 18}
+        "function": "dispense_milk",
+        "params": {"milk_type": "whole", "amount": 100}
       },
       {
         "type": "automation",
         "function": "heat_water",
         "params": {"target_temp_c": 93, "volume_ml": 250}
+      },
+      {
+        "type": "automation",
+        "function": "automation_test2",
+        "params": {}
       },
       {
         "type": "robot",
@@ -29,3 +34,4 @@
     ]
   }
 }
+

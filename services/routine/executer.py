@@ -58,7 +58,7 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
                 "function": func_name,
                 "params": params
             },
-            timeout=60  # Automation might take longer
+            timeout=120  # Automation functions use 100s MQTT timeout, so allow extra buffer
         )
         
         logger.info(f"📨 [ROUTINE] Received automation response: {response}")
@@ -71,8 +71,8 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
         return response
         
     except Exception as e:
-        logger.error(f"💥 [ROUTINE] Error calling automation service: {str(e)}")
-        logger.error(f"💥 [ROUTINE] Exception details: {type(e).__name__}: {str(e)}")
+        logger.error(f"❌ [ROUTINE] Error calling automation service: {str(e)}")
+        logger.error(f"❌ [ROUTINE] Exception details: {type(e).__name__}: {str(e)}")
         return {"success": False, "message": f"Error calling automation service: {str(e)}"}
 
 async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client: RabbitMQClient):
@@ -91,7 +91,7 @@ async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client:
                 "params": robot_params,
                 "arm_id": arm_id
             },
-            timeout=60  # Robot actions might take longer
+            timeout=100  # Robot actions might take longer
         )
         
         if response.get("error"):

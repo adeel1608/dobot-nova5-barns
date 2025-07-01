@@ -1,0 +1,111 @@
+{
+    "menu_items": {
+        "243825": {
+            "name": "Cappuccino 8oz",
+            "category": "coffee",
+            "size": "8oz",
+            "default_ingredients": ["espresso_shot", "213411", "milk_foam"],
+            "automation": true
+        },
+        "243826": {
+            "name": "Cappuccino 12oz",
+            "category": "coffee", 
+            "size": "12oz",
+            "default_ingredients": ["espresso_shot", "213411", "milk_foam"],
+            "automation": true
+        },
+        "243827": {
+            "name": "Espresso 2oz",
+            "category": "coffee",
+            "size": "2oz",
+            "default_ingredients": ["espresso_shot"],
+            "automation": true
+        },
+        "LATTE001": {
+            "name": "Latte 8oz",
+            "category": "coffee",
+            "size": "8oz",
+            "default_ingredients": ["espresso_shot", "213411", "milk_foam"],
+            "automation": true
+        },
+        "LATTE002": {
+            "name": "Latte 12oz",
+            "category": "coffee",
+            "size": "12oz", 
+            "default_ingredients": ["espresso_shot", "213411", "milk_foam"],
+            "automation": true
+        },
+        "FLATW001": {
+            "name": "Flat White 6oz",
+            "category": "coffee",
+            "size": "6oz",
+            "default_ingredients": ["espresso_shot", "213411", "microfoam"],
+            "automation": true
+        },
+        "AMER001": {
+            "name": "Americano 7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "default_ingredients": ["espresso_shot", "hot_water"],
+            "automation": true
+        },
+        "AMER002": {
+            "name": "Americano 9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "default_ingredients": ["espresso_shot", "hot_water"],
+            "automation": true
+        },
+        "MUFFIN001": {
+            "name": "Chocolate Muffin",
+            "category": "bakery",
+            "size": "regular",
+            "default_ingredients": ["muffin_base", "chocolate_chips"],
+            "automation": false
+        },
+        "MUFFIN002": {
+            "name": "Blueberry Muffin",
+            "category": "bakery",
+            "size": "regular",
+            "default_ingredients": ["muffin_base", "blueberries"],
+            "automation": false
+        },
+        "CROISSANT001": {
+            "name": "Plain Croissant",
+            "category": "bakery",
+            "size": "regular",
+            "default_ingredients": ["croissant_dough", "butter"],
+            "automation": false
+        },
+        "SANDWICH001": {
+            "name": "Ham & Cheese Sandwich",
+            "category": "bakery",
+            "size": "regular",
+            "default_ingredients": ["bread", "ham", "cheese", "lettuce"],
+            "automation": false
+        }
+    },
+    "ingredients": {
+        "espresso_shot": "Espresso Shot",
+        "213411": "Full-Fat Milk",
+        "213419": "Almond Milk",
+        "213420": "Oat Milk",
+        "213421": "Soy Milk",
+        "milk_foam": "Milk Foam",
+        "microfoam": "Velvety Micro-foam",
+        "hot_water": "Hot Water",
+        "243211": "Vanilla Syrup",
+        "243212": "Caramel Syrup",
+        "243213": "Hazelnut Syrup",
+        "245611": "Extra Shot",
+        "muffin_base": "Muffin Base",
+        "chocolate_chips": "Chocolate Chips",
+        "blueberries": "Fresh Blueberries",
+        "croissant_dough": "Croissant Dough",
+        "butter": "Butter",
+        "bread": "Artisan Bread",
+        "ham": "Sliced Ham",
+        "cheese": "Swiss Cheese",
+        "lettuce": "Fresh Lettuce"
+    }
+} 
