@@ -111,10 +111,8 @@ async def submit_task_to_routine(arm_id: int, function: str, cup_id: str, drink_
         payload = {
             "arm_id": int(arm_id.replace("Arm", "")),  # Convert "Arm1" to 1
             "function": function,
+            "cup_id": cup_id,
             "item": {
-                "cup_id": cup_id,
-                "cup_size": "regular",  # Default size, could be made configurable
-                "drink": drink_type,
                 "addons": []  # No addons for now, could be made configurable
             }
         }
@@ -151,7 +149,7 @@ async def arm_worker(arm_name: str):
     logger.log(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
     
     consecutive_no_work_count = 0
-    max_consecutive_no_work = 100  # Increased timeout for better reliability
+    max_consecutive_no_work = 300  # Increased timeout for better reliability
     
     while True:
         task = None
@@ -394,7 +392,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         try:
             await asyncio.wait_for(
                 asyncio.gather(arm1, arm2, return_exceptions=True),
-                timeout=300.0  # 5 minute timeout for order processing
+                timeout=400.0  # 5 minute timeout for order processing
             )
             logger.log(f"✅ Both arm workers completed for order {order_id}")
         except asyncio.TimeoutError:

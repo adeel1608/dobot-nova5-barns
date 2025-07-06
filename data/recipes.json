@@ -1,53 +1,31 @@
 {
-  "latte": [
+  "Espresso": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
-    },
-    {
-      "action": "brew_espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": [
-        "grind_beans"
-      ]
-    },
-    {
-      "action": "steam_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "combine",
-      "assigned_arm": "Arm1",
-      "depends_on": [
-        "brew_espresso",
-        "steam_milk"
-      ]
     }
   ],
-  "americano": [
+  "Latte": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "brew_espresso",
-      "assigned_arm": "Arm1",
+      "action": "Milk_Dispensing_Frothing",
+      "assigned_arm": "Arm2",
       "depends_on": [
-        "grind_beans"
       ]
     },
     {
-      "action": "add_water",
+      "action": "Milk_Pouring",
       "assigned_arm": "Arm2",
-      "depends_on": [
-        "brew_espresso"
-      ]
+      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
     }
   ],
-  "pipelinetest": [
+
+  "Test_recipe": [
     {
       "action": "test1",
       "assigned_arm": "Arm1",
@@ -57,6 +35,13 @@
       "action": "test2",
       "assigned_arm": "Arm2",
       "depends_on": []
+    }
+  ],
+  "Slushie": [
+    {
+        "action": "Slushie",
+        "assigned_arm": "Arm2",
+        "depends_on": []
     }
   ]
 }

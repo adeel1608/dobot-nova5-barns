@@ -1,7 +1,23 @@
 #!/usr/bin/env bash
 set -e
 
+# -----------------------------------------------------------------------------
+# Environment variables for headless and optimized operation
+# -----------------------------------------------------------------------------
+export DISPLAY=${DISPLAY:-:99}  # Use virtual display if no display available
+export QT_QPA_PLATFORM=offscreen  # Run Qt applications headlessly
+export ROS_LOG_LEVEL=WARN  # Global log level optimization
+export RCUTILS_LOGGING_SEVERITY_THRESHOLD=WARN  # Additional logging optimization
+export ROS_DISABLE_LOANED_MESSAGES=1  # Disable loaned messages for lower memory usage
 
+# Set DOBOT_TYPE for MoveIt configuration (critical for launch file selection)
+export DOBOT_TYPE=${DOBOT_TYPE:-nova5}
+
+# Disable GUI components
+export MOVEIT_DISABLE_GUI=1
+export RVIZ_DISABLE=1
+
+echo "=== Starting BARNS Robot Stack in Optimized Headless Mode ==="
 
 # -----------------------------------------------------------------------------
 # Source your ROS 2 overlay
@@ -13,75 +29,148 @@ source /root/ros_ws/install/setup.bash
 # -----------------------------------------------------------------------------
 wait_for_service() {
   local srv_name="$1"
+  local max_wait="${2:-30}"  # Default 30 second timeout
+  local count=0
   echo "Waiting for service ${srv_name} ..."
   until ros2 service type "${srv_name}" > /dev/null 2>&1; do
-    sleep 0.1
+    sleep 0.2
+    count=$((count + 1))
+    if [ $count -gt $((max_wait * 5)) ]; then
+      echo "ERROR: Service ${srv_name} not available after ${max_wait} seconds"
+      return 1
+    fi
   done
   echo "  ↳ ${srv_name} is now available."
 }
 
 # -----------------------------------------------------------------------------
-# 1) Launch dobot_bringup_v3 (logs go to console)
+# 1) Launch dobot_bringup_v3 (optimized logging)
 # -----------------------------------------------------------------------------
-echo "=== Launching dobot_bringup_v3 (log‐level=warn) ==="
-ros2 launch dobot_bringup_v3 dobot_bringup_ros2.launch.py __log_level:=warn &
+echo "=== Launching dobot_bringup_v3 (optimized) ==="
+ros2 launch dobot_bringup_v3 dobot_bringup_ros2.launch.py __log_level:=error &
 DOBOT_BRINGUP_PID=$!
-sleep 5
+sleep 3  # Reduced from 5
 
 wait_for_service "/dobot_bringup_v3/srv/ClearError"
 echo "Calling ClearError ..."
-ros2 service call /dobot_bringup_v3/srv/ClearError dobot_msgs_v3/srv/ClearError "{}"
+ros2 service call /dobot_bringup_v3/srv/ClearError dobot_msgs_v3/srv/ClearError "{}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/DisableRobot"
 echo "Calling DisableRobot ..."
-ros2 service call /dobot_bringup_v3/srv/DisableRobot dobot_msgs_v3/srv/DisableRobot "{}"
+ros2 service call /dobot_bringup_v3/srv/DisableRobot dobot_msgs_v3/srv/DisableRobot "{}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/EnableRobot"
 echo "Calling EnableRobot (load: 2.0) ..."
-ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}"
+ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/StartDrag"
 echo "Calling StartDrag ..."
-ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}"
+ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
+
+sleep 5  # Reduced from 10
 
 wait_for_service "/dobot_bringup_v3/srv/StopDrag"
 echo "Calling StopDrag ..."
-ros2 service call /dobot_bringup_v3/srv/StopDrag dobot_msgs_v3/srv/StopDrag "{}"
+ros2 service call /dobot_bringup_v3/srv/StopDrag dobot_msgs_v3/srv/StopDrag "{}" > /dev/null
+
+# -----------------------------------------------------------------------------
+# 1.a) Get current angle1, pick 45° bin, then call ServoJ (optimized)
+# -----------------------------------------------------------------------------
+wait_for_service "/dobot_bringup_v3/srv/GetAngle"
+echo "Calling GetAngle to read joint-1…"
+# call GetAngle and capture the raw response
+angle_raw=$(ros2 service call /dobot_bringup_v3/srv/GetAngle dobot_msgs_v3/srv/GetAngle 2>/dev/null)
+# extract the comma-separated list inside the braces from the robot response
+angle_list=$(echo "$angle_raw" \
+  | grep -oP '\{[^}]+\}' \
+  | tr -d '{}' )
+# grab the first field (joint-1)
+a1=$(echo "$angle_list" | cut -d',' -f1)
+echo "  ↳ joint-1 = ${a1}°"
+
+# determine which 45° bin center (multiples of 45) lies within ±22.49°
+# default to skip if somehow outside all ranges
+j1_val=
+if   awk "BEGIN {exit !($a1 >= -22.49 && $a1 <=  22.49)}"; then j1_val=0.0
+elif awk "BEGIN {exit !($a1 >=  22.51 && $a1 <=  67.49)}"; then j1_val=45.0
+elif awk "BEGIN {exit !($a1 >=  67.51 && $a1 <= 112.49)}"; then j1_val=90.0
+elif awk "BEGIN {exit !($a1 >= 112.51 && $a1 <= 157.49)}"; then j1_val=135.0
+elif awk "BEGIN {exit !($a1 >= 157.51 && $a1 <= 202.49)}"; then j1_val=180.0
+elif awk "BEGIN {exit !($a1 <= -22.51 && $a1 >= -67.49)}"; then j1_val=-45.0
+elif awk "BEGIN {exit !($a1 <= -67.51 && $a1 >= -112.49)}"; then j1_val=-90.0
+elif awk "BEGIN {exit !($a1 <= -112.51 && $a1 >= -157.49)}"; then j1_val=-135.0
+elif awk "BEGIN {exit !($a1 <= -157.51 && $a1 >= -202.49)}"; then j1_val=-180.0
+else
+  echo "WARNING: angle ${a1}° is outside all bins; skipping ServoJ."
+fi
+
+# if we got a valid j1, dispatch the ServoJ call
+if [[ -n "$j1_val" ]]; then
+  echo "Dispatching ServoJ → j1=${j1_val}"
+  wait_for_service "/dobot_bringup_v3/srv/ServoJ"
+  ros2 service call /dobot_bringup_v3/srv/ServoJ dobot_msgs_v3/srv/ServoJ \
+    "{j1: ${j1_val}, j2: 30.0, j3: -130.0, j4: -100.0, j5: -90.0, j6: 0.0, t: 2.0}" > /dev/null
+fi
+
+sleep 3  # Reduced from 5
+
+wait_for_service "/dobot_bringup_v3/srv/StartDrag"
+echo "Calling StartDrag ..."
+ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
+
+wait_for_service "/dobot_bringup_v3/srv/StopDrag"
+echo "Calling StopDrag ..."
+ros2 service call /dobot_bringup_v3/srv/StopDrag dobot_msgs_v3/srv/StopDrag "{}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/ModbusClose"
 echo "Calling ModbusClose (index: 0) ..."
-ros2 service call /dobot_bringup_v3/srv/ModbusClose dobot_msgs_v3/srv/ModbusClose "{index: 0}"
+ros2 service call /dobot_bringup_v3/srv/ModbusClose dobot_msgs_v3/srv/ModbusClose "{index: 0}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/ModbusCreate"
 echo "Calling ModbusCreate (ip: 127.0.0.1, port: 60000, slave_id: 9, is_rtu: 1) ..."
 ros2 service call /dobot_bringup_v3/srv/ModbusCreate dobot_msgs_v3/srv/ModbusCreate \
-  "{ip: \"127.0.0.1\", port: 60000, slave_id: 9, is_rtu: 1}"
+  "{ip: \"127.0.0.1\", port: 60000, slave_id: 9, is_rtu: 1}" > /dev/null
 
 wait_for_service "/dobot_bringup_v3/srv/SetHoldRegs"
 echo "Calling SetHoldRegs (zero‐out) ..."
 ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldRegs \
-  "{index: 0, addr: 1000, count: 3, val_tab: \"0,0,0\", val_type: \"int\"}"
+  "{index: 0, addr: 1000, count: 3, val_tab: \"0,0,0\", val_type: \"int\"}" > /dev/null
 
 echo "Calling SetHoldRegs (load=256) ..."
 ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldRegs \
-  "{index: 0, addr: 1000, count: 3, val_tab: \"256,0,0\", val_type: \"int\"}"
-sleep 10
+  "{index: 0, addr: 1000, count: 3, val_tab: \"256,0,0\", val_type: \"int\"}" > /dev/null
+sleep 5  # Reduced from 10
 
 # -----------------------------------------------------------------------------
-# 2) Launch MoveIt (but redirect its output to /dev/null)
+# 2) Launch MoveIt HEADLESS (no RVIZ, no GUI)
 # -----------------------------------------------------------------------------
-echo "=== Launching dobot_moveit (silenced) ==="
-ros2 launch dobot_moveit dobot_moveit.launch.py __log_level:=fatal &> /dev/null &
+echo "=== Launching dobot_moveit (headless, no RVIZ) ==="
+echo "Using DOBOT_TYPE: ${DOBOT_TYPE}"
+
+# Verify the MoveIt package exists
+MOVEIT_PACKAGE="${DOBOT_TYPE}_moveit"
+if ! ros2 pkg list | grep -q "^${MOVEIT_PACKAGE}$"; then
+    echo "ERROR: MoveIt package '${MOVEIT_PACKAGE}' not found!"
+    echo "Available MoveIt packages:"
+    ros2 pkg list | grep moveit | head -5
+    exit 1
+fi
+
+echo "✅ Found MoveIt package: ${MOVEIT_PACKAGE}"
+ros2 launch dobot_moveit dobot_moveit.launch.py \
+  use_rviz:=false \
+  debug:=false \
+  __log_level:=fatal &> /dev/null &
 MOVEIT_PID=$!
-sleep 5
+sleep 3  # Reduced from 5
 
 # -----------------------------------------------------------------------------
-# 3) Launch servo_action server (logs go to console)
+# 3) Launch servo_action server (optimized logging)
 # -----------------------------------------------------------------------------
-echo "=== Launching servo_action server (log‐level=error) ==="
-ros2 run servo_action action_move_server_reality __log_level:=error &
+echo "=== Launching servo_action server (optimized) ==="
+ros2 run servo_action action_move_server_reality __log_level:=fatal &
 ACTION_SERVER_PID=$!
-sleep 5
+sleep 3  # Reduced from 5
 
 # -----------------------------------------------------------------------------
 # 4) Launch Orbbec camera (silence everything)

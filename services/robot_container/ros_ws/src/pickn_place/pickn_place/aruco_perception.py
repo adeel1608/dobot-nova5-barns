@@ -121,7 +121,9 @@ def quaternion_to_matrix(q):
 
 class ArucoPerceptionNode(Node):
     def __init__(self):
-        super().__init__('aruco_perception_node')
+        robot_id = os.environ.get('ROBOT_ID', '1')
+        super().__init__(f'aruco_perception_node_robot_{robot_id}')
+        self.get_logger().info(f"Starting ArUco Perception for Robot {robot_id}")
 
         # ---------------------------
         # 1. Declare ROS parameters
@@ -238,9 +240,10 @@ class ArucoPerceptionNode(Node):
         # Storage for last valid marker transforms for continuous broadcasting.
         self.last_marker_transforms = {}
 
-        # File path for saving marker pose data
+        # File path for saving marker pose data (unique per robot)
         package_share_dir = get_package_share_directory(PACKAGE_NAME)
-        self.pose_data_file = os.path.join(package_share_dir, DEFAULT_POSE_DATA_FILENAME)
+        pose_filename = f"pose_data_memory_robot_{robot_id}.yaml"
+        self.pose_data_file = os.path.join(package_share_dir, pose_filename)
 
         # Throttling parameters for saving pose data.
         self.pose_save_interval = DEFAULT_POSE_SAVE_INTERVAL
@@ -254,8 +257,12 @@ class ArucoPerceptionNode(Node):
 
         # Create and resize the OpenCV window only once upon startup.
         if self.VISUALIZE:
-            cv2.namedWindow("Aruco Detection - RGB (top) and Depth (bottom)", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Aruco Detection - RGB (top) and Depth (bottom)", 900, 1000)
+            try:
+                cv2.namedWindow("Aruco Detection - RGB (top) and Depth (bottom)", cv2.WINDOW_NORMAL)
+                cv2.resizeWindow("Aruco Detection - RGB (top) and Depth (bottom)", 900, 1000)
+            except Exception as e:
+                self.get_logger().warn(f"Could not create OpenCV window (headless mode?): {e}")
+                self.VISUALIZE = False
 
     def toggle_tf_callback(self, request, response):
         """
@@ -422,9 +429,8 @@ class ArucoPerceptionNode(Node):
         frame = self.crop_center(frame)
 
         if self.latest_depth_image is not None:
-            depth_vis = cv2.normalize(self.latest_depth_image, None, 0, 255, cv2.NORM_MINMAX)
-            depth_vis = np.uint8(depth_vis)
-            depth_vis = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+            depth_normalized = cv2.normalize(self.latest_depth_image, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            depth_vis = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
             depth_vis = cv2.resize(depth_vis, (frame.shape[1], frame.shape[0]))
         else:
             depth_vis = np.zeros((frame.shape[0], frame.shape[1], 3), dtype=np.uint8)

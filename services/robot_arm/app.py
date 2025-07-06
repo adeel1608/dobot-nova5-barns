@@ -70,6 +70,14 @@ class RobotArmService:
             params = data.get("params", {})
             arm_id = data.get("arm_id", 1)  # Default to arm 1
             
+            # Validate required function parameter
+            if not function:
+                return {
+                    "success": False,
+                    "error": "Missing required 'function' parameter",
+                    "message": "Robot action function name is required"
+                }
+            
             # Add arm_id to params for robot actions
             params["arm_id"] = arm_id
             params["simulation_mode"] = self.simulation_mode
@@ -100,7 +108,7 @@ class RobotArmService:
             
             # Send error event
             await self.rabbitmq_client.send_event("robot.action_error", {
-                "function": function,
+                "function": function or "unknown",
                 "arm_id": arm_id,
                 "error": str(e),
                 "timestamp": datetime.now().isoformat()
@@ -108,7 +116,7 @@ class RobotArmService:
             
             return {
                 "success": False,
-                "error": f"Error executing robot action '{function}': {str(e)}",
+                "error": f"Error executing robot action '{function or 'unknown'}': {str(e)}",
                 "message": "Robot action failed"
             }
     

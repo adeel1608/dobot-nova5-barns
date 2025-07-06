@@ -9,6 +9,7 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.espresso import unmount, mount
 Espresso_home = (42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
 Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+
 def clean(**params):
     """
     Complete portafilter cleaning sequence.

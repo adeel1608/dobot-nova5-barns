@@ -34,7 +34,7 @@ def grab_paper_cup(**params):
         # Validate parameters and use default if not found
         if not cup_params:
             print(f"[ERROR] unknown paper cup size: {size!r}, using default 12oz")
-            cup_params = GRAB_PAPER_CUP_PARAMS.get("12oz")
+            cup_params = GRAB_PAPER_CUP_PARAMS.get("7oz")
             if not cup_params:
                 print("[ERROR] Default 12oz parameters not found in GRAB_PAPER_CUP_PARAMS")
                 return False
@@ -58,6 +58,7 @@ def grab_paper_cup(**params):
         # Step 3: Move to paper cup grabbing area
         print("📍 Moving to paper cup dispenser area...")
         cup_area_result = run_skill("gotoJ_deg", 120.389030, 22.860609, -73.526848, -39.810959, 90.144394, -154.586288)
+        time.sleep(0.2)
         if cup_area_result is False:
             print("[ERROR] Failed to move to paper cup dispenser area")
             return False

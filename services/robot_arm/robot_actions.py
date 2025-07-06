@@ -55,10 +55,12 @@ async def robot_test2(params: dict):
 async def call_robot_container(action_name: str, params: dict):
     """Call the actual robot container via RabbitMQ"""
     try:
+        import uuid
         from shared.rabbitmq_client import RabbitMQClient
         
-        # Create RabbitMQ client for robot container communication
-        robot_client = RabbitMQClient("robot_arm_bridge")
+        # Create RabbitMQ client with unique name to avoid queue conflicts
+        unique_client_name = f"robot_arm_bridge_{uuid.uuid4().hex[:8]}"
+        robot_client = RabbitMQClient(unique_client_name)
         await robot_client.connect()
         
         try:
@@ -67,7 +69,7 @@ async def call_robot_container(action_name: str, params: dict):
             robot_service = f"robot_container_{arm_id}"  # robot_container_1 or robot_container_2
             
             logger.info(f"Calling robot container {robot_service} for action: {action_name}")
-            
+            logger.info(f"---\nParams: {params}\n---")
             response = await robot_client.send_request(
                 target_service=robot_service,
                 action="execute_action",
@@ -75,7 +77,7 @@ async def call_robot_container(action_name: str, params: dict):
                     "action_name": action_name,
                     "params": params
                 },
-                timeout=200  # Robot actions can take longer
+                timeout=300  # Robot actions can take longer
             )
             
             if response.get("error"):
@@ -112,9 +114,11 @@ ROBOT_ACTIONS = TEST_ACTIONS.copy()
 async def get_robot_container_actions():
     """Get available actions from robot container"""
     try:
+        import uuid
         from shared.rabbitmq_client import RabbitMQClient
         
-        robot_client = RabbitMQClient("robot_arm_bridge")
+        unique_client_name = f"robot_arm_bridge_{uuid.uuid4().hex[:8]}"
+        robot_client = RabbitMQClient(unique_client_name)
         await robot_client.connect()
         
         try:

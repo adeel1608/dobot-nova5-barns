@@ -331,10 +331,10 @@ services:
       - IP_address=192.168.200.249  # Robot 1 IP address
       - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
       - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
-      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/  # Use localhost via port forwarding
       - USBFS_MEMORY_MB=128            # host usbfs buffer hint
       - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
-      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - PYTHONPATH=/app:/root/ros_ws/src
       - CAMERA_SERIAL_NUMBER=CP1Z842000YW
       - CAM_NAME=cam0
       - DEVICE_ID=1
@@ -364,7 +364,7 @@ services:
     
     restart: unless-stopped
 
-  # Robot Arm 2 (Dobot Nova5)
+  # Robot Arm 2 (Dobot Nova5) - Launches 15 seconds after Robot 1
   robot2:
     build:
       context: services/robot_container
@@ -397,15 +397,16 @@ services:
       - IP_address=192.168.200.248  # Robot 2 IP address
       - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
       - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
-      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/  # Use localhost via port forwarding
       - USBFS_MEMORY_MB=128
-      - ORBBEC_CONNECTION_DELAY=12000
-      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - ORBBEC_CONNECTION_DELAY=5000  # Reduced from 12000 to 5000ms
+      - PYTHONPATH=/app:/root/ros_ws/src
       - CAMERA_SERIAL_NUMBER=CP1Z842000F6
       - CAM_NAME=cam1
       - DEVICE_ID=2
-      - USB_PORT=2-3              # USB port for robot 2 camera (CP1Z842000YW)
+      - USB_PORT=2-3              # USB port for robot 2 camera
       - DEVICE_NUM=2              # Device index for robot 2 camera
+      - ROBOT_STARTUP_DELAY=15    # Delay before starting full stack
 
     volumes:
       - /dev/shm:/dev/shm
@@ -415,7 +416,7 @@ services:
 
     #user: "${UID}:${GID}"  # Restore user permissions
     entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    command: ["bash", "-c", "echo 'Robot 2 waiting 15 seconds before startup to avoid USB conflicts...'; sleep 15; echo 'Starting Robot 2 full stack...'; /root/ros_ws/run_full_stack.sh"]
     stdin_open: true
     tty: true
     

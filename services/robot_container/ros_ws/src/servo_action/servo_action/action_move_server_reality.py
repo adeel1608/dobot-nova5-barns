@@ -59,8 +59,8 @@ class MoveCircleActionServer(Node):
         self._external_moving = False
 
         # -------------------- PARAMS --------------------
-        self.max_points = 45
-        self.sleep_timing = 0.1
+        self.max_points = 55
+        self.sleep_timing = 0.12
         self.cache_expiry = None                     # watchdog disabled
         self.verify_tolerance_rad = rad(0.1)
         self.epsilon_stable = 0.0001

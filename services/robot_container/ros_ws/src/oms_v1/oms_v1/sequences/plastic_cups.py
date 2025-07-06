@@ -80,6 +80,7 @@ def grab_plastic_cup(**params):
         # Move down to extract plastic cup from dispenser
         print("⬇️ Extracting plastic cup from dispenser...")
         extract_result = run_skill("moveEE", 0, 0, -205, 0, 0, 0)
+        time.sleep(0.2)
         if extract_result is False:
             print("[ERROR] Failed to extract plastic cup from dispenser")
             return False
@@ -87,6 +88,7 @@ def grab_plastic_cup(**params):
         # Step 5: Return to safe position with plastic cup
         print("📍 Moving to safe position with plastic cup...")
         safe_position_result = run_skill("gotoJ_deg", 137.406860, 3.501065, -134.504471, -48.814426, -42.387501, -0.108438)
+        time.sleep(0.2)
         if safe_position_result is False:
             print("[ERROR] Failed to move to safe position with plastic cup")
             return False

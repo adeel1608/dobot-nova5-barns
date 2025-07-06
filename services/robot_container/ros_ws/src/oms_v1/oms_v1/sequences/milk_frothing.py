@@ -6,8 +6,6 @@ from oms_v1.sequences.home import home
 # These are used to remember positions between function calls
 approach_angles = None
 grab_angles = None
-froth_approach_angles = None
-froth_mount_angles = None
 
 def get_frother_position(**params):
     """
@@ -35,7 +33,8 @@ def get_frother_position(**params):
         
         # Step 1: Move to home position for setup
         print("🏠 Moving to north-east home position...")
-        home_result = home(position="north_east")
+        home(position="north_east")
+        home_result = run_skill("gotoJ_deg", -67.357964,-23.709629,-89.522377,-84.038696,-113.021690,8.468687)
         if home_result is False:
             print("[ERROR] Failed to move to north-east home position")
             return False
@@ -111,7 +110,7 @@ def pick_frother(**params):
         
         # Step 3: Move to approach position for frother
         print("📍 Moving to frother approach position...")
-        approach_tool_result = run_skill("approach_tool", 'milk_frother_1', 170)
+        approach_tool_result = run_skill("approach_tool", 'milk_frother_1', 169)
         if approach_tool_result is False:
             print("[ERROR] Failed to move to frother approach position")
             return False
@@ -149,27 +148,28 @@ def pick_frother(**params):
         print(f"[ERROR] Unexpected error during frother pickup: {e}")
         return False
     
-def froth_milk(**params):
+def mount_frother(**params):
     """
-    Perform milk frothing operation using the steam wand.
+    Mount the milk frother to the steam wand for frothing preparation.
     
-    This function executes the milk frothing process:
+    This function positions the frother on the steam wand:
     1. Moves to milk frothing preparation position
-    2. Approaches the steam wand with the frother
-    3. Mounts frother to steam wand for proper positioning
-    4. Activates steam via digital output for frothing
-    5. Allows frothing time then deactivates steam
+    2. Sets precise servo timing for accurate movements
+    3. Approaches the steam wand with the frother (deep position)
+    4. Fine approaches the steam wand (light position)
+    5. Mounts frother securely to steam wand
+    
+    Note: This function only positions the frother. Use froth_milk() to actually activate steam.
     
     Returns:
-        bool: True if milk frothing completed successfully, False otherwise
+        bool: True if frother mounted successfully, False otherwise
         
     Example:
-        success = froth_milk()
+        success = mount_frother()
         if success:
-            print("Milk frothed successfully")
+            print("Frother mounted to steam wand successfully")
     """
     try:
-        global froth_approach_angles, froth_mount_angles
         
         print("☁️ Starting milk frothing sequence...")
         
@@ -188,32 +188,40 @@ def froth_milk(**params):
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         
-        # Step 3: Approach steam wand
-        print("🎯 Approaching steam wand...")
-        approach_result = run_skill("approach_machine", "left_steam_wand", "milk_frother")
+        # Step 3: Approach steam wand (deep position)
+        print("🎯 Approaching steam wand (deep position)...")
+        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
         if approach_result is False:
             print("[ERROR] Failed to approach steam wand")
             return False
         
-        # Record approach position
-        froth_approach_result = run_skill("current_angles")
-        if froth_approach_result is not None:
-            froth_approach_angles = froth_approach_result
-        
         time.sleep(0.2)
         
-        # Step 4: Mount to steam wand for frothing
-        print("🔧 Mounting to steam wand...")
-        mount_result = run_skill("mount_machine", "left_steam_wand", "milk_frother")
+        # Step 4: Fine approach to steam wand (light position) 
+        print("🎯 Fine approaching steam wand (light position)...")
+        fine_approach_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
+        if fine_approach_result is False:
+            print("[ERROR] Failed to fine approach steam wand")
+            return False
+
+        # Step 5: Mount frother to steam wand
+        print("🔧 Mounting frother to steam wand...")
+        mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
         if mount_result is False:
-            print("[ERROR] Failed to mount to steam wand")
+            print("[ERROR] Failed to mount frother to steam wand")
             return False
         
-        # Record mount position
-        froth_mount_result = run_skill("current_angles")
-        if froth_mount_result is not None:
-            froth_mount_angles = froth_mount_result
-        
+        print("✅ Milk frother mounted to steam wand successfully")
+        return True
+               
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during milk frothing: {e}")
+        return False
+
+def froth_milk(**params):
+    try:
+        duration = params.get("duration", 10)
+        print(f"🥛 Frothing milk for {duration} seconds...")
         # Step 5: Activate steam for frothing
         print("💨 Activating steam for milk frothing...")
         steam_on_result = run_skill("set_DO", 2, 1)
@@ -223,7 +231,7 @@ def froth_milk(**params):
         
         # Step 6: Allow frothing time
         print("☁️ Frothing milk (10 seconds)...")
-        time.sleep(10)
+        time.sleep(duration)
         
         # Step 7: Deactivate steam
         print("💨 Deactivating steam...")
@@ -237,7 +245,6 @@ def froth_milk(**params):
         
         print("✅ Milk frothing completed successfully")
         return True
-        
     except Exception as e:
         print(f"[ERROR] Unexpected error during milk frothing: {e}")
         return False
@@ -276,11 +283,14 @@ def pour_milk(**params):
         
         # Step 1: Return to approach position from steam wand
         print("⬅️ Moving back from steam wand...")
-        back_result = run_skill("approach_machine", "left_steam_wand", "milk_frother")
+        back_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
         if back_result is False:
             print("[ERROR] Failed to move back from steam wand")
             return False
-        
+        back_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
+        if back_result is False:
+            print("[ERROR] Failed to move back from steam wand")
+            return False
         # Step 2: Set normal servo timing
         print("⚙️ Setting normal servo timing...")
         timing_result = run_skill("set_servo_timing", 0.1)
@@ -288,7 +298,12 @@ def pour_milk(**params):
             print("[WARNING] Failed to set servo timing - continuing...")
         
         time.sleep(0.2)
-        
+        print("📍 Moving to intermediate pouring position...")
+        intermediate_result = run_skill("gotoJ_deg", -58.476021,-51.300709,-101.058250,-42.526070,-61.983448,8.514315, 1.0, 0.2)
+        if intermediate_result is False:
+            print("[ERROR] Failed to move to intermediate position")
+            return False
+        time.sleep(0.2)
         # Step 3: Move to intermediate pouring position
         print("📍 Moving to intermediate pouring position...")
         intermediate_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193, 1.0, 0.2)
@@ -448,6 +463,58 @@ def return_frother(**params):
     except Exception as e:
         print(f"[ERROR] Unexpected error during frother return: {e}")
         return False
+
+def clean_steam_wand(**params):
+    """
+    Clean the steam wand by running steam through it.
+    
+    This function cleans the steam wand after use:
+    1. Activates steam for cleaning
+    2. Runs steam for specified duration to clear residue
+    3. Deactivates steam
+    4. Allows settling time
+    
+    Args:
+        duration (int): Duration in seconds to run cleaning steam (default: 10)
+        
+    Returns:
+        bool: True if steam wand cleaned successfully, False otherwise
+        
+    Example:
+        success = clean_steam_wand(duration=15)
+        if success:
+            print("Steam wand cleaned successfully")
+    """
+    try:
+        duration = params.get("duration", 10)
+        print(f"🧽 Cleaning steam wand for {duration} seconds...")
+        
+        # Step 1: Activate steam for cleaning
+        print("💨 Activating steam for cleaning...")
+        steam_on_result = run_skill("set_DO", 1, 1)
+        if steam_on_result is False:
+            print("[ERROR] Failed to activate steam for cleaning")
+            return False
+        
+        # Step 2: Allow cleaning time
+        print(f"🧽 Running cleaning steam ({duration} seconds)...")
+        time.sleep(duration)
+        
+        # Step 3: Deactivate steam
+        print("💨 Deactivating steam...")
+        steam_off_result = run_skill("set_DO", 1, 0)
+        if steam_off_result is False:
+            print("[ERROR] Failed to deactivate steam")
+            return False
+        
+        # Step 4: Allow settling time
+        time.sleep(2)
+        
+        print("✅ Steam wand cleaning completed successfully")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during steam wand cleaning: {e}")
+        return False
         
 # Register for CLI discovery
 SEQUENCES = {
@@ -456,4 +523,6 @@ SEQUENCES = {
     'froth_milk': froth_milk,
     'pour_milk': pour_milk,
     'return_frother': return_frother,
+    'mount_frother': mount_frother,
+    'clean_steam_wand': clean_steam_wand,
 }

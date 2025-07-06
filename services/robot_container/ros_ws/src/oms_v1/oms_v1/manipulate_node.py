@@ -513,10 +513,10 @@ class DirectTfMotionNode(Node):
         Retries StartDrag/StopDrag up to max_attempts times each, with proper error handling.
         Returns True on full success, False on any failure.
         """
-        max_attempts = 10
+        max_attempts = 15
         timeout_sec = 1.0
-        min_wait_sec = 0.2
-        settling_time = 0.2
+        min_wait_sec = 0.3
+        settling_time = 0.3
 
         def _execute_drag_command(is_start: bool) -> bool:
             """Helper function to execute StartDrag or StopDrag with retries."""
