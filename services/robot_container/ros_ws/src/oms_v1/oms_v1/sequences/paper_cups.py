@@ -153,6 +153,7 @@ def place_paper_cup(**params):
         print("🔄 Adjusting orientation for staging...")
         if 'twist' in stage_params:
             twist_result = run_skill("moveJ_deg", *stage_params['twist'])
+            time.sleep(0.2)
             if twist_result is False:
                 print("[ERROR] Failed to execute staging twist")
                 return False
@@ -161,6 +162,7 @@ def place_paper_cup(**params):
         print("🎯 Moving to placement position...")
         if 'pose' in stage_params:
             pose_result = run_skill("gotoJ_deg", *stage_params['pose'])
+            time.sleep(0.2)
             if pose_result is False:
                 print("[ERROR] Failed to move to placement pose")
                 return False
@@ -168,6 +170,7 @@ def place_paper_cup(**params):
         # Step 4: Open gripper to release paper cup
         print("🤏 Releasing paper cup...")
         release_result = run_skill("set_gripper_position", 50, 0)
+        time.sleep(0.2)
         if release_result is False:
             print("[ERROR] Failed to release paper cup")
             return False
@@ -178,6 +181,7 @@ def place_paper_cup(**params):
         # Step 5: Move up after placing paper cup
         print("⬆️ Moving up after placement...")
         up_result = run_skill("moveEE", 0, 0, 150, 0, 0, 0)
+        time.sleep(0.2)
         if up_result is False:
             print("[ERROR] Failed to move up after placement")
             return False
@@ -186,6 +190,7 @@ def place_paper_cup(**params):
         print("🏠 Moving to staging home...")
         if 'stage_home' in stage_params:
             stage_home_result = run_skill("gotoJ_deg", *stage_params['stage_home'])
+            time.sleep(0.2)
             if stage_home_result is False:
                 print("[ERROR] Failed to move to staging home")
                 return False
@@ -194,16 +199,18 @@ def place_paper_cup(**params):
         print("🔄 Untwisting back towards machine...")
         if 'twist_back' in stage_params:
             twist_back_result = run_skill("moveJ_deg", *stage_params['twist_back'])
+            time.sleep(0.2)
             if twist_back_result is False:
                 print("[ERROR] Failed to untwist back")
                 return False
         
-        # Step 8: Return to espresso home
-        print("🏠 Returning to espresso home...")
-        home_result = run_skill("gotoJ_deg", *Espresso_home)
-        if home_result is False:
-            print("[ERROR] Failed to return to espresso home")
-            return False
+        # # Step 8: Return to espresso home
+        # print("🏠 Returning to espresso home...")
+        # home_result = run_skill("gotoJ_deg", *Espresso_home)
+        # time.sleep(0.2)
+        # if home_result is False:
+        #     print("[ERROR] Failed to return to espresso home")
+        #     return False
         
         print(f"✅ Paper cup placement sequence completed successfully for: {stage}")
         return True
@@ -256,6 +263,7 @@ def serve_paper_cup(**params):
         print("🔄 Navigating to pickup area...")
         if 'twist_serve' in stage_params:
             twist_serve_result = run_skill("moveJ_deg", *stage_params['twist_serve'])
+            time.sleep(0.2)
             if twist_serve_result is False:
                 print("[ERROR] Failed to execute serving twist")
                 return False
@@ -264,6 +272,7 @@ def serve_paper_cup(**params):
         print("📍 Moving to paper cup pickup position...")
         if 'pick' in stage_params:
             pick_result = run_skill("gotoJ_deg", *stage_params['pick'])
+            time.sleep(0.2)
             if pick_result is False:
                 print("[ERROR] Failed to move to pickup position")
                 return False
@@ -271,6 +280,7 @@ def serve_paper_cup(**params):
         # Step 4: Lower to paper cup level
         print("⬇️ Lowering to paper cup level...")
         lower_result = run_skill("moveEE", 0, 0, -140, 0, 0, 0)
+        time.sleep(0.2)
         if lower_result is False:
             print("[ERROR] Failed to lower to paper cup level")
             return False
@@ -278,6 +288,7 @@ def serve_paper_cup(**params):
         # Step 5: Grip the paper cup for serving
         print("🤏 Gripping paper cup for serving...")
         grip_result = run_skill("set_gripper_position", 55, 125)
+        time.sleep(0.2)
         if grip_result is False:
             print("[ERROR] Failed to grip paper cup for serving")
             return False
@@ -285,6 +296,7 @@ def serve_paper_cup(**params):
         # Step 6: Set slower servo timing for careful handling
         print("⚙️ Setting careful servo timing...")
         timing_result = run_skill("set_servo_timing", 0.20)
+        time.sleep(0.2)
         if timing_result is False:
             print("[WARNING] Failed to set servo timing, continuing...")
         
@@ -292,6 +304,7 @@ def serve_paper_cup(**params):
         print("⬆️ Lifting paper cup...")
         if 'pick' in stage_params:
             lift_result = run_skill("gotoJ_deg", *stage_params['pick'])
+            time.sleep(0.2)
             if lift_result is False:
                 print("[ERROR] Failed to lift paper cup")
                 return False
@@ -300,6 +313,7 @@ def serve_paper_cup(**params):
         print("📍 Moving above serving area...")
         if 'above_serve' in stage_params:
             above_serve_result = run_skill("gotoJ_deg", *stage_params['above_serve'])
+            time.sleep(0.2)
             if above_serve_result is False:
                 print("[ERROR] Failed to move above serving area")
                 return False
@@ -308,6 +322,7 @@ def serve_paper_cup(**params):
         print("⬇️ Lowering to serving position...")
         if 'serve' in stage_params:
             serve_result = run_skill("gotoJ_deg", *stage_params['serve'])
+            time.sleep(0.2)
             if serve_result is False:
                 print("[ERROR] Failed to move to serving position")
                 return False
@@ -315,6 +330,7 @@ def serve_paper_cup(**params):
         # Step 10: Release paper cup for customer
         print("🤏 Releasing paper cup for customer...")
         release_result = run_skill("set_gripper_position", 55, 0)
+        time.sleep(0.2)
         if release_result is False:
             print("[ERROR] Failed to release paper cup")
             return False
@@ -322,6 +338,7 @@ def serve_paper_cup(**params):
         # Step 11: Reset servo timing
         print("⚙️ Resetting servo timing...")
         reset_timing_result = run_skill("set_servo_timing", 0.10)
+        time.sleep(0.2)
         if reset_timing_result is False:
             print("[WARNING] Failed to reset servo timing, continuing...")
         
@@ -331,6 +348,7 @@ def serve_paper_cup(**params):
         # Step 12: Move up after placing
         print("⬆️ Moving up after serving...")
         up_result = run_skill("moveEE", 0, 0, 140, 0, 0, 0)
+        time.sleep(0.2)
         if up_result is False:
             print("[ERROR] Failed to move up after serving")
             return False
@@ -338,6 +356,7 @@ def serve_paper_cup(**params):
         # Step 13: Return to staging home
         print("🏠 Moving to staging home...")
         staging_home_result = run_skill("gotoJ_deg", 106.460129, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+        time.sleep(0.2)
         if staging_home_result is False:
             print("[ERROR] Failed to move to staging home")
             return False
@@ -345,6 +364,7 @@ def serve_paper_cup(**params):
         # Step 14: Twist joint 1 to reach espresso home
         print("🔄 Twisting to reach espresso home...")
         final_twist_result = run_skill("moveJ_deg", -64.032688, 0, 0, 0, 0, 0)
+        time.sleep(0.2)
         if final_twist_result is False:
             print("[ERROR] Failed to execute final twist")
             return False
@@ -352,6 +372,7 @@ def serve_paper_cup(**params):
         # Step 15: Return to espresso home
         print("🏠 Returning to espresso home...")
         final_home_result = run_skill("gotoJ_deg", *Espresso_home)
+        time.sleep(0.2)
         if final_home_result is False:
             print("[ERROR] Failed to return to espresso home")
             return False

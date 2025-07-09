@@ -63,11 +63,15 @@ wait_for_service "/dobot_bringup_v3/srv/EnableRobot"
 echo "Calling EnableRobot (load: 2.0) ..."
 ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}" > /dev/null
 
+ros2 service call /dobot_bringup_v3/srv/SetGripperPosition dobot_msgs_v3/srv/SetGripperPosition "{position: 0, speed: 255, force: 255}"
+
 wait_for_service "/dobot_bringup_v3/srv/StartDrag"
 echo "Calling StartDrag ..."
 ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
 
 sleep 5  # Reduced from 10
+# sudo rm  /dev/shm/orbbec_device_lock
+# sleep 5
 
 wait_for_service "/dobot_bringup_v3/srv/StopDrag"
 echo "Calling StopDrag ..."
@@ -252,7 +256,7 @@ sleep 5  # Additional delay for stability
 # 5) Launch perception nodes (pose_generator, obstacle_generator) silently
 # -----------------------------------------------------------------------------
 echo "=== Spinning up pose_generator (silenced) ==="
-ros2 run pickn_place pose_generator __log_level:=fatal &
+ros2 run pickn_place pose_generator __log_level:=fatal &> /dev/null &
 POSE_GEN_PID=$!
 sleep 5
 

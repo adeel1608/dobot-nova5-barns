@@ -232,7 +232,7 @@ async def slush_machine(params: dict):
 async def coffee_machine(params: dict):
     """coffee machine using MQTT communication."""
     # coffee_type is the number of the shots 1,2
-    coffee_type = params.get("coffee_type", 1)
+    coffee_t = params.get("coffee_t", 1)
     slot_number = params.get("slot_number", 1)
     print("Calling Slush mach function")
     response = {"data": None}
@@ -249,7 +249,7 @@ async def coffee_machine(params: dict):
         except json.JSONDecodeError:
             print(f"Invalid JSON: {msg.payload.decode()}")
 
-    payload = json.dumps({"slot_number": slot_number, "slot_number": slot_number})
+    payload = json.dumps({"slot_number": slot_number, "coffee_t": coffee_t})
     logger.info("Calling MQTT")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
@@ -309,7 +309,7 @@ async def coffee_machine(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully prepared {coffee_type} coffee in {slot_number} slot",
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
             "details": mqtt_response
         }
     else:

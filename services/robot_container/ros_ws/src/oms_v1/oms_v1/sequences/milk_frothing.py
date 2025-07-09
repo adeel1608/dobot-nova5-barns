@@ -103,14 +103,14 @@ def pick_frother(**params):
         
         # Step 2: Approach the milk frother
         print("🎯 Approaching milk frother...")
-        approach_result = run_skill("move_to", 'milk_frother_1', 0.175)
+        approach_result = run_skill("move_to", 'milk_frother_2', 0.175)
         if approach_result is False:
             print("[ERROR] Failed to approach milk frother")
             return False
         
         # Step 3: Move to approach position for frother
         print("📍 Moving to frother approach position...")
-        approach_tool_result = run_skill("approach_tool", 'milk_frother_1', 169)
+        approach_tool_result = run_skill("approach_tool", 'milk_frother_2', 169)
         if approach_tool_result is False:
             print("[ERROR] Failed to move to frother approach position")
             return False
@@ -127,7 +127,7 @@ def pick_frother(**params):
         
         # Step 5: Grab the frother
         print("🤏 Grabbing milk frother...")
-        grab_result = run_skill("grab_tool", 'milk_frother_1', 200, 250, 255)
+        grab_result = run_skill("grab_tool", 'milk_frother_2', 200, 250, 255)
         if grab_result is False:
             print("[ERROR] Failed to grab milk frother")
             return False
@@ -220,11 +220,11 @@ def mount_frother(**params):
 
 def froth_milk(**params):
     try:
-        duration = params.get("duration", 10)
+        duration = params.get("duration", 7.5)
         print(f"🥛 Frothing milk for {duration} seconds...")
         # Step 5: Activate steam for frothing
         print("💨 Activating steam for milk frothing...")
-        steam_on_result = run_skill("set_DO", 2, 1)
+        steam_on_result = run_skill("set_DO", 1, 1)
         if steam_on_result is False:
             print("[ERROR] Failed to activate steam")
             return False
@@ -235,7 +235,7 @@ def froth_milk(**params):
         
         # Step 7: Deactivate steam
         print("💨 Deactivating steam...")
-        steam_off_result = run_skill("set_DO", 2, 0)
+        steam_off_result = run_skill("set_DO", 1, 0)
         if steam_off_result is False:
             print("[ERROR] Failed to deactivate steam")
             return False
@@ -280,16 +280,23 @@ def pour_milk(**params):
             return False
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
-        
-        # Step 1: Return to approach position from steam wand
-        print("⬅️ Moving back from steam wand...")
-        back_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
-        if back_result is False:
-            print("[ERROR] Failed to move back from steam wand")
+         # Step 5: Mount frother to steam wand
+        print("🔧 Mounting frother to steam wand...")
+        mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
+        if mount_result is False:
+            print("[ERROR] Failed to mount frother to steam wand")
             return False
-        back_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
-        if back_result is False:
-            print("[ERROR] Failed to move back from steam wand")
+        # Step 4: Fine approach to steam wand (light position) 
+        print("🎯 Fine approaching steam wand (light position)...")
+        fine_approach_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
+        if fine_approach_result is False:
+            print("[ERROR] Failed to fine approach steam wand")
+            return False
+        # Step 3: Approach steam wand (deep position)
+        print("🎯 Approaching steam wand (deep position)...")
+        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
+        if approach_result is False:
+            print("[ERROR] Failed to approach steam wand")
             return False
         # Step 2: Set normal servo timing
         print("⚙️ Setting normal servo timing...")
@@ -353,7 +360,7 @@ def pour_milk(**params):
             time.sleep(0.2)
             
             # Tilt for pouring
-            pour_result = run_skill("gotoJ_deg", -113.384514, -39.535606, -77.602524, -71.924614, -96.217064, -98.112167, 1.0, 0.075)
+            pour_result = run_skill("gotoJ_deg", -113.384514, -39.535606, -77.602524, -71.924614, -96.217064, -98.112167, 1.0, 0.005)
             if pour_result is False:
                 print("[ERROR] Failed to tilt for pouring")
                 return False
@@ -412,7 +419,7 @@ def return_frother(**params):
         
         # Step 2: Move to return preparation position
         print("📍 Moving to return preparation position...")
-        prep_result = run_skill("gotoJ_deg", 22.345373, -76.252151, -61.342220, -40.423759, -81.360077, 11.115391)
+        prep_result = run_skill("gotoJ_deg", 22.402670,-79.481049,-59.269863,-39.324520,-81.417374,11.115391)
         if prep_result is False:
             print("[ERROR] Failed to move to return preparation position")
             return False
@@ -491,7 +498,7 @@ def clean_steam_wand(**params):
         
         # Step 1: Activate steam for cleaning
         print("💨 Activating steam for cleaning...")
-        steam_on_result = run_skill("set_DO", 1, 1)
+        steam_on_result = run_skill("set_DO", 2, 1)
         if steam_on_result is False:
             print("[ERROR] Failed to activate steam for cleaning")
             return False
@@ -502,7 +509,7 @@ def clean_steam_wand(**params):
         
         # Step 3: Deactivate steam
         print("💨 Deactivating steam...")
-        steam_off_result = run_skill("set_DO", 1, 0)
+        steam_off_result = run_skill("set_DO", 2, 0)
         if steam_off_result is False:
             print("[ERROR] Failed to deactivate steam")
             return False
