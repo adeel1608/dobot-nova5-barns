@@ -1,83 +1,50 @@
 #!/usr/bin/env bash
-set -e
+#
+# entrypoint.sh  –  robot container bootstrap (simplified)
+# ───────────────────────────────────────────────────────────────
+set -euo pipefail      # safe-by-default shell
 
-# ───────────────────────────────────────────────────────────────────
-# 2) Source ROS 2 from the base image
-# ───────────────────────────────────────────────────────────────────
+###############################################################################
+# 0.  Workspace & helper
+###############################################################################
+WS=/root/ros_ws
+log() { printf "\033[1;35m[entrypoint]\033[0m %s\n" "$*"; }
 
-source /opt/ros/${ROS_DISTRO:-humble}/setup.bash
+###############################################################################
+# 1.  Environment quirks when -u is active
+###############################################################################
+export AMENT_TRACE_SETUP_FILES=0          # stops tracing spam
+export AMENT_PYTHON_EXECUTABLE=python3    # so local_setup.sh won't crash
 
-# ───────────────────────────────────────────────────────────────────
-# 3) Change into your workspace and fix script permissions
-# ───────────────────────────────────────────────────────────────────
+###############################################################################
+# 2.  Source ROS 2 – *with nounset temporarily off*
+###############################################################################
+set +u
+source "/opt/ros/${ROS_DISTRO:-humble}/setup.bash"
+set -u
 
-# Fix permissions if needed
-if [ ! -r /root/ros_ws ] || [ ! -x /root/ros_ws ]; then
-    echo "Fixing permissions for /root/ros_ws..."
-    chown -R root:root /root/ros_ws 2>/dev/null || true
-    chmod -R 755 /root/ros_ws 2>/dev/null || true
-fi
+###############################################################################
+# 3.  Ensure workspace exists and perms are OK
+###############################################################################
+  mkdir -p "$WS/src"
+chmod -R a+rwx "$WS" || true
+cd "$WS"
 
-cd /root/ros_ws
-
-# Fix permissions for the run_full_stack.sh script
-if [ -f "/root/ros_ws/run_full_stack.sh" ]; then
-    chmod +x /root/ros_ws/run_full_stack.sh
-fi
-
-# ───────────────────────────────────────────────────────────────────
-# 4) Refresh apt so rosdep can install any missing deps
-# ───────────────────────────────────────────────────────────────────
-
-apt-get update
-
-# ───────────────────────────────────────────────────────────────────
-# 5) Update rosdep's database
-# ───────────────────────────────────────────────────────────────────
-
-rosdep update
-
-# ───────────────────────────────────────────────────────────────────
-# 6) Install all Debian dependencies in your workspace (if src exists)
-#    Skip ament_python if it still shows up anywhere
-# ───────────────────────────────────────────────────────────────────
-
-if [ -d "src" ] && [ "$(ls -A src 2>/dev/null)" ]; then
-    echo "Installing ROS dependencies from src directory..."
-    rosdep install \
-      --from-paths src \
-      --ignore-src \
-      -r \
-      -y \
-      --skip-keys ament_python
-else
-    echo "No src directory found or empty - skipping rosdep install"
-fi
-
-# ───────────────────────────────────────────────────────────────────
-# 7) Build the entire ROS 2 workspace
-# ───────────────────────────────────────────────────────────────────
-
-if [ -d "src" ] && [ "$(ls -A src 2>/dev/null)" ]; then
-    echo "Building ROS workspace..."
-    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
-else
-    echo "No src directory found or empty - skipping colcon build"
-fi
-
-# ───────────────────────────────────────────────────────────────────
-# 8) Source the newly-built overlay so launches can see your packages
-# ───────────────────────────────────────────────────────────────────
-
+###############################################################################
+# 4.  Source the already-built workspace overlay
+###############################################################################
 if [ -f "install/setup.bash" ]; then
-    echo "Sourcing ROS workspace overlay"
+    log "Sourcing pre-built workspace overlay..."
+    set +u
     source install/setup.bash
+    set -u
+    log "Workspace overlay sourced successfully."
 else
-    echo "No built overlay found, using base ROS installation"
+    log "WARNING: No pre-built workspace found. You may need to rebuild the image."
 fi
 
-# ───────────────────────────────────────────────────────────────────
-# 9) Finally, run the command passed into the container (e.g. "ros2 launch …")
-# ───────────────────────────────────────────────────────────────────
-
+###############################################################################
+# 5.  Hand control to CMD
+###############################################################################
+log "✓ Ready – executing CMD: $*"
 exec "$@"

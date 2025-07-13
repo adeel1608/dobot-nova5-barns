@@ -49,7 +49,8 @@ wait_for_service() {
 echo "=== Launching dobot_bringup_v3 (optimized) ==="
 ros2 launch dobot_bringup_v3 dobot_bringup_ros2.launch.py __log_level:=error &
 DOBOT_BRINGUP_PID=$!
-sleep 3  # Reduced from 5
+
+sleep 1
 
 wait_for_service "/dobot_bringup_v3/srv/ClearError"
 echo "Calling ClearError ..."
@@ -67,7 +68,7 @@ wait_for_service "/dobot_bringup_v3/srv/StartDrag"
 echo "Calling StartDrag ..."
 ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
 
-sleep 5  # Reduced from 10
+sleep 5
 
 wait_for_service "/dobot_bringup_v3/srv/StopDrag"
 echo "Calling StopDrag ..."
@@ -112,8 +113,6 @@ if [[ -n "$j1_val" ]]; then
     "{j1: ${j1_val}, j2: 30.0, j3: -130.0, j4: -100.0, j5: -90.0, j6: 0.0, t: 2.0}" > /dev/null
 fi
 
-sleep 3  # Reduced from 5
-
 wait_for_service "/dobot_bringup_v3/srv/StartDrag"
 echo "Calling StartDrag ..."
 ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
@@ -139,7 +138,6 @@ ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldReg
 echo "Calling SetHoldRegs (load=256) ..."
 ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldRegs \
   "{index: 0, addr: 1000, count: 3, val_tab: \"256,0,0\", val_type: \"int\"}" > /dev/null
-sleep 5  # Reduced from 10
 
 # -----------------------------------------------------------------------------
 # 2) Launch MoveIt HEADLESS (no RVIZ, no GUI)
@@ -162,15 +160,14 @@ ros2 launch dobot_moveit dobot_moveit.launch.py \
   debug:=false \
   __log_level:=fatal &> /dev/null &
 MOVEIT_PID=$!
-sleep 3  # Reduced from 5
 
+sleep 2
 # -----------------------------------------------------------------------------
 # 3) Launch servo_action server (optimized logging)
 # -----------------------------------------------------------------------------
 echo "=== Launching servo_action server (optimized) ==="
 ros2 run servo_action action_move_server_reality __log_level:=fatal &
 ACTION_SERVER_PID=$!
-sleep 3  # Reduced from 5
 
 # -----------------------------------------------------------------------------
 # 4) Launch Orbbec camera (silence everything)
@@ -211,9 +208,18 @@ ros2 launch orbbec_camera gemini_330_series.launch.py \
   serial_number:="${CAMERA_SERIAL_NUMBER}" \
   usb_port:="${USB_PORT}" \
   device_num:="${DEVICE_NUM}" \
+  enable_noise_removal_filter:=false \
+  enable_spatial_filter:=false \
+  enable_temporal_filter:=false \
+  enable_hole_filling_filter:=false \
+  enable_decimation_filter:=false \
+  enable_threshold_filter:=false \
+  enable_sequence_id_filter:=false \
+  enable_hdr_merge:=false \
   __log_level:=fatal &
 CAMERA_PID=$!
 
+sleep 2
 # Wait for camera to initialize and verify topics
 echo "Waiting for camera to initialize..."
 MAX_RETRIES=30
@@ -243,9 +249,6 @@ done
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "WARNING: Camera info not publishing after $MAX_RETRIES seconds"
 fi
-sleep 10
-ros2 topic list
-sleep 5  # Additional delay for stability
 # ros2 run rosbridge_server rosbridge_websocket --ros-args -p port:=9090 -p address:=0.0.0.0
 
 # -----------------------------------------------------------------------------
@@ -254,12 +257,10 @@ sleep 5  # Additional delay for stability
 echo "=== Spinning up pose_generator (silenced) ==="
 ros2 run pickn_place pose_generator __log_level:=fatal &
 POSE_GEN_PID=$!
-sleep 5
 
 echo "=== Spinning up obstacle_generator (silenced) ==="
 ros2 run pickn_place obstacle_generator __log_level:=fatal &> /dev/null &
 OBSTACLE_GEN_PID=$!
-sleep 5
 
 # -----------------------------------------------------------------------------
 # 6) Launch oms_v1.app service in separate background process
@@ -267,7 +268,6 @@ sleep 5
 echo "=== Launching oms_v1.app service (log-level=info) ==="
 cd /root/ros_ws/src/oms_v1 && python -m oms_v1.app --service &
 OMS_APP_PID=$!
-sleep 5
 
 # -----------------------------------------------------------------------------
 # 7) Finally, leave the container alive (so dobot_bringup_v3 & servo_action keep running)
