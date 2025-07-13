@@ -64,6 +64,8 @@ wait_for_service "/dobot_bringup_v3/srv/EnableRobot"
 echo "Calling EnableRobot (load: 2.0) ..."
 ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}" > /dev/null
 
+ros2 service call /dobot_bringup_v3/srv/SetGripperPosition dobot_msgs_v3/srv/SetGripperPosition "{position: 0, speed: 255, force: 255}"
+
 wait_for_service "/dobot_bringup_v3/srv/StartDrag"
 echo "Calling StartDrag ..."
 ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
@@ -255,7 +257,7 @@ fi
 # 5) Launch perception nodes (pose_generator, obstacle_generator) silently
 # -----------------------------------------------------------------------------
 echo "=== Spinning up pose_generator (silenced) ==="
-ros2 run pickn_place pose_generator __log_level:=fatal &
+ros2 run pickn_place pose_generator __log_level:=fatal &> /dev/null &
 POSE_GEN_PID=$!
 
 echo "=== Spinning up obstacle_generator (silenced) ==="

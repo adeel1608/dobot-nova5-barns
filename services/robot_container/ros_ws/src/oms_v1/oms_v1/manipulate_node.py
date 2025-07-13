@@ -250,7 +250,7 @@ class DirectTfMotionNode(Node):
         Then it returns the averaged transform computed from the window.
         """
         samples_buffer = []
-        freshness_threshold = 0.2  
+        freshness_threshold = 0.5  
         while True:
             transform, stamp = self.get_tf(target_tf, max_retries=1, sleep_time=0.1)
             if transform is not None:
@@ -514,9 +514,9 @@ class DirectTfMotionNode(Node):
         Returns True on full success, False on any failure.
         """
         max_attempts = 15
-        timeout_sec = 1.0
-        min_wait_sec = 0.3
-        settling_time = 0.3
+        timeout_sec = 5.0
+        min_wait_sec = 0.75
+        settling_time = 0.75
 
         def _execute_drag_command(is_start: bool) -> bool:
             """Helper function to execute StartDrag or StopDrag with retries."""
@@ -553,7 +553,7 @@ class DirectTfMotionNode(Node):
                 
                 # Brief pause before retry
                 if attempt < max_attempts:
-                    time.sleep(0.1)
+                    time.sleep(0.2)
             
             self.get_logger().error(f"release_tension: {cmd_name} failed after {max_attempts} attempts")
             return False
@@ -1271,10 +1271,10 @@ class DirectTfMotionNode(Node):
 
     def _check_gripper_services(self) -> bool:
         """Check if gripper services are available."""
-        if not self.set_gripper_cli.wait_for_service(timeout_sec=2.0):
+        if not self.set_gripper_cli.wait_for_service(timeout_sec=5.0):
             self.get_logger().error("_check_gripper_services(): SetGripperPosition service unavailable.")
             return False
-        if not self.get_gripper_cli.wait_for_service(timeout_sec=2.0):
+        if not self.get_gripper_cli.wait_for_service(timeout_sec=5.0):
             self.get_logger().error("_check_gripper_services(): GetGripperPosition service unavailable.")
             return False
         return True
@@ -1291,7 +1291,7 @@ class DirectTfMotionNode(Node):
             
             # Wait up to 2s for the command to be accepted
             start_time = time.monotonic()
-            while not future.done() and (time.monotonic() - start_time) < 2.0:
+            while not future.done() and (time.monotonic() - start_time) < 5.0:
                 rclpy.spin_once(self, timeout_sec=0.01)
 
             if not future.done():
@@ -2707,7 +2707,7 @@ def run_skill(skill_name: str, *skill_args):
         th.join(timeout=1.0)  # Give thread 1s to finish
         node.destroy_node()
         rclpy.shutdown()
-
+    time.sleep(0.2)
     return result_container.get("value") # may be None
 
 # def main():

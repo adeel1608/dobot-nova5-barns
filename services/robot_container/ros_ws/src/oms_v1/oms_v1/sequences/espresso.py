@@ -52,20 +52,23 @@ def unmount(**params):
         # Step 1: Move to espresso home position
         print("🏠 Moving to espresso home...")
         home_result = run_skill("gotoJ_deg", *port_params['home'])
+        time.sleep(0.2)
         if home_result is False:
             print("[ERROR] Failed to move to espresso home")
             return False
-        
-        # # Step 2: Approach the portafilter group
-        # print(f"🎯 Approaching portafilter {port_params['portafilter_number']}...")
-        # approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
-        # if approach_result is False:
-        #     print("[ERROR] Failed to approach portafilter")
-        #     return False
+
+        if port == 'port_1' or port == 'port_3':
+            # Step 2: Approach the portafilter group
+            print(f"🎯 Approaching portafilter {port_params['portafilter_number']}...")
+            approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+            if approach_result is False:
+                print("[ERROR] Failed to approach portafilter")
+                return False
         
         # Step 3: Mount to the portafilter for secure grip
         print("🔧 Mounting to portafilter...")
         mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'], True)
+        time.sleep(0.2)
         if mount_result is False:
             print("[ERROR] Failed to mount to portafilter")
             return False
@@ -105,6 +108,7 @@ def unmount(**params):
         # Step 8: Rotate portafilter to unlock (-45 degrees)
         print("🔄 Rotating portafilter to unlock...")
         rotate_result = run_skill("move_portafilter_arc", -45)
+        time.sleep(0.2)
         if rotate_result is False:
             print("[ERROR] Failed to rotate portafilter")
             return False
@@ -112,7 +116,9 @@ def unmount(**params):
         # Step 9: Release tension after rotation
         print("😌 Releasing tension after rotation...")
         tension_result2 = run_skill("release_tension")
+        time.sleep(0.2)
         mount_espresso_port = run_skill("current_angles")  # Capture mount position
+        time.sleep(0.2)
         if tension_result2 is False:
             print("[ERROR] Failed to release tension after rotation")
             return False
@@ -121,6 +127,7 @@ def unmount(**params):
         print("⬇️ Moving down to clear portafilter...")
         clear_result = run_skill("moveEE", 0, 0, -35, 0, 0, 0)
         below_espresso_port = run_skill("current_angles")  # Capture below position
+        time.sleep(0.2)
         if clear_result is False:
             print("[ERROR] Failed to move down to clear portafilter")
             return False
@@ -128,6 +135,7 @@ def unmount(**params):
         # Step 11: Move to position below port
         print("📍 Moving to position below port...")
         below_result = run_skill("gotoJ_deg", *port_params['below_port'])
+        time.sleep(0.2)
         if below_result is False:
             print("[ERROR] Failed to move to position below port")
             return False
@@ -135,6 +143,7 @@ def unmount(**params):
         # Step 12: Move back to avoid collisions
         print("⬅️ Moving back to avoid collisions...")
         back_result = run_skill("gotoJ_deg", *port_params['move_back'])
+        time.sleep(0.2)
         if back_result is False:
             print("[ERROR] Failed to move back")
             return False
@@ -143,11 +152,13 @@ def unmount(**params):
         if port in ('port_2', 'port_3'):
             print("🔄 Executing special navigation for port 2/3...")
             nav1_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            time.sleep(0.2)
             if nav1_result is False:
                 print("[ERROR] Failed special navigation step 1")
                 return False
             
             nav2_result = run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
+            time.sleep(0.2)
             if nav2_result is False:
                 print("[ERROR] Failed special navigation step 2")
                 return False
@@ -171,15 +182,17 @@ def grinder(**params):
     5. Performs tamping motion
     6. Returns to grinder area and then home
     """
-    try:        
+    try:
+        port = params.get("port")
         print(f"☕ Starting grinding and tamping sequence")
         
-        # Step 1: Move to grinder home position
-        print("🏠 Moving to grinder home position...")
-        home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
-        if home_result is False:
-            print("[ERROR] Failed to move to grinder home")
-            return False
+        if port == 'port_1':
+            # Step 1: Move to grinder home position
+            print("🏠 Moving to grinder home position...")
+            home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+            if home_result is False:
+                print("[ERROR] Failed to move to grinder home")
+                return False
         
         # Step 2: Approach the grinder
         print("🎯 Approaching grinder...")
@@ -244,6 +257,8 @@ def tamper(**params):
     try:
         # Step 1: Close gripper
         close_gripper = run_skill("set_gripper_position", 255, 255)
+        run_skill("moveEE", 0, 0, 10, 0, 0, 0)
+        time.sleep(0.2)
         if close_gripper is False:
             print("[ERROR] Failed to close gripper")
             return False
@@ -313,12 +328,6 @@ def mount(**params):
             time.sleep(0.2)
             if nav1_result is False:
                 print("[ERROR] Failed special navigation step 1")
-                return False
-            
-            nav2_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-            time.sleep(0.2)
-            if nav2_result is False:
-                print("[ERROR] Failed special navigation step 2")
                 return False
         
         # Step 2: Move to safe path position
@@ -410,13 +419,13 @@ def mount(**params):
         if release_result is False:
             print("[ERROR] Failed to open gripper")
             return False
-        
-        # # Step 12: Move back to portafilter approach position
-        # print("⬅️ Moving back from portafilter...")
-        # back_approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
-        # if back_approach_result is False:
-        #     print("[ERROR] Failed to move back from portafilter")
-        #     return False
+        if port == 'port_1' or port == 'port_3':
+            # Step 12: Move back to portafilter approach position
+            print("⬅️ Moving back from portafilter...")
+            back_approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+            if back_approach_result is False:
+                print("[ERROR] Failed to move back from portafilter")
+                return False
         
         # Step 13: Return to espresso home
         print("🏠 Returning to espresso home...")
@@ -434,33 +443,33 @@ def mount(**params):
 
 def pick_espresso_pitcher(**params):
     """
-    Pick up milk espresso_espresso_pitcher for the specified port.
+    Pick up espresso pitcher for the specified port.
     
-    This function picks up the appropriate milk espresso_espresso_pitcher based on the port selection:
+    This function picks up the appropriate espresso pitcher based on the port selection:
     - Moves to espresso home position
-    - Navigates to the correct espresso_espresso_pitcher location
-    - Grips the espresso_espresso_pitcher with appropriate force
+    - Navigates to the correct espresso pitcher location
+    - Grips the espresso pitcher with appropriate force
     - Positions for subsequent operations
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3')
         
     Returns:
-        bool: True if espresso_espresso_pitcher picked successfully, False otherwise
+        bool: True if espresso pitcher picked successfully, False otherwise
         
     Example:
-        success = pick_espresso_espresso_pitcher(port='port_1')
+        success = pick_espresso_pitcher(port='port_1')
         if success:
-            print("espresso_espresso_pitcher picked successfully")
+            print("espresso pitcher picked successfully")
     """
     try:
         port = params.get("port")
         
         if not port:
-            print("[ERROR] No port specified for espresso_espresso_pitcher selection")
+            print("[ERROR] No port specified for espresso pitcher selection")
             return False
         
-        print(f"🥛 Starting espresso_espresso_pitcher pickup sequence for {port}")
+        print(f"🥛 Starting espresso pitcher pickup sequence for {port}")
         
         # Step 1: Move to espresso home position
         print("🏠 Moving to espresso home...")
@@ -469,22 +478,22 @@ def pick_espresso_pitcher(**params):
             print("[ERROR] Failed to move to espresso home")
             return False
         
-        # Step 2: Approach espresso_espresso_pitcher area
-        print("🎯 Approaching espresso_espresso_pitcher area...")
-        approach_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_espresso_pitcher_2", True)
+        # Step 2: Approach espresso pitcher area
+        print("🎯 Approaching espresso pitcher area...")
+        approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
         if approach_result is False:
-            print("[ERROR] Failed to approach espresso_espresso_pitcher area")
+            print("[ERROR] Failed to approach espresso pitcher area")
             return False
         
         # Step 3: Pick espresso_pitcher based on port
         print(f"🤏 Picking espresso_pitcher for {port}...")
         if port == 'port_1':
-            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
             if approach_result is False:
                 print("[ERROR] Failed to approach espresso_pitcher 1")
                 return False
             
-            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1", True)
             if mount_result is False:
                 print("[ERROR] Failed to mount espresso_pitcher 1")
                 return False
@@ -495,13 +504,13 @@ def pick_espresso_pitcher(**params):
                 print("[ERROR] Failed to grip espresso_pitcher 1")
                 return False
             
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat from espresso_pitcher 1")
                 return False
                 
         elif port == 'port_2':
-            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_2", True)
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
             if mount_result is False:
                 print("[ERROR] Failed to mount espresso_pitcher 2")
                 return False
@@ -512,18 +521,18 @@ def pick_espresso_pitcher(**params):
                 print("[ERROR] Failed to grip espresso_pitcher 2")
                 return False
             
-            pos_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_2", True)
+            pos_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
             if pos_result is False:
                 print("[ERROR] Failed to position for espresso_pitcher 2")
                 return False
                 
         elif port == 'port_3':
-            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
             if move1_result is False:
                 print("[ERROR] Failed to move to espresso_pitcher 3 position 1")
                 return False
             
-            move2_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            move2_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3", True)
             if move2_result is False:
                 print("[ERROR] Failed to move to espresso_pitcher 3 position 2")
                 return False
@@ -534,7 +543,7 @@ def pick_espresso_pitcher(**params):
                 print("[ERROR] Failed to grip espresso_pitcher 3")
                 return False
             
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat with espresso_pitcher 3")
                 return False
@@ -594,6 +603,7 @@ def pour_espresso_pitcher(**params):
         # Step 1: Initial positioning
         print("📍 Moving to initial pouring position...")
         init_result = run_skill("moveJ_deg", 90.160210, 10.716150, 0.203157, -10.883145, -0.001922, 0.060433, 1.0, 0.2)
+        time.sleep(0.2)
         if init_result is False:
             print("[ERROR] Failed to move to initial pouring position")
             return False
@@ -605,6 +615,7 @@ def pour_espresso_pitcher(**params):
             
             # Step 2: Approach stage 1 position
             pos1_result = run_skill("gotoJ_deg", 138.578024,-22.115324,-126.765855,-38.694157,-57.964712,3.173887, 1.0, 0.2)
+            time.sleep(0.2)
             if pos1_result is False:
                 print("[ERROR] Failed to approach stage 1 position")
                 return False
@@ -613,7 +624,8 @@ def pour_espresso_pitcher(**params):
             
             # Step 3: Tilt espresso_pitcher to pour
             print("⬇️ Tilting espresso_pitcher to pour...")
-            pour_result = run_skill("gotoJ_deg", 140.953509,-26.271451,-120.302336,-47.003274,-57.967889,-102.690158, 1.0, 0.2)
+            pour_result = run_skill("gotoJ_deg", 142.020347,-26.797349,-119.286076,-47.654450,-56.933253,-102.391535, 1.0, 0.2)
+            time.sleep(0.2)
             if pour_result is False:
                 print("[ERROR] Failed to tilt espresso_pitcher for pouring")
                 return False
@@ -623,6 +635,7 @@ def pour_espresso_pitcher(**params):
             # Step 4: Return to neutral position
             print("⬆️ Returning to neutral position...")
             neutral_result = run_skill("gotoJ_deg", 138.578024,-22.115324,-126.765855,-38.694157,-57.964712,3.173887, 1.0, 0.2)
+            time.sleep(0.2)
             if neutral_result is False:
                 print("[ERROR] Failed to return to neutral position")
                 return False
@@ -634,6 +647,7 @@ def pour_espresso_pitcher(**params):
             
             # Step 2: Approach stage 2 position
             pos2_result = run_skill("gotoJ_deg", 145.885393,-26.409357,-118.242817,-43.978546,-58.850444,-0.109599, 1.0, 0.2)
+            time.sleep(0.2)
             if pos2_result is False:
                 print("[ERROR] Failed to approach stage 2 position")
                 return False
@@ -643,6 +657,7 @@ def pour_espresso_pitcher(**params):
             # Step 3: Tilt espresso_pitcher to pour
             print("⬇️ Tilting espresso_pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", 145.462132,-32.355488,-108.068238,-53.572020,-58.845487,-105.385536, 1.0, 0.2)
+            time.sleep(0.2)
             if pour_result is False:
                 print("[ERROR] Failed to tilt espresso_pitcher for pouring")
                 return False
@@ -652,6 +667,7 @@ def pour_espresso_pitcher(**params):
             # Step 4: Return to neutral position
             print("⬆️ Returning to neutral position...")
             neutral_result = run_skill("gotoJ_deg", 145.885393,-26.409357,-118.242817,-43.978546,-58.850444,-0.109599, 1.0, 0.2)
+            time.sleep(0.2)
             if neutral_result is False:
                 print("[ERROR] Failed to return to neutral position")
                 return False
@@ -661,6 +677,7 @@ def pour_espresso_pitcher(**params):
         # Step 5: Move to intermediate position
         print("📍 Moving to intermediate position...")
         inter_result = run_skill("gotoJ_deg", 121.236795,-29.537004,-136.110522,-14.093591,-58.933034,-0.146524)
+        time.sleep(0.2)
         if inter_result is False:
             print("[ERROR] Failed to move to intermediate position")
             return False
@@ -668,6 +685,7 @@ def pour_espresso_pitcher(**params):
         # Step 6: Rotate back
         print("🔄 Rotating back...")
         rotate_result = run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
+        time.sleep(0.2)
         if rotate_result is False:
             print("[ERROR] Failed to rotate back")
             return False
@@ -675,6 +693,7 @@ def pour_espresso_pitcher(**params):
         # Step 7: Return to holding position
         print("🏠 Returning to holding position...")
         final_result = run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957, 1.0, 0.2)
+        time.sleep(0.2)
         if final_result is False:
             print("[ERROR] Failed to return to holding position")
             return False
@@ -766,62 +785,72 @@ def return_espresso_pitcher(**params):
         # Step 1: Return espresso_pitcher based on port
         if port == 'port_1':
             print("🎯 Approaching espresso_pitcher 1 return position...")
-            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+            time.sleep(0.2)
             if approach_result is False:
                 print("[ERROR] Failed to approach espresso_pitcher 1 return position")
                 return False
             
             print("📍 Positioning espresso_pitcher 1 for return...")
-            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1", True)
+            time.sleep(0.2)
             if mount_result is False:
                 print("[ERROR] Failed to position espresso_pitcher 1 for return")
                 return False
             
             print("🤏 Releasing espresso_pitcher 1...")
             release_result = run_skill("set_gripper_position", 75, 0)
+            time.sleep(0.2)
             if release_result is False:
                 print("[ERROR] Failed to release espresso_pitcher 1")
                 return False
             
             print("⬅️ Retreating from espresso_pitcher 1...")
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_1", True)
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+            time.sleep(0.2)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat from espresso_pitcher 1")
                 return False
                 
         elif port == 'port_2':
             print("📍 Positioning espresso_pitcher 2 for return...")
-            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_2", True)
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
+            time.sleep(0.2)
             if mount_result is False:
                 print("[ERROR] Failed to position espresso_pitcher 2 for return")
                 return False
             
             print("🤏 Releasing espresso_pitcher 2...")
             release_result = run_skill("set_gripper_position", 75, 0)
+            time.sleep(0.2)
             if release_result is False:
                 print("[ERROR] Failed to release espresso_pitcher 2")
                 return False
                 
         elif port == 'port_3':
             print("📍 Moving to espresso_pitcher 3 return position...")
-            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
+            time.sleep(0.2)
             if move1_result is False:
                 print("[ERROR] Failed to move to espresso_pitcher 3 return position 1")
                 return False
             
-            move2_result = run_skill("mount_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            move2_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3", True)
+            time.sleep(0.2)
             if move2_result is False:
                 print("[ERROR] Failed to move to espresso_pitcher 3 return position 2")
                 return False
             
             print("🤏 Releasing espresso_pitcher 3...")
             release_result = run_skill("set_gripper_position", 75, 0)
+            time.sleep(0.2)
             if release_result is False:
                 print("[ERROR] Failed to release espresso_pitcher 3")
                 return False
             
             print("⬅️ Retreating from espresso_pitcher 3...")
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_3", True)
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
+            time.sleep(0.2)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat from espresso_pitcher 3")
                 return False
@@ -831,7 +860,8 @@ def return_espresso_pitcher(**params):
         
         # Step 2: Move to common espresso_pitcher area
         print("🎯 Moving to espresso_pitcher area...")
-        area_result = run_skill("approach_machine", "three_group_espresso", "pick_espresso_pitcher_2", True)
+        area_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+        time.sleep(0.2)
         if area_result is False:
             print("[ERROR] Failed to move to espresso_pitcher area")
             return False
@@ -839,6 +869,7 @@ def return_espresso_pitcher(**params):
         # Step 3: Return to espresso home
         print("🏠 Returning to espresso home...")
         home_result = run_skill("gotoJ_deg", *Espresso_home)
+        time.sleep(0.2)
         if home_result is False:
             print("[ERROR] Failed to return to espresso home")
             return False
@@ -847,7 +878,7 @@ def return_espresso_pitcher(**params):
         return True
         
     except Exception as e:
-        print(f"[ERROR] Unexpected error during espresso_espresso_pitcher return: {e}")
+        print(f"[ERROR] Unexpected error during espresso_pitcher return: {e}")
         return False
 
 

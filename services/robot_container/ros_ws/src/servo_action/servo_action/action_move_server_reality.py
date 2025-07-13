@@ -24,7 +24,7 @@ from moveit_msgs.msg import DisplayTrajectory
 from dobot_msgs_v3.srv import EnableRobot, ServoJ
 from std_srvs.srv import Trigger
 
-import trajectory_msgs
+from trajectory_msgs.msg import JointTrajectoryPoint
 
 
 def deg(rad: float) -> float:
@@ -49,10 +49,10 @@ class MoveCircleActionServer(Node):
         self.adc = []                                # cached trajectory (deg)
         self.goal_last_rad = None                    # final point (rad)
         self.cache_timestamp = None                  # secs from epoch
-        self._last_executed_cache_time = None        # NEW: for “send once” rule
+        self._last_executed_cache_time = None        # NEW: for "send once" rule
         self.jstate_window = deque(maxlen=10)        # stability buffer
 
-        # -------------------- NEW “Mirror-Back” & External-Motion STATE --------------------
+        # -------------------- NEW "Mirror-Back" & External-Motion STATE --------------------
         self._latest_joint = None
         self._last_sent_joint = None
         self._change_threshold = 0.01                # rad
@@ -62,10 +62,11 @@ class MoveCircleActionServer(Node):
         self.max_points = 55
         self.sleep_timing = 0.12
         self.cache_expiry = None                     # watchdog disabled
-        self.verify_tolerance_rad = rad(0.1)
+        self.verify_tolerance_rad = rad(0.5)
         self.epsilon_stable = 0.0001
-        self.settle_timeout = 2.0
-        self.external_move_threshold = rad(0.5) * 6
+        self.settle_timeout = 10.0
+        self.external_move_threshold = rad(0.6) * 6
+        self.execution_timeout = 15.0                # max time for trajectory execution
 
         # -------------------- ROS INTERFACES --------------------
         robot_type = os.getenv("DOBOT_TYPE", "dobot")
@@ -129,6 +130,9 @@ class MoveCircleActionServer(Node):
 
         # 8) Service for querying current servo status
         self.create_service(Trigger, 'get_servo_status', self.handle_get_status)
+        
+        # 8.1) Service for emergency reset when stuck
+        self.create_service(Trigger, 'emergency_reset', self.handle_emergency_reset)
 
         # 9) ActionClient for mirror-back + JointState subscription
         self._traj_client = ActionClient(
@@ -171,7 +175,7 @@ class MoveCircleActionServer(Node):
             self.goal_last_rad = None
 
     # -----------------------------------------------------------------
-    # NEW  ✧  ServoJ LIVENESS & “SEND-ONCE” UTILITIES
+    # NEW  ✧  ServoJ LIVENESS & "SEND-ONCE" UTILITIES
     # -----------------------------------------------------------------
     def _ensure_servoj_ready(self, attempts: int = 3, timeout: float = 5.0) -> bool:
         """
@@ -274,6 +278,24 @@ class MoveCircleActionServer(Node):
             response.success = True
             response.message = str(self.sleep_timing)
         return response
+    
+    def handle_emergency_reset(self, request, response):
+        """Emergency reset when robot gets stuck"""
+        with self._lock:
+            self.get_logger().warn("EMERGENCY RESET: Clearing all state and resetting to READY")
+            self.adc.clear()
+            self.goal_last_rad = None
+            self.cache_timestamp = None
+            self._last_executed_cache_time = None
+            self.executing = False
+            self._external_moving = False
+            self.servo_controller_status = 0
+            self.jstate_window.clear()
+        
+        self.publish_status(0)  # READY
+        response.success = True
+        response.message = "Emergency reset completed"
+        return response
 
     # -----------------------------------------------------------------
     # ACTION EXECUTION (major additions marked NEW)
@@ -299,15 +321,15 @@ class MoveCircleActionServer(Node):
                 res.error_code = 1
                 return res
 
-            # ---- SEND-ONCE GUARD (NEW) ----
-            if (self.cache_timestamp is not None and
-                    self.cache_timestamp == self._last_executed_cache_time):
-                self.get_logger().info("DATALOG: Trajectory already executed → skipping")
-                goal_handle.succeed()
-                res = FollowJointTrajectory.Result()
-                res.error_code = 0
-                return res
-            # --------------------------------
+            # # ---- SEND-ONCE GUARD (NEW) ----
+            # if (self.cache_timestamp is not None and
+            #         self.cache_timestamp == self._last_executed_cache_time):
+            #     self.get_logger().info("DATALOG: Trajectory already executed → skipping")
+            #     goal_handle.succeed()
+            #     res = FollowJointTrajectory.Result()
+            #     res.error_code = 0
+            #     return res
+            # # --------------------------------
 
             adc = list(self.adc)
             goal_last_rad = list(self.goal_last_rad)
@@ -316,7 +338,8 @@ class MoveCircleActionServer(Node):
             self.executing = True
 
         # ---- SERVOJ SERVICE WATCHDOG (NEW) ----
-        if not self._ensure_servoj_ready(attempts=3, timeout=5.0):
+        # We're at the beginning of trajectory execution, safe to retry
+        if not self._ensure_servoj_ready(attempts=3, timeout=2.0):
             self.get_logger().error(
                 "ServoJ service not available after 3 attempts; aborting trajectory."
             )
@@ -326,9 +349,16 @@ class MoveCircleActionServer(Node):
             res.error_code = 4          # 4 = service unavailable
             self._reset_exec()
             return res
+        
+        # Service is alive - brief pause to ensure service is fully ready
+        self.get_logger().info("DATALOG: ServoJ service confirmed alive, stabilizing...")
+        time.sleep(0.1)
         # ---------------------------------------
 
         self.get_logger().info(f"DATALOG: Executing ({len(adc)} pts)")
+
+        # Start execution timer
+        execution_start_time = time.time()
 
         if len(adc) > max_pts:
             self.get_logger().error("DATALOG: overflow")
@@ -341,10 +371,33 @@ class MoveCircleActionServer(Node):
 
         # ---------- Send the points ----------
         for idx, angles in enumerate(adc):
+            # Check execution timeout
+            if time.time() - execution_start_time > self.execution_timeout:
+                self.get_logger().error(f"DATALOG: Execution timeout after {self.execution_timeout}s at pt {idx}")
+                self.publish_status(1)
+                goal_handle.succeed()
+                res = FollowJointTrajectory.Result()
+                res.error_code = 6  # TIMED_OUT
+                self._reset_exec()
+                return res
+            
+            # Mid-trajectory service health check (every 10 points)
+            if idx > 0 and idx % 10 == 0:
+                if not self.servoj_cli.service_is_ready():
+                    self.get_logger().error(f"DATALOG: ServoJ service died at pt {idx} - ABORTING for safety")
+                    self.publish_status(1)
+                    goal_handle.succeed()
+                    res = FollowJointTrajectory.Result()
+                    res.error_code = 4  # Service unavailable
+                    self._reset_exec()
+                    return res
+            
             req = ServoJ.Request()
             (req.j1, req.j2, req.j3,
              req.j4, req.j5, req.j6) = (float(a) for a in angles)
             req.t = sleep_t
+            
+            # Send ServoJ command (fire and forget - original behavior)
             self.servoj_cli.call_async(req)
             self.get_logger().info(f"DATALOG: Sent pt {idx}: {angles}")
 
@@ -369,7 +422,7 @@ class MoveCircleActionServer(Node):
             with self._lock:
                 if self.jstate_window:
                     samples.append(list(self.jstate_window[-1]))
-            time.sleep(0.02)
+            time.sleep(0.04)
 
         stable = False
         while time.time() - start < self.settle_timeout:
@@ -382,7 +435,7 @@ class MoveCircleActionServer(Node):
             with self._lock:
                 if self.jstate_window:
                     samples.append(list(self.jstate_window[-1]))
-            time.sleep(0.02)
+            time.sleep(0.06)
 
         self.get_logger().info(f"DATALOG: Stability result → {'stable' if stable else 'not stable'}")
 
@@ -480,7 +533,7 @@ class MoveCircleActionServer(Node):
         goal_msg.trajectory.joint_names = [
             "joint1", "joint2", "joint3", "joint4", "joint5", "joint6"
         ]
-        point = trajectory_msgs.msg.JointTrajectoryPoint(
+        point = JointTrajectoryPoint(
             positions=[*joint_list])
         goal_msg.trajectory.points.append(point)
 

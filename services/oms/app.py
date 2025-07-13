@@ -1002,8 +1002,8 @@ def create_task(task: TaskCreate):
 
 @app.patch("/tasks/{task_id}/status")
 def update_task_status(
-    task_id: int = Path(..., title="The ID of the task to update"),
-    update: TaskStatusUpdate = None
+    update: TaskStatusUpdate,
+    task_id: int = Path(..., title="The ID of the task to update")
 ):
     """Update the status of a task."""
     db.update_task_status(task_id, update.status, update.error_message)
@@ -1024,8 +1024,8 @@ def create_task_step(step: TaskStepCreate):
 
 @app.patch("/tasks/steps/{step_id}/status")
 def update_task_step_status(
-    step_id: int = Path(..., title="The ID of the step to update"),
-    update: TaskStepStatusUpdate = None
+    update: TaskStepStatusUpdate,
+    step_id: int = Path(..., title="The ID of the step to update")
 ):
     """Update the status of a task step."""
     db.update_task_step_status(step_id, update.status, update.error_message)

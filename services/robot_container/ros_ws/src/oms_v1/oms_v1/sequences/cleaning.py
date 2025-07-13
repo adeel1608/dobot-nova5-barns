@@ -45,6 +45,7 @@ def clean(**params):
         # Step 1: Unmount the portafilter from espresso group
         print(f"📤 Unmounting portafilter from {port}...")
         unmount_result = unmount(port=port)
+        time.sleep(0.2)
         if unmount_result is False:
             print(f"[ERROR] Failed to unmount portafilter from {port}")
             return False
@@ -52,6 +53,7 @@ def clean(**params):
         # Step 2: Move to cleaning station home position
         print("🏠 Moving to cleaning station...")
         home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+        time.sleep(0.2)
         if home_result is False:
             print("[ERROR] Failed to move to cleaning station home")
             return False
@@ -59,24 +61,28 @@ def clean(**params):
         # Step 3: Perform hard brush cleaning
         print("🪥 Starting hard brush cleaning...")
         approach_result = run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
+        time.sleep(0.2)
         if approach_result is False:
             print("[ERROR] Failed to approach hard brush")
             return False
             
         # Adjust position for better cleaning angle
         move_result = run_skill("moveEE", -88, 0, 0, 0, 0, -135)
+        time.sleep(0.2)
         if move_result is False:
             print("[ERROR] Failed to adjust position for hard brush")
             return False
             
         # Mount to hard brush for cleaning
         mount_result = run_skill("mount_machine", "portafilter_cleaner", "hard_brush", True)
+        time.sleep(0.2)
         if mount_result is False:
             print("[ERROR] Failed to mount to hard brush")
             return False
             
         # Move up after hard brush cleaning
         up_result = run_skill("moveEE", 0, 0, 100, 0, 0, 0)
+        time.sleep(0.2)
         if up_result is False:
             print("[ERROR] Failed to move up after hard brush")
             return False
@@ -84,18 +90,21 @@ def clean(**params):
         # Step 4: Perform soft brush cleaning
         print("🧽 Starting soft brush cleaning...")
         soft_approach_result = run_skill("approach_machine", "portafilter_cleaner", "soft_brush", True)
+        time.sleep(0.2)
         if soft_approach_result is False:
             print("[ERROR] Failed to approach soft brush")
             return False
             
         # Mount to soft brush for cleaning
         soft_mount_result = run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
+        time.sleep(0.2)
         if soft_mount_result is False:
             print("[ERROR] Failed to mount to soft brush")
             return False
             
         # Move up after soft brush cleaning
         soft_up_result = run_skill("moveEE", 0, 0, 150, 0, 0, 0)
+        time.sleep(0.2)
         if soft_up_result is False:
             print("[ERROR] Failed to move up after soft brush")
             return False
@@ -103,6 +112,7 @@ def clean(**params):
         # Step 5: Return to cleaning station home
         print("🏠 Returning to cleaning station home...")
         return_home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+        time.sleep(0.2)
         if return_home_result is False:
             print("[ERROR] Failed to return to cleaning station home")
             return False
@@ -110,6 +120,7 @@ def clean(**params):
         # Step 6: Mount the portafilter back to espresso group
         print(f"📥 Remounting portafilter to {port}...")
         mount_result = mount(port=port)
+        time.sleep(0.2)
         if mount_result is False:
             print(f"[ERROR] Failed to remount portafilter to {port}")
             return False
