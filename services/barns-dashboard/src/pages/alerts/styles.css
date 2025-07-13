@@ -5,7 +5,7 @@
 
 .alerts-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #fef2f2 0%, #fef7f7 100%);
+  /* background: linear-gradient(135deg, #fef2f2 0%, #fef7f7 100%); */
 }
 
 /* Compact Alert Severity Styles */

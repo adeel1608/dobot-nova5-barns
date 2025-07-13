@@ -1,65 +1,99 @@
 {
-  "latte": [
+  "Espresso": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "brew_espresso",
+      "action": "Cleaning",
       "assigned_arm": "Arm1",
-      "depends_on": [
-        "grind_beans"
-      ]
-    },
-    {
-      "action": "steam_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "combine",
-      "assigned_arm": "Arm1",
-      "depends_on": [
-        "brew_espresso",
-        "steam_milk"
-      ]
+      "depends_on": ["Espresso"]
     }
   ],
-  "americano": [
+  "Latte": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "brew_espresso",
+      "action": "Cleaning",
       "assigned_arm": "Arm1",
+      "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Milk_Dispensing_Frothing",
+      "assigned_arm": "Arm2",
       "depends_on": [
-        "grind_beans"
       ]
     },
     {
-      "action": "add_water",
+      "action": "Milk_Pouring",
       "assigned_arm": "Arm2",
-      "depends_on": [
-        "brew_espresso"
-      ]
+      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
     }
   ],
-  "pipelinetest": [
+
+  "Calibrate": [
     {
-      "action": "test1",
+      "action": "Calibrate",
       "assigned_arm": "Arm1",
       "depends_on": []
-    },
+    }
+  ],
+  "Cleaning": [
     {
-      "action": "test2",
-      "assigned_arm": "Arm2",
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
       "depends_on": []
-    },
+    }
+  ],
+  "Slushie": [
     {
-      "action": "test1",
+        "action": "Slushie",
+        "assigned_arm": "Arm2",
+        "depends_on": []
+    }
+  ],
+  "Dispense_Milk": [
+    {
+      "action": "dispense_milk",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Heat_Water": [
+    {
+      "action": "heat_water",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Grinding": [
+    {
+      "action": "grinding_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Tampering": [
+    {
+      "action": "tampering_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Coffee_Machine": [
+    {
+      "action": "coffee_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Slush_Machine": [
+    {
+      "action": "slush_machine",
       "assigned_arm": "Arm1",
       "depends_on": []
     }

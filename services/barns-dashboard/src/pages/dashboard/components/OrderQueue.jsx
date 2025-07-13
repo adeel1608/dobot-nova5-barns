@@ -47,24 +47,58 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
           {...listeners}
           className={`mb-2 sm:mb-0 flex-1 ${disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
         >
+          <div className="space-y-1">
           <span className="text-sm font-medium text-gray-500">Order #{order.id}</span>
-          <h3 className="font-semibold">{order.itemName}</h3>
-          {order.manualRequired && (
-            <div className="text-xs text-red-600 mt-1 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
-              Manual step required
-            </div>
-          )}
+          {/* <h3 className="font-semibold">{order.itemName}</h3> */}
+            <h3 className="font-semibold">
+              {order.itemName?.split(' ').length > 1
+                ? `${order.itemName.split(' ')[0]} ...`
+                : order.itemName}
+            </h3>
+             {getStatusBadge(order.status)}
+            {order.manualRequired && (
+              <div className="text-xs text-red-600 mt-1 flex items-center">
+                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                Manual step required
+              </div>
+            )}
+        </div>
         </div>
         
         {/* Button area - NOT draggable */}
-        <div className="flex items-center space-x-2">
-          {getStatusBadge(order.status)}
-          
+        <div className="flex items-center space-x-2 mt-12 ">
+       
+           <button 
+            onClick={() => onViewDetails(order)}
+            className="text-[11px] font-medium px-1.5 py-0.5 barns-dark-bg  text-white rounded flex items-center"
+            title="View order details"
+             style={{height:'2rem'}}
+          >
+            {/* <svg
+              className="w-3 h-3 mr-1 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+              />
+            </svg> */}
+            Details
+          </button>
           {/* Action buttons */}
-          <div className="flex space-x-1">
+          <div className="flex space-x-2  ">
             {/* Debug: Log button condition */}
             {console.log(`🔍 Order ${order.id}: status="${order.status}", shouldShowButton:`, !['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status))}
             {!['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status) && (
@@ -83,6 +117,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                         : 'bg-blue-500 hover:bg-blue-600 text-white'
                     }`}
                     title={isStarting === order.id ? "Starting..." : "Start processing"}
+                    style={{height:'2rem'}}
                   >
                     {isStarting === order.id ? (
                       <>
@@ -112,6 +147,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                     }}
                     className="text-xs px-2 py-1 rounded flex items-center bg-orange-500 hover:bg-orange-600 text-white"
                     title="Resume halted order"
+                     style={{height:'2rem'}}
                   >
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -134,6 +170,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                         : 'bg-red-500 hover:bg-red-600 text-white'
                     }`}
                     title="Retry failed order"
+                     style={{height:'2rem'}}
                   >
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2m-15.356-2H9" />
@@ -144,17 +181,8 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
               </>
             )}
 
-            <button 
-              onClick={() => onViewDetails(order)}
-              className="text-xs px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded flex items-center"
-              title="View order details"
-            >
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              Details
-            </button>
+         
+
 
             {/* Delete Button - Now available for all order types */}
             <button 
@@ -171,6 +199,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                     : 'bg-red-500 hover:bg-red-600 text-white'
               }`}
               title={isDeleting ? "Deleting..." : order.status === 'PROCESSING' ? "⚠️ Force delete processing order (DANGER)" : "Delete order"}
+               style={{height:'2rem'}}
             >
               {isDeleting ? (
                 <>
@@ -203,7 +232,8 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
   );
 }
 
-export default function OrderQueue() {
+export default function OrderQueue({ connectionStatus }) {
+
   const { 
     orders, 
     recipes, 
@@ -470,13 +500,18 @@ export default function OrderQueue() {
   console.log('🎯 Filtered orders:', filteredOrders);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+    <div className="bg-white rounded-lg shadow-xl  flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-col space-y-3 p-3 md:p-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
           <div className="flex items-center">
-            <h2 className="text-lg md:text-xl font-bold">
+            <h2 className="text-lg md:text-xl font-bold flex items-center ">
               {showNewOrder ? 'New Order' : 'Order Queue'}
+              <div
+                className={`w-2 h-2 rounded-full mx-3 ${
+                  connectionStatus ? 'bg-green-500' : 'bg-red-500'
+                }`}
+              ></div>
             </h2>
             {errors.orders && (
               <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -490,16 +525,19 @@ export default function OrderQueue() {
             )}
           </div>
           
-          <button
+          <h2
             onClick={() => setShowNewOrder(!showNewOrder)}
-            className={`px-3 md:px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
-              showNewOrder 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
-                : 'bg-green-600 text-white hover:bg-green-700'
+          className={`text-sm rounded font-small transition-colors duration-300  px-4 py-2 cursor-pointer
+            ${
+              showNewOrder
+                ? 'bg-gray-100 text-white hover:bg-gray-200 button-sm'
+                : 'barns-dark-bg text-white hover:barns-bg'
             }`}
+
+            style={{'color':'white'}}
           >
             {showNewOrder ? 'View Orders' : 'New Order'}
-          </button>
+          </h2>
         </div>
         
         {!showNewOrder && (
@@ -509,12 +547,12 @@ export default function OrderQueue() {
               placeholder="Search orders..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+              className="flex-1 px-3 py-2 barns-border-dark   focus:ring-0  text-sm"
             />
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:w-auto"
+              className="px-4 py-2 barns-border-dark focus:ring-2  text-sm sm:w-auto"
             >
               <option value="ALL">All Orders</option>
               <option value="QUEUED">Queued</option>
@@ -525,6 +563,7 @@ export default function OrderQueue() {
               <option value="ERROR">Error</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
+            
           </div>
         )}
       </div>
@@ -586,6 +625,25 @@ export default function OrderQueue() {
                 </div>
                 
                 <form onSubmit={handleSubmitNewOrder} className="space-y-4">
+                                    {/* Add/Remove Drinks and Submit */}
+                  <div className="flex justify-between items-center sticky top-0 z-10  bg-gradient-to-b from-white/70 to-transparent backdrop-blur-sm ">
+                    <h2
+                      type="button"
+                      onClick={addDrink}
+                      className="px-4 py-2 barns-dark-bg text-white rounded-lg cursor-pointer text-sm"
+                      style={{outline:'none', color:'white'}}
+                    >
+                      Add Drink
+                    </h2>
+                    
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {isLoading ? 'Creating...' : `Create Order (${orderData.cups.length} drink${orderData.cups.length !== 1 ? 's' : ''})`}
+                    </button>
+                  </div>
                   {/* Multiple Drinks */}
                   {orderData.cups.map((cup, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -661,24 +719,7 @@ export default function OrderQueue() {
                     </div>
                   ))}
 
-                  {/* Add/Remove Drinks and Submit */}
-                  <div className="flex justify-between items-center">
-                    <button
-                      type="button"
-                      onClick={addDrink}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                    >
-                      + Add Drink
-                    </button>
-                    
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                    >
-                      {isLoading ? 'Creating...' : `Create Order (${orderData.cups.length} drink${orderData.cups.length !== 1 ? 's' : ''})`}
-                    </button>
-                  </div>
+
                 </form>
               </div>
             </div>
@@ -731,6 +772,10 @@ export default function OrderQueue() {
 
       {/* Order Details Modal */}
       {selectedOrder && (
+
+
+
+
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             {/* Header */}
@@ -785,22 +830,22 @@ export default function OrderQueue() {
                         <span className="text-gray-600 font-medium">Item:</span>
                         <span className="text-gray-900 font-medium">{selectedOrder.itemName}</span>
                       </div>
-                      {selectedOrder.manualRequired && (
+                      {/* {selectedOrder.manualRequired && ( */}
                         <div className="flex justify-between">
                           <span className="text-gray-600 font-medium">Manual Required:</span>
                           <span className="text-red-600 font-medium flex items-center">
                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
-                            Yes
+                            {selectedOrder.manualRequired  ? 'Yes' : 'No'}
                           </span>
                         </div>
-                      )}
+                      {/* )} */}
                     </div>
                   </div>
                   
                   {/* Timestamps */}
-                  <div>
+                  {/* <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -829,13 +874,9 @@ export default function OrderQueue() {
                         <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
                       </div>
                     </div>
-                  </div>
-                </div>
-                
-                {/* Order Details */}
-                <div className="space-y-6">
-                  {/* Cup Details */}
-                  {selectedOrder.cups && selectedOrder.cups.length > 0 && (
+                  </div> */}
+                  <div>
+                   {selectedOrder.cups && selectedOrder.cups.length > 0 && (
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -881,19 +922,87 @@ export default function OrderQueue() {
                       </div>
                     </div>
                   )}
+                  </div>
+                </div>
+                
+                {/* Order Details */}
+                <div className="space-y-6">
+                  {/* Cup Details */}
+                  {/* {selectedOrder.cups && selectedOrder.cups.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Order Details
+                      </h3>
+                      <div className="space-y-4">
+                        {selectedOrder.cups.map((cup, index) => (
+                          <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-semibold text-gray-900">Cup #{index + 1}</h4>
+                              <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
+                                {cup.cup_size || cup.size || 'Standard'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-gray-600 font-medium">Drink:</span>
+                                <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || 'Unknown'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 font-medium">Size:</span>
+                                <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || 'Standard'}</p>
+                              </div>
+                            </div>
+                            
+                            {cup.addons && cup.addons.length > 0 && (
+                              <div className="mt-3">
+                                <span className="text-gray-600 font-medium text-sm">Add-ons:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {cup.addons.map((addon, addonIndex) => (
+                                    <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                      {addon}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )} */}
                   
-                  {/* Raw Data (for debugging) */}
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                      <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Raw Data
+                      Timeline
                     </h3>
-                    <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                      <pre className="text-green-400 text-xs font-mono whitespace-pre-wrap">
-                        {JSON.stringify(selectedOrder, null, 2)}
-                      </pre>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Created:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.createdAt}</span>
+                      </div>
+                      {selectedOrder.startedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Started:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.startedAt}</span>
+                        </div>
+                      )}
+                      {selectedOrder.completedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Completed:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.completedAt}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Last Updated:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
+                      </div>
                     </div>
                   </div>
                 </div>

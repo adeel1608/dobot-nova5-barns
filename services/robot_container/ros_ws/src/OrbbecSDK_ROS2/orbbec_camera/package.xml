@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>orbbec_camera</name>
-  <version>1.5.11</version>
+  <version>1.5.12</version>
   <description>Orbbec Camera package</description>
   <maintainer email="mocun@orbbec.com">Joe Dong</maintainer>
   <license>Apache-2.0</license>
@@ -25,6 +25,7 @@
   <depend>std_srvs</depend>
   <depend>statistics_msgs</depend>
   <depend>tf2</depend>
+  <depend>tf2_eigen</depend>
   <depend>tf2_ros</depend>
   <depend>tf2_sensor_msgs</depend>
   <depend>tf2_msgs</depend>
@@ -34,6 +35,7 @@
   <depend>nlohmann-json-dev</depend>
   <depend>libgoogle-glog-dev</depend>
   <depend>libdw-dev</depend>
+  <depend>opengl</depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>

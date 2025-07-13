@@ -30,22 +30,22 @@ class AutomationService:
         
     async def start(self):
         """Start the automation service."""
-        await self.rabbitmq_client.connect()
-        await self.event_listener.connect()
-        
-        # Register message handlers
+        # Register message handlers BEFORE connecting to avoid race conditions
         self.rabbitmq_client.register_handler("automate", self.handle_automate)
         self.rabbitmq_client.register_handler("health", self.handle_health)
         self.rabbitmq_client.register_handler("list_functions", self.handle_list_functions)
         self.rabbitmq_client.register_handler("stop_automation", self.handle_stop_automation)
         
-        logger.info(f"🔧 [AUTOMATION] Registered handlers: automate, health, list_functions, stop_automation")
-        logger.info(f"📋 [AUTOMATION] Available functions: {list(AUTOMATION_FUNCTIONS.keys())}")
+        # Register event handlers BEFORE connecting
+        self.event_listener.register_event_handler("system.shutdown", self.handle_shutdown_event)
+        self.event_listener.register_event_handler("automation.emergency_stop", self.handle_emergency_stop)
+        
+        # Now connect to RabbitMQ - handlers are already registered
+        await self.rabbitmq_client.connect()
+        await self.event_listener.connect()
         
         # Subscribe to events
         await self.event_listener.subscribe_to_events(["system.*", "automation.*"])
-        self.event_listener.register_event_handler("system.shutdown", self.handle_shutdown_event)
-        self.event_listener.register_event_handler("automation.emergency_stop", self.handle_emergency_stop)
         
         logger.info("🚀 [AUTOMATION] Service started and listening for messages")
         
@@ -103,7 +103,6 @@ class AutomationService:
             
         except Exception as e:
             logger.error(f"💥 [AUTOMATION] Error executing function '{function}': {e}")
-            logger.error(f"💥 [AUTOMATION] Exception details: {type(e).__name__}: {str(e)}")
             
             # Send error event
             await self.rabbitmq_client.send_event("automation.error", {

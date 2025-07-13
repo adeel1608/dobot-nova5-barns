@@ -60,7 +60,17 @@ def generate_launch_description():
                 'gemini_330_series.launch.py'
             )
         ),
-        launch_arguments={'enable_point_cloud': 'true'}.items(),
+        launch_arguments={
+            'enable_point_cloud': 'true',
+            'enable_noise_removal_filter': 'false',
+            'enable_spatial_filter': 'false',
+            'enable_temporal_filter': 'false',
+            'enable_hole_filling_filter': 'false',
+            'enable_decimation_filter': 'false',
+            'enable_threshold_filter': 'false',
+            'enable_sequence_id_filter': 'false',
+            'enable_hdr_merge': 'false'
+        }.items(),
         condition=oper_cond
     )
     pose_gen = Node(

@@ -26,7 +26,7 @@ export default {
                 'shadow-gray': '#4A4A4A',
             },
             fontFamily: {
-                'sans': ['Inter', 'Segoe UI', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif'],
+                'sans': ['Titillium Web', 'sans-serif'],
             },
             boxShadow: {
                 'coffee': '0 4px 6px rgba(45, 27, 20, 0.07), 0 1px 3px rgba(45, 27, 20, 0.06)',

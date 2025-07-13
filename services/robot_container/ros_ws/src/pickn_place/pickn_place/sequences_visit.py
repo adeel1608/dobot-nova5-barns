@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-"""
-sequences.py  –  high-level routines ***and*** a tiny CLI to run one.
-
-Usage examples
---------------
-python3 sequences.py teach
-python3 sequences.py mount --loop      # repeat until Ctrl-C
-python3 sequences.py --list            # show available names
-"""
 import time
 import argparse
-from manipulate_move_new import run_skill   # ← the only import you need
+from turtle import position
+from manipulate_move_v1 import run_skill   # ← the only import you need
 import rclpy
 from rclpy.node import Node  # Add this import
 from dobot_msgs_v3.srv import ServoJ
@@ -49,60 +41,6 @@ class ServoJCommander(Node):
         rclpy.spin_until_future_complete(self, fut)
         if fut.result() is None:
             self.get_logger().error(f'Failed: {fut.exception()}')
-
-# ──────────────────────────────────────────────────────────────────
-# 1)  PUT EACH ROUTINE INTO A FUNCTION
-# ──────────────────────────────────────────────────────────────────
-def home_north():
-    """Espresso machine point commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("set_servo_timing", 0.1) #Increase robot speed
-    run_skill("gotoJ_deg", 0, 30, -130, -100, -90, 0) #Main home 
-
-def home_north_east():
-    """Grinder points commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", -45, 30, -130, -100, -90, 0) #Home 45 degree clockwise from main home
-
-def home_east():
-    """Train portafilter 1 commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", -90, 30, -130, -100, -90, 0) #Home 90 degree clockwise from main home
-
-
-def home_south_east():
-    """Train portafilter 2 commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", -135, 30, -130, -100, -90, 0) #Home 135 degree clockwise from main home
-
-
-def home_south():
-    """Train portafilter 3 commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", 180, 30, -130, -100, -90, 0) #Home 180 degree counter-clockwise from main home
-
-def home_south_west():
-    """Espresso machine point commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", 135, 30, -130, -100, -90, 0) #Home 135 degree counter-clockwise from main home
-
-def home_west():
-    """Grinder points commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", 90, 30, -130, -100, -90, 0) #Home 90 degree counter-clockwise from main home
-
-def home_north_west():
-    """Espresso machine point commands here"""
-    run_skill("refresh_position")
-    time.sleep(5.0) #Random wait time
-    run_skill("gotoJ_deg", 45, 30, -130, -100, -90, 0) #Home 45 degree counter-clockwise from main home
 
 def say_hi():
     #---Extra waving mode lol---#
@@ -868,11 +806,33 @@ def milk_frothing():
     run_skill("moveEE", -77, 0, 0, 0, 0, 0)
     run_skill("gotoJ_deg", 0, 30, -130, -100, -90, 0)
 
-# ─── CUP GRAB PARAMETERS ────────────────────────────────────────────────────────
-# twist_back: joint angles to back off before approach
-# approach:   end-effector offsets to move in
-# grip_width: how wide to open the gripper
-# retreat:    end-effector offsets to back away
+HOME_ANGLES = {
+    'north':       (   0, 30, -130, -100,  -90,    0),
+    'north_east': ( -45, 30, -130, -100,  -90,    0),
+    'east':       ( -90, 30, -130, -100,  -90,    0),
+    'south_east': (-135, 30, -130, -100,  -90,    0),
+    'south':      ( 180, 30, -130, -100,  -90,    0),
+    'south_west': ( 135, 30, -130, -100,  -90,    0),
+    'west':       (  90, 30, -130, -100,  -90,    0),
+    'north_west': (  45, 30, -130, -100,  -90,    0),
+}
+
+def home(**params):
+    """
+    Move the robot to one of the predefined home orientations.
+    
+    Args:
+        position (str): One of 'north', 'north_east', 'east',
+                        'south_east', 'south', 'south_west',
+                        'west', 'north_west'.
+    """
+    position = params.get("position")
+    angles = HOME_ANGLES.get(str(position))
+    if not angles:
+        print(f"[ERROR] unknown home position: {position!r}")
+        return
+    run_skill("gotoJ_deg", *angles)
+
 GRAB_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
@@ -883,24 +843,17 @@ GRAB_CUP_PARAMS = {
     '9oz': {
         'twist_back':   ( -94.810739,  -3.781208,   0.171860,   4.133488,  -0.141411,   0.198394),
         'approach':     ( 284,         5,           -10,          0,          0,         0),
-        'grip_width':   144,
+        'grip_width':   150,
         'retreat':      (-300,         0,           0,          0,          0,         0),
     },
     '7oz': {
         'twist_back':   ( -65.440372, -10.652569,   4.188843,   6.867561,   0.095261,  29.626037),
-        'approach':     ( 245,         15,           -10,          0,          0,         0),
-        'grip_width':   140,
+        'approach':     ( 260,         15,           -10,          0,          0,         0),
+        'grip_width':   150,
         'retreat':      (-300,         0,           0,          0,          0,         0),
     },
 }
-# ─── CUP PLACEMENT / SERVE PARAMETERS ────────────────────────────────────────────
-# twist:       initial joint-1 twist into staging area
-# pose:        joint targets to move into place over cup
-# stage_home:  safe “staging” home pose
-# twist_back:  untwist back towards machine
-# twist_serve: joint-1 twist to present cup
-# pick/above_serve/serve:
-#   intermediate poses for the serve_cup() routine
+
 PLACE_CUP_PARAMS = {
     'stage_1': {
         'twist':        (  66,   0,   0,   0,    0,    0),
@@ -925,45 +878,46 @@ PLACE_CUP_PARAMS = {
     },
 }
 
-def _prep_for_grab():
-    """Perform common refresh and initial positioning steps before grabbing a cup."""
-    run_skill("refresh_position")
-    time.sleep(2.0)
-
-def grab_cup(size):
+def grab_cup(**params):
     """
     Approaches and picks up the specified cup.
     
     Args:
         size (str): Cup size key, e.g. '7oz', '9oz', '12oz'.
     """
-    params = GRAB_CUP_PARAMS.get(size)
-    if not params:
-        print(f"[ERROR] unknown cup size: {size!r}")
-        return
-    _prep_for_grab()
+    size = params.get("size")
+    cup_params = GRAB_CUP_PARAMS.get(str(size))
+    if not cup_params:
+        print(f"[ERROR] unknown cup size: {size!r}, using default 12oz")
+        cup_params = GRAB_CUP_PARAMS.get("12oz")
+        if not cup_params:
+            print("[ERROR] Default 12oz parameters not found. Cannot proceed.")
+            return
+    
+    run_skill("gotoJ_deg", *Espresso_home) #Espresso home
     run_skill("moveJ_deg", 64.012928, 0, 0, 0, 0, 0) #Twist to avoid hitting the espresso machine
     run_skill("gotoJ_deg", 120.389030,22.860609,-73.526848,-39.810959,90.144394,-154.586288) #Pose chosen for grabbing the cup
     # Rotate joint angles to back away before approach
-    run_skill("moveJ_deg", *params['twist_back'])
+    run_skill("moveJ_deg", *cup_params['twist_back'])
     # Move end-effector into approach position
-    run_skill("moveEE", *params['approach'])
+    run_skill("moveEE", *cup_params['approach'])
     # Close gripper to grasp the cup
-    run_skill("set_gripper_position", 255, params['grip_width'])
+    run_skill("set_gripper_position", 255, cup_params['grip_width'])
     # Retract after gripping
-    run_skill("moveEE", *params['retreat'])
+    run_skill("moveEE", *cup_params['retreat'])
     run_skill("gotoJ_deg", 88.657143,21.041538,-74.451630,-36.522381,90.145508,-91.183128)
 
-def place_cup(stage):
+def place_cup(**params):
     """
     Places the currently held cup at the specified stage.
     
     Args:
         stage (str): Placement stage key, e.g. 'stage_1', 'stage_2'.
     """
-    params = PLACE_CUP_PARAMS.get(stage)
+    stage = params.get("stage")
+    params = PLACE_CUP_PARAMS.get(str(stage))
     if not params:
-        print(f"[ERROR] unknown stage: {stage!r}")
+        print(f"[ERROR] unknown stage: {stage!r}, using default stage_1")
         return
     run_skill("gotoJ_deg", 88.657143,21.041538,-74.451630,-36.522381,90.145508,-91.183128)
     # Move into staging twist angle
@@ -978,21 +932,11 @@ def place_cup(stage):
     run_skill("moveJ_deg", *params['twist_back']) # Untwist back towards machine
     run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home
 
-def pick_cup(size, stage):
-    """
-    Full pick-and-place sequence for cups.
-    
-    Args:
-        size (str): Cup size key (e.g., '7oz', '9oz', '12oz').
-        stage (str): Placement stage key ('stage_1' or 'stage_2').
-    """
-    grab_cup(size)
-    place_cup(stage)
-
-def serve(stage):
-    params = PLACE_CUP_PARAMS.get(stage)
+def serve(**params):
+    stage = params.get("stage")
+    params = PLACE_CUP_PARAMS.get(str(stage))
     if not params:
-        print(f"[ERROR] unknown stage {stage!r}")
+        print(f"[ERROR] unknown stage {stage!r}, using default stage_1")
         return
     #Pickup from staging place in delivery
     run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
@@ -1036,6 +980,7 @@ def get_machine_position():
 
 Espresso_home = (42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
 Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+
 PULL_ESPRESSO_PARAMS = {
     'port_1': {
         'home':        ( 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379),
@@ -1060,114 +1005,428 @@ PULL_ESPRESSO_PARAMS = {
     },
 }
 
-def _prep_for_espresso():
-    """Perform common refresh and initial positioning steps before grabbing a cup."""
-    run_skill("refresh_position")
-    time.sleep(2.0)
-
-def unmount(port):
-    """Unmount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-    _prep_for_espresso()
-    #---Unmount the portafilter---#
-    run_skill("gotoJ_deg", *params['home']) #Espresso home 
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("set_gripper_position", 255, 255) #close gripper #Close gripper
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6)  
-    run_skill("move_portafilter_arc",-45)
-    run_skill("release_tension")
-    run_skill("moveEE", 0, 0, -35, 0, 0, 0)
-    run_skill("gotoJ_deg", *params['below_port']) #A point below the port chosen for the motion plan
-    run_skill("gotoJ_deg", *params['move_back']) #A point in the plan chosen to avoid hitting anything in the path
-    if port in ('port_2', 'port_3'):
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-        run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
-
-def grinder(port):
-    """Grinder port"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-    run_skill("gotoJ_deg", *Espresso_grinder_home) #Espresso grinder home
-    run_skill("approach_machine", "espresso_grinder", "grinder", True) 
-    run_skill("mount_machine", "espresso_grinder", "grinder", True)
-    run_skill("approach_machine", "espresso_grinder", "tamper", True)
-    time.sleep(1.0)
-    run_skill("mount_machine", "espresso_grinder", "tamper", True)
-    run_skill("moveEE", 0, 0, 45, 0, 0, 0) #go up to tamp #go up to tamp
-    time.sleep(1.0)
-    run_skill("moveEE", 0, 0, -95, 0, 0, 0) #go below tamper #go below tamper
-    run_skill("approach_machine", "espresso_grinder", "grinder", True)
-    run_skill("gotoJ_deg", *Espresso_grinder_home)
-
-def mount(port, skip_initial_move=False):
-    """Mount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-
-    if port in ('port_2', 'port_3'):
-        if not skip_initial_move:
-            run_skill("moveJ_deg", 90, 0, 0, 0, 0, 0)
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-
-    run_skill("gotoJ_deg", *params['move_back'])  # A point in the plan chosen to avoid hitting anything in the path
-    run_skill("gotoJ_deg", *params['below_port'])  # A point below the port chosen for the motion plan
-    run_skill("approach_machine", "three_group_espresso", params['group_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['group_number'], True)
-
-    if port == 'port_1':
-        run_skill("moveEE", 0, 0, 3.5, 0, 0, 0)
-    elif port == 'port_2':
-        run_skill("moveEE", 0, 0, 5, 0, 0, 0)
-    elif port == 'port_3':
-        run_skill("moveEE", 0, 0, 7, 0, 0, 0)
-
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("move_portafilter_arc", 47)
-    run_skill("set_gripper_position", 255, 0)  # Open gripper
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("gotoJ_deg", *params['home'])  # Espresso home
+below_espresso_port = None
+mount_espresso_port = None
 
 
-def pull_espresso(port):
+def unmount(**params):
     """
-    Executes the full pull-espresso sequence on the given port:
-    1) unmount → 2) grind & tamp → 3) remount.
+    Unmount portafilter from espresso group for cleaning or grinding.
+    
+    This function performs the complete portafilter unmounting sequence:
+    1. Moves to espresso home position
+    2. Approaches and mounts to the specified portafilter group
+    3. Closes gripper to secure portafilter
+    4. Releases tension and adjusts orientation
+    5. Rotates portafilter to unlock position
+    6. Safely retracts and moves to clear path
+    
+    Args:
+        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        
+    Returns:
+        bool: True if portafilter unmounted successfully, False otherwise
+        
+    Example:
+        success = unmount(port='port_1')
+        if success:
+            print("Portafilter unmounted successfully")
     """
-    # Validate port up front
-    if port not in PULL_ESPRESSO_PARAMS:
-        print(f"[ERROR] unknown port: {port!r}")
-        return
+    global below_espresso_port, mount_espresso_port
+    try:
+        port = params.get("port")
+        port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+        
+        if not port_params:
+            print(f"[ERROR] unknown port number: {port!r}, available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
+            return False
+        
+        print(f"📤 Starting portafilter unmount sequence for {port}")
+        
+        # Step 1: Move to espresso home position
+        print("🏠 Moving to espresso home...")
+        home_result = run_skill("gotoJ_deg", *port_params['home'])
+        if home_result is False:
+            print("[ERROR] Failed to move to espresso home")
+            return False
+        
+        # Step 2: Approach the portafilter group
+        print(f"🎯 Approaching portafilter {port_params['portafilter_number']}...")
+        approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+        if approach_result is False:
+            print("[ERROR] Failed to approach portafilter")
+            return False
+        
+        # Step 3: Mount to the portafilter for secure grip
+        print("🔧 Mounting to portafilter...")
+        mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'], True)
+        if mount_result is False:
+            print("[ERROR] Failed to mount to portafilter")
+            return False
+        
+        # Step 4: Close gripper to secure portafilter
+        print("🤏 Securing portafilter with gripper...")
+        grip_result = run_skill("set_gripper_position", 255, 255)
+        if grip_result is False:
+            print("[ERROR] Failed to close gripper")
+            return False
+        
+        # Step 5: Release tension for smooth operation
+        print("😌 Releasing tension...")
+        tension_result = run_skill("release_tension")
+        if tension_result is False:
+            print("[ERROR] Failed to release tension")
+            return False
+        
+        # Step 6: Enforce proper orientation (first time)
+        print("📐 Enforcing proper orientation...")
+        orient_result1 = run_skill("enforce_rxry")
+        if orient_result1 is False:
+            print("[ERROR] Failed to enforce orientation (first attempt)")
+            return False
+        
+        time.sleep(0.6)  # Allow settling time
+        
+        # Step 7: Enforce proper orientation (second time for stability)
+        print("📐 Re-enforcing orientation for stability...")
+        orient_result2 = run_skill("enforce_rxry")
+        if orient_result2 is False:
+            print("[ERROR] Failed to re-enforce orientation")
+            return False
+        
+        time.sleep(0.6)  # Allow settling time
+        
+        # Step 8: Rotate portafilter to unlock (-45 degrees)
+        print("🔄 Rotating portafilter to unlock...")
+        rotate_result = run_skill("move_portafilter_arc", -45)
+        if rotate_result is False:
+            print("[ERROR] Failed to rotate portafilter")
+            return False
+        
+        # Step 9: Release tension after rotation
+        print("😌 Releasing tension after rotation...")
+        tension_result2 = run_skill("release_tension")
+        mount_espresso_port = run_skill("current_angles")  # Capture mount position
+        if tension_result2 is False:
+            print("[ERROR] Failed to release tension after rotation")
+            return False
+        
+        # Step 10: Move end effector down to clear portafilter
+        print("⬇️ Moving down to clear portafilter...")
+        clear_result = run_skill("moveEE", 0, 0, -35, 0, 0, 0)
+        below_espresso_port = run_skill("current_angles")  # Capture below position
+        if clear_result is False:
+            print("[ERROR] Failed to move down to clear portafilter")
+            return False
+        
+        # Step 11: Move to position below port
+        print("📍 Moving to position below port...")
+        below_result = run_skill("gotoJ_deg", *port_params['below_port'])
+        if below_result is False:
+            print("[ERROR] Failed to move to position below port")
+            return False
+        
+        # Step 12: Move back to avoid collisions
+        print("⬅️ Moving back to avoid collisions...")
+        back_result = run_skill("gotoJ_deg", *port_params['move_back'])
+        if back_result is False:
+            print("[ERROR] Failed to move back")
+            return False
+        
+        # Step 13: Special handling for ports 2 and 3 (additional navigation)
+        if port in ('port_2', 'port_3'):
+            print("🔄 Executing special navigation for port 2/3...")
+            nav1_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            if nav1_result is False:
+                print("[ERROR] Failed special navigation step 1")
+                return False
+            
+            nav2_result = run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
+            if nav2_result is False:
+                print("[ERROR] Failed special navigation step 2")
+                return False
+        
+        print(f"✅ Portafilter unmount sequence completed successfully for {port}")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during unmount: {e}")
+        return False
 
-    for fn in (unmount, grinder, mount):
-        print(f"--- running {fn.__name__}({port}) ---")
-        fn(port)
+def grinder(**params):
+    """
+    Grind coffee and tamp portafilter at the grinder station.
+    
+    This function performs the complete grinding and tamping workflow:
+    1. Moves to grinder home position
+    2. Approaches grinder for coffee grinding
+    3. Mounts to grinder to activate grinding
+    4. Moves to tamper for coffee compaction
+    5. Performs tamping motion
+    6. Returns to grinder area and then home
+    
+    Args:
+        port (str): Source port identifier (for parameter validation)
+        
+    Returns:
+        bool: True if grinding and tamping completed successfully, False otherwise
+        
+    Example:
+        success = grinder(port='port_1')
+        if success:
+            print("Coffee ground and tamped successfully")
+    """
+    try:
+        port = params.get("port")
+        port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+        
+        if not port_params:
+            print(f"[ERROR] unknown port number: {port!r}, available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
+            return False
+        
+        print(f"☕ Starting grinding and tamping sequence for {port}")
+        
+        # Step 1: Move to grinder home position
+        print("🏠 Moving to grinder home position...")
+        home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+        if home_result is False:
+            print("[ERROR] Failed to move to grinder home")
+            return False
+        
+        # Step 2: Approach the grinder
+        print("🎯 Approaching grinder...")
+        approach_result = run_skill("approach_machine", "espresso_grinder", "grinder", True)
+        if approach_result is False:
+            print("[ERROR] Failed to approach grinder")
+            return False
+        
+        # Step 3: Mount to grinder to activate grinding
+        print("⚙️ Mounting to grinder for grinding...")
+        mount_result = run_skill("mount_machine", "espresso_grinder", "grinder", True)
+        if mount_result is False:
+            print("[ERROR] Failed to mount to grinder")
+            return False
+        
+        # Step 4: Approach tamper station
+        print("🎯 Approaching tamper...")
+        tamper_approach_result = run_skill("approach_machine", "espresso_grinder", "tamper", True)
+        if tamper_approach_result is False:
+            print("[ERROR] Failed to approach tamper")
+            return False
+        
+        time.sleep(1.0)  # Allow positioning time
+        
+        # Step 5: Mount to tamper for positioning
+        print("📍 Positioning at tamper...")
+        tamper_mount_result = run_skill("mount_machine", "espresso_grinder", "tamper", True)
+        if tamper_mount_result is False:
+            print("[ERROR] Failed to mount to tamper")
+            return False
+        
+        # Step 6: Move up to prepare for tamping
+        print("⬆️ Moving up to prepare for tamping...")
+        up_result = run_skill("moveEE", 0, 0, 45, 0, 0, 0)
+        if up_result is False:
+            print("[ERROR] Failed to move up for tamping")
+            return False
+        
+        time.sleep(1.0)  # Allow settling time
+        
+        # Step 7: Perform tamping motion (move down)
+        print("🔨 Performing tamping motion...")
+        tamp_result = run_skill("moveEE", 0, 0, -95, 0, 0, 0)
+        if tamp_result is False:
+            print("[ERROR] Failed to perform tamping motion")
+            return False
+        
+        # Step 8: Return to grinder area
+        print("🔄 Returning to grinder area...")
+        return_grinder_result = run_skill("approach_machine", "espresso_grinder", "grinder", True)
+        if return_grinder_result is False:
+            print("[ERROR] Failed to return to grinder area")
+            return False
+        
+        # Step 9: Return to grinder home
+        print("🏠 Returning to grinder home...")
+        final_home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+        if final_home_result is False:
+            print("[ERROR] Failed to return to grinder home")
+            return False
+        
+        print(f"✅ Grinding and tamping sequence completed successfully for {port}")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during grinding: {e}")
+        return False
 
-def pick_pitcher(port):
+def mount(**params):
+    """
+    Mount portafilter back to espresso group after grinding.
+    
+    This function performs the complete portafilter mounting sequence:
+    1. Handles special navigation for ports 2 and 3
+    2. Moves through safe path to target group
+    3. Approaches and mounts to espresso group
+    4. Adjusts position based on specific port requirements
+    5. Performs orientation enforcement and locking rotation
+    6. Opens gripper to release portafilter
+    7. Returns to home position
+    
+    Args:
+        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        
+    Returns:
+        bool: True if portafilter mounted successfully, False otherwise
+        
+    Example:
+        success = mount(port='port_1')
+        if success:
+            print("Portafilter mounted successfully")
+    """
+    try:
+        port = params.get("port")
+        port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+        
+        if not port_params:
+            print(f"[ERROR] unknown port number: {port!r}, available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
+            return False
+        
+        print(f"📥 Starting portafilter mount sequence for {port}")
+        
+        # Step 1: Special handling for ports 2 and 3 (reverse navigation)
+        if port in ('port_2', 'port_3'):
+            print("🔄 Executing special navigation for port 2/3...")
+            nav1_result = run_skill("moveJ_deg", 90, 0, 0, 0, 0, 0)
+            if nav1_result is False:
+                print("[ERROR] Failed special navigation step 1")
+                return False
+            
+            nav2_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            if nav2_result is False:
+                print("[ERROR] Failed special navigation step 2")
+                return False
+        
+        # Step 2: Move to safe path position
+        print("📍 Moving to safe path position...")
+        back_result = run_skill("gotoJ_deg", *port_params['move_back'])
+        if back_result is False:
+            print("[ERROR] Failed to move to safe path position")
+            return False
+        
+        # Step 3: Move to position below port
+        print("📍 Moving to position below port...")
+        below_result = run_skill("gotoJ_deg", *port_params['below_port'])
+        if below_result is False:
+            print("[ERROR] Failed to move to position below port")
+            return False
+        
+        # Step 4: Approach the espresso group
+        print(f"🎯 Approaching espresso group {port_params['group_number']}...")
+        if below_espresso_port is None:
+            print("[ERROR] below_espresso_port not captured, run unmount first")
+            return False
+        approach_result = run_skill("gotoJ_deg", *below_espresso_port)  # Use captured below position
+        if approach_result is False:
+            print("[ERROR] Failed to approach espresso group")
+            return False
+        
+        # Step 5: Mount to espresso group
+        print("🔧 Mounting to espresso group...")
+        if mount_espresso_port is None:
+            print("[ERROR] mount_espresso_port not captured, run unmount first")
+            return False
+        mount_result = run_skill("gotoJ_deg", *mount_espresso_port)  # Use captured mount position
+        if mount_result is False:
+            print("[ERROR] Failed to mount to espresso group")
+            return False
+        
+        # Step 6: Adjust position based on specific port (fine-tuning)
+        print(f"📐 Adjusting position for {port}...")
+        if port == 'port_1':
+            adjust_result = run_skill("moveEE", 0, 0, 3.5, 0, 0, 0)
+        elif port == 'port_2':
+            adjust_result = run_skill("moveEE", 0, 0, 5, 0, 0, 0)
+        elif port == 'port_3':
+            adjust_result = run_skill("moveEE", 0, 0, 7, 0, 0, 0)
+        else:
+            adjust_result = True  # No adjustment needed
+        
+        if adjust_result is False:
+            print(f"[ERROR] Failed to adjust position for {port}")
+            return False
+        
+        # Step 7: Release tension for smooth operation
+        print("😌 Releasing tension...")
+        tension_result = run_skill("release_tension")
+        if tension_result is False:
+            print("[ERROR] Failed to release tension")
+            return False
+        
+        # Step 8: Enforce proper orientation (first time)
+        print("📐 Enforcing proper orientation...")
+        orient_result1 = run_skill("enforce_rxry")
+        if orient_result1 is False:
+            print("[ERROR] Failed to enforce orientation (first attempt)")
+            return False
+        
+        time.sleep(0.6)  # Allow settling time
+        
+        # Step 9: Enforce proper orientation (second time for stability)
+        print("📐 Re-enforcing orientation for stability...")
+        orient_result2 = run_skill("enforce_rxry")
+        if orient_result2 is False:
+            print("[ERROR] Failed to re-enforce orientation")
+            return False
+        
+        time.sleep(0.6)  # Allow settling time
+        
+        # Step 10: Rotate portafilter to lock position (+47 degrees)
+        print("🔄 Rotating portafilter to lock...")
+        rotate_result = run_skill("move_portafilter_arc", 47)
+        if rotate_result is False:
+            print("[ERROR] Failed to rotate portafilter to lock")
+            return False
+        
+        # Step 11: Open gripper to release portafilter
+        print("🤏 Opening gripper to release portafilter...")
+        release_result = run_skill("set_gripper_position", 255, 0)
+        if release_result is False:
+            print("[ERROR] Failed to open gripper")
+            return False
+        
+        # Step 12: Move back to portafilter approach position
+        print("⬅️ Moving back from portafilter...")
+        back_approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+        if back_approach_result is False:
+            print("[ERROR] Failed to move back from portafilter")
+            return False
+        
+        # Step 13: Return to espresso home
+        print("🏠 Returning to espresso home...")
+        home_result = run_skill("gotoJ_deg", *port_params['home'])
+        if home_result is False:
+            print("[ERROR] Failed to return to espresso home")
+            return False
+        
+        print(f"✅ Portafilter mount sequence completed successfully for {port}")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during mount: {e}")
+        return False
+
+def pick_pitcher(**params):
     """Pick pitcher"""
+    port = params.get("port")
     #---Pick the pitcher---#
     run_skill("gotoJ_deg", *Espresso_home) #Espresso home 
     run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
     if port == 'port_1':
-        run_skill("moveEE", 0, -240, 0, 0, 0, 0)
-        run_skill("moveEE", 103.413977, 0, 0, 0, 0, 0)
+        run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+        run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1", True)
         run_skill("set_gripper_position", 255, 100)
-        run_skill("moveEE", -103.413977, 0, 10, 0, 0, 0)
+        run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
     elif port == 'port_2':
         run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
         run_skill("set_gripper_position", 255, 100)
@@ -1178,17 +1437,18 @@ def pick_pitcher(port):
         run_skill("set_gripper_position", 255, 100)
         run_skill("moveEE", -103.413977, 0, 10, 0, 0, 0)
     else:
-        print(f"[ERROR] unknown port: {port!r}")
+        print(f"[ERROR] unknown port: {port!r}, using default port_1")
         return
     run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957, 1.0, 0.2)    
 
-def pour_pitcher(stage):
+def pour_pitcher(**params):
     """
     Tilt the pitcher over the specified cup target.
     Cups must match keys in POUR_PARAMS: e.g. 'stage_1', 'stage_2'.
     """
+    stage = params.get("stage")
     if stage not in ('stage_1', 'stage_2'):
-        print(f"[ERROR] unknown stage: {stage!r}")
+        print(f"[ERROR] unknown stage: {stage!r}, using default stage_1")
         return
     elif stage == 'stage_1':        
         run_skill("moveJ_deg", 90.160210, 10.716150, 0.203157, -10.883145, -0.001922, 0.060433, 1.0, 0.2)
@@ -1215,24 +1475,24 @@ def pour_pitcher(stage):
         run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
         run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957, 1.0, 0.2)
 
-def hot_water():
+def hot_water(**params):
     """Get hot water in pitcher"""
-    run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957, 1.0, 0.2)  
-    run_skill("moveEE", 0, 360, 15, 0, 0, 0) #move left to the hot water point
-    run_skill("moveEE", 100, 0, 0, 0, 0, 0) #Move in
+    # run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957)  
+    run_skill("gotoJ_deg", 67.341492,-49.798077,-99.061142,-30.809935,-22.613216,-0.457894) 
+    run_skill("gotoJ_deg", 61.759601,-52.680407,-91.236745,-35.814578,-28.197699,-0.388979)
     time.sleep(8.0)
-    run_skill("set_servo_timing", 0.20) #Reduce robot speed
-    run_skill("moveEE", -100, 0, 0, 0, 0, 0) #Move out
+    run_skill("gotoJ_deg", 67.341492,-49.798077,-99.061142,-30.809935,-22.613216,-0.457894, 1.0, 0.2) 
     run_skill("gotoJ_deg", 31.076585,-40.253154,-136.313679,-3.210446,-58.931112,-0.206957, 1.0, 0.2)  
 
-def return_pitcher(port):
+def return_pitcher(**params):
     """Return pitcher to its home position."""
     #---Return the pitcher---#
+    port = params.get("port")
     if port == 'port_1':
-        run_skill("moveEE", 0, -240, 10, 0, 0, 0)
-        run_skill("moveEE", 103.413977, 0, 0, 0, 0, 0)
+        run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+        run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1", True)
         run_skill("set_gripper_position", 75, 0)
-        run_skill("moveEE", -103.413977, 0, -10, 0, 0, 0)
+        run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
     elif port == 'port_2':
         run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
         run_skill("set_gripper_position", 75, 0) #pitcher gripper grip
@@ -1246,99 +1506,25 @@ def return_pitcher(port):
         return
     run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
     run_skill("gotoJ_deg", *Espresso_home) #Espresso home
-    
-CLEANER_PARAMS = {
-    'port_1': {
-        'grinder_home':    (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'rotate_amount':   122,
-        'clean_point':     (110.132784,   7.214473, -140.810214, -44.785857, -70.153760,  -4.137882),
-        'linear_push':     (   0,        150,         0,         0,         0,         0),
-        'twist_around':      (   0,          0,         0,         0,         0,       -180),
-        'clean_pattern': [
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-            (-88, 0, 0, 0, 0, 0),
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-        ],
-        'twist_back':      (   0,          0,         0,         0,         0,       180),
-        'return_home':     ( 89.162277, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'final_offset':  (-122, 0, 0, 0, 0, 0),
-    },
-    'port_2': {
-        'grinder_home':    (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'rotate_amount':   122,
-        'clean_point':     (110.132784,   7.214473, -140.810214, -44.785857, -70.153760,  -4.137882),
-        'linear_push':     (   0,        150,         0,         0,         0,         0),
-        'twist_around':      (   0,          0,         0,         0,         0,       -180),
-        'clean_pattern': [
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-            (-88, 0, 0, 0, 0, 0),
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-        ],
-        'twist_back':      (   0,          0,         0,         0,         0,       180),
-        'return_home':     ( 89.162277, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'final_offset':  (-32, 0, 0, 0, 0, 0),
-    },
-    'port_3': {
-        'grinder_home':    (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'rotate_amount':   122,
-        'clean_point':     (110.132784,   7.214473, -140.810214, -44.785857, -70.153760,  -4.137882),
-        'linear_push':     (   0,        150,         0,         0,         0,         0),
-        'twist_around':      (   0,          0,         0,         0,         0,       -180),
-        'clean_pattern': [
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-            (-88, 0, 0, 0, 0, 0),
-            (0, 0, -77.5, 0, 0, 0),
-            (0, 0, 0, -1.25, 0, 0),
-            (0, 0, 0, 1.25, 1.25, 0),
-            (0, 0, 0, 0, -1.25, 1.25),
-            (0, 0, 0, 0, -1.25, -1.25),
-            (0, 0, 0, 0, 1.25, 0),
-            (0, 0, 77.5, 0, 0, 0),
-        ],
-        'twist_back':      (   0,          0,         0,         0,         0,       180),
-        'return_home':     ( 89.162277, -2.957932, -128.257645, -89.085014, -79.229942,   9.602360),
-        'final_offset':  (-32, 0, 0, 0, 0, 0),
-    },
-}
 
-def clean(port):
+def clean(**params):
     """
     Perform the cleaning sequence on the specified port.
 
     Args:
         port (str): 'port_1', 'port_2', or 'port_3'.
     """
-    unmount(port)  # Unmount the portafilter if necessary
+    port = params.get("port")
+    
+    # Validate port parameter
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        print(f"[ERROR] invalid port: {port!r}, must be 'port_1', 'port_2', or 'port_3'")
+        return
+    
+    # Unmount the portafilter if necessary
+    unmount(port=port)  
+    
+    # Move to cleaning station
     run_skill("gotoJ_deg", *Espresso_grinder_home)
     run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
     run_skill("moveEE", -88, 0, 0, 0, 0, -135)
@@ -1348,183 +1534,306 @@ def clean(port):
     run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
     run_skill("moveEE", 0, 0, 150, 0, 0, 0)
     run_skill("gotoJ_deg", *Espresso_grinder_home)
-    mount(port, skip_initial_move=False)
+    
+    # Mount the portafilter back
+    mount(port=port)
 
-def random_tests():
-    """STAGE 1 PORT 2"""
+def drag(**params):
+    run_skill("toggle_drag_mode")
+    run_skill("set_DO", 2, 1)
+    time.sleep(5)
+    run_skill("set_DO", 2, 0)
+    run_skill("set_DO", 1, 1)
+    run_skill("set_DO", 2, 1)
+    time.sleep(4.5)
+    run_skill("set_DO", 2, 1)
+    run_skill("set_DO", 1, 0)
+    time.sleep(2)
+    run_skill("set_DO", 2, 0)
+    run_skill("toggle_drag_mode")
+
+def cold_cup(**params):
+    cup_size = params.get("cup_size")
+    if cup_size not in ('16oz', '12oz', '9oz', '7oz'):
+        print(f"[ERROR] unknown cup size: {cup_size!r}, using default cup_size")
+        return
+    home(position="west")
+    if cup_size == '7oz':
+        run_skill("set_gripper_position", 255, 0)
+        run_skill("gotoJ_deg", 137.406860,3.501065,-134.504471,-48.814426,-42.387501,-0.108438)
+        run_skill("moveEE", 5, 210, 10, 0, 0, 0)
+        run_skill("set_gripper_position", 255, 140)
+        run_skill("moveEE", 0, 0, -205, 0, 0, 0)
+        run_skill("gotoJ_deg", 137.406860,3.501065,-134.504471,-48.814426,-42.387501,-0.108438)
+    # elif cup_size == '9oz':
+    #     run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0)
+    # elif cup_size == '12oz':
+    #     run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0)
+    # elif cup_size == '16oz':
+    #     run_skill("set_gripper_position", 255, 0)
+    #     run_skill("gotoJ_deg", 142.686200,-21.359396,-113.896270,-44.413189,-37.200442,-0.267903)
+    #     #-220.0,425.0,260.0,90.0,0.0,-180.0
+    #     run_skill("moveEE", 0, 50, 0, 0, 0, 0)
+    #     run_skill("set_gripper_position", 255, 130)
+    #     run_skill("moveJ_deg", 0, 0, 0, 0, 0, 2)
+    #     run_skill("moveJ_deg", 0, 0, 0, 0, 0, -2)
+    #     run_skill("moveEE", 0, 0, -200, 0, 0, 0)
+    #     run_skill("moveEE", 0, -150, 0, 0, 0, 0)
+
+def place_cold_cup(**params):
+    cold_stage = params.get("cold_stage")
+    if cold_stage not in ('1', '2'):
+        print(f"[ERROR] unknown cold stage: {cold_stage!r}, using default cold_stage")
+        return
+    if cold_stage == '1':
+        run_skill("gotoJ_deg", -111.215927,-19.601524,-91.144157,-68.881447,-114.195343,0.046140)
+        #-281.837637,-453.505297,381.885287,89.857537,0.113032,3.075480
+        run_skill("moveEE",0,0,-315,0,0,0)
+        run_skill("set_gripper_position", 60, 0)
+        time.sleep(0.5)
+        run_skill("moveEE",0,0,315,0,0,0)
+        home(position="east")
+    elif cold_stage == '2':
+        run_skill("gotoJ_deg", -121.922080,-29.170114,-76.511387,-73.910323,-124.911454,0.116947)
+        #-381.837637,-453.505297,381.885287,89.857537,0.113032,3.075480
+        run_skill("moveEE",0,0,-315,0,0,0)
+        run_skill("set_gripper_position", 60, 0)
+        time.sleep(0.5)
+        run_skill("moveEE",0,0,315,0,0,0)
+
+def slush(**params):
+    dispence = params.get("dispence")
+    if dispence not in ('1', '2'):
+        print(f"[ERROR] unknown dispence: {dispence!r}, using default dispence")
+        return
+    if dispence == '1':
+        run_skill("gotoJ_deg", 27.351225,-41.244622,-131.515709,-6.958192,-152.611468,0.0)
+        run_skill("gotoJ_deg", 63.173412,-59.329338,-104.639252,-17.729839,-112.244003,0.0, 1.0, 0.2)
+        time.sleep(0.2)
+        run_skill("gotoJ_deg", 27.351225,-41.244622,-131.515709,-6.958192,-152.611468,0.0, 1.0, 0.2)
+        time.sleep(0.2)
+    elif dispence == '2':
+        run_skill("gotoJ_deg", 27.351225,-41.244622,-131.515709,-6.958192,-152.611468,0.0)
+        run_skill("gotoJ_deg", 16.886827,-53.178346,-90.576631,-35.737992,-163.024408,0.0)
+        run_skill("gotoJ_deg", 45.045738,-70.610674,-67.497199,-43.970287,-130.385694,-0.683135, 1.0, 0.2)
+        time.sleep(0.2)
+        run_skill("gotoJ_deg", 16.886827,-53.178346,-90.576631,-35.737992,-163.024408,0.0, 1.0, 0.2)
+        time.sleep(0.2)
+
+def milk_frother(**params):
+    stage = params.get("stage")
+    if stage not in ('1', '2'):
+        print(f"[ERROR] unknown stage: {stage!r}, using default stage")
+        return
+    home(position="north_east")
+    run_skill("set_gripper_position", 255, 0)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "left_steam_wand", 0.15,-10,-10)
+    run_skill("get_machine_position", "left_steam_wand")
+    home(position="north")
+    run_skill("gotoJ_deg", 20.847986,-21.981329,-113.153931,-76.829208,-81.786911,-0.050592)
+    run_skill("move_to", 'milk_frother_1', 0.175)
+    run_skill("approach_tool", 'milk_frother_1', 160)
+    approach = run_skill("current_angles")
+    if approach is None:
+        print("ERROR: Failed to get current angles for approach position")
+        return
+    print(approach)
+    run_skill("grab_tool", 'milk_frother_1', 200,250,255)
+    grab = run_skill("current_angles")
+    if grab is None:
+        print("ERROR: Failed to get current angles for grab position")
+        return
+    print(grab)
+    run_skill("gotoJ_deg", -4.127179,-41.282722,-129.513504,-21.285969,-62.760456,7.227837,1.0,0.2)
+    time.sleep(0.2)
+    run_skill("set_servo_timing", 0.2)
+    run_skill("approach_machine","left_steam_wand","milk_frother")#run_skill("gotoJ_deg", -44.670727,-76.199097,-35.181183,-81.723396,-66.913055,7.227651,1.0,0.2)
+    time.sleep(0.2)
+    run_skill("mount_machine","left_steam_wand","milk_frother")#run_skill("gotoJ_deg", -46.313637,-73.114960,-35.122364,-67.831657,-69.181740,7.227479,1.0,0.2)
+    time.sleep(0.2)
+    run_skill("set_DO", 2, 1)
+    time.sleep(10)
+    run_skill("set_DO", 2, 0)
+    time.sleep(2)
+    run_skill("approach_machine","left_steam_wand","milk_frother")#run_skill("gotoJ_deg", -44.670727,-76.199097,-35.181183,-81.723396,-66.913055,7.227651,1.0,0.2)
+    run_skill("set_servo_timing", 0.1)
+    time.sleep(0.2)
+    run_skill("gotoJ_deg", -53.498047,-56.063831,-104.329971,-23.914228,-67.359390,3.238193,1.0,0.2)
+    time.sleep(0.2)
+    if stage == '1':
+        run_skill("gotoJ_deg", -117.542499,-27.877248,-91.553736,-69.510481,-86.519990,1.649929,1.0,0.2)
+        #-375.511117,-417.178650,300.667141,99.121753,-1.095762,-31.143898
+        time.sleep(0.2)
+        run_skill("gotoJ_deg", -102.517232,-32.497384,-90.464555,-66.071945,-85.480721,-96.398044,1.0,0.075)
+        #-259.762839,-516.626886,266.926627,-142.650683,78.395595,110.925503
+        time.sleep(2)
+        run_skill("gotoJ_deg", -117.542499,-27.877248,-91.553736,-69.510481,-86.519990,1.649929,1.0,0.2)
+        time.sleep(0.2)
+    elif stage == '2':
+        run_skill("gotoJ_deg", -127.319954,-37.857658,-74.250511,-76.871681,-96.185387,0.116908,1.0,0.2)
+        time.sleep(0.2)
+        run_skill("gotoJ_deg", -113.384514,-39.535606,-77.602524,-71.924614,-96.217064,-98.112167,1.0,0.075)
+        time.sleep(2)
+        run_skill("gotoJ_deg", -127.319954,-37.857658,-74.250511,-76.871681,-96.185387,0.116908,1.0,0.2)
+        time.sleep(0.2)
+    run_skill("gotoJ_deg", -4.127179,-41.282722,-129.513504,-21.285969,-62.760456,7.227837)
+    time.sleep(0.2)
+    run_skill("gotoJ_deg", 22.345373,-76.252151,-61.342220,-40.423759,-81.360077,11.115391)
+    run_skill("gotoJ_deg", *grab)
+    run_skill("set_gripper_position", 255, 160)
+    run_skill("gotoJ_deg", *approach)
+    home(position="north")
+    run_skill("set_gripper_position", 255, 0)
+
+def train(**params):
+    run_skill("gotoJ_deg", *Espresso_home)
     for i in range(5):
         time.sleep(1.0)
         run_skill("move_to", "three_group_espresso", 0.12)
-    run_skill("get_machine_position", "three_group_espresso")
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)
-    run_skill("gotoJ_deg", 31.073321,-45.397456,-135.760453,1.382899,-58.936363,-0.211361)
-    run_skill("gotoJ_deg", 61.115904,-46.853232,-120.979236,-11.767174,-28.893833,-0.439449)
-    run_skill("gotoJ_deg", 49.157661,-51.153538,-104.162788,-24.392244,-40.855900,-0.309051)
-    run_skill("gotoJ_deg", 61.115904,-46.853232,-120.979236,-11.767174,-28.893833,-0.439449)
-    run_skill("gotoJ_deg", 31.073321,-45.397456,-135.760453,1.382899,-58.936363,-0.211361)
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)
-    ###################################################################################################
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)
-    run_skill("gotoJ_deg", 31.073321,-45.397456,-135.760453,1.382899,-58.936363,-0.211361)
-    run_skill("gotoJ_deg", -11.120760,-45.804448,-127.729592,-6.277576,-101.131449,-0.057911)
-    run_skill("gotoJ_deg", -8.430291,-49.447607,-110.024799,-20.339796,-98.443658,-0.063492)
-    run_skill("gotoJ_deg", -11.120760,-45.804448,-127.729592,-6.277576,-101.131449,-0.057911)
-    run_skill("gotoJ_deg", 31.073321,-45.397456,-135.760453,1.382899,-58.936363,-0.211361)
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)  
-
-
-def test(port):
-    """Machine position updates here (when starting from home position)."""
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)
+    input()
+    run_skill("gotoJ_deg", -11.610827,-11.667994,-134.749146,-39.220409,-95.688553,-1.029632)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("gotoJ_deg", -15.749183,-30.640251,-115.408752,-31.298525,-106.758682,0.620357)#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("gotoJ_deg", -11.610827,-11.667994,-134.749146,-39.220409,-95.688553,-1.029632)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
+    input()
+    run_skill("gotoJ_deg", 25.347992,-23.801352,-130.856094,-22.573463,-63.180656,-2.730590)#run_skill("mount_machine", "three_group_espresso", "portafilter_2", True)
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
+    input()
+    run_skill("gotoJ_deg", 64.587212,-9.355711,-127.604965,-56.454102,-38.756008,21.765881)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    input()
+    run_skill("gotoJ_deg", 54.096390,-28.545734,-117.903122,-32.409134,-37.225636,0.833876)#run_skill("mount_machine", "three_group_espresso", "portafilter_3", True)
+    input()
+    run_skill("gotoJ_deg", 64.587212,-9.355711,-127.604965,-56.454102,-38.756008,21.765881)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)
+    input()
+    run_skill("gotoJ_deg",26.242167,-40.239166,-138.514206,-0.339417,-64.602829,0.470347)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+    input()
+    run_skill("gotoJ_deg",18.566435,-46.565922,-115.860474,-16.717270,-72.180389,0.604653)#run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
+    input()
+    run_skill("gotoJ_deg",26.242167,-40.239166,-138.514206,-0.339417,-64.602829,0.470347)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+    input()
+    run_skill("gotoJ_deg",-16.759531,-41.994652,-121.946518,-16.669151,-109.865021,0.355781)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+    input()
+    run_skill("gotoJ_deg",-12.652535,-50.013134,-102.164963,-28.419651,-105.758224,0.396221)#run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1", True)
+    input()
+    run_skill("gotoJ_deg",-16.759531,-41.994652,-121.946518,-16.669151,-109.865021,0.355781)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1", True)
+    input()
+    run_skill("gotoJ_deg",26.242167,-40.239166,-138.514206,-0.339417,-64.602829,0.470347)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+    input()
+    run_skill("gotoJ_deg",60.302876,-40.935081,-120.168037,-24.564249,-28.837940,4.383579)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
+    input()
+    run_skill("gotoJ_deg",47.204903,-49.090569,-101.349022,-33.651352,-41.890091,2.520284)#run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3", True)
+    input()
+    run_skill("gotoJ_deg",60.302876,-40.935081,-120.168037,-24.564249,-28.837940,4.383579)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
+    input()
+    run_skill("gotoJ_deg",26.242167,-40.239166,-138.514206,-0.339417,-64.602829,0.470347)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)
+    input()
+    run_skill("gotoJ_deg", *Espresso_grinder_home)
+    input()
+    run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "espresso_grinder", 0.12)
+    run_skill("get_machine_position", "espresso_grinder")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", -33.121265,-44.552822,-107.645233,-56.071480,-84.332321,0.521377)#run_skill("approach_machine", "espresso_grinder", "grinder", True)
+    input()
+    run_skill("gotoJ_deg", -41.074799,-63.388416,-93.687790,-25.042332,-102.817711,0.539738)#run_skill("mount_machine", "espresso_grinder", "grinder", True)
+    input()
+    run_skill("gotoJ_deg", -40.242844,-68.110458,-83.789452,-27.348541,-102.431313,0.539642)#run_skill("approach_machine", "espresso_grinder", "tamper", True)
+    input()
+    run_skill("gotoJ_deg",-40.966518,-67.185211,-91.374519,-19.000040,-102.846008,0.401071)#run_skill("mount_machine", "espresso_grinder", "tamper", True)
+    input()
+    run_skill("gotoJ_deg", *Espresso_grinder_home)
     run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
     for i in range(5):
         time.sleep(1.0)
         run_skill("move_to", "portafilter_cleaner", 0.12)
-    run_skill("get_machine_position", "portafilter_cleaner")
+    run_skill("get_machine_position", "portafilter_cleaner")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
     run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    run_skill("gotoJ_deg", 0.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)
-    for i in range(5):
-        time.sleep(1.0)
-        run_skill("move_to", "espresso_grinder", 0.12)
-    run_skill("get_machine_position", "espresso_grinder")
-    run_skill("gotoJ_deg", 7.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379)
-    run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)
-    for i in range(5):
-        time.sleep(1.0)
-        run_skill("move_to", "three_group_espresso", 0.12)
-    run_skill("get_machine_position", "three_group_espresso")
-    run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
-    """Unmount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-    _prep_for_espresso()
-    #---Unmount the portafilter---#
-    run_skill("gotoJ_deg", *params['home']) #Espresso home 
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("set_gripper_position", 255, 255) #close gripper #Close gripper
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6) 
-    run_skill("move_portafilter_arc",-45)
-    run_skill("release_tension")
-    run_skill("moveEE", 0, 0, -35, 0, 0, 0)
-    run_skill("gotoJ_deg", *params['below_port']) #A point below the port chosen for the motion plan
-    run_skill("gotoJ_deg", *params['move_back']) #A point in the plan chosen to avoid hitting anything in the path
-    if port in ('port_2', 'port_3'):
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-        run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
-    """Grinder port"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-    run_skill("gotoJ_deg", *Espresso_grinder_home) #Espresso grinder home
-    run_skill("approach_machine", "espresso_grinder", "grinder", True) 
-    run_skill("mount_machine", "espresso_grinder", "grinder", True)
-    run_skill("approach_machine", "espresso_grinder", "tamper", True)
-    time.sleep(1.0)
-    run_skill("mount_machine", "espresso_grinder", "tamper", True)
-    run_skill("moveEE", 0, 0, 45, 0, 0, 0) #go up to tamp #go up to tamp
-    time.sleep(1.0)
-    run_skill("moveEE", 0, 0, -95, 0, 0, 0) #go below tamper #go below tamper
-    run_skill("approach_machine", "espresso_grinder", "grinder", True)
-    run_skill("gotoJ_deg", *Espresso_grinder_home)
-    """Mount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-
-    if port in ('port_2', 'port_3'):
-        run_skill("moveJ_deg", 90, 0, 0, 0, 0, 0)
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    run_skill("gotoJ_deg", *params['move_back'])  # A point in the plan chosen to avoid hitting anything in the path
-    run_skill("gotoJ_deg", *params['below_port'])  # A point below the port chosen for the motion plan
-    run_skill("approach_machine", "three_group_espresso", params['group_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['group_number'], True)
-
-    if port == 'port_1':
-        run_skill("moveEE", 0, 0, 3, 0, 0, 0)
-    elif port == 'port_2':
-        run_skill("moveEE", 0, 0, 5, 0, 0, 0)
-    elif port == 'port_3':
-        run_skill("moveEE", 0, 0, 7, 0, 0, 0)
-
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("move_portafilter_arc", 47)
-    run_skill("set_gripper_position", 255, 0)  # Open gripper
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("gotoJ_deg", *params['home'])  # Espresso home
-    """Unmount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
-    _prep_for_espresso()
-    #---Unmount the portafilter---#
-    run_skill("gotoJ_deg", *params['home']) #Espresso home 
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("set_gripper_position", 255, 255) #close gripper #Close gripper
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6) 
-    run_skill("move_portafilter_arc",-45)
-    run_skill("release_tension")
-    run_skill("moveEE", 0, 0, -35, 0, 0, 0)
-    run_skill("gotoJ_deg", *params['below_port']) #A point below the port chosen for the motion plan
-    run_skill("gotoJ_deg", *params['move_back']) #A point in the plan chosen to avoid hitting anything in the path
-    if port in ('port_2', 'port_3'):
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-        run_skill("moveJ_deg", -90, 0, 0, 0, 0, 0)
-    run_skill("gotoJ_deg", *Espresso_grinder_home)
-    run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
+    run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+    run_skill("gotoJ_deg", -60.447098,5.900374,-126.604424,-58.288120,-61.421124,0.000000)# run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
+    input()
     run_skill("moveEE", -88, 0, 0, 0, 0, -135)
-    run_skill("mount_machine", "portafilter_cleaner", "hard_brush", True)
+    input()
+    run_skill("gotoJ_deg", -84.207855,-21.851009,-136.895401,-17.596369,-86.559967,-183.362045)#run_skill("mount_machine", "portafilter_cleaner", "hard_brush", True)
+    input()
     run_skill("moveEE", 0, 0, 100, 0, 0, 0)
-    run_skill("approach_machine", "portafilter_cleaner", "soft_brush", True)
-    run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
+    input()
+    run_skill("gotoJ_deg", -66.577744,-0.893567,-131.774734,-45.521717,-70.645752,-178.476501)# run_skill("approach_machine", "portafilter_cleaner", "soft_brush", True)
+    input()
+    run_skill("gotoJ_deg", -66.577751,-17.761707,-139.629929,-20.798386,-70.645760,-178.476501)#run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
+    input()
     run_skill("moveEE", 0, 0, 150, 0, 0, 0)
+    input()
     run_skill("gotoJ_deg", *Espresso_grinder_home)
-    """Mount portafilter"""
-    params = PULL_ESPRESSO_PARAMS.get(port)
-    if not params:
-        print(f"[ERROR] unknown port number: {port!r}")
-        return
+    input()
+    run_skill("gotoJ_deg", *Espresso_home)
+    
 
-    if port in ('port_2', 'port_3'):
-        run_skill("moveJ_deg", 90, 0, 0, 0, 0, 0)
-        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    run_skill("gotoJ_deg", *params['move_back'])  # A point in the plan chosen to avoid hitting anything in the path
-    run_skill("gotoJ_deg", *params['below_port'])  # A point below the port chosen for the motion plan
-    run_skill("approach_machine", "three_group_espresso", params['group_number'], True)
-    run_skill("mount_machine", "three_group_espresso", params['group_number'], True)
-    if port == 'port_1':
-        run_skill("moveEE", 0, 0, 3, 0, 0, 0)
-    elif port == 'port_2':
-        run_skill("moveEE", 0, 0, 5, 0, 0, 0)
-    elif port == 'port_3':
-        run_skill("moveEE", 0, 0, 7, 0, 0, 0)
-    run_skill("release_tension")
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("enforce_rxry")
-    time.sleep(0.6)
-    run_skill("move_portafilter_arc", 47)
-    run_skill("set_gripper_position", 255, 0)  # Open gripper
-    run_skill("approach_machine", "three_group_espresso", params['portafilter_number'], True)
-    run_skill("gotoJ_deg", *params['home'])  # Espresso home
+
+def test(**params):
+    # """Machine position updates here (when starting from home position)."""
+    # run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
+    # run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    # for i in range(5):
+    #     time.sleep(1.0)
+    #     run_skill("move_to", "portafilter_cleaner", 0.12)
+    # run_skill("get_machine_position", "portafilter_cleaner")
+    # run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    # run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
+    # for i in range(5):
+    #     time.sleep(1.0)
+    #     run_skill("move_to", "three_group_espresso", 0.12)
+    # run_skill("get_machine_position", "three_group_espresso")
+    # run_skill("gotoJ_deg", 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379) #Espresso home 
+    # clean(port="port_2")
+    # run_skill("gotoJ_deg", 45.79414238010104, -41.09983253296243, -90.76504555688143, -48.490445949796886, 2.215198934563988, -0.0002746579711311406)
+    # run_skill("moveEE", 0, 0, 5, 0, 0, 0)
+    # run_skill("release_tension")
+    # run_skill("enforce_rxry")
+    # time.sleep(0.6)
+    # run_skill("enforce_rxry")
+    # time.sleep(0.6)
+    # run_skill("move_portafilter_arc", 47)
+    # run_skill("set_gripper_position", 255, 0)
+    # run_skill("gotoJ_deg", *Espresso_home)
+    run_skill("gotoJ_deg", 20.847986, -21.981329, -113.153931, -76.829208, -81.786911, -0.050592, 1.0, 0.2)
+    time.sleep(0.25)
+    run_skill("move_to", 'milk_frother_1', 0.175)
+    run_skill("approach_tool", 'milk_frother_1', 170)
+    approach_angles = run_skill("current_angles")
+    time.sleep(0.25)
+    run_skill("grab_tool", 'milk_frother_1', 200, 250, 255)
+    grab_angles = run_skill("current_angles")
+    run_skill("gotoJ_deg", -4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837, 1.0, 0.2)
+    time.sleep(0.25)
+    run_skill("gotoJ_deg", 22.345373, -76.252151, -61.342220, -40.423759, -81.360077, 11.115391, 1.0, 0.2)
+    time.sleep(0.25)
+    run_skill("gotoJ_deg", *grab_angles, 1.0, 0.2)
+    time.sleep(0.25)
+    run_skill("set_gripper_position", 255, 165)
+    run_skill("gotoJ_deg", *approach_angles, 1.0, 0.2)
+    time.sleep(0.25)
+    home(position="north")
+    run_skill("set_gripper_position", 255, 0)
+
+
+
+
 # Add more sequences here as plain Python functions…
 
 
@@ -1532,43 +1841,10 @@ def test(port):
 # 2)  LOOK-UP TABLE  (function-name ↔︎ human-friendly key)
 # ──────────────────────────────────────────────────────────────────
 SEQUENCES = {
-    "home": home_north,
-    "home_north_east": home_north_east,
-    "home_west":home_west,
-    "espresso_port_1": espresso_port_1,
-    "espresso_port_2": espresso_port_2,
-    "espresso_port_3": espresso_port_3,
-    "americano_port_1": americano_port_1,
-    "americano_port_2": americano_port_2,
-    "americano_port_3": americano_port_3,
-    "clean_port_1": clean_port_1,
-    "clean_port_2": clean_port_2,
-    "clean_port_3": clean_port_3,
-    "milk_frothing": milk_frothing,
-    "get_machine_position": get_machine_position,
-    "random_tests": random_tests,
-    "unmount_port_1": lambda: unmount("port_1"),
-    "unmount_port_2": lambda: unmount("port_2"),
-    "unmount_port_3": lambda: unmount("port_3"),
-    "grinder_port": lambda: grinder("port_1"),
-    "mount_port_1": lambda: mount("port_1"),
-    "mount_port_2": lambda: mount("port_2"),
-    "mount_port_3": lambda: mount("port_3"),
-    "pick_pitcher_port_1": lambda: pick_pitcher("port_1"),
-    "pick_pitcher_port_2": lambda: pick_pitcher("port_2"),
-    "pick_pitcher_port_3": lambda: pick_pitcher("port_3"),
-    "pour_pitcher_cup_1": lambda: pour_pitcher("stage_1"),
-    "pour_pitcher_cup_2": lambda: pour_pitcher("stage_2"),
-    "return_pitcher_port_1": lambda: return_pitcher("port_1"),
-    "return_pitcher_port_2": lambda: return_pitcher("port_2"),
-    "return_pitcher_port_3": lambda: return_pitcher("port_3"),
-    "hot_water": hot_water,
-    "test":lambda: test("port_3"),
-    "grab_cup_1": lambda: grab_cup("12oz"),
-    "grab_cup_2": lambda: grab_cup("9oz"),
-    "grab_cup_3": lambda: grab_cup("7oz"),
-    "place_cup_1": lambda: place_cup("stage_1"),
-    "place_cup_2": lambda: place_cup("stage_2"),
+    "train": lambda: train(),
+    "test": lambda: test(),
+    "say_hi": say_hi,
+
     # "demo": demo_raw,
 }
 
