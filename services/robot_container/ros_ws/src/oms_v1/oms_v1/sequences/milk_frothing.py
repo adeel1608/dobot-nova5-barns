@@ -180,8 +180,6 @@ def mount_frother(**params):
             print("[ERROR] Failed to move to frothing preparation position")
             return False
         
-        time.sleep(0.2)  # Allow settling time
-        
         # Step 2: Set slower servo timing for precise movements
         print("⚙️ Setting precise servo timing...")
         timing_result = run_skill("set_servo_timing", 0.2)
@@ -195,7 +193,7 @@ def mount_frother(**params):
             print("[ERROR] Failed to approach steam wand")
             return False
         
-        time.sleep(0.2)
+        
         
         # Step 4: Fine approach to steam wand (light position) 
         print("🎯 Fine approaching steam wand (light position)...")
@@ -304,13 +302,13 @@ def pour_milk(**params):
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         
-        time.sleep(0.2)
+        
         print("📍 Moving to intermediate pouring position...")
         intermediate_result = run_skill("gotoJ_deg", -58.476021,-51.300709,-101.058250,-42.526070,-61.983448,8.514315, 1.0, 0.2)
         if intermediate_result is False:
             print("[ERROR] Failed to move to intermediate position")
             return False
-        time.sleep(0.2)
+        
         # Step 3: Move to intermediate pouring position
         print("📍 Moving to intermediate pouring position...")
         intermediate_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193, 1.0, 0.2)
@@ -318,7 +316,7 @@ def pour_milk(**params):
             print("[ERROR] Failed to move to intermediate position")
             return False
         
-        time.sleep(0.2)
+        
         
         # Step 4: Stage-specific pouring sequence
         if stage == '1':
@@ -330,7 +328,7 @@ def pour_milk(**params):
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
             
-            time.sleep(0.2)
+            
             
             # Tilt for pouring
             pour_result = run_skill("gotoJ_deg", -102.517232, -32.497384, -90.464555, -66.071945, -85.480721, -96.398044, 1.0, 0.075)
@@ -357,7 +355,7 @@ def pour_milk(**params):
                 print("[ERROR] Failed to move to stage 2 position")
                 return False
             
-            time.sleep(0.2)
+            
             
             # Tilt for pouring
             pour_result = run_skill("gotoJ_deg", -113.384514, -39.535606, -77.602524, -71.924614, -96.217064, -98.112167, 1.0, 0.005)
@@ -375,7 +373,7 @@ def pour_milk(**params):
                 print("[ERROR] Failed to return to upright position")
                 return False
         
-        time.sleep(0.2)
+        
         
         print(f"✅ Milk pouring completed successfully for stage {stage}")
         return True
@@ -415,7 +413,7 @@ def return_frother(**params):
             print("[ERROR] Failed to move to intermediate return position")
             return False
         
-        time.sleep(0.2)
+        
         
         # Step 2: Move to return preparation position
         print("📍 Moving to return preparation position...")

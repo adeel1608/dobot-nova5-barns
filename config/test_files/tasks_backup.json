@@ -1,107 +1,15 @@
-
 {
-  "dispense_milk": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "dispense_milk",
-        "params": {}
-      }
-    ]
-  },
-  "slush_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "slush_machine",
-        "params": {}
-      }
-    ]
-  },
-  "coffee_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {}
-      }
-    ]
-  },
-  "grinding_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 1
-        }
-      },
-      {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 2
-        }
-      }
-    ]
-  },
-  "tampering_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {}
-      }
-    ]
-  },
-  "test": {
+  "Calibrate": {
     "steps": [
       {
         "type": "robot",
-        "function": "test",
+        "function": "get_machine_position",
         "params": {}
       }
     ]
   },
-  "test1": {
+  "Paper_Cup": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "validate_test1",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "test_1",
-        "params": {}
-      }
-
-    ]
-  },
-  "test2": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "validate_test2",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "test",
-        "params": {}
-      }
-
-    ]
-  },
-  "Espresso": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 1
-        }
-      },
       {
         "type": "robot",
         "function": "grab_paper_cup",
@@ -114,6 +22,35 @@
         "function": "place_paper_cup",
         "params": {
           "stage": "stage_1"
+        }
+      }
+    ]
+  },
+  "Plastic_Cup": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "grab_plastic_cup",
+        "params": {
+          "cup_size": "7oz" # options 7oz, 9oz, 12oz, 16oz
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_plastic_cup",
+        "params": {
+          "stage": "1" # options 1, 2
+        }
+      }
+    ]
+  },
+  "Espresso": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+          "shots_number": 1
         }
       },
       {
@@ -146,7 +83,11 @@
         "params": {
           "port": "port_2"
         }
-      },
+      }      
+    ]
+  },
+  "Call_Espresso": {
+    "steps": [
       {
         "type": "automation",
         "function": "coffee_machine",
@@ -154,59 +95,108 @@
           "coffee_t": 1,
           "slot_number": 2
         }
-      },
+      }
+    ]
+  },
+  "Pour_Espresso": {
+    "steps": [
       {
         "type": "robot",
         "function": "pick_espresso_pitcher",
         "params": {
           "port": "port_2"
         }
-      }      
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      }
     ]
   },
-  "Milk_Dispensing_Frothing": {
+  "Cleaning": {
     "steps": [
       {
         "type": "robot",
-        "function": "get_frother_position",
+        "function": "clean",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      }
+    ]
+  },
+  "Pour_Americano": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      },
+      {
+        "type": "robot",
+        "function": "get_hot_water",
         "params": {}
       },
+      {
+        "type": "robot",
+        "function": "with_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_1" # options stage_1, stage_2
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      }
+    ]
+  },
+  "Milk_Dispensing": {
+    "steps": [
       {
         "type": "automation",
         "function": "dispense_milk",
         "params": {
           "milk_type": "whole",
-          "amount": 60
+          "amount": 60 # options machiato - 20, cortado - 70ml, cappucino - 110ml/260ml, latte 160ml/280ml
         }
       },
+    ]
+  },
+  "Milk_Frother_Calibration": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_frother_position",
+        "params": {}
+      }
+    ]
+  },
+  "Milk_Frothing": {
+    "steps": [
       {
         "type": "robot",
         "function": "pick_frother",
         "params": {}
-      }
-          
-    ]
-  },
-  "Espresso_pouring": {
-    "steps":[
-      {
-      "type": "robot",
-      "function": "pour_espresso_pitcher",
-      "params": {
-        "stage": "stage_1"
-      }
-    },
-    {
-      "type": "robot",
-      "function": "return_espresso_pitcher",
-      "params": {
-        "port": "port_2"
-      }
-    }
-    ]
-  },
-  "Milk_Pouring": {
-    "steps": [
+      },
       {
         "type": "robot",
         "function": "mount_frother",
@@ -240,27 +230,6 @@
       }
     ]
   },
-  "Calibrate": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_machine_position",
-        "params": {}
-      }
-    ]
-  },
-  "Cleaning": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "clean",
-        "params": {
-          "port": "port_2"
-        }
-      }
-    ]
-  },
-
   "Slushie": {
     "steps": [
       {

@@ -2,6 +2,19 @@
 set -e
 
 # -----------------------------------------------------------------------------
+# Clean up Orbbec device lock (prevents camera conflicts)
+# -----------------------------------------------------------------------------
+echo "=== Cleaning up Orbbec device lock ==="
+if [ -f "/dev/shm/orbbec_device_lock" ]; then
+    echo "Removing existing Orbbec device lock..."
+    rm -f /dev/shm/orbbec_device_lock 2>/dev/null || {
+        echo "WARNING: Could not remove Orbbec device lock (may not exist or permission issue)"
+    }
+else
+    echo "No Orbbec device lock found (this is normal on first run)"
+fi
+
+# -----------------------------------------------------------------------------
 # Environment variables for headless and optimized operation
 # -----------------------------------------------------------------------------
 export DISPLAY=${DISPLAY:-:99}  # Use virtual display if no display available
@@ -204,22 +217,69 @@ lsusb 2>/dev/null || echo "lsusb not available"
 echo "Orbbec devices and UIDs:"
 ros2 run orbbec_camera list_devices_node 2>/dev/null || echo "list_devices_node not available"
 
-# Launch camera with validated parameters
-ros2 launch orbbec_camera gemini_330_series.launch.py \
-  camera_name:="${CAM_NAME}" \
-  serial_number:="${CAMERA_SERIAL_NUMBER}" \
-  usb_port:="${USB_PORT}" \
-  device_num:="${DEVICE_NUM}" \
-  enable_noise_removal_filter:=false \
-  enable_spatial_filter:=false \
-  enable_temporal_filter:=false \
-  enable_hole_filling_filter:=false \
-  enable_decimation_filter:=false \
-  enable_threshold_filter:=false \
-  enable_sequence_id_filter:=false \
-  enable_hdr_merge:=false \
-  __log_level:=fatal &
-CAMERA_PID=$!
+# Verify the target device exists and get its index
+echo "Searching for target device with serial number: ${CAMERA_SERIAL_NUMBER}"
+DEVICE_LIST=$(ros2 run orbbec_camera list_devices_node 2>/dev/null || echo "")
+
+if [ -z "$DEVICE_LIST" ]; then
+  echo "ERROR: Could not enumerate Orbbec devices!"
+  exit 1
+fi
+
+# Check if target device exists
+DEVICE_FOUND=$(echo "$DEVICE_LIST" | grep -c "${CAMERA_SERIAL_NUMBER}" || echo "0")
+
+if [ "$DEVICE_FOUND" -eq "0" ]; then
+  echo "ERROR: Target camera with serial number ${CAMERA_SERIAL_NUMBER} not found!"
+  echo "Available devices:"
+  echo "$DEVICE_LIST"
+  exit 1
+fi
+
+# Try to determine correct device index based on enumeration
+echo "Device enumeration:"
+echo "$DEVICE_LIST"
+
+# Extract device index for our target serial number if possible
+TARGET_DEVICE_INDEX=$(echo "$DEVICE_LIST" | grep -n "${CAMERA_SERIAL_NUMBER}" | head -1 | cut -d: -f1)
+if [ -n "$TARGET_DEVICE_INDEX" ]; then
+  echo "Target device appears to be at index: $TARGET_DEVICE_INDEX"
+  # Adjust DEVICE_NUM if needed (1-based indexing)
+  DEVICE_NUM=$TARGET_DEVICE_INDEX
+  echo "Using device_num: $DEVICE_NUM"
+fi
+
+# Launch camera with validated parameters and force serial number selection
+if [ -n "${CAMERA_SERIAL_NUMBER}" ]; then
+  echo "Attempting to connect to camera with serial number: ${CAMERA_SERIAL_NUMBER}"
+  echo "Camera launch parameters:"
+  echo "  - camera_name: ${CAM_NAME}"
+  echo "  - serial_number: ${CAMERA_SERIAL_NUMBER}"
+  echo "  - usb_port: ${USB_PORT}"
+  echo "  - device_num: ${DEVICE_NUM}"
+  
+  ros2 launch orbbec_camera gemini_330_series.launch.py \
+    camera_name:="${CAM_NAME}" \
+    serial_number:="${CAMERA_SERIAL_NUMBER}" \
+    usb_port:="${USB_PORT}" \
+    device_num:="${DEVICE_NUM}" \
+    connection_delay:=1000 \
+    device_index:="${DEVICE_NUM}" \
+    enable_sync_output_accel_gyro:=false \
+    enable_noise_removal_filter:=false \
+    enable_spatial_filter:=false \
+    enable_temporal_filter:=false \
+    enable_hole_filling_filter:=false \
+    enable_decimation_filter:=false \
+    enable_threshold_filter:=false \
+    enable_sequence_id_filter:=false \
+    enable_hdr_merge:=false \
+    __log_level:=info &
+  CAMERA_PID=$!
+else
+  echo "ERROR: CAMERA_SERIAL_NUMBER not set! Cannot launch camera."
+  exit 1
+fi
 
 sleep 2
 # Wait for camera to initialize and verify topics
@@ -250,6 +310,32 @@ done
 
 if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
     echo "WARNING: Camera info not publishing after $MAX_RETRIES seconds"
+else
+    # Verify the correct camera device is connected
+    echo "Verifying camera device connection..."
+    sleep 3
+    
+    # Check if the camera service is available and get device info
+    if ros2 service list | grep -q "/${CAM_NAME}/get_device_info"; then
+        echo "Checking connected device serial number..."
+        CONNECTED_SERIAL=$(ros2 service call /${CAM_NAME}/get_device_info orbbec_camera_msgs/srv/GetDeviceInfo {} 2>/dev/null | grep -o "serial_number: '[^']*'" | cut -d"'" -f2 || echo "")
+        
+        if [ -n "$CONNECTED_SERIAL" ]; then
+            echo "Connected device serial number: $CONNECTED_SERIAL"
+            if [ "$CONNECTED_SERIAL" = "$CAMERA_SERIAL_NUMBER" ]; then
+                echo "✅ SUCCESS: Correct camera device connected!"
+            else
+                echo "❌ ERROR: Wrong camera device connected!"
+                echo "  Expected: $CAMERA_SERIAL_NUMBER"
+                echo "  Actual: $CONNECTED_SERIAL"
+                echo "  This may cause camera assignment issues between robots."
+            fi
+        else
+            echo "WARNING: Could not retrieve device serial number"
+        fi
+    else
+        echo "WARNING: Camera device info service not available"
+    fi
 fi
 # ros2 run rosbridge_server rosbridge_websocket --ros-args -p port:=9090 -p address:=0.0.0.0
 

@@ -1,41 +1,5 @@
 {
-  "Espresso": [
-    {
-      "action": "Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
-    {
-      "action": "Cleaning",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
-    }
-  ],
-  "Latte": [
-    {
-      "action": "Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
-    {
-      "action": "Cleaning",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
-    },
-    {
-      "action": "Milk_Dispensing_Frothing",
-      "assigned_arm": "Arm2",
-      "depends_on": [
-      ]
-    },
-    {
-      "action": "Milk_Pouring",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
-    }
-  ],
-
-  "Calibrate": [
+"Calibrate": [
     {
       "action": "Calibrate",
       "assigned_arm": "Arm1",
@@ -94,6 +58,13 @@
   "Slush_Machine": [
     {
       "action": "slush_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Test": [
+    {
+      "action": "test",
       "assigned_arm": "Arm1",
       "depends_on": []
     }

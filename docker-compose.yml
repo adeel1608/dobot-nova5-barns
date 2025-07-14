@@ -186,7 +186,7 @@ services:
       routine-service:
         condition: service_healthy
     volumes:
-      - ./services/scheduler/data:/app/services/scheduler/data
+      - ./data:/app/data
     networks:
       - barns-network
     restart: unless-stopped

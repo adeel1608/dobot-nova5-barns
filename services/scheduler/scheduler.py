@@ -5,8 +5,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Any, Tuple, Optional
 import httpx
+import sys
+import os
 
-from .data import logger
+# Import logger from the volume-mounted data directory
+sys.path.insert(0, '/app/data')
+import logger
 
 # Shared data structures for scheduling
 tasks = []           # All pending tasks across orders
@@ -388,19 +392,28 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         arm1 = asyncio.create_task(arm_worker("Arm1"))
         arm2 = asyncio.create_task(arm_worker("Arm2"))
         
-        # Wait for both arms to finish all tasks with timeout to prevent hanging
+        # Calculate dynamic timeout based on number of cups
+        # Base timeout (2 minutes) + per-cup timeout (1 minute per cup)
+        base_timeout = 120.0  # 2 minutes base
+        per_cup_timeout = 400.0  # 1 minute per cup
+        num_cups = len(drinks)
+        dynamic_timeout = base_timeout + (per_cup_timeout * num_cups)
+        
+        logger.log(f"🕐 Order {order_id} timeout set to {dynamic_timeout:.0f} seconds ({dynamic_timeout/60:.1f} minutes) for {num_cups} cups")
+        
+        # Wait for both arms to finish all tasks with dynamic timeout
         try:
             await asyncio.wait_for(
                 asyncio.gather(arm1, arm2, return_exceptions=True),
-                timeout=400.0  # 5 minute timeout for order processing
+                timeout=dynamic_timeout
             )
             logger.log(f"✅ Both arm workers completed for order {order_id}")
         except asyncio.TimeoutError:
-            logger.log(f"❌ Order {order_id} timed out after 5 minutes")
+            logger.log(f"❌ Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes")
             # Cancel both arms
             arm1.cancel()
             arm2.cancel()
-            await notify_oms_completion(order_id, False, "Order processing timed out after 5 minutes")
+            await notify_oms_completion(order_id, False, f"Order processing timed out after {dynamic_timeout/60:.1f} minutes")
             return False
         
         # Check if order was successful or failed

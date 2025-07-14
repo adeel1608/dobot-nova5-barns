@@ -76,7 +76,7 @@ class SchedulerService:
         """Load drink recipes from file."""
         global recipes
         try:
-            recipe_file = Path(__file__).parent / "data" / "recipes.json"
+            recipe_file = Path("/app/data/recipes.json")
             recipes = scheduler.load_recipes(str(recipe_file))
             logger.info(f"Loaded {len(recipes)} recipes: {list(recipes.keys())}")
                 
