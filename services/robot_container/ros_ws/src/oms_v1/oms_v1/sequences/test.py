@@ -20,255 +20,153 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.params import HOME_ANGLES, PULL_ESPRESSO_PARAMS
 from oms_v1.sequences.home import home
 
+# Global variables for storing positions
+below_espresso_port = None
+mount_espresso_port = None
+
 
 def test(**params) -> bool:
     """
-    Comprehensive test sequence for milk frother tool manipulation.
+    Unmount portafilter from espresso group for cleaning or grinding.
     
-    This function performs a detailed test sequence that validates:
-    - Robot positioning and movement accuracy
-    - Tool approach and grabbing operations  
-    - Position memory capture and retrieval
-    - Gripper manipulation and control
-    - Safe return to home position
-    - Error recovery and handling
-    
-    The test runs 5 iterations to ensure repeatability and consistency.
-    Each iteration includes 12 distinct steps with proper error checking.
+    This function performs the complete portafilter unmounting sequence:
+    1. Moves to espresso home position
+    2. Approaches and mounts to the specified portafilter group
+    3. Closes gripper to secure portafilter
+    4. Releases tension and adjusts orientation
+    5. Rotates portafilter to unlock position
+    6. Safely retracts and moves to clear path
     
     Args:
-        **params (Dict[str, Any]): Optional test parameters
-            - iterations (int): Number of test iterations (default: 5)
-            - tool_name (str): Tool identifier (default: 'milk_frother_1')
-            - approach_distance (float): Tool approach distance (default: 0.175)
-            - gripper_strength (int): Gripper force (default: 200-255)
-            
+        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        
     Returns:
-        bool: Test execution result
-            - True: All test steps completed successfully
-            - False: Test failed at any step
-            
-    Raises:
-        Exception: Captures and logs any unexpected errors during execution
+        bool: True if portafilter unmounted successfully, False otherwise
         
     Example:
-        >>> # Basic test execution
-        >>> success = test()
-        >>> if success:
-        ...     print("✅ Test sequence passed")
-        ... else:
-        ...     print("❌ Test sequence failed")
-        
-        >>> # Custom parameters
-        >>> success = test(iterations=3, tool_name='milk_frother_2')
+        success = test(port='port_1')
+        if success:
+            print("Portafilter unmounted successfully")
     """
-    
-    # Extract parameters with defaults
-    iterations = params.get('iterations', 5)
-    tool_name = params.get('tool_name', 'milk_frother_1')
-    approach_distance = params.get('approach_distance', 0.175)
-    
-    print(f"🚀 Initializing comprehensive test sequence")
-    print(f"📋 Test Parameters:")
-    print(f"   - Iterations: {iterations}")
-    print(f"   - Tool: {tool_name}")
-    print(f"   - Approach Distance: {approach_distance}m")
-    print(f"   - Test Type: Milk Frother Tool Manipulation")
-    print("=" * 60)
+    global below_espresso_port, mount_espresso_port
     
     try:
-        for iteration in range(1, iterations + 1):
-            print(f"\n🔄 ITERATION {iteration}/{iterations}")
-            print("🧪 Starting test sequence for milk frother tool manipulation")
+        port = params.get("port")
+        if not port:
+            print("[ERROR] No port specified. Please provide 'port' parameter.")
+            return False
             
-            # Step 1: Initialize robot position
-            print("📍 Step 1/12: Moving to initial position...")
-            init_angles = (20.847986, -21.981329, -113.153931, -76.829208, -81.786911, -0.050592)
-            init_result = run_skill("gotoJ_deg", *init_angles, 1.0, 0.2)
-            
-            if init_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 1 FAILED: Unable to reach initial position"
-                print(error_msg)
-                print(f"   Target angles: {init_angles}")
-                return False
-            
-            print("✅ Step 1 SUCCESS: Robot positioned at initial coordinates")
-            time.sleep(0.25)  # Stabilization delay
-            
-            # Step 2: Navigate to milk frother location
-            print(f"🎯 Step 2/12: Moving to {tool_name} location...")
-            move_result = run_skill("move_to", tool_name, approach_distance)
-            
-            if move_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 2 FAILED: Cannot navigate to {tool_name}"
-                print(error_msg)
-                print(f"   Target: {tool_name} at {approach_distance}m distance")
-                return False
-            
-            print(f"✅ Step 2 SUCCESS: Positioned near {tool_name}")
-            
-            # Step 3: Execute tool approach sequence
-            print(f"🔧 Step 3/12: Approaching {tool_name} for manipulation...")
-            approach_result = run_skill("approach_tool", tool_name, 170)
-            
-            if approach_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 3 FAILED: Tool approach sequence failed"
-                print(error_msg)
-                print(f"   Tool: {tool_name}, Approach angle: 170°")
-                return False
-            
-            print(f"✅ Step 3 SUCCESS: Tool approach completed")
-            
-            # Step 4: Capture current joint angles for position memory
-            print("📊 Step 4/12: Capturing approach position angles...")
-            approach_angles = run_skill("current_angles")
-            
-            if approach_angles is None:
-                print("⚠️ [WARNING] Step 4: Failed to capture approach angles")
-                print("   Continuing test but position recovery may be limited")
-            else:
-                print(f"✅ Step 4 SUCCESS: Approach angles captured")
-                print(f"   Angles: {[f'{angle:.2f}°' for angle in approach_angles]}")
-            
-            time.sleep(0.25)
-            
-            # Step 5: Execute tool grabbing operation
-            print(f"🤏 Step 5/12: Grabbing {tool_name}...")
-            grab_result = run_skill("grab_tool", tool_name, 200, 250, 255)
-            
-            if grab_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 5 FAILED: Tool grab operation failed"
-                print(error_msg)
-                print(f"   Tool: {tool_name}, Gripper settings: 200-250-255")
-                return False
-            
-            print(f"✅ Step 5 SUCCESS: {tool_name} secured in gripper")
-            
-            # Step 6: Capture grab position for reference
-            print("📊 Step 6/12: Capturing grab position angles...")
-            grab_angles = run_skill("current_angles")
-            
-            if grab_angles is None:
-                print("⚠️ [WARNING] Step 6: Failed to capture grab angles")
-            else:
-                print(f"✅ Step 6 SUCCESS: Grab angles captured")
-                print(f"   Angles: {[f'{angle:.2f}°' for angle in grab_angles]}")
-            
-            # Step 7: Move to intermediate safety position
-            print("📍 Step 7/12: Moving to intermediate safety position...")
-            inter_angles = (-4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837)
-            inter1_result = run_skill("gotoJ_deg", *inter_angles, 1.0, 0.2)
-            
-            if inter1_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 7 FAILED: Cannot reach intermediate position"
-                print(error_msg)
-                print(f"   Target angles: {inter_angles}")
-                return False
-            
-            print("✅ Step 7 SUCCESS: Intermediate position reached")
-            time.sleep(0.25)
-            
-            # Step 8: Move to working/demonstration position
-            print("🔄 Step 8/12: Moving to working demonstration position...")
-            work_angles = (22.345373, -76.252151, -61.342220, -40.423759, -81.360077, 11.115391)
-            work_result = run_skill("gotoJ_deg", *work_angles, 1.0, 0.2)
-            
-            if work_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 8 FAILED: Cannot reach working position"
-                print(error_msg)
-                print(f"   Target angles: {work_angles}")
-                return False
-            
-            print("✅ Step 8 SUCCESS: Working position achieved")
-            time.sleep(0.25)
-            
-            # Step 9: Return to grab position (if captured successfully)
-            if grab_angles is not None:
-                print("↩️ Step 9/12: Returning to grab position...")
-                return_grab_result = run_skill("gotoJ_deg", *grab_angles, 1.0, 0.2)
-                
-                if return_grab_result is False:
-                    error_msg = f"❌ [ITERATION {iteration}] Step 9 FAILED: Cannot return to grab position"
-                    print(error_msg)
-                    return False
-                
-                print("✅ Step 9 SUCCESS: Returned to grab position")
-            else:
-                print("⚠️ Step 9 SKIPPED: Grab angles unavailable, cannot return to position")
-            
-            time.sleep(0.25)
-            
-            # Step 10: Adjust gripper for tool release
-            print("🔧 Step 10/12: Adjusting gripper for tool release...")
-            grip_result = run_skill("set_gripper_position", 255, 165)
-            
-            if grip_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 10 FAILED: Gripper adjustment failed"
-                print(error_msg)
-                print("   Target: Position 255, Force 165")
-                return False
-            
-            print("✅ Step 10 SUCCESS: Gripper adjusted for release")
-            
-            # Step 11: Return to approach position (if captured successfully)
-            if approach_angles is not None:
-                print("↩️ Step 11/12: Returning to approach position...")
-                return_approach_result = run_skill("gotoJ_deg", *approach_angles, 1.0, 0.2)
-                
-                if return_approach_result is False:
-                    error_msg = f"❌ [ITERATION {iteration}] Step 11 FAILED: Cannot return to approach position"
-                    print(error_msg)
-                    return False
-                
-                print("✅ Step 11 SUCCESS: Returned to approach position")
-            else:
-                print("⚠️ Step 11 SKIPPED: Approach angles unavailable, cannot return to position")
-            
-            time.sleep(0.25)
-            
-            # Step 12: Safe return to home position
-            print("🏠 Step 12/12: Returning to home position...")
-            home_result = home(position="north")
-            
-            if home_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] Step 12 FAILED: Cannot return to home position"
-                print(error_msg)
-                return False
-            
-            print("✅ Step 12 SUCCESS: Home position reached")
-            
-            # Final step: Release gripper completely
-            print("🤏 Final Step: Opening gripper completely...")
-            release_result = run_skill("set_gripper_position", 255, 0)
-            
-            if release_result is False:
-                error_msg = f"❌ [ITERATION {iteration}] FINAL STEP FAILED: Gripper release failed"
-                print(error_msg)
-                return False
-            
-            print("✅ FINAL STEP SUCCESS: Gripper opened, tool released")
-            print(f"🎉 ITERATION {iteration}/{iterations} COMPLETED SUCCESSFULLY")
-            
-            # Brief pause between iterations
-            if iteration < iterations:
-                print("⏳ Preparing for next iteration...")
-                time.sleep(1.0)
+        port_params = PULL_ESPRESSO_PARAMS.get(str(port))
         
-        print("\n" + "=" * 60)
-        print(f"🏆 ALL {iterations} ITERATIONS COMPLETED SUCCESSFULLY!")
-        print("✅ Test sequence validation: PASSED")
-        print("📊 Robot performance: OPTIMAL")
-        print("🔧 Tool manipulation: VERIFIED")
+        if not port_params:
+            print(f"[ERROR] Unknown port number: {port!r}, available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
+            return False
+        
+        print(f"📤 Starting portafilter unmount sequence for {port}")
+        
+        # Step 1: Move to espresso home position
+        print("🏠 Moving to espresso home...")
+        home_result = run_skill("gotoJ_deg", *port_params['home'])
+        
+        if home_result is False:
+            print("[ERROR] Failed to move to espresso home")
+            return False
+
+        # Step 2: Approach the portafilter group (only for port_1 and port_3)
+        if port in ['port_1', 'port_3']:
+            print(f"🎯 Approaching portafilter {port_params['portafilter_number']}...")
+            approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+            if approach_result is False:
+                print("[ERROR] Failed to approach portafilter")
+                return False
+        
+        # Step 3: Mount to the portafilter for secure grip
+        print("🔧 Mounting to portafilter...")
+        mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'], True)
+        
+        if mount_result is False:
+            print("[ERROR] Failed to mount to portafilter")
+            return False
+        
+        # Step 4: Close gripper to secure portafilter
+        print("🤏 Securing portafilter with gripper...")
+        grip_result = run_skill("set_gripper_position", 255, 255)
+        if grip_result is False:
+            print("[ERROR] Failed to close gripper")
+            return False
+        
+        # Step 5: Release tension for smooth operation
+        print("😌 Releasing tension...")
+        tension_result = run_skill("release_tension")
+        if tension_result is False:
+            print("[ERROR] Failed to release tension")
+            return False
+        
+        # Step 6: Enforce proper orientation
+        print("📐 Enforcing proper orientation...")
+        orient_result = run_skill("enforce_rxry")
+        if orient_result is False:
+            print("[ERROR] Failed to enforce orientation")
+            return False
+        
+        # Synchronization point
+        run_skill("sync")
+        
+        # Step 7: Rotate portafilter to unlock (-45 degrees)
+        print("🔄 Rotating portafilter to unlock...")
+        rotate_unlock_result = run_skill("move_portafilter_arc", -45)
+        
+        if rotate_unlock_result is False:
+            print("[ERROR] Failed to rotate portafilter to unlock")
+            return False
+        
+        # Step 8: Release tension after unlock rotation
+        print("😌 Releasing tension after unlock...")
+        tension_unlock_result = run_skill("release_tension")
+        
+        # Capture current position for reference
+        mount_espresso_port = run_skill("current_angles")
+        
+        if tension_unlock_result is False:
+            print("[ERROR] Failed to release tension after unlock rotation")
+            return False
+        
+        # Step 9: Rotate portafilter to lock position (+47 degrees from unlock)
+        print("🔄 Rotating portafilter to lock...")
+        rotate_lock_result = run_skill("move_portafilter_arc", 47)
+        if rotate_lock_result is False:
+            print("[ERROR] Failed to rotate portafilter to lock")
+            return False
+        
+        # Step 10: Open gripper to release portafilter
+        print("🤏 Opening gripper to release portafilter...")
+        release_result = run_skill("set_gripper_position", 255, 0)
+        if release_result is False:
+            print("[ERROR] Failed to open gripper")
+            return False
+            
+        # Step 11: Move back to approach position (only for port_1 and port_3)
+        if port in ['port_1', 'port_3']:
+            print("⬅️ Moving back from portafilter...")
+            back_approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'], True)
+            if back_approach_result is False:
+                print("[ERROR] Failed to move back from portafilter")
+                return False
+        
+        # Step 12: Return to espresso home
+        print("🏠 Returning to espresso home...")
+        final_home_result = run_skill("gotoJ_deg", *port_params['home'])
+        if final_home_result is False:
+            print("[ERROR] Failed to return to espresso home")
+            return False
+        
+        print(f"✅ Portafilter mount sequence completed successfully for {port}")
         return True
         
     except Exception as e:
-        error_msg = f"💥 CRITICAL ERROR: Unexpected failure during test execution"
-        print(error_msg)
-        print(f"   Error Type: {type(e).__name__}")
-        print(f"   Error Message: {str(e)}")
-        print("   Stack Trace:")
+        print(f"[ERROR] Unexpected error during portafilter operation: {e}")
+        print("Stack trace:")
         traceback.print_exc()
-        print("🚨 Test sequence aborted due to critical error")
         return False
 
 

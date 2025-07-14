@@ -661,6 +661,7 @@ class DirectTfMotionNode(Node):
                 return False
 
             # 5) Execute Cartesian move
+            time.sleep(0.2)
             self.moveit2.move_to_pose(
                 position=goal_pos.tolist(),
                 quat_xyzw=goal_quat,
@@ -668,7 +669,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold,
             )
-
+            time.sleep(0.2)
             # 6) Verify arrival
             if not self._wait_for_motion_completion():
                 return False
@@ -735,6 +736,7 @@ class DirectTfMotionNode(Node):
             True if motion completed successfully, False otherwise
         """
         try:
+            time.sleep(0.2)
             self.moveit2.wait_until_executed()
             
             start_time = time.monotonic()
@@ -861,6 +863,7 @@ class DirectTfMotionNode(Node):
             position, quaternion = approach_pose
             
             # Execute Cartesian move
+            time.sleep(0.2)
             self.moveit2.move_to_pose(
                 position=position,
                 quat_xyzw=quaternion,
@@ -868,7 +871,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold,
             )
-            
+            time.sleep(0.2)
             # Wait for execution
             self.moveit2.wait_until_executed()
             state = self.moveit2.query_state()
@@ -1117,6 +1120,7 @@ class DirectTfMotionNode(Node):
             goal_pos, goal_quat = goal_pose
             
             # Execute motion
+            time.sleep(0.2)
             self.moveit2.move_to_pose(
                 position=goal_pos,
                 quat_xyzw=goal_quat,
@@ -1124,6 +1128,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold,
             )
+            time.sleep(0.2)
             self.moveit2.wait_until_executed()
             
             state = self.moveit2.query_state()
@@ -1210,7 +1215,7 @@ class DirectTfMotionNode(Node):
             ee6.max_acceleration = self.acceleration_scaling
             ee6.cartesian_jump_threshold = self.cartesian_jump_threshold
             ee6.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-
+            time.sleep(0.2)
             ee6.move_to_pose(
                 position=fallback_pose[:3],
                 quat_xyzw=fallback_pose[3:],
@@ -1218,6 +1223,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold
             )
+            time.sleep(0.2)
             ee6.wait_until_executed()
             return True
 
@@ -1462,6 +1468,7 @@ class DirectTfMotionNode(Node):
             temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
             self.get_logger().info("_execute_enforce_motion(): Calling MoveIt2.move_to_pose()...")
+            time.sleep(0.2)
             temp_moveit2.move_to_pose(
                 position=position,
                 quat_xyzw=quaternion,
@@ -1469,6 +1476,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold,
             )
+            time.sleep(0.2)
             temp_moveit2.wait_until_executed()
             
             state = temp_moveit2.query_state()
@@ -1624,6 +1632,7 @@ class DirectTfMotionNode(Node):
             pf_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
             # Execute the arc motion
+            time.sleep(0.2)
             pf_moveit2.move_to_pose(
                 position=new_pos,
                 quat_xyzw=new_quat,
@@ -1631,6 +1640,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold,
             )
+            time.sleep(0.2)
             pf_moveit2.wait_until_executed()
             
             state = pf_moveit2.query_state()
@@ -1840,6 +1850,7 @@ class DirectTfMotionNode(Node):
             temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
             # Execute motion
+            time.sleep(0.1)
             temp_moveit2.move_to_pose(
                 position=goal_translation,
                 quat_xyzw=goal_quat,
@@ -1847,9 +1858,10 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold
             )
-
+            time.sleep(0.2)
             # Verify arrival using wait_for_servo_ready()
             temp_moveit2.wait_until_executed()
+            time.sleep(0.1)
             timeout = 15.0
             start_time = time.monotonic()
             while not self.wait_for_servo_ready(timeout=timeout):
@@ -2049,10 +2061,13 @@ class DirectTfMotionNode(Node):
         """Execute joint motion and verify completion."""
         try:
             # Execute the motion
+            time.sleep(0.2)
             self.moveit2.move_to_configuration(joints_rad)
+            time.sleep(0.2)
 
             # Verify arrival via servo‐ready polling
             self.moveit2.wait_until_executed()
+            
             timeout = 15.0
             start_time = time.monotonic()
             while not self.wait_for_servo_ready(timeout=timeout):
@@ -2127,7 +2142,7 @@ class DirectTfMotionNode(Node):
                 self.get_logger().error("_wait_for_servo_ready_with_timeout(): Timeout waiting for servo ready")
                 return False
             self.get_logger().warn("_wait_for_servo_ready_with_timeout(): Waiting for servo to be ready...")
-            time.sleep(0.1)
+            time.sleep(0.2)
         return True
 
     def gotoEE(self, abs_x_mm: float, abs_y_mm: float, abs_z_mm: float,
@@ -2214,7 +2229,7 @@ class DirectTfMotionNode(Node):
             temp_moveit2.max_acceleration = self.acceleration_scaling
             temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
             temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-
+            time.sleep(0.2)
             temp_moveit2.move_to_pose(
                 position=goal_translation,
                 quat_xyzw=goal_quat,
@@ -2222,7 +2237,7 @@ class DirectTfMotionNode(Node):
                 cartesian_max_step=self.cartesian_max_step,
                 cartesian_fraction_threshold=self.cartesian_fraction_threshold
             )
-
+            time.sleep(0.2)
             # Verify arrival via servo‐ready polling
             temp_moveit2.wait_until_executed()
             timeout = 15.0
@@ -2537,22 +2552,24 @@ class DirectTfMotionNode(Node):
             if motion_type.lower() == "joint":
                 self.get_logger().info("approach_machine: Using JOINT motion planning")
                 # Use joint motion - MoveIt2 will use inverse kinematics
+                time.sleep(0.2)
                 pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
             else:
                 self.get_logger().info("approach_machine: Using CARTESIAN motion planning")
                 # Use Cartesian motion (original behavior)
+                time.sleep(0.2)
                 pf.move_to_pose(position=goal_pos,
                                 quat_xyzw=goal_quat,
                                 cartesian=cartesian_override,
                                 cartesian_max_step=self.cartesian_max_step,
                                 cartesian_fraction_threshold=self.cartesian_fraction_threshold)
-            
+            time.sleep(0.2)
             pf.wait_until_executed()
 
             # Verify execution via servo readiness
             while not self.wait_for_servo_ready(timeout=15.0):
                 self.get_logger().warn("approach_machine: Motion not complete, rechecking servo readiness...")
-                time.sleep(0.1)
+                time.sleep(0.2)
 
             self.get_logger().info("approach_machine: Approach pose reached successfully.")
             return True
@@ -2643,22 +2660,25 @@ class DirectTfMotionNode(Node):
             if motion_type.lower() == "joint":
                 self.get_logger().info("mount_machine: Using JOINT motion planning")
                 # Use joint motion - MoveIt2 will use inverse kinematics
+                time.sleep(0.2)
                 pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
+                
             else:
                 self.get_logger().info("mount_machine: Using CARTESIAN motion planning")
                 # Use Cartesian motion (original behavior)
+                time.sleep(0.2)
                 pf.move_to_pose(position=goal_pos,
                                 quat_xyzw=goal_quat,
                                 cartesian=cartesian_override,
                                 cartesian_max_step=self.cartesian_max_step,
                                 cartesian_fraction_threshold=self.cartesian_fraction_threshold)
-            
+            time.sleep(0.2)
             pf.wait_until_executed()
 
             # Verify execution via servo readiness
             while not self.wait_for_servo_ready(timeout=15.0):
                 self.get_logger().warn("mount_machine: Motion not complete, rechecking servo readiness...")
-                time.sleep(0.1)
+                time.sleep(0.2)
 
             self.get_logger().info("mount_machine: Mount pose reached successfully.")
             return True
@@ -2666,6 +2686,47 @@ class DirectTfMotionNode(Node):
         except Exception as e:
             self.get_logger().error(f"mount_machine: Exception: {e}")
             return False
+                    
+    def sync(self) -> bool:
+        """
+        Wait for the Dobot motion to complete by calling the /dobot_bringup_v3/srv/Sync service.
+
+        Returns
+        -------
+        True if the service returns res == 0 (motion done), False otherwise.
+        """
+        from dobot_msgs_v3.srv import Sync
+        import rclpy
+
+        # Lazy‐create Sync client
+        self.sync_cli = getattr(
+            self,
+            'sync_cli',
+            self.create_client(Sync, '/dobot_bringup_v3/srv/Sync')
+        )
+
+        # Ensure service is available
+        if not self.sync_cli.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error('sync: Sync service unavailable')
+            return False
+
+        # Call service and wait for completion
+        fut = self.sync_cli.call_async(Sync.Request())
+        rclpy.spin_until_future_complete(self, fut)
+
+        # Check result
+        if not fut.done() or fut.result() is None:
+            self.get_logger().error('sync: No response from Sync service')
+            return False
+
+        res_code = getattr(fut.result(), 'res', None)
+        if res_code == 0:
+            self.get_logger().info('sync: Motion complete')
+            return True
+        else:
+            self.get_logger().warn(f'sync: Sync returned error code {res_code}')
+            return False
+
 
 import threading
 import rclpy

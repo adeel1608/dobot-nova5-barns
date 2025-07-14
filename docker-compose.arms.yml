@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # RabbitMQ Message Broker
   rabbitmq:
@@ -173,7 +171,7 @@ services:
       routine-service:
         condition: service_healthy
     volumes:
-      - ./services/scheduler/data:/app/services/scheduler/data
+      - ./data:/app/data
     networks:
       - barns-network
     restart: unless-stopped
@@ -301,7 +299,9 @@ services:
     build:
       context: services/robot_container
       dockerfile: docker/dev.Dockerfile
-    image: oms_robot_1:dev
+      cache_from:
+        - barns-robot-base:latest
+    image: barns-robot-base:latest  # Use shared image name
     container_name: oms_robot_1
     
     # Robot arms use both host and bridge networking 
@@ -365,10 +365,7 @@ services:
 
   # Robot Arm 2 (Dobot Nova5) - Launches 15 seconds after Robot 1
   # robot2:
-  #   build:
-  #     context: services/robot_container
-  #     dockerfile: docker/dev.Dockerfile
-  #   image: oms_robot_2:dev
+  #   image: barns-robot-base:latest  # Use same shared image
   #   container_name: oms_robot_2
     
   #   # Robot arms use host networking for Fast-DDS multicast communication
@@ -393,7 +390,7 @@ services:
   #     - DISPLAY=${DISPLAY}
   #     - QT_X11_NO_MITSHM=1
   #     - DOBOT_TYPE=nova5
-  #     - IP_address=192.168.200.247  # Robot 2 IP address
+  #     - IP_address=192.168.200.248  # Robot 2 IP address
   #     - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
   #     - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
   #     - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/  # Use localhost via port forwarding
@@ -403,7 +400,7 @@ services:
   #     - CAMERA_SERIAL_NUMBER=CP1Z842000F6
   #     - CAM_NAME=cam1
   #     - DEVICE_ID=2
-  #     - USB_PORT=1-9              # USB port for robot 2 camera
+  #     - USB_PORT=2-7-6              # USB port for robot 2 camera (CP1Z842000F6)
   #     - DEVICE_NUM=2              # Device index for robot 2 camera
   #     - ROBOT_STARTUP_DELAY=15    # Delay before starting full stack
 
