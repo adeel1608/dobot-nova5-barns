@@ -1,5 +1,8 @@
 -- Initialize database schema for BARNS OMS
 
+-- Connect to OMS database and set user context
+\c barns_oms barns_user;
+
 -- 1. ORDERS TABLE
 CREATE TABLE IF NOT EXISTS orders (
   id              BIGSERIAL PRIMARY KEY,

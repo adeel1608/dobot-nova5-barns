@@ -11,18 +11,20 @@ import logging
 from pathlib import Path
 from typing import Dict
 
-# Add shared directory to path for RabbitMQ client
-sys.path.append('/app/shared')
-# Also add the current directory structure for local imports
-sys.path.append('/root/ros_ws/src')
+# PYTHONPATH is set via environment variables in docker-compose
 
 # Import sequence functions
 try:
     from oms_v1.sequences.home      import SEQUENCES as HOME_SEQ
-    from oms_v1.sequences.cups      import SEQUENCES as CUPS_SEQ
     from oms_v1.sequences.espresso import SEQUENCES as ESPR_SEQ
     from oms_v1.sequences.cleaning  import SEQUENCES as CLEAN_SEQ
     from oms_v1.sequences.test      import SEQUENCES as TEST_SEQ
+    from oms_v1.sequences.paper_cups import SEQUENCES as PAPER_SEQ
+    from oms_v1.sequences.plastic_cups import SEQUENCES as PLASTIC_SEQ
+    from oms_v1.sequences.slush import SEQUENCES as SLUSH_SEQ
+    from oms_v1.sequences.milk_frothing import SEQUENCES as MILK_SEQ
+
+
 except ImportError as e:
     print(f"[ERROR] Could not import sequences: {e}")
     sys.exit(1)
@@ -30,11 +32,13 @@ except ImportError as e:
 # Merge all sequence mappings
 SEQUENCES = {}
 SEQUENCES.update(HOME_SEQ)
-SEQUENCES.update(CUPS_SEQ)
 SEQUENCES.update(ESPR_SEQ)
 SEQUENCES.update(CLEAN_SEQ)
 SEQUENCES.update(TEST_SEQ)
-
+SEQUENCES.update(PAPER_SEQ)
+SEQUENCES.update(PLASTIC_SEQ)
+SEQUENCES.update(SLUSH_SEQ)
+SEQUENCES.update(MILK_SEQ)
 # Map action names to actual callables
 ACTION_MAP = {}
 for name, fn in SEQUENCES.items():
@@ -75,7 +79,7 @@ class RobotContainerService:
         """Start the robot container service."""
         try:
             # Import RabbitMQ client
-            from rabbitmq_client import RabbitMQClient
+            from shared.rabbitmq_client import RabbitMQClient
             
             self.rabbitmq_client = RabbitMQClient(self.service_name)
             await self.rabbitmq_client.connect()
@@ -134,15 +138,26 @@ class RobotContainerService:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, lambda: fn(**params))
             
-            response = {
-                "success": True,
-                "result": result,
-                "message": f"Action {action_name} completed successfully",
-                "robot_id": self.robot_id,
-                "action_name": action_name
-            }
+            if result== True:
+                response = {
+                    "success": result,
+                    "message": f"Action {action_name} completed successfully",
+                    "robot_id": self.robot_id,
+                    "action_name": action_name
+                }
+                
+                logger.info(f"Action {action_name} completed successfully")
+            else:
+                response = {
+                    "success": result,
+                    "error": result,
+                    "message": f"Action {action_name} completed with error",
+                    "robot_id": self.robot_id,
+                    "action_name": action_name
+                }
+                
+                logger.error(f"Action {action_name} completed with error: {result}")
             
-            logger.info(f"Action {action_name} completed successfully")
             return response
             
         except Exception as e:
@@ -211,4 +226,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

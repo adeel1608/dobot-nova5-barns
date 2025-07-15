@@ -3,10 +3,14 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 import httpx
+import sys
+import os
 
-from .data import logger
+# Import logger from the volume-mounted data directory
+sys.path.insert(0, '/app/data')
+import logger
 
 # Shared data structures for scheduling
 tasks = []           # All pending tasks across orders
@@ -92,7 +96,7 @@ def setup_tasks(orders, recipes):
             tasks_by_cup[cup_id].append(task)
             tasks_total += 1
 
-async def submit_task_to_routine(arm_id: int, function: str, cup_id: str, drink_type: str):
+async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_type: str):
     """Submit a task to the routine service via RabbitMQ."""
     client = None
     try:
@@ -113,8 +117,6 @@ async def submit_task_to_routine(arm_id: int, function: str, cup_id: str, drink_
             "function": function,
             "item": {
                 "cup_id": cup_id,
-                "cup_size": "regular",  # Default size, could be made configurable
-                "drink": drink_type,
                 "addons": []  # No addons for now, could be made configurable
             }
         }
@@ -151,7 +153,7 @@ async def arm_worker(arm_name: str):
     logger.log(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
     
     consecutive_no_work_count = 0
-    max_consecutive_no_work = 100  # Increased timeout for better reliability
+    max_consecutive_no_work = 300  # Increased timeout for better reliability
     
     while True:
         task = None
@@ -390,19 +392,28 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         arm1 = asyncio.create_task(arm_worker("Arm1"))
         arm2 = asyncio.create_task(arm_worker("Arm2"))
         
-        # Wait for both arms to finish all tasks with timeout to prevent hanging
+        # Calculate dynamic timeout based on number of cups
+        # Base timeout (2 minutes) + per-cup timeout (1 minute per cup)
+        base_timeout = 120.0  # 2 minutes base
+        per_cup_timeout = 400.0  # 1 minute per cup
+        num_cups = len(drinks)
+        dynamic_timeout = base_timeout + (per_cup_timeout * num_cups)
+        
+        logger.log(f"🕐 Order {order_id} timeout set to {dynamic_timeout:.0f} seconds ({dynamic_timeout/60:.1f} minutes) for {num_cups} cups")
+        
+        # Wait for both arms to finish all tasks with dynamic timeout
         try:
             await asyncio.wait_for(
                 asyncio.gather(arm1, arm2, return_exceptions=True),
-                timeout=300.0  # 5 minute timeout for order processing
+                timeout=dynamic_timeout
             )
             logger.log(f"✅ Both arm workers completed for order {order_id}")
         except asyncio.TimeoutError:
-            logger.log(f"❌ Order {order_id} timed out after 5 minutes")
+            logger.log(f"❌ Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes")
             # Cancel both arms
             arm1.cancel()
             arm2.cancel()
-            await notify_oms_completion(order_id, False, "Order processing timed out after 5 minutes")
+            await notify_oms_completion(order_id, False, f"Order processing timed out after {dynamic_timeout/60:.1f} minutes")
             return False
         
         # Check if order was successful or failed
@@ -455,6 +466,9 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     logger.log(f"🔄 [SCHEDULER] Processing feedback: cup_id={cup_id}, action={action}, success={success}")
     logger.log(f"🔍 [SCHEDULER] Current counts - completed: {completed_count}, failed: {failed_count}, total: {tasks_total}")
     
+    # Variables to track what needs to be done outside the lock
+    update_message = None
+    
     with lock:
         # Find the first matching task that is not yet completed/failed
         task_found = False
@@ -474,9 +488,8 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                     
                     # Check if this was the final task for this cup
                     if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
-                        message = f"Order complete: {task['drink']} for {cup_id}"
-                        logger.log(f" --- {message} ---")
-                        await update_status(message)
+                        update_message = f"Order complete: {task['drink']} for {cup_id}"
+                        logger.log(f" --- {update_message} ---")
                 else:
                     # Mark task as failed and count in failed_count
                     task["status"] = "failed"
@@ -488,9 +501,13 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
         if not task_found:
             logger.log(f"⚠️ [SCHEDULER] No matching task found for cup_id={cup_id}, action={action}")
             logger.log(f"🔍 [SCHEDULER] Available tasks: {[(t['cup'], t['action']) for t in tasks]}")
+    
+    # Call async operations outside the lock to prevent blocking
+    if update_message:
+        await update_status(update_message)
 
 # Helper function to notify OMS of order completion
-async def notify_oms_completion(order_id: int, success: bool, reason: str = None):
+async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None):
     """Notify the OMS service that an order has completed or failed via RabbitMQ events."""
     client = None
     try:

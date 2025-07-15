@@ -12,3 +12,4 @@ numpy==1.24.3
 python-multipart==0.0.6
 websockets==12.0
 python-json-logger==2.0.7
+python-socketio==5.13.0

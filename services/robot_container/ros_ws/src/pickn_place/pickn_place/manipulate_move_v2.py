@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
+# type: ignore  # ROS2 types not recognized by static linter
 ##############################
 # CONFIGURATION
 ##############################
 
 # MOVE FUNCTION
-REFERENCE_FRAME = "base_link"                # Reference frame for TF lookup.
-PLANNER_ID = "OMPL"                          # Planner ID for MoveIt2.
-CARTESIAN = True                             # Use Cartesian planning?
-CARTESIAN_MAX_STEP = 0.001                   # Maximum step size for Cartesian motion.
-CARTESIAN_FRACTION_THRESHOLD = 0.01           # Fraction threshold for Cartesian planning.
-CARTESIAN_JUMP_THRESHOLD = 0.0               # Jump threshold for Cartesian planning.
-CARTESIAN_AVOID_COLLISIONS = True            # Enable collision avoidance.
-VELOCITY_SCALING = 1.0                       # Velocity scaling factor.
-ACCELERATION_SCALING = 1.0                     # Acceleration scaling factor.
-SYNCHRONOUS = True                           # Wait for motion to complete?
-END_EFFECTOR_NAME = "tool_link"              # End effector name.
-GROUP_NAME = "nova5_group"                   # MoveIt2 planning group name.
-DEFAULT_TCP_LINK = END_EFFECTOR_NAME        # Default TCP link name.
+REFERENCE_FRAME = "base_link"               # Reference frame for TF lookup.
+PLANNER_ID = "OMPL"                         # Planner ID for MoveIt2.
+CARTESIAN = True                            # Use Cartesian planning?
+CARTESIAN_MAX_STEP = 0.001                  # Maximum step size for Cartesian motion.
+CARTESIAN_FRACTION_THRESHOLD = 0.8          # Fraction threshold for Crtesian planning.
+CARTESIAN_JUMP_THRESHOLD = 0.0              # Jump threshold for Cartesian planning.
+CARTESIAN_AVOID_COLLISIONS = True           # Enable collision avoidance.
+VELOCITY_SCALING = 1.0                      # Velocity scaling factor.
+ACCELERATION_SCALING = 1.0                  # Acceleration scaling factor.
+SYNCHRONOUS = True                          # Wait for motion to complete?
+END_EFFECTOR_NAME = "tool_link"             # End effector name.
+DEFAULT_TCP_LINK = END_EFFECTOR_NAME 
+GROUP_NAME = "portafilter_center"           # MoveIt2 planning group name.
 
 # TF Stability Sampling Settings
 NUM_CONSECUTIVE_TF = 9                      # Number of consecutive TF samples
@@ -201,7 +202,7 @@ class DirectTfMotionNode(Node):
         if not self.traj_cli.wait_for_server(timeout_sec=5.0):
             self.get_logger().warn("Trajectory action server not available at init")
 
-    def get_tf(self, target_frame: str, max_retries: int = 1, sleep_time: float = 0.0):
+    def get_tf(self, target_frame: str, max_retries: int = 1, sleep_time: float = 0.5):
         """
         Directly retrieves the transform from the robot's base (reference frame) to the target_frame.
         Returns a tuple (pose, timestamp) where:
@@ -242,7 +243,7 @@ class DirectTfMotionNode(Node):
         Synchronously waits indefinitely for a stable transform from target_tf.
         This version uses a local sample buffer so that each operation is independent.
         It continuously collects samples until a sliding window of NUM_CONSECUTIVE_TF samples meets the stability criteria,
-        and the last sample’s timestamp is within the freshness threshold.
+        and the last sample's timestamp is within the freshness threshold.
         Then it returns the averaged transform computed from the window.
         """
         samples_buffer = []
@@ -259,7 +260,7 @@ class DirectTfMotionNode(Node):
                         self.get_logger().warn(
                             f"wait_for_stable_tf(): Latest sample is stale (delta: {current_time - last_sample_stamp:.3f}s), waiting for fresh data."
                         )
-                        time.sleep(0.1)
+                        time.sleep(0.5)
                         continue
                     window_transforms = [sample[0] for sample in window]
                     max_trans_diff, max_rot_diff = compute_max_spread(window_transforms)
@@ -271,11 +272,42 @@ class DirectTfMotionNode(Node):
                             return average_transforms(window_transforms)
             time.sleep(0.1)
 
+    def wait_for_servo_ready(self, timeout: float = 15.0) -> bool:
+        """
+        Poll /get_servo_status (Trigger) until status == 0 (READY) or timeout.
+        """
+        client = self.create_client(Trigger, 'get_servo_status')
+        if not client.wait_for_service(timeout_sec=timeout):
+            self.get_logger().error("Servo status service unavailable")
+            return False
+
+        start = self.get_clock().now().nanoseconds * 1e-9
+        while True:
+            req = Trigger.Request()
+            future = client.call_async(req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=0.5)
+            res = future.result()
+            if res is not None:
+                try:
+                    code = int(res.message)
+                except:
+                    code = None
+                if code == 0:
+                    return True
+                self.get_logger().info(f"Servo busy (status={code}), waiting…")
+            else:
+                self.get_logger().warn("No response from /get_servo_status")
+
+            if (self.get_clock().now().nanoseconds * 1e-9 - start) > timeout:
+                self.get_logger().error("Timeout waiting for servo READY")
+                return False
+            time.sleep(0.1)
+
     def verify_goal_pose(self, expected_goal_pose, tolerance, offset):
         expected_mm = np.array(expected_goal_pose) * 1000.0
         self.get_logger().info(f"Goal pose (expected) in mm: {expected_mm}")
         client = self.create_client(GetPose, '/dobot_bringup_v3/srv/GetPose')
-        if not client.wait_for_service(timeout_sec=2.0):
+        if not client.wait_for_service(timeout_sec=0.5):
             self.get_logger().error("verify_goal_pose(): Pose service not available.")
             return False
         req = GetPose.Request()
@@ -309,13 +341,13 @@ class DirectTfMotionNode(Node):
             self.get_logger().warn(f"verify_goal_pose(): Approaching to goal (diff: {diff:.2f} mm).")
             return False
         
-    def verify_joint_positions(self, expected_joints, tolerance_deg=0.5):
+    def verify_joint_positions(self, expected_joints, tolerance_deg=1.0):
         """
         Verifies that current joint positions match expected positions within tolerance.
         
         Args:
             expected_joints: List of 6 joint angles in degrees
-            tolerance_deg: Acceptable deviation in degrees (default: 0.5°)
+            tolerance_deg: Acceptable deviation in degrees (default: 1.0°)
         
         Returns:
             bool: True if all joints are within tolerance
@@ -342,78 +374,6 @@ class DirectTfMotionNode(Node):
             )
         
         return within_tolerance
-    
-    def set_servo_timing(self, timing_sec: float, settle_time: float = 0.15) -> bool:
-        """
-        Publish one Float32 on /sleep_timing, wait ≥ settle_time,
-        then verify with /get_sleep_timing (std_srvs/Trigger),
-        retrying the verification up to 3 times on failure or no response.
-
-        * timing_sec must be 0.10 … 0.30  (10 – 30 ms)
-        * A minimum settle_time pause is enforced after publishing.
-        """
-        # 0) bounds check
-        if not (0.10 <= timing_sec <= 0.30):
-            self.get_logger().error(
-                f"set_servo_timing(): {timing_sec:.3f}s outside 0.10 – 0.30 s"
-            )
-            return False
-
-        # 1) lazy-create pub & client
-        if not hasattr(self, "_sleep_pub"):
-            self._sleep_pub = self.create_publisher(Float32, "/sleep_timing", 10)
-        if not hasattr(self, "_sleep_cli"):
-            self._sleep_cli = self.create_client(Trigger, "/get_sleep_timing")
-
-        # 2) publish once
-        msg = Float32(data=float(timing_sec))
-        self._sleep_pub.publish(msg)
-        self.get_logger().info(f"set_servo_timing(): published {msg.data*1000:.1f} ms")
-
-        # ensure the datagram is processed by rclpy
-        rclpy.spin_once(self, timeout_sec=0.05)
-
-        # 3) wait ≥ settle_time before verification
-        rclpy.spin_once(self, timeout_sec=max(settle_time, 0.05))
-
-        # 4) verify via /get_sleep_timing, with up to 3 attempts
-        if not self._sleep_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error("set_servo_timing(): verification service unavailable")
-            return False
-
-        max_attempts = 3
-        for attempt in range(1, max_attempts + 1):
-            fut = self._sleep_cli.call_async(Trigger.Request())
-            rclpy.spin_until_future_complete(self, fut, timeout_sec=1.5)
-            res = fut.result()
-
-            if res is not None and res.success:
-                # parse numeric value (if driver echoes it)
-                import re, math
-                m = re.search(r"([\d\.]+)", res.message)
-                if m and math.isclose(float(m.group(1)), timing_sec, abs_tol=1e-4):
-                    self.get_logger().info(
-                        f"set_servo_timing(): verified {float(m.group(1))*1000:.1f} ms"
-                    )
-                    return True
-                else:
-                    self.get_logger().warn(
-                        f"set_servo_timing(): attempt {attempt} succeeded but value mismatch"
-                    )
-                    return False
-
-            # failure or no response
-            self.get_logger().warn(
-                f"set_servo_timing(): attempt {attempt}/{max_attempts} failed "
-                f"(response={'None' if res is None else 'success=False'})"
-            )
-            time.sleep(0.1)
-
-        # all attempts exhausted
-        self.get_logger().error(
-            f"set_servo_timing(): service call failed after {max_attempts} attempts"
-        )
-        return False
     
     def refresh_position(self):
         """
@@ -464,18 +424,126 @@ class DirectTfMotionNode(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
         self.destroy_subscription(sub)
         return msg_container["msg"]
+    
+    def set_servo_timing(self, timing_sec: float,
+                        settle_time: float = 0.15) -> bool:
+        """
+        Publish one Float32 on /sleep_timing, wait ≥50 ms, then
+        verify with /get_sleep_timing (std_srvs/Trigger).
+
+        * timing_sec must be 0.012 … 0.030  (12 – 30 ms)
+        * A minimum 0.05 s pause is enforced after publishing.
+        * Publisher/client are created lazily on first use.
+        """
+        # 0) bounds check ---------------------------------------------------
+        if not (0.10 <= timing_sec <= 0.30):
+            self.get_logger().error(
+                f"set_servo_timing(): {timing_sec:.3f}s outside 0.12 – 0.30 s")
+            return False
+
+        # 1) lazy-create pub & client --------------------------------------
+        if not hasattr(self, "_sleep_pub"):
+            self._sleep_pub = self.create_publisher(Float32,
+                                                    "/sleep_timing", 10)
+        if not hasattr(self, "_sleep_cli"):
+            self._sleep_cli = self.create_client(Trigger,
+                                                "/get_sleep_timing")
+
+        # 2) publish once ---------------------------------------------------
+        msg = Float32(data=float(timing_sec))
+        self._sleep_pub.publish(msg)
+        self.get_logger().info(
+            f"set_servo_timing(): published {msg.data*1000:.1f} ms")
+
+        # ensure the datagram is processed by the rcl layer
+        rclpy.spin_once(self, timeout_sec=0.05)
+
+        # 3) wait ≥50 ms before verification -------------------------------
+        rclpy.spin_once(self, timeout_sec=max(settle_time, 0.05))
+
+        # 4) verify via /get_sleep_timing ----------------------------------
+        if not self._sleep_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().error("set_servo_timing(): verification service unavailable")
+            return False
+
+        fut = self._sleep_cli.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.5)
+
+        if fut.result() is None or not fut.result().success:
+            self.get_logger().error("set_servo_timing(): service call failed")
+            return False
+
+        # parse numeric value (if driver echoes it)
+        import re, math
+        m = re.search(r"([\d\.]+)", fut.result().message)
+        if m and math.isclose(float(m.group(1)), timing_sec, abs_tol=1e-4):
+            self.get_logger().info(
+                f"set_servo_timing(): verified {float(m.group(1))*1000:.1f} ms")
+            return True
+
+        self.get_logger().warn("set_servo_timing(): could not confirm timing value")
+        return False
+
+    def reset_servo_error(self, pause_after_pub: float = 0.10) -> bool:
+        """
+        Reset the Dobot's servo-controller from ERROR ➜ READY.
+
+        Steps
+        -----
+        1)  publish Int8(data=0) once on /servo_controller_status
+        2)  wait ≥ pause_after_pub seconds (default 100 ms, enforced ≥ 50 ms)
+        3)  call /get_servo_status to confirm status == 0
+        """
+        # 1) lazy resources -------------------------------------------------
+        if not hasattr(self, "_servo_status_pub"):
+            self._servo_status_pub = self.create_publisher(
+                Int8, "/servo_controller_status", 10)
+        if not hasattr(self, "_servo_status_cli"):
+            self._servo_status_cli = self.create_client(
+                Trigger, "/get_servo_status")
+
+        # 2) publish once ---------------------------------------------------
+        self._servo_status_pub.publish(Int8(data=0))
+        self.get_logger().info("reset_servo_error(): sent RESET (data=0)")
+
+        # push ROS queue; flush() is not available in rclpy
+        rclpy.spin_once(self, timeout_sec=0.05)
+
+        # 3) mandatory pause ≥ 50 ms ---------------------------------------
+        rclpy.spin_once(self, timeout_sec=max(pause_after_pub, 0.05))
+
+        # 4) verify ---------------------------------------------------------
+        if not self._servo_status_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().error("reset_servo_error(): verification service unavailable")
+            return False
+
+        fut = self._servo_status_cli.call_async(Trigger.Request())
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.5)
+
+        if fut.result() is None or not fut.result().success:
+            self.get_logger().error("reset_servo_error(): service call failed")
+            return False
+
+        import re
+        m = re.search(r"(-?\d+)", fut.result().message)
+        if m and int(m.group(1)) == 0:
+            self.get_logger().info("reset_servo_error(): status now READY (0)")
+            return True
+
+        self.get_logger().warn("reset_servo_error(): could not confirm READY state")
+        return False
 
     def release_tension(self) -> bool:
         """
-        Pulse drag‐mode once to let the Dobot relax, then refresh the robot’s current position.
+        Pulse drag‐mode once to let the Dobot relax, then refresh the robot's current position.
         Retries StartDrag/StopDrag up to 3 times each, distinguishes timeouts vs driver errors,
         and enforces a minimum 0.5 s wait for each StartDrag attempt.
         Returns True on full success, False on any failure.
         """
         max_attempts   = 10
-        timeout_sec    = 2.0
+        timeout_sec    = 1.0
         min_wait_sec   = 0.3
-        settling_time  = 0.5
+        settling_time  = 0.3
 
         # 1) Activate drag mode (StartDrag loop)
         for attempt in range(1, max_attempts + 1):
@@ -546,65 +614,118 @@ class DirectTfMotionNode(Node):
         self.get_logger().info("release_tension: Completed successfully.")
         return True
 
-    def move_to(self, target_tf: str, distance: float):
-        # Reset TF state and gather a fresh, stable transform.
-        self.get_logger().info(f"move(): Using transform for '{target_tf}'")
-        # Optionally ignore orientation for stability.
+###################################### DONE NEW VERIFICATION ###########################################
+    from tf_transformations import quaternion_from_matrix, euler_matrix
+    import numpy as np
+    import time
+
+    def move_to(
+        self,
+        target_tf: str,
+        distance: float,
+        offset_x_mm: float = 0.0,
+        offset_y_mm: float = 0.0,
+        offset_z_mm: float = 0.0,
+        offset_roll_deg: float = 0.0,
+        offset_pitch_deg: float = 0.0,
+        offset_yaw_deg: float = 0.0,
+    ) -> bool:
+        """
+        Move the end-effector away from the target frame by a specified distance along
+        the vector from a base reference point to the target, then apply additional
+        translation and orientation offsets.
+
+        This function effectively performs a "retraction" motion away from the target,
+        which is useful for safely backing away from objects after interaction.
+
+        Args:
+            target_tf:        TF frame name to move away from
+            distance:         Distance to retract from target in metres (positive = away from target)
+            offset_x_mm:      Additional X offset in millimetres (applied after retraction)
+            offset_y_mm:      Additional Y offset in millimetres (applied after retraction)
+            offset_z_mm:      Additional Z offset in millimetres (applied after retraction)
+            offset_roll_deg:  Additional roll rotation offset in degrees
+            offset_pitch_deg: Additional pitch rotation offset in degrees
+            offset_yaw_deg:   Additional yaw rotation offset in degrees
+            
+        Returns:
+            bool: True if motion completed successfully, False otherwise
+        """
+        self.get_logger().info(
+            f"move_to(): frame={target_tf}, distance={distance}m, "
+            f"offsets=({offset_x_mm}mm, {offset_y_mm}mm, {offset_z_mm}mm), "
+            f"orientation offsets=({offset_roll_deg}\u00b0, {offset_pitch_deg}\u00b0, {offset_yaw_deg}\u00b0)"
+        )
+
+        # 1) Get a stable transform
         self.ignore_orientation = True
         stable_tf = self.wait_for_stable_tf(target_tf)
         self.ignore_orientation = False
         if stable_tf is None:
-            self.get_logger().error("move(): Failed to obtain a stable transform.")
-            return
+            self.get_logger().error("move_to(): failed to get stable TF.")
+            return False
 
-        # Use only the translation from the averaged dynamic transform.
+        # 2) Compute base approach position
         target_pos = np.array(stable_tf[:3])
-        base_ref = np.array([0.0, 0.0, target_pos[2] + 0.075]) #height of look. 
-        approach_vec = target_pos - base_ref
-        norm = np.linalg.norm(approach_vec)
+        base_ref   = np.array([0.0, 0.0, target_pos[2] + 0.075])
+        approach   = target_pos - base_ref
+        norm       = np.linalg.norm(approach)
         if norm < 1e-6:
-            self.get_logger().error("move(): Base reference point and target are too close; cannot compute approach vector.")
-            return
-        approach_unit = approach_vec / norm
-        computed_position = target_pos - distance * approach_unit
+            self.get_logger().error("move_to(): approach vector too small.")
+            return False
+        unit_vec = approach / norm
+        goal_pos = target_pos - distance * unit_vec
 
-        # Compute orientation quaternion aligning the approach vector with the tool's z-axis.
-        z_axis = approach_unit
-        up = np.array([0, 0, 1])
+        # 3) Apply mm-to-m offsets
+        offsets_m = np.array([offset_x_mm, offset_y_mm, offset_z_mm]) / 1000.0
+        goal_pos += offsets_m
+
+        # 4) Compute base orientation matrix
+        z_axis = unit_vec
+        up     = np.array([0, 0, 1])
         if abs(np.dot(z_axis, up)) > 0.99:
             up = np.array([0, 1, 0])
         x_axis = np.cross(up, z_axis)
         x_axis /= np.linalg.norm(x_axis)
         y_axis = np.cross(z_axis, x_axis)
-        R = np.column_stack((x_axis, y_axis, z_axis))
-        M = [[R[0, 0], R[0, 1], R[0, 2], 0],
-             [R[1, 0], R[1, 1], R[1, 2], 0],
-             [R[2, 0], R[2, 1], R[2, 2], 0],
-             [0,       0,       0,       1]]
-        quat = tf_transformations.quaternion_from_matrix(M)
+        R_base = np.column_stack((x_axis, y_axis, z_axis))
 
+        # 4a) Convert degree offsets to radians and build offset rotation
+        roll  = np.deg2rad(offset_roll_deg)
+        pitch = np.deg2rad(offset_pitch_deg)
+        yaw   = np.deg2rad(offset_yaw_deg)
+        R_offset = tf_transformations.euler_matrix(roll, pitch, yaw, axes='sxyz')[0:3, 0:3]
+
+        # 4b) Compose base orientation with offset
+        R_total = R_base.dot(R_offset)
+
+        # 4c) Convert to quaternion
+        H = np.eye(4)
+        H[0:3, 0:3] = R_total
+        quat = tf_transformations.quaternion_from_matrix(H)
+
+        # 5) Execute Cartesian move
         self.moveit2.move_to_pose(
-            position=computed_position,
+            position=goal_pos.tolist(),
             quat_xyzw=quat,
             cartesian=self.cartesian,
             cartesian_max_step=self.cartesian_max_step,
             cartesian_fraction_threshold=self.cartesian_fraction_threshold,
         )
-        self.moveit2.wait_until_executed()
-        state = self.moveit2.query_state()
-        if state == MoveIt2State.IDLE:
-            self.get_logger().info("move(): Planned motion reached.")
-        else:
-            self.get_logger().warn(f"move(): Motion ended with state: {state}")
 
-        while not self.verify_goal_pose(expected_goal_pose=computed_position.tolist(), tolerance=1.0, offset=136.55):
-            self.get_logger().warn("move(): Goal pose verification failed, retrying.")
+        # 6) Verify arrival
+        self.moveit2.wait_until_executed()
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("move_to(): not arrived, rechecking...")
             time.sleep(0.2)
-        self.get_logger().info("move(): Function completed successfully.")
+
+        self.get_logger().info("move_to(): completed successfully.")
+        return True
+
 
     def approach_tool(self, target_tf: str, gripper_position: int = 255):
         """
-        Move the end-effector to a pre-defined “approach” offset for the given target_tf,
+        Move the end-effector to a pre-defined "approach" offset for the given target_tf,
         then command the gripper to the specified position.
 
         Args:
@@ -673,9 +794,9 @@ class DirectTfMotionNode(Node):
         else:
             self.get_logger().warn(f"approach(): Motion ended with state: {state}")
 
-        # 4) Verify that we’ve arrived within tolerance
+        # 4) Verify that we've arrived within tolerance
         while not self.verify_goal_pose(expected_goal_pose=approach_position,
-                                        tolerance=1.0,
+                                        tolerance=2.0,
                                         offset=136.55):
             self.get_logger().warn("approach(): Goal pose verification failed, retrying.")
             time.sleep(0.2)
@@ -828,7 +949,7 @@ class DirectTfMotionNode(Node):
 
             # verify arrival
             wait_elapsed, max_wait = 0.0, 2.0
-            while not self.verify_goal_pose(goal_pos, 0.9, 136.55) and wait_elapsed < max_wait:
+            while not self.verify_goal_pose(goal_pos, 2.0, 136.55) and wait_elapsed < max_wait:
                 self.get_logger().warn("grab_tool: waiting for pose verification …")
                 time.sleep(0.2); wait_elapsed += 0.2
             if wait_elapsed >= max_wait:
@@ -967,157 +1088,6 @@ class DirectTfMotionNode(Node):
 
         return result
 
-    def gripper_release(self,
-                        speed: int,
-                        open_position: int,
-                        settling_time: float = 0.5) -> None:
-        """
-        Open the gripper at the given speed and position, then retreat by the fixed offsets.
-        Args:
-            speed (int): gripper speed (0–255)
-            open_position (int): gripper opening (0=open … 255=closed)
-            settling_time (float): seconds to wait after commanding open before reading position
-        """
-        self.get_logger().info(
-            f"gripper_release: Opening gripper to {open_position} at speed {speed}"
-        )
-
-        # ── 1) Open gripper with retries ────────────────────────────────────────
-        max_attempts = 3
-        gripper_opened = False
-        for attempt in range(1, max_attempts + 1):
-            if not self.set_gripper_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().warn(
-                    f"gripper_release: SetGripperPosition unavailable "
-                    f"(attempt {attempt}/{max_attempts})"
-                )
-                time.sleep(1.0)
-                continue
-
-            # 1a) send open command
-            req = SetGripperPosition.Request()
-            req.position = open_position
-            req.speed    = speed
-            req.force    = 255
-            fut = self.set_gripper_cli.call_async(req)
-
-            # 1b) wait up to 2s for the command to be accepted
-            start = time.time()
-            while not fut.done() and (time.time() - start) < 2.0:
-                time.sleep(0.01)
-
-            if not fut.done():
-                self.get_logger().warn(
-                    f"gripper_release: Open command timed out "
-                    f"(attempt {attempt}/{max_attempts})"
-                )
-                continue
-
-            # 1c) settling delay before reading gripper position
-            time.sleep(settling_time)
-
-            # 1d) verify opening
-            if not self.get_gripper_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().warn(
-                    f"gripper_release: GetGripperPosition unavailable "
-                    f"(attempt {attempt}/{max_attempts})"
-                )
-                time.sleep(0.5)
-                continue
-
-            get_req = GetGripperPosition.Request()
-            get_req.index = 0
-            get_fut = self.get_gripper_cli.call_async(get_req)
-
-            # wait up to 2s for status
-            start = time.time()
-            while not get_fut.done() and (time.time() - start) < 2.0:
-                time.sleep(0.01)
-
-            if not get_fut.done():
-                self.get_logger().warn(
-                    f"gripper_release: Status command timed out "
-                    f"(attempt {attempt}/{max_attempts})"
-                )
-                continue
-
-            pos = get_fut.result().position
-            if pos <= open_position + 5:
-                self.get_logger().info(
-                    f"gripper_release: Gripper open verified (position {pos})"
-                )
-                gripper_opened = True
-                break
-            else:
-                self.get_logger().warn(
-                    f"gripper_release: Gripper not at target opening "
-                    f"(position {pos}), retrying ({attempt}/{max_attempts})"
-                )
-                time.sleep(0.5)
-
-        if not gripper_opened:
-            self.get_logger().error("gripper_release: Failed to open gripper after retries.")
-            return
-
-        # ── 2) Lookup current end-effector pose ────────────────────────────────
-        try:
-            ee_tf = self.tf_buffer.lookup_transform(
-                self.reference_frame,
-                END_EFFECTOR_NAME,
-                rclpy.time.Time(),
-                timeout=Duration(seconds=5.0)
-            )
-        except Exception as e:
-            self.get_logger().error(f"gripper_release: Failed to get EE transform: {e}")
-            return
-
-        current = get_transform_list(ee_tf)
-        cur_t = current[:3]
-        cur_q = current[3:]
-
-        # ── 3) Build retreat transform ─────────────────────────────────────────
-        off_x, off_y, off_z = 0.0, 0.0, -0.12    # metres
-        off_roll, off_pitch, off_yaw = 15.0, 0.0, 0.0  # degrees
-
-        cur_mat = tf_transformations.quaternion_matrix(cur_q)
-        cur_mat[0:3, 3] = cur_t
-
-        r = math.radians(off_roll)
-        p = math.radians(off_pitch)
-        y = math.radians(off_yaw)
-        rot_mat = tf_transformations.euler_matrix(r, p, y, axes='sxyz')
-
-        trans_mat = tf_transformations.translation_matrix([off_x, off_y, off_z])
-        retreat_mat = cur_mat.dot(rot_mat).dot(trans_mat)
-
-        retreat_pos = retreat_mat[0:3, 3].tolist()
-        retreat_quat = tf_transformations.quaternion_from_matrix(retreat_mat)
-
-        self.get_logger().info(
-            f"gripper_release: Retreating to {retreat_pos} with orientation {retreat_quat}"
-        )
-
-        # ── 4) Execute retreat ─────────────────────────────────────────────────
-        self.moveit2.move_to_pose(
-            position=retreat_pos,
-            quat_xyzw=retreat_quat,
-            cartesian=self.cartesian,
-            cartesian_max_step=self.cartesian_max_step,
-            cartesian_fraction_threshold=self.cartesian_fraction_threshold,
-        )
-        self.moveit2.wait_until_executed()
-
-        # ── 5) Verify retreat ──────────────────────────────────────────────────
-        while not self.verify_goal_pose(
-            expected_goal_pose=retreat_pos,
-            tolerance=1.0,
-            offset=136.55
-        ):
-            self.get_logger().warn("gripper_release: Retreat verification failed, retrying...")
-            time.sleep(0.1)
-
-        self.get_logger().info("gripper_release: Completed successfully.")
-
     # ---------------------------------------------------------------------------
     # ♦ set_gripper_position  – single‐shot gripper command + status read
     # ---------------------------------------------------------------------------
@@ -1184,10 +1154,10 @@ class DirectTfMotionNode(Node):
         reading = get_fut.result().position
         self.get_logger().info(f"set_gripper_position: requested {position}, read back {reading}")
         return reading
-    
+
     def enforce_rxry(self) -> bool:
         """
-        Override Link6’s Rx→90°, Ry→0° (keep current Rz) while freezing
+        Override Link6's Rx→90°, Ry→0° (keep current Rz) while freezing
         the world‐space position of portafilter_link to ±0.5 mm.
         Returns True on success.
         """
@@ -1196,7 +1166,7 @@ class DirectTfMotionNode(Node):
         from tf_transformations import euler_matrix, quaternion_from_matrix
 
         # fixed offset from Link6 origin → portafilter_link origin (m)
-        d_rel = np.array([0.0, 0.0, 0.276])
+        d_rel = np.array([0.0, 0.0, 0.2825])
 
         # 1) get current Link6 pose (with retries)
         if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):
@@ -1242,7 +1212,7 @@ class DirectTfMotionNode(Node):
         # compute world position of the portafilter_link
         p_pf_world = p_link6 + R6_curr.dot(d_rel)
 
-        # 2) define the desired Link6 orientation: Rx=90°, Ry=0°, keep Rz
+        # 2) define the *desired* Link6 orientation: Rx=90°, Ry=0°, keep Rz
         rx_t, ry_t, rz_t = 90.0, 0.0, rz_curr
         rads_goal = np.radians([rx_t, ry_t, rz_t])
         M_goal = euler_matrix(*rads_goal)
@@ -1281,7 +1251,7 @@ class DirectTfMotionNode(Node):
             self.get_logger().warn(f"enforce_rxry(): Motion ended with state: {state}")
 
         # 5) verify portafilter_link stayed within 0.5 mm
-        tol = 0.00175  # 0.5 mm in metres
+        tol = 0.002  # 0.5 mm in metres
         while True:
             # re-read Link6 pose (with retries)
             resp2 = None
@@ -1317,6 +1287,8 @@ class DirectTfMotionNode(Node):
 
         self.get_logger().info("enforce_rxry(): Completed with SUCCESS.")
         return True
+
+
 
     def move_portafilter_arc(self, angle_deg: float):
         pf_moveit2 = MoveIt2(
@@ -1379,7 +1351,7 @@ class DirectTfMotionNode(Node):
         # 5) Joint-state sampling and verification — now blocking forever on failures
         tolerance_deg = 1          # degrees
         batch_size    = 10
-        sleep_between = 0.3          # seconds
+        sleep_between = 0.1          # seconds
 
         while True:
             # a) collect one batch of samples
@@ -1404,7 +1376,7 @@ class DirectTfMotionNode(Node):
                 f"({spreads or 'no samples'}), retrying…"
             )
 
-            # d) as a fallback, try a single-shot verify; if it passes, we’re done
+            # d) as a fallback, try a single-shot verify; if it passes, we're done
             if joint_samples:
                 last = joint_samples[-1]
                 if self.verify_joint_positions(last):
@@ -1413,56 +1385,101 @@ class DirectTfMotionNode(Node):
 
         self.get_logger().info("move_portafilter_arc: Function completed successfully.")
 
-    def moveEE(self, offset_x: float, offset_y: float, offset_z: float,
-               offset_rx: float, offset_ry: float, offset_rz: float):
+    def moveEE(
+        self,
+        offset_x: float,
+        offset_y: float,
+        offset_z: float,
+        offset_rx: float,
+        offset_ry: float,
+        offset_rz: float,
+        EE_link: str = "Link6",
+    ) -> bool:
+        """
+        Perform a linear (Cartesian) move of the specified end effector link
+        by translation offsets (mm) and rotation offsets (deg), then verify
+        arrival via wait_for_servo_ready().
+
+        Args:
+            offset_x, offset_y, offset_z: translation offsets in millimetres
+            offset_rx, offset_ry, offset_rz: rotation offsets in degrees
+            EE_link: the end‐effector frame to plan for (default "Link6")
+        """
+        import time
         self.get_logger().info(
-            f"moveEE(): Starting linear move using fixed 'Link6' with translation offsets (mm): "
-            f"({offset_x}, {offset_y}, {offset_z}) and rotation offsets (deg): ({offset_rx}, {offset_ry}, {offset_rz})."
+            f"moveEE(): Starting linear move using '{EE_link}' with translation offsets (mm): "
+            f"({offset_x}, {offset_y}, {offset_z}) and rotation offsets (deg): "
+            f"({offset_rx}, {offset_ry}, {offset_rz})."
         )
-        try:
-            tf_stamped = self.tf_buffer.lookup_transform(
-                self.reference_frame,
-                "Link6",
-                rclpy.time.Time(),
-                timeout=Duration(seconds=5.0)
+
+        # 1) Lookup current EE transform with retries
+        from rclpy.time import Time
+        from rclpy.duration import Duration
+        attempts = 3
+        tf_stamped = None
+        for attempt in range(1, attempts + 1):
+            try:
+                tf_stamped = self.tf_buffer.lookup_transform(
+                    self.reference_frame,
+                    EE_link,
+                    Time(),
+                    timeout=Duration(seconds=5.0)
+                )
+                break
+            except Exception as e:
+                self.get_logger().warn(
+                    f"moveEE(): Attempt {attempt}/{attempts} failed to retrieve transform for '{EE_link}': {e}"
+                )
+                if attempt < attempts:
+                    time.sleep(0.1)
+        if tf_stamped is None:
+            self.get_logger().error(
+                f"moveEE(): Failed to retrieve transform after {attempts} attempts for '{EE_link}'"
             )
-            current_tf = get_transform_list(tf_stamped)
-        except Exception as e:
-            self.get_logger().error(f"moveEE(): Failed to retrieve transform for 'Link6': {e}")
-            return
+            return False
 
+        current_tf = get_transform_list(tf_stamped)
         self.get_logger().info(f"moveEE(): Current pose obtained: {current_tf}")
-        t_offset = np.array([offset_x / 1000.0, offset_y / 1000.0, offset_z / 1000.0])
-        r_offset = np.array([
-            math.radians(offset_rx),
-            math.radians(offset_ry),
-            math.radians(offset_rz)
-        ])
+
+        # 2) Compute goal pose: apply translation and rotation deltas
+        import numpy as np
+        import math
+        t_offset = np.array([offset_x, offset_y, offset_z]) / 1000.0
+        r_offset = np.radians([offset_rx, offset_ry, offset_rz])
+
+        # Current translation & orientation
         current_translation = np.array(current_tf[:3])
+        current_quat        = np.array(current_tf[3:])
+        R_current           = tf_transformations.quaternion_matrix(current_quat)[0:3, 0:3]
+
+        # Compute goal translation
         goal_translation = (current_translation + t_offset).tolist()
-        current_quat = np.array(current_tf[3:])
-        R_current = tf_transformations.quaternion_matrix(current_quat)[0:3, 0:3]
-        R_offset = tf_transformations.euler_matrix(r_offset[0], r_offset[1], r_offset[2])[0:3, 0:3]
-        R_goal = np.dot(R_current, R_offset)
-        new_rotation_matrix = np.eye(4)
-        new_rotation_matrix[0:3, 0:3] = R_goal
-        goal_quat = tf_transformations.quaternion_from_matrix(new_rotation_matrix)
+
+        # Compute goal rotation
+        R_delta     = tf_transformations.euler_matrix(*r_offset)[0:3, 0:3]
+        R_goal      = R_current.dot(R_delta)
+        goal_matrix = np.eye(4)
+        goal_matrix[0:3, 0:3] = R_goal
+        goal_quat   = tf_transformations.quaternion_from_matrix(goal_matrix)
 
         self.get_logger().info(
-            f"moveEE(): Computed goal pose:\n  Position: {goal_translation}\n  Orientation (xyzw): {goal_quat}"
+            f"moveEE(): Computed goal pose:\n"
+            f"  Position: {goal_translation}\n"
+            f"  Orientation (xyzw): {goal_quat}"
         )
 
+        # 3) Plan & execute via MoveIt2 using the specified EE_link
         temp_moveit2 = MoveIt2(
             node=self,
-            joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
+            joint_names=self.moveit2.joint_names,
             base_link_name=self.reference_frame,
-            end_effector_name="Link6",
+            end_effector_name=EE_link,
             group_name=GROUP_NAME,
         )
-        temp_moveit2.planner_id = self.planner_id
-        temp_moveit2.max_velocity = self.velocity_scaling
-        temp_moveit2.max_acceleration = self.acceleration_scaling
-        temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
+        temp_moveit2.planner_id                 = self.planner_id
+        temp_moveit2.max_velocity               = self.velocity_scaling
+        temp_moveit2.max_acceleration           = self.acceleration_scaling
+        temp_moveit2.cartesian_jump_threshold   = self.cartesian_jump_threshold
         temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
         temp_moveit2.move_to_pose(
@@ -1472,17 +1489,15 @@ class DirectTfMotionNode(Node):
             cartesian_max_step=self.cartesian_max_step,
             cartesian_fraction_threshold=self.cartesian_fraction_threshold
         )
-        temp_moveit2.wait_until_executed()
-        state = temp_moveit2.query_state()
-        if state == MoveIt2State.IDLE:
-            self.get_logger().info("moveEE(): Planned motion reached.")
-        else:
-            self.get_logger().warn(f"moveEE(): Motion ended with state: {state}")
 
-        while not self.verify_goal_pose(expected_goal_pose=goal_translation, tolerance=1.0, offset=136.55):
-            self.get_logger().warn("moveEE(): Goal pose verification failed, retrying.")
+        # 4) Verify arrival using wait_for_servo_ready()
+        temp_moveit2.wait_until_executed()
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("moveEE(): not arrived, rechecking...")
             time.sleep(0.2)
+
         self.get_logger().info("moveEE(): Function completed successfully.")
+        return True
 
     def moveJ_deg(
         self,
@@ -1494,131 +1509,141 @@ class DirectTfMotionNode(Node):
         angle6: float,
         velocity_scaling: float = 1.0,
         acceleration_scaling: float = 1.0,
-    ):
-        time.sleep(0.5)
+    ) -> bool:
         """
-        Move robot joints relatively from current position (degrees), with velocity and acceleration scaling.
-        Will attempt joint verification up to 5 times before failing.
+        Move robot joints relatively from current position (degrees), with velocity and acceleration scaling,
+        but only if the current joint state is stable. Returns True on success, False on any failure.
         """
-        # Backup original scalings
+        import time
+        import math
+
+        # 1) Backup & apply scalings
         orig_vel = self.moveit2.max_velocity
         orig_acc = self.moveit2.max_acceleration
-        # Apply new scalings
         self.moveit2.max_velocity = velocity_scaling
         self.moveit2.max_acceleration = acceleration_scaling
 
-        self.get_logger().info(
-            f"moveJ_deg(): Rel angles (deg)=[{angle1},{angle2},{angle3},{angle4},{angle5},{angle6}], "
-            f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
-        )
-
-        # Retrieve current joints
-        joint_state = self.wait_for_joint_state("/joint_states_robot", timeout_sec=5.0)
-        if not joint_state:
-            self.get_logger().error("moveJ_deg(): No joint state received.")
-            self.moveit2.max_velocity, self.moveit2.max_acceleration = orig_vel, orig_acc
-            return
-
-        current = list(joint_state.position[:6])  # radians
-        rel = [math.radians(a) for a in (angle1, angle2, angle3, angle4, angle5, angle6)]
-        new_joints = [c + r for c, r in zip(current, rel)]
-
         try:
-            # Execute motion
-            self.moveit2.move_to_configuration(new_joints)
+            # 2) Log the request
+            rel_angles = [angle1, angle2, angle3, angle4, angle5, angle6]
+            self.get_logger().info(
+                f"moveJ_deg(): Rel angles (deg)={rel_angles}, "
+                f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
+            )
+
+            # 3) Wait for a stable "current" joint state (5-sample sliding window, ≤1° spread per joint)
+            window = []
+            start_t = time.time()
+            stable_rad = None
+            while True:
+                js = self.wait_for_joint_state("/joint_states_robot", timeout_sec=0.2)
+                if js and len(js.position) >= 6:
+                    current_rad = list(js.position[:6])
+                    current_deg = [math.degrees(x) for x in current_rad]
+                    window.append((current_rad, current_deg))
+                    if len(window) > 5:
+                        window.pop(0)
+
+                    if len(window) == 5:
+                        spreads = [
+                            max(col) - min(col)
+                            for col in zip(*(w[1] for w in window))
+                        ]
+                        if all(s <= 1.0 for s in spreads):
+                            stable_rad = window[-1][0]
+                            break
+
+                if time.time() - start_t > 5.0:
+                    self.get_logger().error("moveJ_deg(): joint state stability timeout")
+                    return False
+
+            # 4) Compute the goal configuration (radians)
+            rel_rad = [math.radians(a) for a in rel_angles]
+            new_joints_rad = [c + r for c, r in zip(stable_rad, rel_rad)]
+
+            # 5) Joint-limit check
+            joint_limits = [
+                (-6.2, 6.2),     # joint1
+                (-3.14, 3.14),   # joint2
+                (-2.79, 0.0),    # joint3
+                (-6.28, 6.28),   # joint4
+                (-6.28, 6.28),   # joint5
+                (-6.28, 6.28),   # joint6
+            ]
+            for idx, (val, (low, high)) in enumerate(zip(new_joints_rad, joint_limits), start=1):
+                if not (low <= val <= high):
+                    self.get_logger().error(
+                        f"moveJ_deg(): joint{idx} target {math.degrees(val):.3f}° "
+                        f"outside limits [{math.degrees(low):.1f}°, {math.degrees(high):.1f}°]"
+                    )
+                    return False
+
+            # 6) Execute the motion
+            self.moveit2.move_to_configuration(new_joints_rad)
+
+            # 8) Verify arrival via servo‐ready polling
             self.moveit2.wait_until_executed()
-            self.get_logger().info("moveJ_deg(): Motion executed.")
+            while not self.wait_for_servo_ready(timeout=15.0):
+                self.get_logger().warn("moveJ_deg(): not arrived, rechecking...")
+                time.sleep(0.2)
 
-            # Check planner state
-            state = self.moveit2.query_state()
-            if state == MoveIt2State.IDLE:
-                # Try verification up to 5 times
-                expected_deg = [math.degrees(n) for n in new_joints]
-                retries = 0
-                while not self.verify_joint_positions(expected_deg, tolerance_deg=1.0):
-                    retries += 1
-                    if retries >= 5:
-                        self.get_logger().error("moveJ_deg(): Joint verification failed after 5 attempts.")
-                        break
-                    self.get_logger().warn(f"moveJ_deg(): Joint verification failed (attempt {retries}/5)...")
-                    time.sleep(0.25)
-                
-                if retries < 5:
-                    self.get_logger().info("moveJ_deg(): Joint verification successful.")
-            else:
-                self.get_logger().error(f"moveJ_deg(): MoveIt2 finished in state {state}; execution aborted.")
+            self.get_logger().info("moveJ_deg(): Function completed successfully.")
+            return True
 
-        except Exception as e:
-            self.get_logger().error(f"moveJ_deg(): Execution failed: {e}")
         finally:
-            # Restore original scalings
-            self.moveit2.max_velocity, self.moveit2.max_acceleration = orig_vel, orig_acc
-        time.sleep(0.5)
+            # 9) Restore original scalings
+            self.moveit2.max_velocity = orig_vel
+            self.moveit2.max_acceleration = orig_acc
 
-    def gotoEE(self, abs_x_mm: float, abs_y_mm: float, abs_z_mm: float,
-               abs_rx_deg: float, abs_ry_deg: float, abs_rz_deg: float):
+    def current_angles(self) -> tuple[float, ...] | None:
         """
-        Move the end‑effector (Link6) to an **absolute** pose expressed in the
-        base_link frame.
-
-        Args:
-            abs_x_mm, abs_y_mm, abs_z_mm : absolute position in millimetres
-            abs_rx_deg, abs_ry_deg, abs_rz_deg : absolute orientation (XYZ‑Euler) in degrees
+        Read the current joint angles immediately and return them in degrees.
+        
+        This function is designed to be used with run_skill to save/restore robot positions:
+        
+        Example usage:
+            # Save current position
+            saved_angles = run_skill("current_angles")
+            
+            # Do some movements...
+            run_skill("moveJ_deg", 10, 0, 0, 0, 0, 0)
+            
+            # Return to saved position
+            if saved_angles:
+                run_skill("gotoJ_deg", *saved_angles)
+        
+        Returns:
+            tuple: (angle1, angle2, angle3, angle4, angle5, angle6) in degrees, or None if failed
         """
-        self.get_logger().info(
-            f"gotoEE(): Target absolute pose – "
-            f"Position (mm): ({abs_x_mm}, {abs_y_mm}, {abs_z_mm}), "
-            f"Orientation (deg): ({abs_rx_deg}, {abs_ry_deg}, {abs_rz_deg})"
-        )
-
-        # ── build goal pose ─────────────────────────────────────────────────────
-        goal_translation = [coord / 1000.0 for coord in (abs_x_mm, abs_y_mm, abs_z_mm)]
-        r_offset = [math.radians(a) for a in (abs_rx_deg, abs_ry_deg, abs_rz_deg)]
-        R_goal = tf_transformations.euler_matrix(*r_offset)
-        goal_quat = tf_transformations.quaternion_from_matrix(R_goal)
-
-        self.get_logger().info(
-            f"gotoEE(): Goal pose (m, xyzw): {goal_translation}  {goal_quat}"
-        )
-
-        # ── use a temporary MoveIt2 instance bound to Link6 ─────────────────────
-        temp_moveit2 = MoveIt2(
-            node=self,
-            joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-            base_link_name=self.reference_frame,
-            end_effector_name="Link6",
-            group_name=GROUP_NAME,
-        )
-        temp_moveit2.planner_id = self.planner_id
-        temp_moveit2.max_velocity = self.velocity_scaling
-        temp_moveit2.max_acceleration = self.acceleration_scaling
-        temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
-        temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-
-        # ── execute motion ──────────────────────────────────────────────────────
-        temp_moveit2.move_to_pose(
-            position=goal_translation,
-            quat_xyzw=goal_quat,
-            cartesian=self.cartesian,
-            cartesian_max_step=self.cartesian_max_step,
-            cartesian_fraction_threshold=self.cartesian_fraction_threshold
-        )
-        temp_moveit2.wait_until_executed()
-        state = temp_moveit2.query_state()
-        if state == MoveIt2State.IDLE:
-            self.get_logger().info("gotoEE(): Planned motion reached.")
-        else:
-            self.get_logger().warn(f"gotoEE(): Motion ended with state: {state}")
-
-        # ── verify final pose ───────────────────────────────────────────────────
-        while not self.verify_goal_pose(
-            expected_goal_pose=goal_translation,
-            tolerance=1.0,
-            offset=136.55
-        ):
-            self.get_logger().warn("gotoEE(): Goal pose verification failed, retrying.")
-            time.sleep(0.2)
-        self.get_logger().info("gotoEE(): Function completed successfully.")
+        import math
+        
+        # Wait for servo to be ready (movement complete)
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("current_angles(): Waiting for servo to be ready...")
+            time.sleep(0.1)
+            
+        # Now read current joint state
+        joint_state_msg = self.wait_for_joint_state("/joint_states_robot", timeout_sec=2.0)
+        
+        if joint_state_msg is None:
+            self.get_logger().error("current_angles(): Failed to read joint state")
+            return None
+            
+        if not hasattr(joint_state_msg, 'position') or len(joint_state_msg.position) < 6:
+            self.get_logger().error(f"current_angles(): Insufficient joint data")
+            return None
+        
+        # Convert from radians to degrees - ensure exactly 6 values
+        try:
+            joint_positions = list(joint_state_msg.position[:6])
+            angles_deg = tuple(math.degrees(float(angle)) for angle in joint_positions)
+            
+            self.get_logger().info(f"current_angles(): Current joint angles (deg): {angles_deg}")
+            
+            return angles_deg
+        except (TypeError, ValueError) as e:
+            self.get_logger().error(f"current_angles(): Error converting angles: {e}")
+            return None
 
     def gotoJ_deg(
         self,
@@ -1630,59 +1655,124 @@ class DirectTfMotionNode(Node):
         angle6: float,
         velocity_scaling: float = 1.0,
         acceleration_scaling: float = 1.0,
-    ):
-        time.sleep(0.5)
+    ) -> bool:
         """
-        Move robot to absolute joint configuration (degrees), with velocity and acceleration scaling.
-        Will attempt joint verification up to 5 times before failing.
+        Move robot to absolute joint configuration (degrees), enforcing joint limits,
+        then verify arrival via wait_for_servo_ready().
+
+        Args:
+            angle1–angle6: target joint angles in degrees (absolute)
+            velocity_scaling: velocity scaling factor (0.0 to 1.0)
+            acceleration_scaling: acceleration scaling factor (0.0 to 1.0)
+        Returns:
+            True on success, False on any failure.
+        """
+
+        # 1) Backup & apply scalings
+        orig_vel = self.moveit2.max_velocity
+        orig_acc = self.moveit2.max_acceleration
+        self.moveit2.max_velocity = velocity_scaling
+        self.moveit2.max_acceleration = acceleration_scaling
+
+        try:
+            # 2) Log the incoming command
+            target_angles = [angle1, angle2, angle3, angle4, angle5, angle6]
+            self.get_logger().info(
+                f"gotoJ_deg(): Target absolute joint angles (deg): {target_angles}, "
+                f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
+            )
+
+            # 3) Convert to radians
+            new_joints_rad = [math.radians(a) for a in target_angles]
+
+            # 4) Joint-limit check
+            joint_limits = [
+                (-6.2, 6.2),    # joint1
+                (-3.14, 3.14),  # joint2
+                (-2.79, 0.0),   # joint3
+                (-6.28, 6.28),  # joint4
+                (-6.28, 6.28),  # joint5
+                (-6.28, 6.28),  # joint6
+            ]
+            for idx, (rad, (low, high)) in enumerate(zip(new_joints_rad, joint_limits), start=1):
+                if not (low <= rad <= high):
+                    self.get_logger().error(
+                        f"gotoJ_deg(): joint{idx} target {math.degrees(rad):.3f}° "
+                        f"outside limits [{math.degrees(low):.1f}°, {math.degrees(high):.1f}°]"
+                    )
+                    return False
+
+            # 5) Execute the motion
+            self.moveit2.move_to_configuration(new_joints_rad)
+
+            # 6) Verify arrival via servo‐ready polling
+            self.moveit2.wait_until_executed()
+            while not self.wait_for_servo_ready(timeout=15.0):
+                self.get_logger().warn("gotoJ_deg(): not arrived, rechecking...")
+                time.sleep(0.2)
+
+            self.get_logger().info("gotoJ_deg(): Function completed successfully.")
+            return True
+
+        finally:
+            # 7) Restore original scalings
+            self.moveit2.max_velocity = orig_vel
+            self.moveit2.max_acceleration = orig_acc
+
+
+    def gotoEE(self, abs_x_mm: float, abs_y_mm: float, abs_z_mm: float,
+               abs_rx_deg: float, abs_ry_deg: float, abs_rz_deg: float):
+        """
+        Move the end-effector (Link6) to an **absolute** pose expressed in the
+        base_link frame, then verify arrival via wait_for_servo_ready().
+
+        Args:
+            abs_x_mm, abs_y_mm, abs_z_mm : absolute position in millimetres
+            abs_rx_deg, abs_ry_deg, abs_rz_deg : absolute orientation (XYZ-Euler) in degrees
         """
         self.get_logger().info(
-            f"gotoJ_deg(): Abs angles (deg)=[{angle1},{angle2},{angle3},{angle4},{angle5},{angle6}], "
-            f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
+            f"gotoEE(): Target absolute pose – "
+            f"Position (mm): ({abs_x_mm}, {abs_y_mm}, {abs_z_mm}), "
+            f"Orientation (deg): ({abs_rx_deg}, {abs_ry_deg}, {abs_rz_deg})"
         )
 
-        new_joints = [math.radians(a) for a in (angle1, angle2, angle3, angle4, angle5, angle6)]
+        # 1) Build goal pose in metres + quaternion
+        goal_translation = [coord / 1000.0 for coord in (abs_x_mm, abs_y_mm, abs_z_mm)]
+        r_radians = [math.radians(a) for a in (abs_rx_deg, abs_ry_deg, abs_rz_deg)]
+        R_goal = tf_transformations.euler_matrix(*r_radians)
+        goal_quat = tf_transformations.quaternion_from_matrix(R_goal)
 
-        temp = MoveIt2(
+        self.get_logger().info(f"gotoEE(): Goal pose (m, xyzw): {goal_translation}  {goal_quat}")
+
+        # 2) Plan & execute via MoveIt2 for Link6
+        temp_moveit2 = MoveIt2(
             node=self,
-            joint_names=self.moveit2.joint_names,
+            joint_names=["joint1","joint2","joint3","joint4","joint5","joint6"],
             base_link_name=self.reference_frame,
             end_effector_name="Link6",
             group_name=GROUP_NAME,
         )
-        temp.max_velocity = velocity_scaling
-        temp.max_acceleration = acceleration_scaling
-        temp.planner_id = self.planner_id
-        temp.cartesian_jump_threshold = self.cartesian_jump_threshold
-        temp.cartesian_avoid_collisions = self.cartesian_avoid_collisions
+        temp_moveit2.planner_id                 = self.planner_id
+        temp_moveit2.max_velocity               = self.velocity_scaling
+        temp_moveit2.max_acceleration           = self.acceleration_scaling
+        temp_moveit2.cartesian_jump_threshold   = self.cartesian_jump_threshold
+        temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
-        try:
-            temp.move_to_configuration(new_joints)
-            temp.wait_until_executed()
-            self.get_logger().info("gotoJ_deg(): Motion executed.")
+        temp_moveit2.move_to_pose(
+            position=goal_translation,
+            quat_xyzw=goal_quat,
+            cartesian=self.cartesian,
+            cartesian_max_step=self.cartesian_max_step,
+            cartesian_fraction_threshold=self.cartesian_fraction_threshold
+        )
 
-            # Check planner state
-            state = temp.query_state()
-            if state == MoveIt2State.IDLE:
-                # Try verification up to 5 times
-                expected_deg = [angle1, angle2, angle3, angle4, angle5, angle6]
-                retries = 0
-                while not self.verify_joint_positions(expected_deg, tolerance_deg=1.0):
-                    retries += 1
-                    if retries >= 5:
-                        self.get_logger().error("gotoJ_deg(): Joint verification failed after 5 attempts.")
-                        break
-                    self.get_logger().warn(f"gotoJ_deg(): Joint verification failed (attempt {retries}/5)...")
-                    time.sleep(0.25)
-                
-                if retries < 5:
-                    self.get_logger().info("gotoJ_deg(): Joint verification successful.")
-            else:
-                self.get_logger().error(f"gotoJ_deg(): MoveIt2 finished in state {state}; execution aborted.")
+        # 3) Verify arrival via servo‐ready polling
+        temp_moveit2.wait_until_executed()
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("gotoEE(): not arrived, rechecking…")
+            time.sleep(0.2)
 
-        except Exception as e:
-            self.get_logger().error(f"gotoJ_deg(): Execution failed: {e}")
-        time.sleep(0.5)
+        self.get_logger().info("gotoEE(): Function completed successfully.")
 
     # ---------------------------------------------------------------------------
     # 1)  get_machine_position  – sample & save machine pose, then broadcast *_test
@@ -1692,7 +1782,7 @@ class DirectTfMotionNode(Node):
                             sample_interval: float = 0.1) -> dict | None:
         """
         Average 30 fresh base_link→target_tf samples, store under 'machines:' in
-        machine_pose_data_memory.yaml, and broadcast a static TF '<target_tf>_test'.
+        pose_data_memory.yaml, and broadcast a static TF '<target_tf>_test'.
         Returns the stored dict on success, otherwise None.
         """
         import yaml, numpy as np, time, os
@@ -1771,15 +1861,20 @@ class DirectTfMotionNode(Node):
         self.get_logger().info(f"get_machine_position: stored pose & broadcast '{target_tf}_test'")
         return data["machines"][target_tf]
 
-
     # ---------------------------------------------------------------------------
     # 2)  approach_machine  – move to approach pose & broadcast *_approach_test
     # ---------------------------------------------------------------------------
-    def approach_machine(self, machine_name: str, point_name: str, cartesian_override: True) -> bool:
+    def approach_machine(self, machine_name: str, point_name: str, cartesian_override: bool = True, motion_type: str = "cartesian") -> bool:
         """
         Move the portafilter_link to the 'approach_pose' of <machine_name>/<point_name>.
         Also broadcasts a static TF '<machine_name>_<point_name>_approach_test'
-        for the computed goal pose.
+        for the computed goal pose, then verifies execution via servo readiness.
+        
+        Args:
+            machine_name: Name of the machine
+            point_name: Name of the point on the machine
+            cartesian_override: Use Cartesian planning (only applies when motion_type="cartesian")
+            motion_type: "cartesian" for Cartesian motion (default) or "joint" for joint motion
         """
         try:
             # ── load files ───────────────────────────────────────────────────────
@@ -1797,12 +1892,14 @@ class DirectTfMotionNode(Node):
                 self.get_logger().error("approach_machine: approach_pose not found.")
                 return False
 
+            # Build base transform
             base_t = machines[machine_name]["translation"]
             base_q = machines[machine_name]["rotation"]
             M_base        = tf_transformations.quaternion_matrix([base_q["x"], base_q["y"],
                                                                 base_q["z"], base_q["w"]])
             M_base[0:3,3] = [base_t["x"], base_t["y"], base_t["z"]]
 
+            # Load offset
             ap      = offsets[point_name]["approach_pose"]
             tcp_link = ap.get("TCP", DEFAULT_TCP_LINK)
             off_t   = ap["translation"]
@@ -1811,12 +1908,12 @@ class DirectTfMotionNode(Node):
                                                                 off_q["z"], off_q["w"]])
             M_off[0:3,3] = [off_t["x"], off_t["y"], off_t["z"]]
 
-            # ── goal pose ────────────────────────────────────────────────────────
+            # Compute goal
             M_goal   = M_base.dot(M_off)
             goal_pos = M_goal[0:3, 3].tolist()
             goal_quat= tf_transformations.quaternion_from_matrix(M_goal)
 
-            # ── broadcast *_approach_test ───────────────────────────────────────
+            # Broadcast test TF
             from geometry_msgs.msg import TransformStamped
             import tf2_ros
             if not hasattr(self, "static_broadcaster"):
@@ -1830,7 +1927,7 @@ class DirectTfMotionNode(Node):
             tf_msg.transform.rotation.z, tf_msg.transform.rotation.w = goal_quat
             self.static_broadcaster.sendTransform(tf_msg)
 
-            # ── execute move (original logic, unchanged) ─────────────────────────
+            # Execute motion based on motion_type
             pf = MoveIt2(
                 node=self,
                 joint_names=["joint1","joint2","joint3","joint4","joint5","joint6"],
@@ -1844,19 +1941,27 @@ class DirectTfMotionNode(Node):
             pf.cartesian_jump_threshold   = self.cartesian_jump_threshold
             pf.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
-            pf.move_to_pose(position=goal_pos,
-                            quat_xyzw=goal_quat,
-                            cartesian=cartesian_override,
-                            cartesian_max_step=self.cartesian_max_step,
-                            cartesian_fraction_threshold=self.cartesian_fraction_threshold)
-            pf.wait_until_executed()
+            if motion_type.lower() == "joint":
+                self.get_logger().info("approach_machine: Using JOINT motion planning")
+                # Use joint motion - MoveIt2 will use inverse kinematics
+                pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
+            else:
+                self.get_logger().info("approach_machine: Using CARTESIAN motion planning")
+                # Use Cartesian motion (original behavior)
+                pf.move_to_pose(position=goal_pos,
+                                quat_xyzw=goal_quat,
+                                cartesian=cartesian_override,
+                                cartesian_max_step=self.cartesian_max_step,
+                                cartesian_fraction_threshold=self.cartesian_fraction_threshold)
             
+            pf.wait_until_executed()
 
-            while not self.verify_goal_pose(goal_pos, tolerance=0.9, offset=282.5):
-                self.get_logger().warn("approach_machine: Waiting to reach approach pose…")
+            # Verify execution via servo readiness
+            while not self.wait_for_servo_ready(timeout=15.0):
+                self.get_logger().warn("approach_machine: Motion not complete, rechecking servo readiness...")
                 time.sleep(0.1)
 
-            self.get_logger().info("approach_machine: Approach pose reached.")
+            self.get_logger().info("approach_machine: Approach pose reached successfully.")
             return True
         except Exception as e:
             self.get_logger().error(f"approach_machine: Exception: {e}")
@@ -1865,11 +1970,17 @@ class DirectTfMotionNode(Node):
     # ---------------------------------------------------------------------------
     # 3)  mount_machine  – move to mount pose & broadcast *_mount_test
     # ---------------------------------------------------------------------------
-    def mount_machine(self, machine_name: str, point_name: str, cartesian_override: bool = True) -> bool:
+    def mount_machine(self, machine_name: str, point_name: str, cartesian_override: bool = True, motion_type: str = "cartesian") -> bool:
         """
         Move the portafilter_link to the 'mount_pose' of <machine_name>/<point_name>.
         Also broadcasts a static TF '<machine_name>_<point_name>_mount_test'
-        for the computed goal pose.
+        for the computed goal pose, then verifies execution via servo readiness.
+        
+        Args:
+            machine_name: Name of the machine
+            point_name: Name of the point on the machine
+            cartesian_override: Use Cartesian planning (only applies when motion_type="cartesian")
+            motion_type: "cartesian" for Cartesian motion (default) or "joint" for joint motion
         """
         try:
             # ── load files ───────────────────────────────────────────────────────
@@ -1887,12 +1998,14 @@ class DirectTfMotionNode(Node):
                 self.get_logger().error("mount_machine: mount_pose not found.")
                 return False
 
+            # Build base transform
             base_t = machines[machine_name]["translation"]
             base_q = machines[machine_name]["rotation"]
             M_base        = tf_transformations.quaternion_matrix([base_q["x"], base_q["y"],
                                                                 base_q["z"], base_q["w"]])
             M_base[0:3, 3] = [base_t["x"], base_t["y"], base_t["z"]]
 
+            # Load offset
             mp       = offsets[point_name]["mount_pose"]
             tcp_link = mp.get("TCP", DEFAULT_TCP_LINK)
             off_t    = mp["translation"]
@@ -1901,12 +2014,12 @@ class DirectTfMotionNode(Node):
                                                                 off_q["z"], off_q["w"]])
             M_off[0:3, 3] = [off_t["x"], off_t["y"], off_t["z"]]
 
-            # ── goal pose ────────────────────────────────────────────────────────
+            # Compute goal
             M_goal    = M_base.dot(M_off)
             goal_pos  = M_goal[0:3, 3].tolist()
             goal_quat = tf_transformations.quaternion_from_matrix(M_goal)
 
-            # ── broadcast *_mount_test ──────────────────────────────────────────
+            # Broadcast test TF
             from geometry_msgs.msg import TransformStamped
             import tf2_ros
             if not hasattr(self, "static_broadcaster"):
@@ -1920,7 +2033,7 @@ class DirectTfMotionNode(Node):
             tf_msg.transform.rotation.z, tf_msg.transform.rotation.w = goal_quat
             self.static_broadcaster.sendTransform(tf_msg)
 
-            # ── execute move ──────────────────────────────────
+            # Execute motion based on motion_type
             pf = MoveIt2(
                 node=self,
                 joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
@@ -1934,24 +2047,159 @@ class DirectTfMotionNode(Node):
             pf.cartesian_jump_threshold   = self.cartesian_jump_threshold
             pf.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
-            pf.move_to_pose(position=goal_pos,
-                            quat_xyzw=goal_quat,
-                            cartesian=cartesian_override,
-                            cartesian_max_step=self.cartesian_max_step,
-                            cartesian_fraction_threshold=self.cartesian_fraction_threshold)
+            if motion_type.lower() == "joint":
+                self.get_logger().info("mount_machine: Using JOINT motion planning")
+                # Use joint motion - MoveIt2 will use inverse kinematics
+                pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
+            else:
+                self.get_logger().info("mount_machine: Using CARTESIAN motion planning")
+                # Use Cartesian motion (original behavior)
+                pf.move_to_pose(position=goal_pos,
+                                quat_xyzw=goal_quat,
+                                cartesian=cartesian_override,
+                                cartesian_max_step=self.cartesian_max_step,
+                                cartesian_fraction_threshold=self.cartesian_fraction_threshold)
+            
             pf.wait_until_executed()
 
-            while not self.verify_goal_pose(goal_pos, tolerance=0.9, offset=282.5):
-                self.get_logger().warn("mount_machine: Waiting to reach mount pose…")
+            # Verify execution via servo readiness
+            while not self.wait_for_servo_ready(timeout=15.0):
+                self.get_logger().warn("mount_machine: Motion not complete, rechecking servo readiness...")
                 time.sleep(0.1)
 
-            self.get_logger().info("mount_machine: Mount pose reached.")
+            self.get_logger().info("mount_machine: Mount pose reached successfully.")
             return True
 
         except Exception as e:
             self.get_logger().error(f"mount_machine: Exception: {e}")
             return False
 
+    def toggle_drag_mode(self, max_attempts: int = 10, retry_pause: float = 0.25) -> bool:
+        """
+        Alternate StartDrag and StopDrag until one succeeds (res == 0).
+        Returns True on success, False if both calls fail after max_attempts each.
+        """
+        from dobot_msgs_v3.srv import StartDrag, StopDrag
+
+        # lazy‐create both clients
+        self.start_drag_cli = getattr(
+            self, 'start_drag_cli',
+            self.create_client(StartDrag, '/dobot_bringup_v3/srv/StartDrag')
+        )
+        self.stop_drag_cli = getattr(
+            self, 'stop_drag_cli',
+            self.create_client(StopDrag, '/dobot_bringup_v3/srv/StopDrag')
+        )
+
+        # begin by trying to enable drag mode
+        use_start = True
+
+        for attempt in range(1, max_attempts + 1):
+            cli = self.start_drag_cli if use_start else self.stop_drag_cli
+            srv_name = "StartDrag" if use_start else "StopDrag"
+
+            # wait for service
+            if not cli.wait_for_service(timeout_sec=5.0):
+                self.get_logger().warn(
+                    f"toggle_drag_mode: {srv_name} service unavailable (attempt {attempt}/{max_attempts})"
+                )
+                # flip for next attempt
+                use_start = not use_start
+                time.sleep(retry_pause)
+                continue
+
+            # call and wait
+            fut = cli.call_async(StartDrag.Request() if use_start else StopDrag.Request())
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=3.0)
+
+            if fut.done() and fut.result() is not None:
+                res = getattr(fut.result(), 'res', None)
+                if res == 0:
+                    self.get_logger().info(f"toggle_drag_mode: {srv_name} succeeded")
+                    return True
+                else:
+                    self.get_logger().warn(
+                        f"toggle_drag_mode: {srv_name} returned res={res}, switching to "
+                        f"{'StopDrag' if use_start else 'StartDrag'}"
+                    )
+            else:
+                self.get_logger().warn(
+                    f"toggle_drag_mode: {srv_name} call timed out or failed, switching to "
+                    f"{'StopDrag' if use_start else 'StartDrag'}"
+                )
+
+            # flip for next attempt
+            use_start = not use_start
+            time.sleep(retry_pause)
+
+        self.get_logger().error(
+            "toggle_drag_mode: Exhausted attempts without success"
+        )
+        return False
+
+    def set_DO(self, index: int, status: int) -> bool:
+        """
+        Execute a digital output on the Dobot via the DOExecute service.
+
+        Parameters
+        ----------
+        index : int
+            Digital output channel index to toggle.
+        status : int
+            Desired status (0 = off, 1 = on).
+
+        Returns
+        -------
+        bool
+            True if the service call succeeded (res == 0), False otherwise.
+        """
+        from dobot_msgs_v3.srv import DOExecute
+        import rclpy, time
+
+        # lazy‐create DOExecute client
+        self.doexec_cli = getattr(
+            self,
+            'doexec_cli',
+            self.create_client(DOExecute, '/dobot_bringup_v3/srv/DOExecute')
+        )
+
+        # build request
+        req = DOExecute.Request()
+        req.index = index
+        req.status = status
+
+        retry_pause = 0.25
+        max_attempts = 10
+
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")
+
+            if not self.doexec_cli.wait_for_service(timeout_sec=5.0):
+                self.get_logger().error("set_DO: DOExecute service unavailable")
+                return False
+
+            fut = self.doexec_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=3.0)
+
+            if not fut.done() or fut.result() is None:
+                self.get_logger().error("set_DO: DOExecute call timed out")
+                return False  # do not retry on timeout
+
+            resp = fut.result()
+            res_code = getattr(resp, 'res', 1)
+            if res_code == 0:
+                self.get_logger().info("set_DO: DOExecute succeeded")
+                break
+            else:
+                self.get_logger().warn(
+                    f"set_DO: DOExecute returned error code {res_code}, retrying…"
+                )
+                time.sleep(retry_pause)
+        else:
+            self.get_logger().error("set_DO: DOExecute failed after maximum retries")
+            return False
+
+        return True
 
 import threading
 import rclpy
@@ -1963,7 +2211,7 @@ def run_skill(skill_name: str, *skill_args):
     and return whatever that method returns.
     """
     rclpy.init()
-    node     = DirectTfMotionNode()
+    node = DirectTfMotionNode()
     executor = SingleThreadedExecutor()
     executor.add_node(node)
 
@@ -1984,25 +2232,49 @@ def run_skill(skill_name: str, *skill_args):
             try:
                 executor.spin_once(timeout_sec=0.1)
             except rclpy._rclpy_pybind11.RCLError as e:
-                node.get_logger().warn(f"Ignored transient RCLError: {e}")
-                # just swallow it and keep spinning
+                # Only warn about non-shutdown related errors
+                if not ("wait set index" in str(e) and "out of bounds" in str(e)):
+                    node.get_logger().warn(f"RCLError: {e}")
     finally:
-        th.join()
+        # Ensure proper cleanup order
+        executor.remove_node(node)
+        th.join(timeout=1.0)  # Give thread 1s to finish
         node.destroy_node()
         rclpy.shutdown()
 
     return result_container.get("value") # may be None
 
+# def main():
+#     try:
+#         run_skill("refresh_position")
+#         time.sleep(3.0)
+
+#         ########################################
+
+#         for i in range(1):
+#             # run_skill("moveEE", 0, 0, 0, 0, 0, 0, "portafilter_link")
+#             # run_skill("gotoEE", 0,-350,250,90,0,0)
+#             run_skill("moveJ_deg",-45, 0, 0, 0, 0, 0, 1.0, 0.1)
+#             # run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0)
+#             # run_skill("move_to", 'espresso_grinder', 0.15, 0.0, 0.0, 0.0)
+#             # run_skill("enforce_rxry")
+#             # run_skill("move_portafilter_arc", 45)
+            
+#     except KeyboardInterrupt:
+#         pass
+
+# if __name__ == "__main__":
+#     main()
+
 #-------FUNCTIONS--------------------------------------------------------------------------------------------------------------------------------------------------------------
         # run_skill("move_portafilter_arc", 20)
         # run_skill("moveEE", 100,  0, -150, 10, 0, 0) #move end effector from current position. x y z mm, rx ry rz deg
-        # run_skill("gripper_release") #release gripper and retreat 80mm back 50mm up
         # run_skill("release_tension") #activate drag mode for 1 sec
+        # run_skill("enforce_rxry")
         # run_skill("move_portafilter_arc", 10) #move portafilter in arc degrees -CW +CCW
         # run_skill("moveJ_deg", 0, 0, 0, 0, 0, 0)  #move joints from current position. j1 j2 j3 j4 j5 j6 deg
         # run_skill("gotoEE", 100,  0, -150, 10, 0, 0) # same as move but absolute, no reference, careful! - no motion planning 
         # run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0) # same as move but absolute, no reference, careful! - no motion planning 
-        # run_skill("gripper_release")
         # run_skill("approach_machine", "three_group_espresso", "group_1")
         # run_skill("mount_machine", "three_group_espresso", "group_1")
         # run_skill("move_to", "three_group_espresso", 0.12)

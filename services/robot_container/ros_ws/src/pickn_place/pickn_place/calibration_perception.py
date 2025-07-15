@@ -17,7 +17,6 @@ import math
 from time import time
 from rclpy.parameter import Parameter
 from rcl_interfaces.msg import SetParametersResult
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 
 # ================================================================================
 # Global Configuration Variables
@@ -50,14 +49,6 @@ VALID_MARKER_IDS = {1, 2, 3, 4}
 # Distance overlay tolerance
 MIN_DISTANCE_TOLERANCE = 0.83
 MAX_DISTANCE_TOLERANCE = 0.87
-
-# QoS profile for sensor data (BEST_EFFORT reliability to match camera)
-SENSOR_DATA_QOS = QoSProfile(
-    reliability=QoSReliabilityPolicy.BEST_EFFORT,
-    durability=QoSDurabilityPolicy.VOLATILE,
-    history=QoSHistoryPolicy.KEEP_LAST,
-    depth=1
-)
 
 # ================================================================================
 
@@ -217,11 +208,11 @@ class ArucoPerceptionNode(Node):
             [-half_marker*2, -half_marker*2, 0.0],
         ], dtype=np.float32)
 
-        # Subscriptions with sensor_data QoS profile
-        self.create_subscription(CameraInfo, self.CAMERA_INFO_TOPIC, self.camera_info_callback, SENSOR_DATA_QOS)
-        self.create_subscription(Image, self.IMAGE_TOPIC, self.image_callback, SENSOR_DATA_QOS)
-        self.create_subscription(CameraInfo, self.DEPTH_INFO_TOPIC, self.depth_info_callback, SENSOR_DATA_QOS)
-        self.create_subscription(Image, self.DEPTH_IMAGE_TOPIC, self.depth_callback, SENSOR_DATA_QOS)
+        # Subscriptions
+        self.create_subscription(CameraInfo, self.CAMERA_INFO_TOPIC, self.camera_info_callback, 10)
+        self.create_subscription(Image, self.IMAGE_TOPIC, self.image_callback, 10)
+        self.create_subscription(CameraInfo, self.DEPTH_INFO_TOPIC, self.depth_info_callback, 10)
+        self.create_subscription(Image, self.DEPTH_IMAGE_TOPIC, self.depth_callback, 10)
 
         self.create_timer(3.0, self.check_input_topics)
         # Create an independent timer for the support warning message.
@@ -306,7 +297,7 @@ class ArucoPerceptionNode(Node):
         return frame[start_y:start_y + crop_y, start_x:start_x + crop_x]
 
     # ------------------------------------
-    # 3D-3D alignment (Horn's method)
+    # 3D-3D alignment (Horn’s method)
     # ------------------------------------
     def estimate_pose_3D_3D(self, object_points, camera_points):
         """

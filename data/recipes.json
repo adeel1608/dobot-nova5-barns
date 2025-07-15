@@ -1,60 +1,65 @@
 {
-  "latte": [
+  "Espresso": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "brew_espresso",
+      "action": "Cleaning",
       "assigned_arm": "Arm1",
-      "depends_on": [
-        "grind_beans"
-      ]
-    },
-    {
-      "action": "steam_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "combine",
-      "assigned_arm": "Arm1",
-      "depends_on": [
-        "brew_espresso",
-        "steam_milk"
-      ]
+      "depends_on": ["Espresso"]
     }
   ],
-  "americano": [
+  "Latte": [
     {
-      "action": "grind_beans",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "brew_espresso",
+      "action": "Cleaning",
       "assigned_arm": "Arm1",
-      "depends_on": [
-        "grind_beans"
-      ]
+      "depends_on": ["Espresso"]
     },
     {
-      "action": "add_water",
+      "action": "Milk_Dispensing_Frothing",
       "assigned_arm": "Arm2",
       "depends_on": [
-        "brew_espresso"
       ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
     }
   ],
-  "pipelinetest": [
+  "Cortado": [
     {
-      "action": "test1",
+      "action": "Espresso",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "test2",
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Milk_Dispensing_Frothing",
+      "assigned_arm": "Arm2",
+      "depends_on": [
+      ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
+    }
+  ],
+  "Calibrate": [
+    {
+      "action": "Calibrate",
       "assigned_arm": "Arm1",
       "depends_on": []
     }

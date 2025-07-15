@@ -1,0 +1,72 @@
+{
+"Calibrate": [
+    {
+      "action": "Calibrate",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Cleaning": [
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Slushie": [
+    {
+        "action": "Slushie",
+        "assigned_arm": "Arm2",
+        "depends_on": []
+    }
+  ],
+  "Dispense_Milk": [
+    {
+      "action": "dispense_milk",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Heat_Water": [
+    {
+      "action": "heat_water",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Grinding": [
+    {
+      "action": "grinding_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Tampering": [
+    {
+      "action": "tampering_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Coffee_Machine": [
+    {
+      "action": "coffee_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Slush_Machine": [
+    {
+      "action": "slush_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Test": [
+    {
+      "action": "test",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ]
+}

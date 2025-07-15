@@ -9,7 +9,9 @@
 import os
 import subprocess
 import yaml
-from time import time
+import time
+import signal
+import sys
 
 import rclpy
 from rclpy.node import Node
@@ -23,20 +25,23 @@ from ament_index_python.packages import get_package_share_directory
 PACKAGE_NAME = "pickn_place"
 DEFAULT_POSE_DATA_FILENAME = "pose_data_memory.yaml"
 TIMER_INTERVAL = 0.10          # seconds – publish rate
-ARUCO_PERCEPTION_COMMAND = ["ros2", "run", PACKAGE_NAME, "aruco_perception"]
+ARUCO_PERCEPTION_COMMAND = ["ros2", "run", PACKAGE_NAME, "aruco_perception", "--ros-args", "-p", "visualize:=false", "--log-level", "warn"]
 # ──────────────────────────────────────────────────────────────────────────────
 
 
 class PoseTFPublisherNode(Node):
     def __init__(self):
-        super().__init__("pose_tf_publisher_node")
+        robot_id = os.environ.get('ROBOT_ID', '1')
+        super().__init__(f"pose_tf_publisher_node_robot_{robot_id}")
+        self.get_logger().info(f"Starting Pose TF Publisher for Robot {robot_id}")
 
         # Dynamic TF broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
-        # Path to YAML “memory” file
+        # Path to YAML "memory" file
         pkg_share = get_package_share_directory(PACKAGE_NAME)
-        self.pose_data_file = os.path.join(pkg_share, DEFAULT_POSE_DATA_FILENAME)
+        pose_filename = f"pose_data_memory_robot_{robot_id}.yaml"
+        self.pose_data_file = os.path.join(pkg_share, pose_filename)
 
         # On-demand PoseStamped publishers
         self.pose_publishers = {}
@@ -76,7 +81,7 @@ class PoseTFPublisherNode(Node):
             self.get_logger().error(f"Cannot load pose data file: {e}")
             return
 
-        # Unwrap top‐level “poses:” if present
+        # Unwrap top‐level "poses:" if present
         if "poses" in pose_data and isinstance(pose_data["poses"], dict):
             pose_data = pose_data["poses"]
 
@@ -112,7 +117,7 @@ class PoseTFPublisherNode(Node):
             self.tf_broadcaster.sendTransform(dyn_tf)
             self._log_tf(dyn_tf)
 
-            # Remember this timestamp so we don’t republish it
+            # Remember this timestamp so we don't republish it
             self.last_published[marker] = stored_time
 
             # Publish the same data as a PoseStamped
@@ -125,15 +130,77 @@ class PoseTFPublisherNode(Node):
             self._ensure_pose_pub(marker).publish(pose_msg)
 
 
+def launch_aruco_perception():
+    """Launch ArUco perception as a subprocess with proper error handling"""
+    try:
+        print(f"Launching ArUco perception: {' '.join(ARUCO_PERCEPTION_COMMAND)}")
+        
+        # Launch with proper environment and stderr capture
+        proc = subprocess.Popen(
+            ARUCO_PERCEPTION_COMMAND,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            env=os.environ.copy()
+        )
+        
+        # Give it a moment to start
+        time.sleep(2)
+        
+        # Check if process is still running
+        if proc.poll() is None:
+            print(f"✅ ArUco perception started successfully (PID: {proc.pid})")
+            return proc
+        else:
+            # Process has already terminated
+            stdout, stderr = proc.communicate()
+            print(f"❌ ArUco perception failed to start:")
+            print(f"Return code: {proc.returncode}")
+            print(f"STDOUT: {stdout}")
+            print(f"STDERR: {stderr}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Exception launching ArUco perception: {e}")
+        return None
+
+
 def main(args=None):
     rclpy.init(args=args)
 
-    # Launch the ArUco perception subprocess
-    aruco_proc = subprocess.Popen(ARUCO_PERCEPTION_COMMAND)
-    print(f"Started '{' '.join(ARUCO_PERCEPTION_COMMAND)}'")
+    # Launch the ArUco perception subprocess with error handling
+    aruco_proc = launch_aruco_perception()
+    
+    if aruco_proc is None:
+        print("❌ Failed to launch ArUco perception. Exiting.")
+        rclpy.shutdown()
+        sys.exit(1)
 
     node = PoseTFPublisherNode()
+    
+    def signal_handler(sig, frame):
+        print(f"\n🛑 Received signal {sig}. Shutting down...")
+        node.destroy_node()
+        rclpy.shutdown()
+        
+        # Terminate ArUco process if still running
+        if aruco_proc and aruco_proc.poll() is None:
+            print("Terminating ArUco perception process...")
+            aruco_proc.terminate()
+            try:
+                aruco_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                print("Force killing ArUco perception process...")
+                aruco_proc.kill()
+            print("ArUco perception process terminated.")
+        sys.exit(0)
+    
+    # Set up signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     try:
+        print("🚀 Starting pose TF publisher...")
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
@@ -142,9 +209,15 @@ def main(args=None):
         rclpy.shutdown()
 
         # Terminate ArUco process if still running
-        if aruco_proc.poll() is None:
+        if aruco_proc and aruco_proc.poll() is None:
+            print("Terminating ArUco perception process...")
             aruco_proc.terminate()
-            print(f"Terminated '{' '.join(ARUCO_PERCEPTION_COMMAND)}'")
+            try:
+                aruco_proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                print("Force killing ArUco perception process...")
+                aruco_proc.kill()
+            print("ArUco perception process terminated.")
 
 
 if __name__ == "__main__":

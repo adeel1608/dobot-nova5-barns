@@ -9,12 +9,14 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set
+import uuid
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
+import socketio
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -24,6 +26,14 @@ from shared.rabbitmq_client import RabbitMQClient, EventListener
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Create Socket.IO server
+sio = socketio.AsyncServer(
+    cors_allowed_origins="*",
+    async_mode='asgi',
+    logger=False,
+    engineio_logger=False
+)
 
 app = FastAPI(title="BARNS API Bridge Service")
 
@@ -49,6 +59,18 @@ event_listener: Optional[EventListener] = None
 
 # WebSocket connections for real-time updates
 active_websockets = []
+
+
+# Track client subscriptions for Socket.IO
+client_subscriptions: Dict[str, Set[str]] = {}
+
+# Statistics
+stats = {
+    "total_connections": 0,
+    "active_connections": 0,
+    "total_events_sent": 0,
+    "events_by_topic": {}
+}
 
 # Request/Response models
 class OrderCreate(BaseModel):
@@ -100,9 +122,11 @@ async def startup_event():
         event_listener.register_event_handler("scheduler.order_error", handle_order_event)
         
         # Inventory Events
-        event_listener.register_event_handler("validation.threshold_warning", handle_inventory_event)
-        event_listener.register_event_handler("inventory.refilled", handle_inventory_event)
-        
+        event_listener.register_event_handler("validation.inventory_updated", handle_inventory_updated_event)
+        event_listener.register_event_handler("validation.all_inventory_updated", handle_inventory_updated_event_all)
+        event_listener.register_event_handler("validation.stock_level_updated", handle_stock_level_event)
+        event_listener.register_event_handler("validation.category_summary_updated", handle_category_summary_event)
+
         logger.info("API Bridge service started successfully")
         
     except Exception as e:
@@ -125,7 +149,6 @@ async def shutdown_event():
 async def handle_order_event(data: Dict):
     """Handle order-related events and broadcast to WebSocket clients"""
     logger.info(f"📡 Broadcasting order event to {len(active_websockets)} WebSocket clients: {data}")
-    
     await broadcast_to_websockets({
         "type": "order_update",
         "event": data.get("event_type", "unknown"),
@@ -137,6 +160,13 @@ async def handle_inventory_event(data: Dict):
     """Handle inventory-related events and broadcast to WebSocket clients"""
     logger.info(f"📡 Broadcasting inventory event to {len(active_websockets)} WebSocket clients: {data}")
     
+    message = {
+        "type": "inventory_update",
+        "event": data.get("event_type", "unknown"),
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    }
+
     await broadcast_to_websockets({
         "type": "inventory_update",
         "event": data.get("event_type", "unknown"),
@@ -507,114 +537,115 @@ async def get_recipes():
         raise HTTPException(status_code=500, detail=f"Failed to load recipes: {str(e)}")
 
 # Inventory Management Endpoints
-@app.get("/api/inventory/status")
-async def get_inventory_status():
-    """Get inventory status"""
+@app.post("/api/inventory/test_summary")
+async def test_summary():
+    """Test summary endpoint"""
     try:
         response = await rabbitmq_client.send_request(
             target_service="validation",
-            action="inventory_status",
+            action="category_summary",
             data={},
             timeout=30
         )
         
-        if response.get("success"):
-            return response
+        if response.get("success") or response.get("passed"):
+        # publish to socket io 
+            await handle_category_summary_event(response.get("details", {}))
         else:
-            # Return mock data if validation service is not available
-            logger.warning("Validation service not available, returning mock inventory data")
-            return {
-                "success": True,
-                "inventory": {
-                    "milk": {
-                        "level": "medium",
-                        "numeric": 65,
-                        "last_refilled": "2024-01-15T10:30:00Z"
-                    },
-                    "cup": {
-                        "level": "high", 
-                        "numeric": 85,
-                        "last_refilled": "2024-01-15T08:00:00Z"
-                    },
-                    "beans": {
-                        "level": "low",
-                        "numeric": 20,
-                        "last_refilled": "2024-01-14T16:45:00Z"
-                    },
-                    "syrup": {
-                        "level": "medium",
-                        "numeric": 55,
-                        "last_refilled": "2024-01-15T09:15:00Z"
-                    }
-                },
-                "timestamp": datetime.now().isoformat()
-            }
+            error_msg = response.get("error", "Failed to get category summary from validation service")
+            logger.error(f"Validation service returned error: {error_msg}")
+            raise HTTPException(status_code=503, detail=error_msg)
             
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error(f"Error getting inventory status: {e}")
-        # Return mock data on error
-        return {
-            "success": True,
-            "inventory": {
-                "milk": {
-                    "level": "medium",
-                    "numeric": 65,
-                    "last_refilled": "2024-01-15T10:30:00Z"
-                },
-                "cup": {
-                    "level": "high", 
-                    "numeric": 85,
-                    "last_refilled": "2024-01-15T08:00:00Z"
-                },
-                "beans": {
-                    "level": "low",
-                    "numeric": 20,
-                    "last_refilled": "2024-01-14T16:45:00Z"
-                },
-                "syrup": {
-                    "level": "medium",
-                    "numeric": 55,
-                    "last_refilled": "2024-01-15T09:15:00Z"
-                }
-            },
-            "timestamp": datetime.now().isoformat()
-        }
+        logger.error(f"Error getting inventory category summary: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@app.post("/api/inventory/refill")
-async def refill_inventory(request: dict):
-    """Refill inventory"""
+
+@app.get("/api/inventory/status")
+async def get_inventory_status(ingredient_type: Optional[str] = None, subtype: Optional[str] = None):
+    """Get inventory status - all, by type, or specific item"""
     try:
-        ingredient = request.get("ingredient")
-        if not ingredient:
-            raise HTTPException(status_code=400, detail="Ingredient is required")
-            
         response = await rabbitmq_client.send_request(
             target_service="validation",
-            action="inventory_refill",
-            data={"ingredient": ingredient},
+            action="inventory_status",
+            data={
+                "ingredient_type": ingredient_type,
+                "subtype": subtype
+            },
             timeout=30
         )
         
-        if response.get("success"):
+        if response.get("success") or response.get("passed"):
+            # Return hierarchical format as-is - no flattening
+            return {
+                "success": True,
+                "inventory": response.get("details", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory status"))
+            
+    except Exception as e:
+        logger.error(f"Error getting inventory status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/inventory/category-info")
+async def get_inventory_category_info():
+    """Get inventory category info"""
+    try:
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="category_info",
+            data={},
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
+            return response.get("details", {})
+        else:
+            raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory category info"))
+            
+    except Exception as e:
+        logger.error(f"Error getting inventory category info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/inventory/refill")
+async def refill_inventory(ingredient_type: Optional[str] = None, subtype: Optional[str] = None):
+    """Refill inventory"""
+    try:
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="inventory_refill",
+            data={
+                "ingredient_type": ingredient_type, 
+                "subtype": subtype
+            },
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
             return response
         else:
             # Return success for mock data
-            logger.warning(f"Validation service not available, simulating refill for {ingredient}")
+            logger.warning(f"Validation service not available, simulating refill")
             return {
-                "success": True,
-                "message": f"Refill initiated for {ingredient}",
-                "ingredient": ingredient,
-                "timestamp": datetime.now().isoformat()
+                "passed": False,
+                "details": {},
+                "request_id": uuid.uuid4(),
+                "client_type": "api_bridge"
             }
             
     except Exception as e:
         logger.error(f"Error refilling inventory: {e}")
         # Return success for mock data
         return {
-            "success": True,
-            "message": f"Refill simulated for {request.get('ingredient', 'unknown')}",
-            "ingredient": request.get('ingredient', 'unknown'),
-            "timestamp": datetime.now().isoformat()
+            "passed": False,
+            "details": {},
+            "request_id": uuid.uuid4(),
+            "client_type": "api_bridge"
         }
 
 @app.get("/api/inventory/category-summary")
@@ -623,72 +654,77 @@ async def get_inventory_category_summary():
     try:
         response = await rabbitmq_client.send_request(
             target_service="validation",
-            action="inventory_category_summary",
+            action="category_summary",
             data={},
             timeout=30
         )
         
-        if response.get("success"):
-            return response
-        else:
-            # Return mock category summary if validation service is not available
-            logger.warning("Validation service not available, returning mock category summary")
+        if response.get("success") or response.get("passed"):
             return {
                 "success": True,
-                "category_summary": {
-                    "milk": {
-                        "level": "medium",
-                        "numeric": 45,
-                        "last_refilled": None
-                    },
-                    "beans": {
-                        "level": "low", 
-                        "numeric": 20,
-                        "last_refilled": None
-                    },
-                    "syrups": {
-                        "level": "high",
-                        "numeric": 75,
-                        "last_refilled": None
-                    },
-                    "cups": {
-                        "level": "medium",
-                        "numeric": 55,
-                        "last_refilled": None
-                    }
-                },
+                "summary": response.get("details", {}),
                 "timestamp": datetime.now().isoformat()
             }
+        else:
+            error_msg = response.get("error", "Failed to get category summary from validation service")
+            logger.error(f"Validation service returned error: {error_msg}")
+            raise HTTPException(status_code=503, detail=error_msg)
             
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
     except Exception as e:
         logger.error(f"Error getting inventory category summary: {e}")
-        # Return mock data on error
-        return {
-            "success": True,
-            "category_summary": {
-                "milk": {
-                    "level": "low",
-                    "numeric": 0,
-                    "last_refilled": None
-                },
-                "beans": {
-                    "level": "low", 
-                    "numeric": 0,
-                    "last_refilled": None
-                },
-                "syrups": {
-                    "level": "low",
-                    "numeric": 0,
-                    "last_refilled": None
-                },
-                "cups": {
-                    "level": "low",
-                    "numeric": 0,
-                    "last_refilled": None
-                }
-            },
-            "timestamp": datetime.now().isoformat()
-        }
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.get("/api/inventory/stock-level")
+async def get_inventory_stock_level():
+    """Get inventory stock level statistics"""
+    try:
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="stock_level",
+            data={},
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
+            return {
+                "success": True,
+                "stock_level": response.get("details", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to get severity statistics")
+            
+    except Exception as e:
+        logger.error(f"Error getting inventory severity: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.get("/api/inventory/category-count")
+async def get_inventory_category_count():
+    """Get inventory category count"""
+    try:
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="category_count",
+            data={},
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
+            return {
+                "success": True,
+                "request_id": response.get("request_id"),
+                "client_type": response.get("client_type"),
+                "details": response.get("details", {})
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory category count"))
+            
+    except Exception as e:
+        logger.error(f"Error getting inventory category count: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+            
 
 # Alert Management Endpoints
 @app.get("/api/alerts/active")
@@ -805,6 +841,133 @@ async def acknowledge_alert(alert_id: int):
         logger.error(f"Error acknowledging alert {alert_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+#------------------------------------------------------------------------
+# socket io endpoints
+#------------------------------------------------------------------------
+
+
+# Socket.IO Event Handlers - SIMPLIFIED
+@sio.event
+async def connect(sid, environ):
+    """Handle client connection"""
+    stats["total_connections"] += 1
+    stats["active_connections"] += 1
+    
+    logger.info(f"🔌 Socket.IO client connected: {sid}")
+    
+    # Send welcome message
+    await sio.emit('connected', {
+        "status": "connected",
+        "client_id": sid,
+        "message": "Socket.IO connection established",
+        "timestamp": datetime.now().isoformat()
+    }, room=sid)
+
+@sio.event
+async def disconnect(sid):
+    """Handle client disconnection"""
+    stats["active_connections"] -= 1
+    logger.info(f"🔌 Socket.IO client disconnected: {sid}")
+
+@sio.event
+async def ping(sid):
+    """Handle ping for heartbeat"""
+    await sio.emit('pong', {
+        "timestamp": datetime.now().isoformat()
+    }, room=sid)
+
+# Update emission functions to broadcast to ALL clients
+async def emit_inventory_update(category: str, inventory_data: Dict):
+    """Emit inventory update for specific category"""
+    # Emit with specific event name
+    await sio.emit(f'inventory.update.{category}', {
+        "category": category,
+        "inventory": inventory_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    # Also emit general update
+    await sio.emit('inventory.update', {
+        "category": category,
+        "inventory": inventory_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    logger.info(f"📡 Emitted inventory.update.{category}")
+
+async def emit_stock_level_update(stock_data: Dict):
+    """Emit stock level statistics update"""
+    await sio.emit('inventory.stock_level', {
+        "success": True,
+        "stock_levels": stock_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    logger.info("📡 Emitted inventory.stock_level")
+
+async def emit_inventory_summary(summary_data: Dict):
+    """Emit inventory category summary update"""
+    await sio.emit('inventory.summary', {
+        "success": True,
+        "summary": summary_data,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    logger.info("📡 Emitted inventory.summary")
+
+# Replace your existing event handlers with these:
+async def handle_inventory_updated_event(data: Dict):
+    """Handle category-specific inventory update events"""
+    category = data.get("category")
+    inventory_data = data.get("inventory", {})
+    
+    logger.info(f"📦 Received inventory update for category: {category}")    
+    # Emit to Socket.IO clients
+    await emit_inventory_update(category, inventory_data)
+
+async def handle_stock_level_event(data: Dict):
+    """Handle stock level summary update events"""
+    logger.info(f"📊 Received stock level update")
+    
+    # Emit to Socket.IO clients
+    await emit_stock_level_update(data)
+
+async def handle_category_summary_event(data: Dict):
+    """Handle category summary update events"""
+    logger.info(f"📋 Received category summary update")
+    
+    # Emit to Socket.IO clients
+    await emit_inventory_summary(data)
+
+async def handle_inventory_updated_event_all(data: Dict):
+    """Handle all inventory update events"""
+    logger.info(f"📦 Received all inventory update")
+    
+    # Emit to Socket.IO clients
+    await emit_inventory_update_all(data)
+
+async def emit_inventory_update_all(data: Dict):
+    """Emit all inventory update"""
+    await sio.emit('inventory.status', {
+        "success": True,
+        "inventory": data,
+        "timestamp": datetime.now().isoformat()
+    })
+
+
+# Add Socket.IO stats endpoint
+@app.get("/api/socketio/stats")
+async def get_socketio_stats():
+    """Get Socket.IO connection statistics"""
+    return {
+        "success": True,
+        "stats": stats,
+        "active_topics": list(set().union(*client_subscriptions.values())) if client_subscriptions else [],
+        "timestamp": datetime.now().isoformat()
+    }
+
 # WebSocket endpoint for real-time updates
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -858,5 +1021,9 @@ async def websocket_endpoint(websocket: WebSocket):
         if websocket in active_websockets:
             active_websockets.remove(websocket)
 
+
+# Mount Socket.IO app
+socket_app = socketio.ASGIApp(sio, app)
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(socket_app, host="0.0.0.0", port=8000) 

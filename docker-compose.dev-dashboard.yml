@@ -44,16 +44,17 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: barns_oms
-      POSTGRES_USER: barns_user
-      POSTGRES_PASSWORD: barns_pass
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_admin
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database_init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
+      - ./services/validation/validation_schema.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
     networks:
       - barns-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_oms"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -66,9 +67,23 @@ services:
     container_name: barns-validation
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      # database config 
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: barns_validation
+      POSTGRES_USER: validation_user
+      POSTGRES_PASSWORD: validation_pass
+      # detection config
+      DETECTION_INTERVAL_SECONDS: 600  # 10minutes = 60 seconds * 10
+      ENABLE_PERIODIC_DETECTION: "true"
+      DETECTION_TIMEOUT_SECONDS: 30
+      MAX_DETECTION_WORKERS: 3
+      # python path
       PYTHONPATH: /app
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - barns-network
@@ -167,7 +182,7 @@ services:
       routine-service:
         condition: service_healthy
     volumes:
-      - ./services/scheduler/data:/app/services/scheduler/data
+      - ./data:/app/data
     networks:
       - barns-network
     restart: unless-stopped

@@ -1,0 +1,267 @@
+{
+  "Calibrate": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_machine_position",
+        "params": {}
+      }
+    ]
+  },
+  "Paper_Cup": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "grab_paper_cup",
+        "params": {
+          "size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_1"
+        }
+      }
+    ]
+  },
+  "Plastic_Cup": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "grab_plastic_cup",
+        "params": {
+          "cup_size": "7oz" # options 7oz, 9oz, 12oz, 16oz
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_plastic_cup",
+        "params": {
+          "stage": "1" # options 1, 2
+        }
+      }
+    ]
+  },
+  "Espresso": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+          "shots_number": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "unmount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+          "tampering": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      }      
+    ]
+  },
+  "Call_Espresso": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "coffee_machine",
+        "params": {
+          "coffee_t": 1,
+          "slot_number": 2
+        }
+      }
+    ]
+  },
+  "Pour_Espresso": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
+  "Cleaning": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      }
+    ]
+  },
+  "Pour_Americano": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      },
+      {
+        "type": "robot",
+        "function": "get_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "with_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_1" # options stage_1, stage_2
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2" # options port_1, port_2, port_3
+        }
+      }
+    ]
+  },
+  "Milk_Dispensing": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_milk",
+        "params": {
+          "milk_type": "whole",
+          "amount": 60 # options machiato - 20, cortado - 70ml, cappucino - 110ml/260ml, latte 160ml/280ml
+        }
+      },
+    ]
+  },
+  "Milk_Frother_Calibration": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_frother_position",
+        "params": {}
+      }
+    ]
+  },
+  "Milk_Frothing": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_frother",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount_frother",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "froth_milk",
+        "params": {
+          "duration": 5
+        }
+      },  
+      {
+        "type": "robot",
+        "function": "pour_milk",
+        "params": {
+          "stage": "1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_frother",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "clean_steam_wand",
+        "params": {
+          "duration": 5
+        }
+      }
+    ]
+  },
+  "Slushie": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "grab_plastic_cup",
+        "params": {
+          "cup_size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "get_slush",
+        "params": {
+          "dispenser": "1"
+        }
+      },
+      {
+        "type": "automation",
+        "function": "slush_machine",
+        "params": {
+          "slush_type": "slush_1",
+          "cup": "C12"
+        }
+      },
+      {
+          "type": "robot",
+          "function": "place_slush",
+          "params": {
+            "dispenser": "1",
+            "stage": "1"
+          }
+        }
+    ]
+  }
+}

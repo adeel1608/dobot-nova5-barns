@@ -177,6 +177,30 @@ void OBCameraNode::setupDevices() {
     RCLCPP_INFO_STREAM(logger_, "Setting heartbeat to " << (enable_heartbeat_ ? "ON" : "OFF"));
     TRY_TO_SET_PROPERTY(setBoolProperty, OB_PROP_HEARTBEAT_BOOL, enable_heartbeat_);
   }
+  if (!industry_mode_.empty() &&
+      device_->isPropertySupported(OB_PROP_DEPTH_INDUSTRY_MODE_INT, OB_PERMISSION_READ_WRITE)) {
+    if (industry_mode_ == "default") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_DEFAULT;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    } else if (industry_mode_ == "mode1") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_MODE1;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    } else if (industry_mode_ == "mode2") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_MODE2;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    } else if (industry_mode_ == "mode3") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_MODE3;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    } else if (industry_mode_ == "mode4") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_MODE4;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    } else if (industry_mode_ == "mode5") {
+      OBDepthIndustryMode mode = OB_INDUSTRY_MODE5;
+      device_->setIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT, (int32_t)mode);
+    }
+    RCLCPP_INFO_STREAM(logger_, "Setting industry mode to "
+                                    << device_->getIntProperty(OB_PROP_DEPTH_INDUSTRY_MODE_INT));
+  }
   if (max_depth_limit_ > 0 &&
       device_->isPropertySupported(OB_PROP_MAX_DEPTH_INT, OB_PERMISSION_READ_WRITE)) {
     RCLCPP_INFO_STREAM(logger_, "Setting max depth limit to " << max_depth_limit_);
@@ -297,7 +321,30 @@ void OBCameraNode::setupDevices() {
     roi.y1_bottom = depth_ae_roi_bottom_;
     device_->setStructuredData(OB_STRUCT_DEPTH_AE_ROI, &roi, sizeof(AE_ROI));
   }
-
+  if (color_rotation_ != -1 &&
+      device_->isPropertySupported(OB_PROP_COLOR_ROTATE_INT, OB_PERMISSION_READ_WRITE)) {
+    device_->setIntProperty(OB_PROP_COLOR_ROTATE_INT, color_rotation_);
+    RCLCPP_INFO_STREAM(
+        logger_, "set color rotation  to " << device_->getIntProperty(OB_PROP_COLOR_ROTATE_INT));
+  }
+  if (depth_rotation_ != -1 &&
+      device_->isPropertySupported(OB_PROP_DEPTH_ROTATE_INT, OB_PERMISSION_READ_WRITE)) {
+    device_->setIntProperty(OB_PROP_DEPTH_ROTATE_INT, depth_rotation_);
+    RCLCPP_INFO_STREAM(
+        logger_, "set depth rotation  to " << device_->getIntProperty(OB_PROP_DEPTH_ROTATE_INT));
+  }
+  if (left_ir_rotation_ != -1 &&
+      device_->isPropertySupported(OB_PROP_IR_ROTATE_INT, OB_PERMISSION_READ_WRITE)) {
+    device_->setIntProperty(OB_PROP_IR_ROTATE_INT, left_ir_rotation_);
+    RCLCPP_INFO_STREAM(
+        logger_, "set left ir rotation  to " << device_->getIntProperty(OB_PROP_IR_ROTATE_INT));
+  }
+  if (right_ir_rotation_ != -1 &&
+      device_->isPropertySupported(OB_PROP_IR_RIGHT_ROTATE_INT, OB_PERMISSION_READ_WRITE)) {
+    device_->setIntProperty(OB_PROP_IR_RIGHT_ROTATE_INT, right_ir_rotation_);
+    RCLCPP_INFO_STREAM(logger_, "set right ir rotation  to "
+                                    << device_->getIntProperty(OB_PROP_IR_RIGHT_ROTATE_INT));
+  }
   if (device_->isPropertySupported(OB_PROP_DEPTH_PRECISION_LEVEL_INT, OB_PERMISSION_READ_WRITE) &&
       !depth_precision_str_.empty()) {
     auto default_precision_level = device_->getIntProperty(OB_PROP_DEPTH_PRECISION_LEVEL_INT);
@@ -573,14 +620,14 @@ void OBCameraNode::setupDepthPostProcessFilter() {
     } else if (filter_name == "NoiseRemovalFilter" && enable_noise_removal_filter_) {
       auto noise_removal_filter = filter->as<ob::NoiseRemovalFilter>();
       OBNoiseRemovalFilterParams params = noise_removal_filter->getFilterParams();
-      RCLCPP_INFO_STREAM(logger_, "Default noise removal filter params: "
-                                      << "disp_diff: " << params.disp_diff
-                                      << ", max_size: " << params.max_size);
+      RCLCPP_INFO_STREAM(
+          logger_, "Default noise removal filter params: " << "disp_diff: " << params.disp_diff
+                                                           << ", max_size: " << params.max_size);
       params.disp_diff = noise_removal_filter_min_diff_;
       params.max_size = noise_removal_filter_max_size_;
-      RCLCPP_INFO_STREAM(logger_, "Set noise removal filter params: "
-                                      << "disp_diff: " << params.disp_diff
-                                      << ", max_size: " << params.max_size);
+      RCLCPP_INFO_STREAM(logger_,
+                         "Set noise removal filter params: " << "disp_diff: " << params.disp_diff
+                                                             << ", max_size: " << params.max_size);
       if (noise_removal_filter_min_diff_ != -1 && noise_removal_filter_max_size_ != -1) {
         noise_removal_filter->setFilterParams(params);
       }
@@ -589,11 +636,11 @@ void OBCameraNode::setupDepthPostProcessFilter() {
           hdr_merge_gain_2_ != -1) {
         auto hdr_merge_filter = filter->as<ob::HdrMerge>();
         hdr_merge_filter->enable(true);
-        RCLCPP_INFO_STREAM(logger_, "Set HDR merge filter params: "
-                                        << "exposure_1: " << hdr_merge_exposure_1_
-                                        << ", gain_1: " << hdr_merge_gain_1_
-                                        << ", exposure_2: " << hdr_merge_exposure_2_
-                                        << ", gain_2: " << hdr_merge_gain_2_);
+        RCLCPP_INFO_STREAM(
+            logger_, "Set HDR merge filter params: " << "exposure_1: " << hdr_merge_exposure_1_
+                                                     << ", gain_1: " << hdr_merge_gain_1_
+                                                     << ", exposure_2: " << hdr_merge_exposure_2_
+                                                     << ", gain_2: " << hdr_merge_gain_2_);
         auto config = OBHdrConfig();
         config.enable = true;
         config.exposure_1 = hdr_merge_exposure_1_;
@@ -676,10 +723,10 @@ void OBCameraNode::setupProfiles() {
           throw std::runtime_error("Failed cast profile to VideoStreamProfile");
         }
         RCLCPP_DEBUG_STREAM(
-            logger_, "Sensor profile: "
-                         << "stream_type: " << magic_enum::enum_name(profile->type())
-                         << "Format: " << profile->format() << ", Width: " << profile->width()
-                         << ", Height: " << profile->height() << ", FPS: " << profile->fps());
+            logger_,
+            "Sensor profile: " << "stream_type: " << magic_enum::enum_name(profile->type())
+                               << "Format: " << profile->format() << ", Width: " << profile->width()
+                               << ", Height: " << profile->height() << ", FPS: " << profile->fps());
         supported_profiles_[elem].emplace_back(profile);
       }
       std::shared_ptr<ob::VideoStreamProfile> selected_profile;
@@ -830,9 +877,22 @@ void OBCameraNode::startStreams() {
     RCLCPP_INFO_STREAM(logger_, "Disable frame sync");
     TRY_EXECUTE_BLOCK(pipeline_->disableFrameSync());
   }
-  if (device_->isPropertySupported(OB_PROP_LDP_BOOL, OB_PERMISSION_WRITE)) {
+  if (device_->isPropertySupported(OB_PROP_LDP_BOOL, OB_PERMISSION_READ_WRITE)) {
     RCLCPP_INFO_STREAM(logger_, "Setting LDP to " << (enable_ldp_ ? "ON" : "OFF"));
-    TRY_TO_SET_PROPERTY(setBoolProperty, OB_PROP_LDP_BOOL, enable_ldp_);
+    if (device_->isPropertySupported(OB_PROP_LASER_CONTROL_INT, OB_PERMISSION_READ_WRITE)) {
+      auto laser_enable = device_->getIntProperty(OB_PROP_LASER_CONTROL_INT);
+      TRY_TO_SET_PROPERTY(setBoolProperty, OB_PROP_LDP_BOOL, enable_ldp_);
+      TRY_TO_SET_PROPERTY(setIntProperty, OB_PROP_LASER_CONTROL_INT, laser_enable);
+    } else if (device_->isPropertySupported(OB_PROP_LASER_BOOL, OB_PERMISSION_READ_WRITE)) {
+      if (!enable_ldp_) {
+        auto laser_enable = device_->getIntProperty(OB_PROP_LASER_BOOL);
+        TRY_TO_SET_PROPERTY(setBoolProperty, OB_PROP_LDP_BOOL, enable_ldp_);
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        TRY_TO_SET_PROPERTY(setIntProperty, OB_PROP_LASER_BOOL, laser_enable);
+      } else {
+        TRY_TO_SET_PROPERTY(setBoolProperty, OB_PROP_LDP_BOOL, enable_ldp_);
+      }
+    }
   }
   pipeline_started_.store(true);
 }
@@ -1060,6 +1120,7 @@ void OBCameraNode::getParameters() {
   setAndGetNodeParameter(enable_frame_sync_, "enable_frame_sync", false);
   setAndGetNodeParameter(enable_color_auto_exposure_, "enable_color_auto_exposure", true);
   setAndGetNodeParameter(enable_color_auto_white_balance_, "enable_color_auto_white_balance", true);
+  setAndGetNodeParameter<int>(color_rotation_, "color_rotation", -1);
   setAndGetNodeParameter<int>(color_exposure_, "color_exposure", -1);
   setAndGetNodeParameter<int>(color_gain_, "color_gain", -1);
   setAndGetNodeParameter<int>(color_white_balance_, "color_white_balance", -1);
@@ -1070,6 +1131,9 @@ void OBCameraNode::getParameters() {
   setAndGetNodeParameter<int>(color_contrast_, "color_contrast", -1);
   setAndGetNodeParameter<int>(color_gamma_, "color_gamma", -1);
   setAndGetNodeParameter<int>(color_hue_, "color_hue", -1);
+  setAndGetNodeParameter<int>(depth_rotation_, "depth_rotation", -1);
+  setAndGetNodeParameter<int>(left_ir_rotation_, "left_ir_rotation", -1);
+  setAndGetNodeParameter<int>(right_ir_rotation_, "right_ir_rotation", -1);
   setAndGetNodeParameter(enable_ir_auto_exposure_, "enable_ir_auto_exposure", true);
   setAndGetNodeParameter<int>(ir_exposure_, "ir_exposure", -1);
   setAndGetNodeParameter<int>(ir_gain_, "ir_gain", -1);
@@ -1145,6 +1209,7 @@ void OBCameraNode::getParameters() {
   setAndGetNodeParameter<int>(min_depth_limit_, "min_depth_limit", 0);
   setAndGetNodeParameter<int>(max_depth_limit_, "max_depth_limit", 0);
   setAndGetNodeParameter<bool>(enable_heartbeat_, "enable_heartbeat", false);
+  setAndGetNodeParameter<std::string>(industry_mode_, "industry_mode", "");
   setAndGetNodeParameter<bool>(enable_color_undistortion_, "enable_color_undistortion", false);
   setAndGetNodeParameter<int>(color_ae_roi_left_, "color_ae_roi_left", -1);
   setAndGetNodeParameter<int>(color_ae_roi_top_, "color_ae_roi_top", -1);

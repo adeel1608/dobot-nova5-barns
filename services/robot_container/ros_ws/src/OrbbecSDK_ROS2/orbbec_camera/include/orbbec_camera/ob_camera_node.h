@@ -64,9 +64,9 @@
 #include "jpeg_decoder.h"
 #include <std_msgs/msg/string.hpp>
 
-#if defined(ROS_JAZZY) || defined(ROS_IRON)
+#if __has_include(<cv_bridge/cv_bridge.hpp>)
 #include <cv_bridge/cv_bridge.hpp>
-#else
+#elif __has_include(<cv_bridge/cv_bridge.h>)
 #include <cv_bridge/cv_bridge.h>
 #endif
 
@@ -462,6 +462,10 @@ class OBCameraNode {
   bool enable_ir_auto_exposure_ = true;
   bool enable_ir_long_exposure_ = false;
   bool enable_ldp_ = true;
+  int color_rotation_ = -1;
+  int depth_rotation_ = -1;
+  int left_ir_rotation_ = -1;
+  int right_ir_rotation_ = -1;
   int color_exposure_ = -1;
   int color_gain_ = -1;
   int color_white_balance_ = -1;
@@ -575,6 +579,7 @@ class OBCameraNode {
   rclcpp::TimerBase::SharedPtr software_trigger_timer_;
   std::chrono::milliseconds software_trigger_period_{33};
   bool enable_heartbeat_ = false;
+  std::string industry_mode_ = "";
   bool enable_color_undistortion_ = false;
   std::shared_ptr<image_publisher> color_undistortion_publisher_;
   bool has_first_color_frame_ = false;
