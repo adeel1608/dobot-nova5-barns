@@ -132,8 +132,8 @@ class MainValidation:
                                 "message": f"Inventory {warning} level reached"
                             }
 
-            # Put result in response queue
-            self._response_queue.put(result)
+            # # Put result in response queue
+            # self._response_queue.put(result)
             print("result after update inventory request")
             print(result)
             return result
@@ -146,7 +146,7 @@ class MainValidation:
                 "passed": False,
                 "details": {"error": str(e)}
             }
-            self._response_queue.put(error_result)
+            # self._response_queue.put(error_result)
             return error_result
 
 
@@ -298,8 +298,8 @@ class MainValidation:
                           "passed": False, 
                           "details": "Invalid client type"}
                 
-            self._response_queue.put(result)
-            self._response_event.set()
+            # self._response_queue.put(result)
+            # self._response_event.set()
             return result
 
         except Exception as e:
@@ -310,9 +310,9 @@ class MainValidation:
                 "passed": False,
                 "details": f"Error processing request: {str(e)}"
             }
-            self._response_queue.put(error_result)
+            # self._response_queue.put(error_result)
             # NOTE: @ UZAIR fix this to make sure the result is sent to the response queue
-            self._response_event.set()
+            # self._response_event.set()
             return error_result
 
     # def process_refill_ingredient_request(self, payload):
@@ -434,8 +434,8 @@ class MainValidation:
             result["passed"] = coffee_detection_success and normal_refill_success
 
             self.logger.info(f"Refill ingredient request result: {json.dumps(result, indent=2)}")
-            self._response_queue.put(result)
-            self._response_event.set()
+            # self._response_queue.put(result)
+            # self._response_event.set()
             return result
             
         except Exception as e:
@@ -446,8 +446,8 @@ class MainValidation:
                 "passed": False,
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
         
     def process_ingredient_status_request(self, payload):
@@ -477,8 +477,8 @@ class MainValidation:
                 "details": inventory_status
             }
             
-            self._response_queue.put(final_result)
-            self._response_event.set()
+            # self._response_queue.put(final_result)
+            # self._response_event.set()
             return final_result
             
         except Exception as e:
@@ -489,8 +489,8 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
     
     def process_category_info_request(self, payload):
@@ -515,8 +515,8 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
         
 
@@ -536,8 +536,8 @@ class MainValidation:
             }
             print(f"final_result: {json.dumps(final_result, indent=2)}")
             
-            self._response_queue.put(final_result)
-            self._response_event.set()
+            # self._response_queue.put(final_result)
+            # self._response_event.set()
             return final_result
             
         except Exception as e:
@@ -548,8 +548,8 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
 
     def process_category_count_request(self, payload):
@@ -564,8 +564,8 @@ class MainValidation:
                 "details": category_count
             }
             
-            self._response_queue.put(final_result)
-            self._response_event.set()
+            # self._response_queue.put(final_result)
+            # self._response_event.set()
             return final_result
         
         except Exception as e:
@@ -576,8 +576,8 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
         
 
@@ -593,8 +593,8 @@ class MainValidation:
                 "details": stock_level
             }
             
-            self._response_queue.put(final_result)
-            self._response_event.set()
+            # self._response_queue.put(final_result)
+            # self._response_event.set()
             return final_result
             
         except Exception as e:
@@ -605,8 +605,8 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": {"error": f"Error processing request: {str(e)}"}
             }
-            self._response_queue.put(error_result)
-            self._response_event.set()
+            # self._response_queue.put(error_result)
+            # self._response_event.set()
             return error_result
         
 
