@@ -2,7 +2,12 @@ import json
 import os
 import logging
 from typing import Tuple
-from db_client import DatabaseClient
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from .db_client import DatabaseClient
 from datetime import datetime
 
 # Configure logging

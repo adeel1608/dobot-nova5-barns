@@ -5,66 +5,74 @@ from pydantic import BaseModel, ValidationError
 from fastapi import HTTPException
 import logging
 import threading
+import os
+import sys
 from queue import Queue
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-from inventory_manager import InventoryManager
-from pydantic_req_structure import InventoryStatusRequest, ClientType
-from db_client import DatabaseClient
-from coffee_beans_detector import CoffeeBeansDetector
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from .inventory_manager import InventoryManager
+from .db_client import DatabaseClient
+from .coffee_beans_detector import CoffeeBeansDetector
+from .config import get_db_connection_string, config
 
 class MainValidation:
     def __init__(self):
-        self._db_client = DatabaseClient(
-        "dbname=barns_inventory user=postgres password=QSS2030QSS host=localhost port=5432"
-    )
+        self._db_client = DatabaseClient(get_db_connection_string())
+        # db_host = os.getenv("POSTGRES_HOST", "localhost")
+        # db_port = os.getenv("POSTGRES_PORT", "5432")
+        # db_name = os.getenv("POSTGRES_DB", "barns_validation")
+        # db_user = os.getenv("POSTGRES_USER", "validation_user")
+        # db_password = os.getenv("POSTGRES_PASSWORD", "validation_pass")
+        # connection_string = f"dbname={db_name} user={db_user} password={db_password} host={db_host} port={db_port}"
+        # self._db_client = DatabaseClient(connection_string)
 
         # the inventory manager
         self._inventory_client = InventoryManager(self._db_client)
         self._coffee_beans_detector = CoffeeBeansDetector()
 
-        # Queues to receive requests and process responses
-        self._request_queue = Queue()
-        self._response_queue = Queue()
+        # # Queues to receive requests and process responses
+        # self._request_queue = Queue()
+        # self._response_queue = Queue()
 
-        # the workers
-        self._request_worker = threading.Thread(target=self.request_worker, daemon=True)
-        self._response_worker = threading.Thread(target=self.response_worker, daemon=True)
+        # # the workers
+        # self._request_worker = threading.Thread(target=self.request_worker, daemon=True)
+        # self._response_worker = threading.Thread(target=self.response_worker, daemon=True)
 
-        # event flags for adding request and response
-        self._request_event = threading.Event()
-        self._response_event = threading.Event()
+        # # event flags for adding request and response
+        # self._request_event = threading.Event()
+        # self._response_event = threading.Event()
 
         # Thread pool for blocking operations
-        self._thread_pool = ThreadPoolExecutor(max_workers=3, thread_name_prefix="detection_worker")
+        self._thread_pool = ThreadPoolExecutor(max_workers=config.detection.max_detection_workers, thread_name_prefix="detection_worker")
         # Detection task control
         self._detection_task = None
         self._detection_running = False
 
         # initialize the logging
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(level=getattr(logging, config.log_level))
         self.logger = logging.getLogger(self.__class__.__name__)
 
 
-    def post_request(self, request):
-        try:
-            # # check if it is a valid request using pydantic !! ALWAYS VALID THOUGH !!
-            # if not request or not request.payload or not request.payload.items:
-            #     # raise a validation error
-            #     raise HTTPException(status_code=422, detail="Invalid request")
-            # # log the request
-            logging.info(f"received request: {request} with request_id: {request.request_id}")
-            # if the request is valid, add it to the queue
-            self._request_queue.put(request)
-            # raise the event flag
-            self._request_event.set()
-        except Exception as e:
-            print(e) 
-            print("failed to add request to queue")
-            # log the error
-            logging.error(f"failed to add request to queue: {e}")
+    # def post_request(self, request):
+    #     try:
+    #         # # check if it is a valid request using pydantic !! ALWAYS VALID THOUGH !!
+    #         # if not request or not request.payload or not request.payload.items:
+    #         #     # raise a validation error
+    #         #     raise HTTPException(status_code=422, detail="Invalid request")
+    #         # # log the request
+    #         logging.info(f"received request: {request} with request_id: {request.request_id}")
+    #         # if the request is valid, add it to the queue
+    #         self._request_queue.put(request)
+    #         # raise the event flag
+    #         self._request_event.set()
+    #     except Exception as e:
+    #         print(e) 
+    #         print("failed to add request to queue")
+    #         # log the error
+    #         logging.error(f"failed to add request to queue: {e}")
 
 
     def process_update_inventory_request(self, payload):
@@ -604,44 +612,48 @@ class MainValidation:
 
             
     
-    def request_worker(self):
-        while True:
-            try:
-                self._request_event.wait()
-                request = self._request_queue.get()
-                self._request_event.clear()  # Clear the event flag
+    # def request_worker(self):
+    #     while True:
+    #         try:
+    #             self._request_event.wait()
+    #             request = self._request_queue.get()
+    #             self._request_event.clear()  # Clear the event flag
                 
-                if request["function_name"] == "update_inventory":
-                    self.process_update_inventory_request(request)
-                elif request["function_name"] == "ingredient_status" or request["function_name"] == "pre_check":
-                    self.process_ingredient_status_request(request)
-                else:
-                    logging.error(f"Invalid function name: {request['function_name']}")
-            except Exception as e:
-                logging.error(f"Error processing request: {e}")
+    #             if request["function_name"] == "update_inventory":
+    #                 self.process_update_inventory_request(request)
+    #             elif request["function_name"] == "ingredient_status" or request["function_name"] == "pre_check":
+    #                 self.process_ingredient_status_request(request)
+    #             else:
+    #                 logging.error(f"Invalid function name: {request['function_name']}")
+    #         except Exception as e:
+    #             logging.error(f"Error processing request: {e}")
 
 
-    def response_worker(self):
-        while True:
-            try:
-                self._response_event.wait()
-                response = self._response_queue.get()
-                ####################
-                # @NOTE: @Uzair @Mais work with sending the response to the client here
-                ## Ideally have a separate object to handle this
-                print(response)
-            #####################
-                self._response_event.clear()
-            except Exception as e:
-                logging.error(f"Error processing response: {e}")
+    # def response_worker(self):
+    #     while True:
+    #         try:
+    #             self._response_event.wait()
+    #             response = self._response_queue.get()
+    #             ####################
+    #             # @NOTE: @Uzair @Mais work with sending the response to the client here
+    #             ## Ideally have a separate object to handle this
+    #             print(response)
+    #         #####################
+    #             self._response_event.clear()
+    #         except Exception as e:
+    #             logging.error(f"Error processing response: {e}")
 
 
     async def start_periodic_detection(self):
         """Start the periodic coffee beans detection task"""
+        if not config.detection.enable_periodic_detection:
+            self.logger.info("Periodic detection disabled by configuration")
+            return
+        
         if self._detection_task is None or self._detection_task.done():
             self._detection_running = True
             self._detection_task = asyncio.create_task(self._periodic_detection_loop())
-            self.logger.info("Started periodic coffee beans detection (every 10 minutes)")
+            self.logger.info(f"Started periodic coffee beans detection (every {config.detection.periodic_interval_minutes} minutes)")
 
     async def stop_periodic_detection(self):
         """Stop the periodic coffee beans detection task"""
@@ -681,7 +693,9 @@ class MainValidation:
             
             # Wait for 10 minutes before next detection
             try:
-                await asyncio.sleep(600)  # 10 minutes = 600 seconds
+                interval = config.detection.periodic_interval_seconds
+                self.logger.debug(f"Waiting {interval} seconds ({config.detection.periodic_interval_minutes} minutes) until next detection")
+                await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
 

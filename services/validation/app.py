@@ -7,13 +7,15 @@ import asyncio
 import logging
 import signal
 import sys
+import os
 from typing import Dict, Any
 from datetime import datetime
 import json
-# Import your existing business logic (unchanged)
-from main_validation import MainValidation
-# Import the shared RabbitMQ client
-from shared.rabbitmq_client import RabbitMQClient
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from shared.rabbitmq_client import RabbitMQClient, EventListener
+from .main_validation import MainValidation
 
 class ValidationServiceApp:
     def __init__(self):
