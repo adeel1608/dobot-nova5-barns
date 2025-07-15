@@ -7,7 +7,7 @@ import beans from '../assets/beans.png';
 import syrups from '../assets/syrup.png';
 import cups from '../assets/cup.png';
 import sauces from '../assets/sauce.png';
-import premixes from '../assets/cup.png';
+import premixes from '../assets/premixes.png';
 export const INVENTORY_CATEGORIES = {
   MILK: 'milk',
   BEANS: 'beans', 
@@ -31,7 +31,7 @@ export const INVENTORY_ITEMS = {
   },
 
   // 1 Type of Coffee Bean
-  coffee_beans: {
+  beans: {
     coffee_beans: { name: 'Coffee Beans', icon: '☕', category: 'beans' }
   },
 
@@ -131,23 +131,10 @@ export const getItemsByCategory = (category) => {
     .reduce((acc, [key, item]) => ({ ...acc, [key]: item }), {});
 };
 
-// export const getCategoryItems = (category) => {
-//   return INVENTORY_ITEMS[category] || {};
-// };
 export const getCategoryItems = (category) => {
-  
-  const items = INVENTORY_ITEMS[category];
-  //console.log("🔍 Requested items:", items);
-  // If no exact match, try fuzzy match (like partial includes)
-  if (!items) {
-    const fallbackKey = Object.keys(INVENTORY_ITEMS).find(key =>
-      category.includes(key) || key.includes(category)
-    );
-    return INVENTORY_ITEMS[fallbackKey] || {};
-  }
-
-  return items;
+  return INVENTORY_ITEMS[category] || {};
 };
+
 export const getItemDetails = (itemKey) => {
   return ALL_INVENTORY_ITEMS[itemKey] || null;
 };

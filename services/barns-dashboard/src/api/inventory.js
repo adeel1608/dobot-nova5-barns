@@ -6,6 +6,55 @@
 import { apiClient } from './base';
 
 export const inventoryAPI = {
+
+
+    fetchCategoryInfo: async () => {
+    const result = await apiClient.get('/inventory/category-info', {}, {
+      successMessage: 'Successfully fetched category information'
+    });
+
+    if (result.success) {
+      return {
+        ...result,
+        data: result.data?.inventory || result.data || {}
+      };
+    }
+
+    return result;
+  },
+
+  fetchFullStockSummary: async () => {
+    const result = await apiClient.get('/inventory/category-count', {}, {
+      successMessage: 'Successfully fetched full stock summary'
+    });
+
+    if (result.success) {
+      return {
+        ...result,
+        data: result.data?.inventory || result.data || {}
+      };
+    }
+
+    return result;
+  },
+
+  // Fetch full inventory status (all items)
+  fetchStocklevel: async () => {
+    const result = await apiClient.get('/inventory/stock-level', {}, {
+      successMessage: 'Successfully fetched stock-level'
+    });
+    
+    if (result.success) {
+      return {
+        ...result,
+        data: result.data?.inventory || result.data || {}
+      };
+    }
+    
+    return result;
+  },
+
+
   // Fetch full inventory status (all items)
   fetchInventoryStatus: async () => {
     const result = await apiClient.get('/inventory/status', {}, {
@@ -30,6 +79,7 @@ export const inventoryAPI = {
       // Import here to avoid circular dependency
       const { getCategoryItems } = await import('../utils/inventoryData');
       const categoryItems = getCategoryItems(category);
+   
       const categoryData = {};
       
       Object.keys(categoryItems).forEach(itemKey => {
@@ -53,11 +103,11 @@ export const inventoryAPI = {
     const result = await apiClient.get('/inventory/category-summary', {}, {
       successMessage: 'Successfully calculated category summary'
     });
-    
+
     if (result.success) {
       return {
         ...result,
-        data: result.data?.category_summary || result.data || {}
+        data: result.data?.summary || result.data || {}
       };
     }
     

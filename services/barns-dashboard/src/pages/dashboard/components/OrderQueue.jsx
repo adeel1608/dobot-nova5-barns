@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
+import Swal from 'sweetalert2';
 import {
   arrayMove,
   SortableContext,
@@ -357,43 +358,119 @@ export default function OrderQueue({ connectionStatus }) {
     }
   };
 
-  const handleDeleteOrder = async (orderId) => {
-    console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
-    
-    // Find the order to get its status
-    const order = displayOrders.find(o => o.id === orderId);
-    const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
-    
-    // Show different confirmation messages based on order status
-    let confirmMessage;
-    if (orderStatus === 'PROCESSING') {
-      confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
-    } else {
-      confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
-    }
-    
-    const confirmed = window.confirm(confirmMessage);
-    if (!confirmed) {
-      return;
-    }
-    
-    setDeletingOrderId(orderId);
-    try {
-      console.log('🗑️ About to call deleteOrder from store...');
-      const success = await deleteOrder(orderId);
-      console.log('🗑️ deleteOrder returned:', success);
-      
-      if (success) {
-        console.log(`✅ Order ${orderId} deleted successfully`);
-      } else {
-        console.error(`❌ Failed to delete order ${orderId}`);
-      }
-    } catch (error) {
-      console.error('🗑️ Error in handleDeleteOrder:', error);
-    } finally {
-      setDeletingOrderId(null);
-    }
+
+const handleDeleteOrder = async (orderId) => {
+  console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
+  
+  // Find the order to get its status
+  const order = displayOrders.find(o => o.id === orderId);
+  const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
+
+  // Determine SweetAlert config
+  let swalConfig = {
+    title: `Delete Order #${orderId}?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, delete it!',
+    cancelButtonText: 'Cancel',
+    reverseButtons: true,
   };
+
+  if (orderStatus === 'PROCESSING') {
+    swalConfig = {
+      ...swalConfig,
+      title: `⚠️ Order #${orderId} is Processing!`,
+      text: `Deleting this order will immediately stop all ongoing operations and may cause system issues. Are you absolutely sure you want to force delete it?`,
+    };
+  } else {
+    swalConfig = {
+      ...swalConfig,
+      text: `This action cannot be undone.`,
+    };
+  }
+
+  const result = await Swal.fire(swalConfig);
+
+  if (!result.isConfirmed) return;
+
+  setDeletingOrderId(orderId);
+
+  try {
+    console.log('🗑️ About to call deleteOrder from store...');
+    const success = await deleteOrder(orderId);
+    console.log('🗑️ deleteOrder returned:', success);
+
+    if (success) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted!',
+        text: `Order #${orderId} has been deleted.`,
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed!',
+        text: `Could not delete order #${orderId}.`,
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    }
+  } catch (error) {
+    console.error('🗑️ Error in handleDeleteOrder:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: 'An unexpected error occurred while deleting the order.',
+      timer: 3000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    });
+  } finally {
+    setDeletingOrderId(null);
+  }
+};
+
+  // const handleDeleteOrder = async (orderId) => {
+  //   console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
+    
+  //   // Find the order to get its status
+  //   const order = displayOrders.find(o => o.id === orderId);
+  //   const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
+    
+  //   // Show different confirmation messages based on order status
+  //   let confirmMessage;
+  //   if (orderStatus === 'PROCESSING') {
+  //     confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
+  //   } else {
+  //     confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
+  //   }
+    
+  //   const confirmed = window.confirm(confirmMessage);
+  //   if (!confirmed) {
+  //     return;
+  //   }
+    
+  //   setDeletingOrderId(orderId);
+  //   try {
+  //     console.log('🗑️ About to call deleteOrder from store...');
+  //     const success = await deleteOrder(orderId);
+  //     console.log('🗑️ deleteOrder returned:', success);
+      
+  //     if (success) {
+  //       console.log(`✅ Order ${orderId} deleted successfully`);
+  //     } else {
+  //       console.error(`❌ Failed to delete order ${orderId}`);
+  //     }
+  //   } catch (error) {
+  //     console.error('🗑️ Error in handleDeleteOrder:', error);
+  //   } finally {
+  //     setDeletingOrderId(null);
+  //   }
+  // };
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
@@ -415,9 +492,26 @@ export default function OrderQueue({ connectionStatus }) {
     if (success) {
       setOrderData({ cups: [{ type: 'latte', size: 'regular', addons: [] }] });
       setShowNewOrder(false);
-      alert('Order created successfully!');
+
+      Swal.fire({
+        title: 'Order!',
+        text: 'Order created successfully!',
+        icon: 'success',
+        timer: 3000, // 3 seconds = 3000ms
+        timerProgressBar: true,
+        showConfirmButton: false
+      });
     } else {
-      alert('Failed to create order.');
+      
+        
+          Swal.fire({
+          title: 'Order!',
+          text: 'Failed to create order!',
+          icon: 'error',
+          timer: 3000, // 3 seconds = 3000ms
+          timerProgressBar: true,
+          showConfirmButton: false
+      });
     }
   };
 

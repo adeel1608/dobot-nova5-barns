@@ -8,15 +8,11 @@ import { useInventoryStore } from "../../store/inventoryStore";
 import { INVENTORY_CATEGORIES } from "../../utils/inventoryData";
 import CategoryInventoryCard from "./components/CategoryInventoryCard";
 import "./styles.css";
-import socket from '../../utils/socketConfigure';
+import socket from '../../../utils/socketConfigure';
+
 const InventoryPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
-
-  const [liveStockLevel, setLiveStockLevel] = useState(null);
-  const [isSocketConnected, setSocketConnected] = useState(socket.connected);
-
-  console.log("scoket connected:", isSocketConnected );
   const {
     fetchInventoryStatus,
     refillCategory,
@@ -35,30 +31,6 @@ const InventoryPage = () => {
     fetchStockLevelData();
     fetchFullStockSummaryData();
   }, [fetchInventoryStatus]);
-  useEffect(() => {
-    const handleConnect = () => {
-      console.log('🟢 Socket connected');
-      setSocketConnected(true);
-    };
-
-    const handleDisconnect = () => {
-      console.log('🔴 Socket disconnected');
-      setSocketConnected(false);
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-
-    // Trigger immediately if already connected
-    if (socket.connected) handleConnect();
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-    };
-  }, []);
-
-
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -78,15 +50,13 @@ const InventoryPage = () => {
   };
  
   const stockLevelData = useInventoryStore((state) => state.inventoryStockLevel);
-  const stocklevel = liveStockLevel || stockLevelData?.stock_level || {
-  high: 0,
-  medium: 0,
-  low: 0,
-  empty: 0,
-  total: 0
-};
-
-
+  const stocklevel = stockLevelData?.stock_level || {
+    high: 0,
+    medium: 0,
+    low: 0,
+    total: 0
+  };
+  //console.log("🧠 Stock Level Data:", stocklevel);
   
 
   const stats = getInventoryStats();
@@ -99,7 +69,7 @@ const InventoryPage = () => {
 
   const categoryDetails = FullStockSummary || {};
   const totalFullStock = Object.values(categoryDetails).reduce((sum, count) => sum + count, 0);
-  console.log("🧠 Full Stock Summary:", categoryDetails);
+  // console.log("🧠 Full Stock Summary:", categoryDetails);
   const tabs = [
     { id: 'all', name: 'All Categories', count: totalFullStock },
     ...Object.entries(categoryDetails).map(([key, count]) => ({
@@ -109,29 +79,7 @@ const InventoryPage = () => {
     }))
   ];
 
-  useEffect(() => {
-    const handleStockUpdate = (data) => {
-      console.log("📦 Stock levels updated via socket:", data);
-      setLiveStockLevel(data.stock_levels);
-    };
 
-    socket.on("inventory.stock_level", handleStockUpdate);
-    return () => socket.off("inventory.stock_level", handleStockUpdate);
-  }, []);
-
-useEffect(() => {
-  const handleInventoryStatus = async (data) => {
-    console.log('📡 Live inventory.status received:', data);
-    if (data?.inventory) {
-      const store = useInventoryStore.getState();
-      store.updateInventoryData(data.inventory);
-      await store.updateCategorySummary();
-    }
-  };
-
-  socket.on('inventory.status', handleInventoryStatus);
-  return () => socket.off('inventory.status', handleInventoryStatus);
-}, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -152,13 +100,9 @@ useEffect(() => {
           
 
             {/* Statistics Overview */}
-            <div className="grid grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
               {/* Info Card - Enhanced styling */}
-              <div 
-                className={`col-span-1 bg-gradient-to-br from-[#00784B]/5 via-white to-[#233746]/5 p-3 sm:p-4 rounded-lg shadow-md transition-all duration-300 hover:shadow-lg
-                  ${isSocketConnected ? 'border-2 border-green-500' : 'border-2 border-red-500'}
-                `}
-              >
+              <div className="col-span-1 bg-gradient-to-br from-[#00784B]/5 via-white to-[#233746]/5 p-3 sm:p-4 rounded-lg shadow-md border-2 border-[#00784B] hover:shadow-lg transition-all duration-300">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#00784B] rounded-lg flex items-center justify-center">
@@ -216,6 +160,67 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
+
+              <div className="bg-gradient-to-br from-red-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-red-100 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-red-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-3 sm:ml-4 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
+                      Low Stock
+                    </p>
+                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
+                      {stocklevel.low}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-yellow-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-3 sm:ml-4 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
+                      Medium Stock
+                    </p>
+                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
+                      {stocklevel.medium}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="bg-gradient-to-br from-green-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-green-100 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -245,102 +250,6 @@ useEffect(() => {
                   </div>
                 </div>
               </div>
-
-               <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-yellow-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-3 sm:ml-4 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
-                      Medium Stock
-                    </p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
-                      {stocklevel.medium}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-orange-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-orange-100 hover:shadow-md transition-all duration-300">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-orange-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-3 sm:ml-4 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-orange-600 truncate">
-                      Low Stock
-                    </p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
-                      {stocklevel.low}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-
-
-
-
-              
-              <div className=" bg-gradient-to-br from-red-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-red-200 hover:shadow-md transition-all duration-300">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-400 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-red-200"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-3 sm:ml-4 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
-                      Empty Stock
-                    </p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-black-900">
-                      {stocklevel.empty}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-
             </div>
            
 
@@ -554,7 +463,7 @@ useEffect(() => {
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className=" inset-0  flex items-center justify-center z-50">
+        <div className="fixed inset-0  flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
             <div className="flex items-center space-x-3">
               <svg
