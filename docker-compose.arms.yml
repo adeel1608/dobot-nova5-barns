@@ -1,10 +1,10 @@
 services:
-  # RabbitMQ Message Broker
+  # RabbitMQ Message Broker (accessible to external robot processes)
   rabbitmq:
     image: rabbitmq:3.12-management
     container_name: barns-rabbitmq
     ports:
-      - "5672:5672"    # AMQP port
+      - "5672:5672"    # AMQP port (accessible to external robots)
       - "15672:15672"  # Management UI
       - "1883:1883"    # MQTT port      
     environment:
@@ -306,142 +306,17 @@ services:
       start_period: 40s
 
   # ============================================================================
-  # ROBOT ARM SERVICES
+  # ROBOT ARM SERVICES - MOVED TO EXTERNAL PROCESSES
   # ============================================================================
-  
-  # Robot Arm 1 (Dobot Nova5)
-  robot1:
-    build:
-      context: services/robot_container
-      dockerfile: docker/dev.Dockerfile
-      cache_from:
-        - barns-robot-base:latest
-    image: barns-robot-base:latest  # Use shared image name
-    container_name: oms_robot_1
-    
-    # Robot arms use both host and bridge networking 
-    # - Host networking for Fast-DDS multicast communication with hardware
-    # - Bridge networking via networks section for RabbitMQ service communication
-    network_mode: host
-    extra_hosts:
-      - "rabbitmq:127.0.0.1"
-    ipc: host
-    privileged: true
-    shm_size: "1g"   # second interface (depth/IR)
-    
-    # Additional capabilities for USB device access
-    cap_add:
-      - SYS_ADMIN
-      - SYS_RAWIO
-      - DAC_OVERRIDE
-
-    # Bind entire USB bus for camera access
-    devices:
-      - "/dev/bus/usb:/dev/bus/usb"
-
-    environment:
-      - DISPLAY=${DISPLAY}
-      - QT_X11_NO_MITSHM=1
-      - DOBOT_TYPE=nova5
-      - IP_address=192.168.200.249  # Robot 1 IP address
-      - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
-      - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
-      - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/  # Use localhost via port forwarding
-      - USBFS_MEMORY_MB=128            # host usbfs buffer hint
-      - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
-      - PYTHONPATH=/app:/root/ros_ws/src
-      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
-      - CAM_NAME=cam0
-      - DEVICE_ID=1
-      - USB_PORT=1-5-7            # USB port for robot 1 camera (CP1Z842000YW)
-      - DEVICE_NUM=1              # Device index for robot 1 camera
-
-    volumes:
-      - /dev/shm:/dev/shm               # share host shm tmpfs
-      - ./shared:/app/shared:ro
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-
-    #user: "${UID}:${GID}"  # Restore user permissions
-    entrypoint: ["/entrypoint.sh"]
-    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
-    stdin_open: true
-    tty: true
-    
-    ports:
-      - "5901:5901"  # VNC access for robot 1
-    
-    depends_on:
-      routine-service:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-    
-    restart: unless-stopped
-
-  # Robot Arm 2 (Dobot Nova5) - Launches 15 seconds after Robot 1
-  # robot2:
-  #   image: barns-robot-base:latest  # Use same shared image
-  #   container_name: oms_robot_2
-    
-  #   # Robot arms use host networking for Fast-DDS multicast communication
-  #   network_mode: host
-  #   extra_hosts:
-  #     - "rabbitmq:127.0.0.1"
-  #   ipc: host
-  #   privileged: true
-  #   shm_size: "1g"
-    
-  #   # Additional capabilities for USB device access
-  #   cap_add:
-  #     - SYS_ADMIN
-  #     - SYS_RAWIO
-  #     - DAC_OVERRIDE
-
-  #   # Bind entire USB bus for camera access
-  #   devices:
-  #     - "/dev/bus/usb:/dev/bus/usb"
-
-  #   environment:
-  #     - DISPLAY=${DISPLAY}
-  #     - QT_X11_NO_MITSHM=1
-  #     - DOBOT_TYPE=nova5
-  #     - IP_address=192.168.200.248  # Robot 2 IP address
-  #     - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
-  #     - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
-  #     - RABBITMQ_URL=amqp://admin:admin123@localhost:5672/  # Use localhost via port forwarding
-  #     - USBFS_MEMORY_MB=128
-  #     - ORBBEC_CONNECTION_DELAY=5000  # Reduced from 12000 to 5000ms
-  #     - PYTHONPATH=/app:/root/ros_ws/src
-  #     - CAMERA_SERIAL_NUMBER=CP1Z842000F6
-  #     - CAM_NAME=cam1
-  #     - DEVICE_ID=2
-  #     - USB_PORT=2-7-6              # USB port for robot 2 camera (CP1Z842000F6)
-  #     - DEVICE_NUM=2              # Device index for robot 2 camera
-  #     - ROBOT_STARTUP_DELAY=15    # Delay before starting full stack
-
-  #   volumes:
-  #     - /dev/shm:/dev/shm
-  #     - ./shared:/app/shared:ro
-  #     - /tmp/.X11-unix:/tmp/.X11-unix:rw
-
-  #   #user: "${UID}:${GID}"  # Restore user permissions
-  #   entrypoint: ["/entrypoint.sh"]
-  #   command: ["bash", "-c", "echo 'Robot 2 waiting 15 seconds before startup to avoid USB conflicts...'; sleep 15; echo 'Starting Robot 2 full stack...'; /root/ros_ws/run_full_stack.sh"]
-  #   stdin_open: true
-  #   tty: true
-    
-  #   ports:
-  #     - "5902:5901"  # VNC access for robot 2
-    
-  #   depends_on:
-  #     routine-service:
-  #       condition: service_started
-  #     rabbitmq:
-  #       condition: service_healthy
-  #     robot1:
-  #       condition: service_started
-    
-  #   restart: unless-stopped
+  # Robot arms now run as external processes on host machines
+  # Robot 1: Separate PC (also runs Docker services)
+  # Robot 2: Same PC as Docker services
+  #
+  # See robot installation and startup scripts:
+  # - install-robot-dependencies.sh
+  # - robot1-startup.sh (for separate PC)
+  # - robot2-startup.sh (for Docker host PC)
+  # ============================================================================
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:
