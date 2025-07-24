@@ -8,10 +8,15 @@ import { useInventoryStore } from "../../store/inventoryStore";
 import { INVENTORY_CATEGORIES } from "../../utils/inventoryData";
 import CategoryInventoryCard from "./components/CategoryInventoryCard";
 import "./styles.css";
-
+import socket from '../../utils/socketConfigure';
 const InventoryPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
+
+  const [liveStockLevel, setLiveStockLevel] = useState(null);
+  const [isSocketConnected, setSocketConnected] = useState(socket.connected);
+
+  console.log("scoket connected:", isSocketConnected );
   const {
     fetchInventoryStatus,
     refillCategory,
@@ -20,12 +25,40 @@ const InventoryPage = () => {
     getLowInventoryItems,
     hasLowInventory,
     isLoading,
+    fetchStockLevelData,
+    fetchFullStockSummaryData,
     errors,
   } = useInventoryStore();
 
   useEffect(() => {
     fetchInventoryStatus();
+    fetchStockLevelData();
+    fetchFullStockSummaryData();
   }, [fetchInventoryStatus]);
+  useEffect(() => {
+    const handleConnect = () => {
+      console.log('🟢 Socket connected');
+      setSocketConnected(true);
+    };
+
+    const handleDisconnect = () => {
+      console.log('🔴 Socket disconnected');
+      setSocketConnected(false);
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    // Trigger immediately if already connected
+    if (socket.connected) handleConnect();
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+    };
+  }, []);
+
+
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -43,26 +76,62 @@ const InventoryPage = () => {
       await refillCategory(category, 100);
     }
   };
+ 
+  const stockLevelData = useInventoryStore((state) => state.inventoryStockLevel);
+  const stocklevel = liveStockLevel || stockLevelData?.stock_level || {
+  high: 0,
+  medium: 0,
+  low: 0,
+  empty: 0,
+  total: 0
+};
+
+
+  
 
   const stats = getInventoryStats();
+  // no need this now
   const categoryStats = getInventoryStatsByCategory();
+  //console.log("🧠 Category Stats:", categoryStats);
   const lowItems = getLowInventoryItems();
 
+  const FullStockSummary = useInventoryStore(state => state.FullStockSummary);
+
+  const categoryDetails = FullStockSummary || {};
+  const totalFullStock = Object.values(categoryDetails).reduce((sum, count) => sum + count, 0);
+  console.log("🧠 Full Stock Summary:", categoryDetails);
   const tabs = [
-    { id: "all", name: "All Categories", count: stats.total },
-    {
-      id: "milk",
-      name: "Milk Products",
-      count: categoryStats.milk?.total || 0,
-    },
-    {
-      id: "beans",
-      name: "Coffee Beans",
-      count: categoryStats.beans?.total || 0,
-    },
-    { id: "syrups", name: "Syrups", count: categoryStats.syrups?.total || 0 },
-    { id: "cups", name: "Cups", count: categoryStats.cups?.total || 0 },
+    { id: 'all', name: 'All Categories', count: totalFullStock },
+    ...Object.entries(categoryDetails).map(([key, count]) => ({
+      id: key,
+      name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      count
+    }))
   ];
+
+  useEffect(() => {
+    const handleStockUpdate = (data) => {
+      console.log("📦 Stock levels updated via socket:", data);
+      setLiveStockLevel(data.stock_levels);
+    };
+
+    socket.on("inventory.stock_level", handleStockUpdate);
+    return () => socket.off("inventory.stock_level", handleStockUpdate);
+  }, []);
+
+useEffect(() => {
+  const handleInventoryStatus = async (data) => {
+    console.log('📡 Live inventory.status received:', data);
+    if (data?.inventory) {
+      const store = useInventoryStore.getState();
+      store.updateInventoryData(data.inventory);
+      await store.updateCategorySummary();
+    }
+  };
+
+  socket.on('inventory.status', handleInventoryStatus);
+  return () => socket.off('inventory.status', handleInventoryStatus);
+}, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -72,29 +141,7 @@ const InventoryPage = () => {
           <div className="flex flex-col ">
             <div className="mb-2 sm:mb-4">
               <div className="flex flex-col">
-                {/* Header with Refresh Button */}
-                {/* <div className="flex items-center justify-end mb-2">
-      <button
-        onClick={handleRefresh}
-        disabled={refreshing}
-        className="p-2 rounded-full hover:bg-[#233746]/5 transition-all duration-300 group"
-        title="Refresh Data"
-      >
-        <svg
-          className={`w-5 h-5 barns-dark-text ${refreshing ? "animate-spin" : ""}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button>
-    </div> */}
+
 
                 {/* Statistics Grid */}
                 <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
@@ -102,108 +149,16 @@ const InventoryPage = () => {
                 </div>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
-              {/* <div className="flex-1 min-w-0">
-                <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold barns-green-text">
-                  Inventory Management
-                </h3>
-                <p className="mt-1 text-sm sm:text-base text-gray-600">
-                  Monitor and manage coffee machine inventory levels
-                </p>
-              </div> */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 flex-shrink-0">
-                {/* {hasLowInventory() && (
-                  <button
-                    onClick={handleRefillAllLow}
-                    disabled={isLoading}
-                    className="px-3 sm:px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap order-2 sm:order-1"
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center justify-center">
-                        <svg
-                          className="animate-spin -ml-1 mr-1 sm:mr-2 h-4 w-4 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        <span className="hidden sm:inline">Refilling...</span>
-                        <span className="sm:hidden">...</span>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="hidden sm:inline">
-                          Refill All Low Items
-                        </span>
-                        <span className="sm:hidden">Refill Low Items</span>
-                      </>
-                    )}
-                  </button>
-                )} */}
-                {/* <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="relative overflow-hidden p-2.5 bg-indigo-500 text-white text-sm font-medium rounded-full
-  hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2
-  transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-sm hover:shadow-md
-  group"
-                  title="Refresh Data"
-                >
-                  {refreshing && (
-                    <div className="absolute inset-0 bg-black/10" />
-                  )}
-                  <svg
-                    className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline text-xs font-semibold tracking-wide group-hover:opacity-100">
-                    {refreshing ? "Refreshing..." : "Refresh"}
-                  </span>
-                </button> */}
-                {/* <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="px-3 sm:px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors order-1 sm:order-2"
-                >
-                  <svg 
-                    className={`w-4 h-4 mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`}
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : 'Refresh'}</span>
-                  <span className="sm:hidden">{refreshing ? '...' : 'Refresh'}</span>
-                </button> */}
-              </div>
-            </div>
+          
 
             {/* Statistics Overview */}
-            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
+            <div className="grid grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
               {/* Info Card - Enhanced styling */}
-              <div className="col-span-1 bg-gradient-to-br from-[#00784B]/5 via-white to-[#233746]/5 p-3 sm:p-4 rounded-lg shadow-md border-2 border-[#00784B] hover:shadow-lg transition-all duration-300">
+              <div 
+                className={`col-span-1 bg-gradient-to-br from-[#00784B]/5 via-white to-[#233746]/5 p-3 sm:p-4 rounded-lg shadow-md transition-all duration-300 hover:shadow-lg
+                  ${isSocketConnected ? 'border-2 border-green-500' : 'border-2 border-red-500'}
+                `}
+              >
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#00784B] rounded-lg flex items-center justify-center">
@@ -256,72 +211,11 @@ const InventoryPage = () => {
                       Total Items
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900 barns-dark-text">
-                      {stats.total}
+                      {stocklevel.total}
                     </p>
                   </div>
                 </div>
               </div>
-
-              <div className="bg-gradient-to-br from-red-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-red-100 hover:shadow-md transition-all duration-300">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-red-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-3 sm:ml-4 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
-                      Low Stock
-                    </p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
-                      {stats.low}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-6 h-6 text-yellow-600"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                  <div className="ml-3 sm:ml-4 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
-                      Medium Stock
-                    </p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
-                      {stats.medium}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
               <div className="bg-gradient-to-br from-green-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-green-100 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -346,69 +240,109 @@ const InventoryPage = () => {
                       High Stock
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
-                      {stats.high}
+                      {stocklevel.high}
                     </p>
                   </div>
                 </div>
               </div>
+
+               <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-yellow-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-3 sm:ml-4 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
+                      Medium Stock
+                    </p>
+                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
+                      {stocklevel.medium}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-orange-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-orange-100 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-orange-600"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-3 sm:ml-4 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-orange-600 truncate">
+                      Low Stock
+                    </p>
+                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
+                      {stocklevel.low}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
+
+
+
+              
+              <div className=" bg-gradient-to-br from-red-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-red-200 hover:shadow-md transition-all duration-300">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-400 rounded-lg flex items-center justify-center">
+                      <svg
+                        className="w-6 h-6 text-red-200"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="ml-3 sm:ml-4 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
+                      Empty Stock
+                    </p>
+                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-black-900">
+                      {stocklevel.empty}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+
             </div>
-            {/* <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 lg:gap-4">
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="text-blue-600 font-semibold text-xs sm:text-sm">{stats.total}</span>
-                    </div>
-                  </div>
-                  <div className="ml-2 sm:ml-3 flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">Total Items</p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">{stats.total}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-red-100 rounded-full flex items-center justify-center">
-                      <span className="text-red-600 font-semibold text-xs sm:text-sm">{stats.low}</span>
-                    </div>
-                  </div>
-                  <div className="ml-2 sm:ml-3 flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">Low Stock</p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">{stats.low}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                      <span className="text-yellow-600 font-semibold text-xs sm:text-sm">{stats.medium}</span>
-                    </div>
-                  </div>
-                  <div className="ml-2 sm:ml-3 flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">Medium Stock</p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">{stats.medium}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white p-3 sm:p-4 rounded-lg shadow-sm border border-gray-200">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-green-600 font-semibold text-xs sm:text-sm">{stats.high}</span>
-                    </div>
-                  </div>
-                  <div className="ml-2 sm:ml-3 flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">High Stock</p>
-                    <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">{stats.high}</p>
-                  </div>
-                </div>
-              </div>
-            </div> */}
+           
 
             {/* Low Stock Alert */}
             {lowItems.length > 0 && (
@@ -585,7 +519,7 @@ const InventoryPage = () => {
         )}
 
         {/* Category Content */}
-        <div className="space-y-6 pb-6">
+        {/* <div className="space-y-6 pb-6">
           {activeTab === "all" ? (
             Object.values(INVENTORY_CATEGORIES).map((category) => (
               <CategoryInventoryCard
@@ -597,23 +531,30 @@ const InventoryPage = () => {
           ) : (
             <CategoryInventoryCard category={activeTab} isAllView={false} />
           )}
-        </div>
-        {/* <div className="space-y-6 pb-6">
-          {activeTab === "all" ? (
-            // Show all categories
-            Object.values(INVENTORY_CATEGORIES).map((category) => (
-              <CategoryInventoryCard key={category} category={category} />
-            ))
-          ) : (
-            // Show specific category
-            <CategoryInventoryCard category={activeTab} />
-          )}
         </div> */}
+      <div className="space-y-6 pb-6">
+        {activeTab === "all" ? (
+          Object.entries(categoryDetails).map(([category, count]) => (
+            <CategoryInventoryCard
+              key={category}
+              category={category}
+              count={count} // ✅ Passing count here
+              isAllView={true}
+            />
+          ))
+        ) : (
+          <CategoryInventoryCard
+            category={activeTab}
+            count={categoryDetails[activeTab] || 0} // ✅ count for selected tab
+            isAllView={false}
+          />
+        )}
+      </div>
       </div>
 
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="fixed inset-0  flex items-center justify-center z-50">
+        <div className=" inset-0  flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
             <div className="flex items-center space-x-3">
               <svg

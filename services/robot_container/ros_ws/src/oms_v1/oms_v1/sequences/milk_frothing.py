@@ -1,3 +1,6 @@
+'''
+milk_frother.py
+'''
 import time
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
@@ -30,7 +33,7 @@ def get_frother_position(**params):
     """
     try:
         print("🎯 Starting milk frother position calibration...")
-        
+        run_skill("set_speed_factor", 100)
         # Step 1: Move to home position for setup
         print("🏠 Moving to north-east home position...")
         home(position="north_east")
@@ -46,13 +49,23 @@ def get_frother_position(**params):
             print("[ERROR] Failed to open gripper")
             return False
         
+        run_skill("move_to", "left_steam_wand", 0.28)
+        run_skill("sync")
+        run_skill("grab_tool", "left_steam_wand")
+        run_skill("sync")
+        run_skill("set_gripper_position", 255, 200)
+        run_skill("sync")
+        run_skill("gotoJ_deg", -42.886719,-74.454857,-15.463737,-96.987885,-87.116272,7.834893)
+        run_skill("sync")
+        run_skill("set_gripper_position", 255, 0)
+        
         # Step 3: Perform multiple approaches for accuracy
         print("🎯 Performing calibration approaches (5 attempts)...")
         for i in range(5):
             print(f"   Approach {i+1}/5...")
             time.sleep(1.0)  # Allow settling time between approaches
             
-            approach_result = run_skill("move_to", "left_steam_wand", 0.15, -10, -10)
+            approach_result = run_skill("move_to", "left_steam_wand", 0.29)
             if approach_result is False:
                 print(f"[ERROR] Failed calibration approach {i+1}/5")
                 return False
@@ -103,18 +116,24 @@ def pick_frother(**params):
         
         # Step 2: Approach the milk frother
         print("🎯 Approaching milk frother...")
-        approach_result = run_skill("move_to", 'milk_frother_2', 0.175)
-        if approach_result is False:
-            print("[ERROR] Failed to approach milk frother")
-            return False
+        approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
+        if not approach_result:
+            print("[WARNING] Failed to approach milk_frother_2, trying milk_frother_1...")
+            approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
+            if not approach_result:
+                print("[ERROR] Failed to approach both milk_frother_2 and milk_frother_1")
+                return False
         
         # Step 3: Move to approach position for frother
         print("📍 Moving to frother approach position...")
-        approach_tool_result = run_skill("approach_tool", 'milk_frother_2', 169)
+        run_skill("sync")
+        approach_tool_result = run_skill("approach_tool", 'milk_frother_2')
         if approach_tool_result is False:
             print("[ERROR] Failed to move to frother approach position")
             return False
         
+        run_skill("set_gripper_position",255,169)
+        run_skill("sync")
         # Step 4: Record current approach position
         print("💾 Recording approach position...")
         current_angles = run_skill("current_angles")
@@ -127,11 +146,13 @@ def pick_frother(**params):
         
         # Step 5: Grab the frother
         print("🤏 Grabbing milk frother...")
-        grab_result = run_skill("grab_tool", 'milk_frother_2', 200, 250, 255)
+        run_skill("sync")
+        grab_result = run_skill("grab_tool", 'milk_frother_2',100,100,-6,-5)
         if grab_result is False:
             print("[ERROR] Failed to grab milk frother")
             return False
-        
+        run_skill("sync")
+        run_skill("set_gripper_position",255,255)
         # Step 6: Record current grab position
         print("💾 Recording grab position...")
         grab_angles = run_skill("current_angles")
@@ -172,39 +193,30 @@ def mount_frother(**params):
     try:
         
         print("☁️ Starting milk frothing sequence...")
+
+        # Step 2: Set slower servo timing for precise movements
+        print("⚙️ Setting precise servo timing...")
+        timing_result = run_skill("set_speed_factor", 50)
+        if timing_result is False:
+            print("[WARNING] Failed to set servo timing - continuing...")
         
         # Step 1: Move to frothing preparation position
         print("📍 Moving to frothing preparation position...")
-        prep_result = run_skill("gotoJ_deg", -4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837, 1.0, 0.2)
+        prep_result = run_skill("gotoJ_deg", -4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837)
         if prep_result is False:
             print("[ERROR] Failed to move to frothing preparation position")
             return False
         
-        # Step 2: Set slower servo timing for precise movements
-        print("⚙️ Setting precise servo timing...")
-        timing_result = run_skill("set_servo_timing", 0.2)
-        if timing_result is False:
-            print("[WARNING] Failed to set servo timing - continuing...")
-        
         # Step 3: Approach steam wand (deep position)
         print("🎯 Approaching steam wand (deep position)...")
-        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
+        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
         if approach_result is False:
             print("[ERROR] Failed to approach steam wand")
-            return False
-        
-        
-        
-        # Step 4: Fine approach to steam wand (light position) 
-        print("🎯 Fine approaching steam wand (light position)...")
-        fine_approach_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
-        if fine_approach_result is False:
-            print("[ERROR] Failed to fine approach steam wand")
             return False
 
         # Step 5: Mount frother to steam wand
         print("🔧 Mounting frother to steam wand...")
-        mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
+        mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth")
         if mount_result is False:
             print("[ERROR] Failed to mount frother to steam wand")
             return False
@@ -220,6 +232,7 @@ def froth_milk(**params):
     try:
         duration = params.get("duration", 7.5)
         print(f"🥛 Frothing milk for {duration} seconds...")
+        run_skill("sync")
         # Step 5: Activate steam for frothing
         print("💨 Activating steam for milk frothing...")
         steam_on_result = run_skill("set_DO", 1, 1)
@@ -278,79 +291,56 @@ def pour_milk(**params):
             return False
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
-         # Step 5: Mount frother to steam wand
-        print("🔧 Mounting frother to steam wand...")
-        mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
-        if mount_result is False:
-            print("[ERROR] Failed to mount frother to steam wand")
-            return False
-        # Step 4: Fine approach to steam wand (light position) 
-        print("🎯 Fine approaching steam wand (light position)...")
-        fine_approach_result = run_skill("approach_machine", "left_steam_wand", "light_froth", True)
-        if fine_approach_result is False:
-            print("[ERROR] Failed to fine approach steam wand")
-            return False
+
+
         # Step 3: Approach steam wand (deep position)
         print("🎯 Approaching steam wand (deep position)...")
-        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
+        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
         if approach_result is False:
             print("[ERROR] Failed to approach steam wand")
             return False
         # Step 2: Set normal servo timing
         print("⚙️ Setting normal servo timing...")
-        timing_result = run_skill("set_servo_timing", 0.1)
+        timing_result = run_skill("set_speed_factor", 50)
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         
         
-        print("📍 Moving to intermediate pouring position...")
-        intermediate_result = run_skill("gotoJ_deg", -58.476021,-51.300709,-101.058250,-42.526070,-61.983448,8.514315, 1.0, 0.2)
-        if intermediate_result is False:
-            print("[ERROR] Failed to move to intermediate position")
-            return False
-        
         # Step 3: Move to intermediate pouring position
         print("📍 Moving to intermediate pouring position...")
-        intermediate_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193, 1.0, 0.2)
+        intermediate_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193)
         if intermediate_result is False:
             print("[ERROR] Failed to move to intermediate position")
             return False
         
-        
+        run_skill("sync")
         
         # Step 4: Stage-specific pouring sequence
         if stage == '1':
             print("🎯 Executing stage 1 milk pouring...")
             
-            # Move to stage 1 position
-            stage1_pos_result = run_skill("gotoJ_deg", -117.542499, -27.877248, -91.553736, -69.510481, -86.519990, 1.649929, 1.0, 0.2)
-            if stage1_pos_result is False:
-                print("[ERROR] Failed to move to stage 1 position")
-                return False
-            
-            
-            
-            # Tilt for pouring
-            pour_result = run_skill("gotoJ_deg", -102.517232, -32.497384, -90.464555, -66.071945, -85.480721, -96.398044, 1.0, 0.075)
-            if pour_result is False:
-                print("[ERROR] Failed to tilt for pouring")
-                return False
-            
-            # Allow pouring time
-            print("🥛 Pouring milk (2 seconds)...")
-            time.sleep(2)
-            
-            # Return to upright
-            upright_result = run_skill("gotoJ_deg", -117.542499, -27.877248, -91.553736, -69.510481, -86.519990, 1.649929, 1.0, 0.2)
-            if upright_result is False:
-                print("[ERROR] Failed to return to upright position")
-                return False
+            run_skill("set_speed_factor", 10) 
+            run_skill("gotoJ_deg", -116.497627,-30.926678,-99.204826,-44.998241,-116.716164,3.239676)
+            run_skill("sync")
+            run_skill("move_circle", 3,
+                ( -30.0,  0.0, 0.0, 0.0, 0.0, 0.0),    # point1  offset1
+                ( -15.0,-15.0, 0.0, 0.0, 0.0, 0.0),    # point2  offset2
+                ["tool=0"])
+            run_skill("sync")
+            run_skill("gotoJ_deg", -117.388901,-41.489887,-93.944572,-48.045307,-115.074539,-31.141111)
+            run_skill("gotoJ_deg", -109.472954,-37.621704,-91.996796,-56.920311,-120.970390,-95.325432)
+            run_skill("moveEE", 50, 0, 0, 0, 0, 0)
+            run_skill("sync")
+            time.sleep(3.0)
+            run_skill("sync")
+            run_skill("gotoJ_deg", -116.497627,-30.926678,-99.204826,-44.998241,-116.716164,3.239676)
+            run_skill("set_speed_factor", 100) 
             
         elif stage == '2':
             print("🎯 Executing stage 2 milk pouring...")
             
             # Move to stage 2 position
-            stage2_pos_result = run_skill("gotoJ_deg", -127.319954, -37.857658, -74.250511, -76.871681, -96.185387, 0.116908, 1.0, 0.2)
+            stage2_pos_result = run_skill("gotoJ_deg", -127.319954, -37.857658, -74.250511, -76.871681, -96.185387, 0.116908)
             if stage2_pos_result is False:
                 print("[ERROR] Failed to move to stage 2 position")
                 return False
@@ -358,7 +348,7 @@ def pour_milk(**params):
             
             
             # Tilt for pouring
-            pour_result = run_skill("gotoJ_deg", -113.384514, -39.535606, -77.602524, -71.924614, -96.217064, -98.112167, 1.0, 0.005)
+            pour_result = run_skill("gotoJ_deg", -113.384514, -39.535606, -77.602524, -71.924614, -96.217064, -98.112167)
             if pour_result is False:
                 print("[ERROR] Failed to tilt for pouring")
                 return False
@@ -368,7 +358,7 @@ def pour_milk(**params):
             time.sleep(2)
             
             # Return to upright
-            upright_result = run_skill("gotoJ_deg", -127.319954, -37.857658, -74.250511, -76.871681, -96.185387, 0.116908, 1.0, 0.2)
+            upright_result = run_skill("gotoJ_deg", -127.319954, -37.857658, -74.250511, -76.871681, -96.185387, 0.116908)
             if upright_result is False:
                 print("[ERROR] Failed to return to upright position")
                 return False
@@ -434,6 +424,7 @@ def return_frother(**params):
         
         # Step 4: Open gripper to release frother
         print("🤏 Opening gripper to release frother...")
+        run_skill("sync")
         release_result = run_skill("set_gripper_position", 255, 165)
         if release_result is False:
             print("[ERROR] Failed to open gripper")

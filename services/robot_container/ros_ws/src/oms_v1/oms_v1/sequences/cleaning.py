@@ -60,21 +60,21 @@ def clean(**params):
         
         # Step 3: Perform hard brush cleaning
         print("Starting hard brush cleaning...")
-        approach_result = run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
+        approach_result = run_skill("approach_machine", "portafilter_cleaner", "hard_brush")
         
         if approach_result is False:
             print("[ERROR] Failed to approach hard brush")
             return False
             
         # Adjust position for better cleaning angle
-        move_result = run_skill("moveEE", -88, 0, 0, 0, 0, -135)
+        move_result = run_skill("gotoJ_deg", -79.324684,3.729006,-124.690453,-58.130096,-80.298050,-130.331278)
         
         if move_result is False:
             print("[ERROR] Failed to adjust position for hard brush")
             return False
             
         # Mount to hard brush for cleaning
-        mount_result = run_skill("mount_machine", "portafilter_cleaner", "hard_brush", True)
+        mount_result = run_skill("mount_machine", "portafilter_cleaner", "hard_brush")
         
         if mount_result is False:
             print("[ERROR] Failed to mount to hard brush")
@@ -89,14 +89,14 @@ def clean(**params):
         
         # Step 4: Perform soft brush cleaning
         print("Starting soft brush cleaning...")
-        soft_approach_result = run_skill("approach_machine", "portafilter_cleaner", "soft_brush", True)
+        soft_approach_result = run_skill("approach_machine", "portafilter_cleaner", "soft_brush")
         
         if soft_approach_result is False:
             print("[ERROR] Failed to approach soft brush")
             return False
             
         # Mount to soft brush for cleaning
-        soft_mount_result = run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
+        soft_mount_result = run_skill("mount_machine", "portafilter_cleaner", "soft_brush")
         
         if soft_mount_result is False:
             print("[ERROR] Failed to mount to soft brush")
@@ -124,7 +124,7 @@ def clean(**params):
             print(f"[ERROR] Failed to remount portafilter to {port}")
             return False
             
-            print(f"Cleaning sequence completed successfully for {port}")
+        print(f"Cleaning sequence completed successfully for {port}")
         return True
         
     except Exception as e:

@@ -1,3 +1,6 @@
+"""
+paper_cups.py
+"""
 import time
 from ..params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
 from ..manipulate_node import run_skill
@@ -82,6 +85,7 @@ def grab_paper_cup(**params):
         # Step 6: Close gripper to grasp the paper cup
         print("🤏 Gripping paper cup...")
         if 'grip_width' in cup_params:
+            run_skill("sync")
             grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
             if grip_result is False:
                 print("[ERROR] Failed to grip paper cup")
@@ -169,6 +173,7 @@ def place_paper_cup(**params):
         
         # Step 4: Open gripper to release paper cup
         print("🤏 Releasing paper cup...")
+        run_skill("sync")
         release_result = run_skill("set_gripper_position", 50, 0)
         
         if release_result is False:
@@ -287,6 +292,7 @@ def serve_paper_cup(**params):
         
         # Step 5: Grip the paper cup for serving
         print("🤏 Gripping paper cup for serving...")
+        run_skill("sync")
         grip_result = run_skill("set_gripper_position", 55, 125)
         
         if grip_result is False:
@@ -295,7 +301,7 @@ def serve_paper_cup(**params):
         
         # Step 6: Set slower servo timing for careful handling
         print("⚙️ Setting careful servo timing...")
-        timing_result = run_skill("set_servo_timing", 0.20)
+        timing_result = run_skill("set_speed_factor", 20)
         
         if timing_result is False:
             print("[WARNING] Failed to set servo timing, continuing...")
@@ -329,6 +335,7 @@ def serve_paper_cup(**params):
         
         # Step 10: Release paper cup for customer
         print("🤏 Releasing paper cup for customer...")
+        run_skill("sync")
         release_result = run_skill("set_gripper_position", 55, 0)
         
         if release_result is False:
@@ -337,7 +344,7 @@ def serve_paper_cup(**params):
         
         # Step 11: Reset servo timing
         print("⚙️ Resetting servo timing...")
-        reset_timing_result = run_skill("set_servo_timing", 0.10)
+        reset_timing_result = run_skill("set_speed_factor", 10)
         
         if reset_timing_result is False:
             print("[WARNING] Failed to reset servo timing, continuing...")

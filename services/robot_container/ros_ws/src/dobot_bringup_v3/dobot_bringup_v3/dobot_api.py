@@ -112,6 +112,14 @@ class DobotApiDashboard(DobotApi):
             error_msg = f"Tool ValueError: {e}"
             print(error_msg)
             return error_msg
+        
+    def SetTool(self, index, table):
+        """
+        index : tool coordinate system index, range [0–9]
+        table : tool coordinate system after modification (format: {x, y, z, rx, ry, rz})
+        """
+        string = "SetTool({:d},{:s})".format(index, table)
+        return self.sendRecvMsg(string)
 
     def RobotMode(self):
         string = "RobotMode()"
@@ -667,17 +675,17 @@ class DobotApiMove(DobotApi):
             print(error_msg)
             return error_msg
 
-    def Circle(self, x1, y1, z1, rx1, ry1, rz1, x2, y2, z2, rx2, ry2, rz2, count, *dynParams):
+    def Circle3(self, x1, y1, z1, rx1, ry1, rz1, x2, y2, z2, rx2, ry2, rz2, count, *dynParams):
         try:
             coords = [float(x1), float(y1), float(z1), float(rx1), float(ry1), float(rz1),
                       float(x2), float(y2), float(z2), float(rx2), float(ry2), float(rz2), int(count)]
-            string = "Circle({:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:d}".format(*coords)
+            string = "Circle3({:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:d}".format(*coords)
             for params in dynParams:
                 string = string + "," + str(params)
             string = string + ")"
             return self.sendRecvMsg(string)
         except ValueError as e:
-            error_msg = f"Circle ValueError: {e}"
+            error_msg = f"Circle3 ValueError: {e}"
             print(error_msg)
             return error_msg
 

@@ -1,5 +1,5 @@
 # params.py
-# ─── “HOME” POSE ANGLES ───────────────────────────────────────────────────────────
+# ─── "HOME" POSE ANGLES ───────────────────────────────────────────────────────────
 # Main-home is straight ahead; the compass points are ±45° increments
 HOME_ANGLES = {
     'north':       (   0, 30, -130, -100,  -90,    0),

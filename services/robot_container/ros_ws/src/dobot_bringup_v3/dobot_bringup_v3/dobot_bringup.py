@@ -63,6 +63,9 @@ class adderServer(Node):
         self.srv = self.create_service(GetGripperPosition, '/dobot_bringup_v3/srv/GetGripperPosition', self.GetGripperPosition)
         self.srv = self.create_service(InverseSolution,'/dobot_bringup_v3/srv/InverseSolution',self.InverseSolution)
         self.srv = self.create_service(PositiveSolution,'/dobot_bringup_v3/srv/PositiveSolution',self.PositiveSolution)
+        self.srv = self.create_service(Circle3,'/dobot_bringup_v3/srv/Circle3',self.Circle3)
+        self.srv = self.create_service(Arc,'/dobot_bringup_v3/srv/Arc',self.Arc)
+        self.srv = self.create_service(SetTool, '/dobot_bringup_v3/srv/SetTool', self.SetTool)
         self.connect() 
 
     def connect(self):
@@ -377,6 +380,18 @@ class adderServer(Node):
         self.get_logger().info(return_t)                                     
         return response 
     
+    def SetTool(self, request, response):
+        raw = self.dashboard.SetTool(request.index, request.table)
+        code_str = raw.strip().split(',')[0]
+        try:
+            code = int(code_str)
+        except ValueError:
+            self.get_logger().error(f"SetTool: failed to parse return code from '{raw}'")
+            code = -1
+        response.res = code
+        self.get_logger().info(f"SetTool returned: {raw}")
+        return response
+
     def User(self, request, response):                                       
         return_t = self.dashboard.User(request.index)
         return_tt = return_t[:return_t.find("{")-1]
@@ -567,6 +582,30 @@ class adderServer(Node):
         response.pose = return_t[return_t.find("{"):return_t.find("}")+1]
         self.get_logger().info(return_t)
         return response
+    
+    def Circle3(self, request, response):
+        return_t = self.move.Circle3(
+            request.x1, request.y1, request.z1, request.rx1, request.ry1, request.rz1,
+            request.x2, request.y2, request.z2, request.rx2, request.ry2, request.rz2,
+            request.count,                                   # ← count goes here
+            *request.param_value                             # ← explode the list so each element is appended
+        )
+        return_tt       = return_t[:return_t.find("{") - 1]
+        response.res    = int(return_tt)
+        self.get_logger().info(return_t)
+        return response
+
+    def Arc(self, request, response):
+        return_t = self.move.Arc(
+            request.x1, request.y1, request.z1, request.rx1, request.ry1, request.rz1,
+            request.x2, request.y2, request.z2, request.rx2, request.ry2, request.rz2,
+            request.param_value                              # ← keep the list intact for Arc()
+        )
+        return_tt       = return_t[:return_t.find("{") - 1]
+        response.res    = int(return_tt)
+        self.get_logger().info(return_t)
+        return response
+
 
 def main(args=None):                                
     rclpy.init(args=args)                            
@@ -574,4 +613,3 @@ def main(args=None):
     rclpy.spin(node)                                
     node.destroy_node()                             
     rclpy.shutdown()
-

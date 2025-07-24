@@ -23,10 +23,10 @@ export default function App() {
   } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // const [activeTab, setActiveTab] = useState("dashboard");
-const [activeTab, setActiveTab] = useState(() => {
-  const hash = window.location.hash.replace("#/", "");
-  return hash || "dashboard";
-});
+  const [activeTab, setActiveTab] = useState(() => {
+    const hash = window.location.hash.replace("#/", "");
+    return hash || "dashboard";
+  });
 
   useEffect(() => {
     // Register navigation handler with store
@@ -60,15 +60,15 @@ const [activeTab, setActiveTab] = useState(() => {
 
     return () => clearInterval(healthCheckInterval);
   }, [
-    fetchOrders,
-    fetchAlerts,
-    fetchSchedulerStatus,
-    fetchInventoryStatus,
-    checkSystemHealth,
-    connectOrderWS,
-    connectAlertWS,
-    setNavigationHandler,
-  ]);
+      fetchOrders,
+      fetchAlerts,
+      fetchSchedulerStatus,
+      fetchInventoryStatus,
+      checkSystemHealth,
+      connectOrderWS,
+      connectAlertWS,
+      setNavigationHandler,
+    ]);
 
   // Mobile menu toggle
   const toggleSidebar = () => {
@@ -203,7 +203,7 @@ const [activeTab, setActiveTab] = useState(() => {
 
       {/* System Status Notification */}
       {hasErrors && (
-        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-400 p-4 shadow-sm z-10">
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-400 p-4 shadow-sm z-10" style={{display: hasErrors ? 'none' : 'none'}}>
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg

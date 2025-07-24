@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
+import Swal from 'sweetalert2';
 import {
   arrayMove,
   SortableContext,
@@ -255,7 +256,7 @@ export default function OrderQueue({ connectionStatus }) {
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [orderData, setOrderData] = useState({
-    cups: [{ type: 'latte', size: 'regular', addons: [] }]
+    cups: [{ type: '', size: 'regular', addons: [] }]
   });
   const logsEndRef = useRef(null);
 
@@ -357,43 +358,119 @@ export default function OrderQueue({ connectionStatus }) {
     }
   };
 
-  const handleDeleteOrder = async (orderId) => {
-    console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
-    
-    // Find the order to get its status
-    const order = displayOrders.find(o => o.id === orderId);
-    const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
-    
-    // Show different confirmation messages based on order status
-    let confirmMessage;
-    if (orderStatus === 'PROCESSING') {
-      confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
-    } else {
-      confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
-    }
-    
-    const confirmed = window.confirm(confirmMessage);
-    if (!confirmed) {
-      return;
-    }
-    
-    setDeletingOrderId(orderId);
-    try {
-      console.log('🗑️ About to call deleteOrder from store...');
-      const success = await deleteOrder(orderId);
-      console.log('🗑️ deleteOrder returned:', success);
-      
-      if (success) {
-        console.log(`✅ Order ${orderId} deleted successfully`);
-      } else {
-        console.error(`❌ Failed to delete order ${orderId}`);
-      }
-    } catch (error) {
-      console.error('🗑️ Error in handleDeleteOrder:', error);
-    } finally {
-      setDeletingOrderId(null);
-    }
+
+const handleDeleteOrder = async (orderId) => {
+  console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
+  
+  // Find the order to get its status
+  const order = displayOrders.find(o => o.id === orderId);
+  const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
+
+  // Determine SweetAlert config
+  let swalConfig = {
+    title: `Delete Order #${orderId}?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'Yes, delete it!',
+    cancelButtonText: 'Cancel',
+    reverseButtons: true,
   };
+
+  if (orderStatus === 'PROCESSING') {
+    swalConfig = {
+      ...swalConfig,
+      title: `⚠️ Order #${orderId} is Processing!`,
+      text: `Deleting this order will immediately stop all ongoing operations and may cause system issues. Are you absolutely sure you want to force delete it?`,
+    };
+  } else {
+    swalConfig = {
+      ...swalConfig,
+      text: `This action cannot be undone.`,
+    };
+  }
+
+  const result = await Swal.fire(swalConfig);
+
+  if (!result.isConfirmed) return;
+
+  setDeletingOrderId(orderId);
+
+  try {
+    console.log('🗑️ About to call deleteOrder from store...');
+    const success = await deleteOrder(orderId);
+    console.log('🗑️ deleteOrder returned:', success);
+
+    if (success) {
+      Swal.fire({
+        icon: 'success',
+        title: 'Deleted!',
+        text: `Order #${orderId} has been deleted.`,
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed!',
+        text: `Could not delete order #${orderId}.`,
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    }
+  } catch (error) {
+    console.error('🗑️ Error in handleDeleteOrder:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error!',
+      text: 'An unexpected error occurred while deleting the order.',
+      timer: 3000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    });
+  } finally {
+    setDeletingOrderId(null);
+  }
+};
+
+  // const handleDeleteOrder = async (orderId) => {
+  //   console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
+    
+  //   // Find the order to get its status
+  //   const order = displayOrders.find(o => o.id === orderId);
+  //   const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
+    
+  //   // Show different confirmation messages based on order status
+  //   let confirmMessage;
+  //   if (orderStatus === 'PROCESSING') {
+  //     confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
+  //   } else {
+  //     confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
+  //   }
+    
+  //   const confirmed = window.confirm(confirmMessage);
+  //   if (!confirmed) {
+  //     return;
+  //   }
+    
+  //   setDeletingOrderId(orderId);
+  //   try {
+  //     console.log('🗑️ About to call deleteOrder from store...');
+  //     const success = await deleteOrder(orderId);
+  //     console.log('🗑️ deleteOrder returned:', success);
+      
+  //     if (success) {
+  //       console.log(`✅ Order ${orderId} deleted successfully`);
+  //     } else {
+  //       console.error(`❌ Failed to delete order ${orderId}`);
+  //     }
+  //   } catch (error) {
+  //     console.error('🗑️ Error in handleDeleteOrder:', error);
+  //   } finally {
+  //     setDeletingOrderId(null);
+  //   }
+  // };
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
@@ -411,19 +488,51 @@ export default function OrderQueue({ connectionStatus }) {
   // New Order functions
   const handleSubmitNewOrder = async (e) => {
     e.preventDefault();
+    
+    // Validate that all cups have a drink type selected
+    const invalidCups = orderData.cups.filter(cup => !cup.type || cup.type.trim() === '');
+    if (invalidCups.length > 0) {
+      Swal.fire({
+        title: 'Missing Drink Type',
+        text: 'Please select a drink type for all drinks before creating the order.',
+        icon: 'warning',
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false
+      });
+      return;
+    }
+    
     const success = await createOrder(orderData);
     if (success) {
-      setOrderData({ cups: [{ type: 'latte', size: 'regular', addons: [] }] });
+      setOrderData({ cups: [{ type: '', size: 'regular', addons: [] }] });
       setShowNewOrder(false);
-      alert('Order created successfully!');
+
+      Swal.fire({
+        title: 'Order!',
+        text: 'Order created successfully!',
+        icon: 'success',
+        timer: 3000, // 3 seconds = 3000ms
+        timerProgressBar: true,
+        showConfirmButton: false
+      });
     } else {
-      alert('Failed to create order.');
+      
+        
+          Swal.fire({
+          title: 'Order!',
+          text: 'Failed to create order!',
+          icon: 'error',
+          timer: 3000, // 3 seconds = 3000ms
+          timerProgressBar: true,
+          showConfirmButton: false
+      });
     }
   };
 
   const addDrink = () => {
     setOrderData(prev => ({
-      cups: [...prev.cups, { type: 'latte', size: 'regular', addons: [] }]
+      cups: [...prev.cups, { type: '', size: 'regular', addons: [] }]
     }));
   };
 
@@ -638,8 +747,8 @@ export default function OrderQueue({ connectionStatus }) {
                     
                     <button
                       type="submit"
-                      disabled={isLoading}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      disabled={isLoading || orderData.cups.some(cup => !cup.type || cup.type.trim() === '')}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoading ? 'Creating...' : `Create Order (${orderData.cups.length} drink${orderData.cups.length !== 1 ? 's' : ''})`}
                     </button>
@@ -666,19 +775,29 @@ export default function OrderQueue({ connectionStatus }) {
                           <select
                             value={cup.type}
                             onChange={(e) => updateDrink(index, 'type', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                              !cup.type || cup.type.trim() === '' 
+                                ? 'border-red-300 bg-red-50' 
+                                : 'border-gray-300'
+                            }`}
                             disabled={recipes.length === 0 && !errors.recipes}
                           >
                             {availableRecipes.length === 0 ? (
                               <option value="">Loading recipes...</option>
                             ) : (
-                              availableRecipes.map(recipe => (
-                                <option key={recipe.name} value={recipe.name}>
-                                  {recipe.display_name}
-                                </option>
-                              ))
+                              <>
+                                <option value="">Select drink type...</option>
+                                {availableRecipes.map(recipe => (
+                                  <option key={recipe.name} value={recipe.name}>
+                                    {recipe.display_name}
+                                  </option>
+                                ))}
+                              </>
                             )}
                           </select>
+                          {(!cup.type || cup.type.trim() === '') && (
+                            <p className="text-xs text-red-600 mt-1">Please select a drink type</p>
+                          )}
                           {errors.recipes && (
                             <p className="text-xs text-yellow-600 mt-1">Using fallback recipes</p>
                           )}

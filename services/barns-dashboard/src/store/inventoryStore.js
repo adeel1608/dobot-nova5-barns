@@ -10,12 +10,18 @@ import { INVENTORY_CATEGORIES, getCategoryItems, ALL_INVENTORY_ITEMS, CATEGORY_I
 
 export const useInventoryStore = create((set, get) => ({
   // State - Now supports full categorized inventory
+  
+  FullCategoryInfo:{},
+  FullStockSummary:{},
   inventoryStatus: {},
+  inventoryStockLevel: {},
   categorySummary: {
     milk: { level: 'unknown', numeric: 0, last_refilled: null },
-    beans: { level: 'unknown', numeric: 0, last_refilled: null },
+    coffee_beans: { level: 'unknown', numeric: 0, last_refilled: null },
     syrups: { level: 'unknown', numeric: 0, last_refilled: null },
-    cups: { level: 'unknown', numeric: 0, last_refilled: null }
+    cups: { level: 'unknown', numeric: 0, last_refilled: null },
+    sauces: { level: 'unknown', numeric: 0, last_refilled: null },
+    premixes: { level: 'unknown', numeric: 0, last_refilled: null }
   },
   isLoading: false,
   errors: {
@@ -42,6 +48,102 @@ export const useInventoryStore = create((set, get) => ({
     }
   },
 
+  updateInventoryData: (newInventory) => {
+  set((state) => ({
+    inventoryStatus: {
+      ...state.inventoryStatus,
+      ...newInventory
+    }
+  }));
+},
+
+
+  // Fetch full categories  info
+  fetchCategoryInfoData: async () => {
+    set(state => ({ 
+      isLoading: true, 
+      errors: { ...state.errors, inventory: null }
+    }));
+
+    const result = await inventoryAPI.fetchCategoryInfo();
+    //console.log('🧠 Inventory full categories info:', result);
+    if (result.success) {
+      set(state => ({ 
+        FullCategoryInfo: result.data, 
+        isLoading: false
+      }));
+      addLog('API', 'info', result.message);
+
+    } else {
+      set(state => ({ 
+        FullCategoryInfo: {},
+        isLoading: false,
+        errors: { ...state.errors, inventory: result.error }
+      }));
+      addLog('API', 'error', result.error, result.details);
+    }
+
+    return result.data;
+  
+  },
+  // Fetch full Stock level info
+  fetchFullStockSummaryData: async () => {
+    set(state => ({ 
+      isLoading: true, 
+      errors: { ...state.errors, inventory: null }
+    }));
+
+    const result = await inventoryAPI.fetchFullStockSummary();
+   
+    if (result.success) {
+      set(state => ({ 
+        FullStockSummary: result.data.details, 
+        isLoading: false
+      }));
+      addLog('API', 'info', result.message);
+
+    } else {
+      set(state => ({ 
+        FullStockSummary: {},
+        isLoading: false,
+        errors: { ...state.errors, inventory: result.error }
+      }));
+      addLog('API', 'error', result.error, result.details);
+    }
+
+    return result.data;
+  
+  },
+  // Fetch Stock level (all items)
+  fetchStockLevelData: async () => {
+    set(state => ({ 
+      isLoading: true, 
+      errors: { ...state.errors, inventory: null }
+    }));
+
+    const result = await inventoryAPI.fetchStocklevel();
+    //console.log('🧠 Inventory stock level fetched:', result);
+    if (result.success) {
+      set(state => ({ 
+        inventoryStockLevel: result.data, 
+        isLoading: false
+      }));
+      addLog('API', 'info', result.message);
+      
+      // Also update category summary
+      // await get().updateCategorySummary();
+    } else {
+      set(state => ({ 
+        inventoryStockLevel: {},
+        isLoading: false,
+        errors: { ...state.errors, inventory: result.error }
+      }));
+      addLog('API', 'error', result.error, result.details);
+    }
+
+    return result.data;
+  
+  },
   // Fetch full inventory status (all items)
   fetchInventoryStatus: async () => {
     set(state => ({ 
@@ -50,7 +152,7 @@ export const useInventoryStore = create((set, get) => ({
     }));
 
     const result = await inventoryAPI.fetchInventoryStatus();
-    
+    // //console.log('🧠 Inventory status fetched:', result);
     if (result.success) {
       set(state => ({ 
         inventoryStatus: result.data, 
@@ -73,10 +175,12 @@ export const useInventoryStore = create((set, get) => ({
   },
 
   // Update category summary for dashboard
+  
   updateCategorySummary: async () => {
     const result = await inventoryAPI.getCategorySummary();
-    
+  //console.log('🧠 bilal:', result);
     if (result.success) {
+        
       set(state => ({
         categorySummary: { ...state.categorySummary, ...result.data }
       }));
@@ -177,6 +281,7 @@ export const useInventoryStore = create((set, get) => ({
   // Get items by category from current state
   getItemsByCategory: (category) => {
     const { inventoryStatus } = get();
+    //console.log("🧠 Getting items for category:", category);
     const categoryItems = getCategoryItems(category);
     const result = {};
     
@@ -209,7 +314,7 @@ export const useInventoryStore = create((set, get) => ({
   getInventoryStatsByCategory: () => {
     const { inventoryStatus } = get();
     const stats = {};
-    
+    //console.log('🧠 Inventory stats by category:', inventoryStatus);
     Object.values(INVENTORY_CATEGORIES).forEach(category => {
       const categoryItems = getCategoryItems(category);
       const categoryStats = {

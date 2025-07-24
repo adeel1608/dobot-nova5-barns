@@ -20,7 +20,7 @@ class APIClient {
     // Request interceptor for logging
     this.client.interceptors.request.use(
       (config) => {
-        console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
+        //console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`);
         return config;
       },
       (error) => {
@@ -32,7 +32,7 @@ class APIClient {
     // Response interceptor for logging
     this.client.interceptors.response.use(
       (response) => {
-        console.log(`API Response: ${response.status} ${response.config.url}`);
+        //console.log(`API Response: ${response.status} ${response.config.url}`);
         return response;
       },
       (error) => {

@@ -11,36 +11,14 @@ import AlertsPanel from './components/AlertsPanel';
 import IngredientsIndicator from './components/IngredientsIndicator';
 import OrderDetails from './components/OrderDetails';
 import OrderStatusPanel from './components/OrderStatusPanel';
+
 export default function Dashboard() {
   const { connectionStatus } = useWebSocketStore();
   const isWebSocketConnected = connectionStatus?.websocket === 'connected';
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Page Header - Responsive */}
-      {/* <div className="   px-1  py-1 md:py-2 ">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0  px-1 py-1 rounded">
-          <h2 className="text-xl md:text-2xl font-bold barns-text">Dashboard</h2>
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
 
-            <div className="flex items-center space-x-4">
-       
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  isWebSocketConnected ? 'bg-green-600 animate-pulse' : 'bg-red-400'
-                }`}></div>
-                <span className={`text-xs md:text-sm font-medium ${
-                  isWebSocketConnected ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {isWebSocketConnected ? 'Online' : 'Offline'}
-                </span>
-              </div>
-           
-             
-            </div>
-          </div>
-        </div>
-      </div> */}
 
       {/* Main Dashboard Grid - Responsive layout */}
         <div className="p-1 pt-2 h-[calc(100vh-90px)]">
@@ -54,7 +32,9 @@ export default function Dashboard() {
 
             {/* Middle Column */}
             <div className="lg:col-span-4 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-3 lg:order-2">
-
+              <div className="flex-shrink-0">
+                 <OrderStatusPanel />
+              </div>
                 
               {/* OrderDetails fills remaining space */}
               <div className="flex-1 min-h-0 overflow-hidden shadow-xl">
@@ -74,10 +54,9 @@ export default function Dashboard() {
               {/* <div className="flex-1 min-h-0">
                 <SystemPanel />
               </div> */}
-                            {/* IngredientsIndicator takes content height only */}
-              <div className="flex-shrink-0">
-                 <OrderStatusPanel />
-              </div>
+           
+
+                 {/* IngredientsIndicator takes content height only */}
               <div className="flex-shrink-0">
                 <IngredientsIndicator />
               </div>
