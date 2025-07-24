@@ -8,7 +8,8 @@ set -e
 
 # Configuration
 START_ROBOT=${START_ROBOT:-true}
-WORKSPACE_DIR=${WORKSPACE_DIR:-$HOME/barns_robot_ws}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
 
 # Colors for output
 RED='\033[0;31m'

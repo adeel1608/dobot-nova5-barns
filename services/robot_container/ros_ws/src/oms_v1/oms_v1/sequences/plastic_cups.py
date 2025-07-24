@@ -1,3 +1,6 @@
+'''
+plastic_cups.py
+'''
 import time
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home

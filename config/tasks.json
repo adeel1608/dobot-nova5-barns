@@ -9,15 +9,6 @@
       }
     ]
   },
-  "slush_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "slush_machine",
-        "params": {}
-      }
-    ]
-  },
   "coffee_machine": {
     "steps": [
       {
@@ -26,24 +17,7 @@
         "params": {}
       }
     ]
-  },
-  "grinding_machine": {
-    "steps": [
-      {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 1
-        }
-      },
-      {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 2
-        }
-      }
-    ]
+  
   },
   "tampering_machine": {
     "steps": [
@@ -96,10 +70,27 @@
   "Espresso": {
     "steps": [
       {
-        "type": "automation",
-        "function": "grinding_machine",
+        "type": "robot",
+        "function": "unmount",
         "params": {
-          "shots_number": 1
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
         }
       },
       {
@@ -118,45 +109,6 @@
       },
       {
         "type": "robot",
-        "function": "unmount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grinder",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "tamper",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
-      },
-      {
-        "type": "robot",
         "function": "pick_espresso_pitcher",
         "params": {
           "port": "port_2"
@@ -170,14 +122,6 @@
         "type": "robot",
         "function": "get_frother_position",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "dispense_milk",
-        "params": {
-          "milk_type": "whole",
-          "amount": 60
-        }
       },
       {
         "type": "robot",
@@ -275,14 +219,6 @@
         "function": "get_slush",
         "params": {
           "dispenser": "1"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "slush_machine",
-        "params": {
-          "slush_type": "slush_1",
-          "cup": "C12"
         }
       },
       {

@@ -6,9 +6,14 @@
       "depends_on": []
     },
     {
-      "action": "Cleaning",
+      "action": "Espresso_pouring",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso"]
     }
   ],
   "Latte": [
@@ -18,9 +23,14 @@
       "depends_on": []
     },
     {
-      "action": "Cleaning",
+      "action": "Espresso_pouring",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -41,9 +51,14 @@
       "depends_on": []
     },
     {
-      "action": "Cleaning",
+      "action": "Espresso_pouring",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",

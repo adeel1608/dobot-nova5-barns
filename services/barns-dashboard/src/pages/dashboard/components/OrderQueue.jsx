@@ -256,7 +256,7 @@ export default function OrderQueue({ connectionStatus }) {
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [orderData, setOrderData] = useState({
-    cups: [{ type: 'latte', size: 'regular', addons: [] }]
+    cups: [{ type: '', size: 'regular', addons: [] }]
   });
   const logsEndRef = useRef(null);
 
@@ -488,9 +488,24 @@ const handleDeleteOrder = async (orderId) => {
   // New Order functions
   const handleSubmitNewOrder = async (e) => {
     e.preventDefault();
+    
+    // Validate that all cups have a drink type selected
+    const invalidCups = orderData.cups.filter(cup => !cup.type || cup.type.trim() === '');
+    if (invalidCups.length > 0) {
+      Swal.fire({
+        title: 'Missing Drink Type',
+        text: 'Please select a drink type for all drinks before creating the order.',
+        icon: 'warning',
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false
+      });
+      return;
+    }
+    
     const success = await createOrder(orderData);
     if (success) {
-      setOrderData({ cups: [{ type: 'latte', size: 'regular', addons: [] }] });
+      setOrderData({ cups: [{ type: '', size: 'regular', addons: [] }] });
       setShowNewOrder(false);
 
       Swal.fire({
@@ -517,7 +532,7 @@ const handleDeleteOrder = async (orderId) => {
 
   const addDrink = () => {
     setOrderData(prev => ({
-      cups: [...prev.cups, { type: 'latte', size: 'regular', addons: [] }]
+      cups: [...prev.cups, { type: '', size: 'regular', addons: [] }]
     }));
   };
 
@@ -732,8 +747,8 @@ const handleDeleteOrder = async (orderId) => {
                     
                     <button
                       type="submit"
-                      disabled={isLoading}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                      disabled={isLoading || orderData.cups.some(cup => !cup.type || cup.type.trim() === '')}
+                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoading ? 'Creating...' : `Create Order (${orderData.cups.length} drink${orderData.cups.length !== 1 ? 's' : ''})`}
                     </button>
@@ -760,19 +775,29 @@ const handleDeleteOrder = async (orderId) => {
                           <select
                             value={cup.type}
                             onChange={(e) => updateDrink(index, 'type', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                              !cup.type || cup.type.trim() === '' 
+                                ? 'border-red-300 bg-red-50' 
+                                : 'border-gray-300'
+                            }`}
                             disabled={recipes.length === 0 && !errors.recipes}
                           >
                             {availableRecipes.length === 0 ? (
                               <option value="">Loading recipes...</option>
                             ) : (
-                              availableRecipes.map(recipe => (
-                                <option key={recipe.name} value={recipe.name}>
-                                  {recipe.display_name}
-                                </option>
-                              ))
+                              <>
+                                <option value="">Select drink type...</option>
+                                {availableRecipes.map(recipe => (
+                                  <option key={recipe.name} value={recipe.name}>
+                                    {recipe.display_name}
+                                  </option>
+                                ))}
+                              </>
                             )}
                           </select>
+                          {(!cup.type || cup.type.trim() === '') && (
+                            <p className="text-xs text-red-600 mt-1">Please select a drink type</p>
+                          )}
                           {errors.recipes && (
                             <p className="text-xs text-yellow-600 mt-1">Using fallback recipes</p>
                           )}

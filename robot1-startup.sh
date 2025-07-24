@@ -7,7 +7,8 @@
 set -euo pipefail
 
 # Configuration
-WORKSPACE_DIR=${WORKSPACE_DIR:-$HOME/barns_robot_ws}
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
 DOCKER_HOST_IP=${DOCKER_HOST_IP:-$(hostname -I | awk '{print $1}')}
 ROBOT_ID=1
 DOBOT_TYPE=${DOBOT_TYPE:-nova5}
@@ -16,7 +17,6 @@ ROS_DOMAIN_ID=0
 CAMERA_SERIAL_NUMBER=${CAMERA_SERIAL_NUMBER:-CP1Z842000YW}
 CAM_NAME=cam0
 DEVICE_ID=1
-USB_PORT=${USB_PORT:-1-5-7}
 DEVICE_NUM=1
 ORBBEC_CONNECTION_DELAY=3000
 USBFS_MEMORY_MB=128
@@ -54,6 +54,58 @@ check_workspace() {
     if [ ! -f "$WORKSPACE_DIR/setup_robot_env.sh" ]; then
         error "Environment setup script not found. Please run install-robot-dependencies.sh first."
     fi
+}
+
+# Clean up RabbitMQ queues to prevent resource lock issues
+cleanup_rabbitmq_queues() {
+    log "Cleaning up RabbitMQ queues to prevent resource lock issues..."
+    
+    # Check if RabbitMQ container is running
+    if ! docker ps | grep -q barns-rabbitmq; then
+        warn "RabbitMQ container not running, skipping queue cleanup"
+        return
+    fi
+    
+    # Delete problematic queues if they exist
+    local queues_to_delete=(
+        "robot_container_1_responses"
+        "robot_container_1_requests"
+        "robot_container_2_responses"
+        "robot_container_2_requests"
+    )
+    
+    for queue in "${queues_to_delete[@]}"; do
+        if docker exec barns-rabbitmq rabbitmqctl list_queues name | grep -q "^${queue}$"; then
+            log "Deleting queue: $queue"
+            docker exec barns-rabbitmq rabbitmqctl delete_queue "$queue" 2>/dev/null || true
+        fi
+    done
+    
+    # Also kill any lingering Python processes that might reconnect with old settings
+    pkill -f "python.*oms_v1" &>/dev/null || true
+    
+    log "RabbitMQ queue cleanup completed"
+}
+
+# Clean up ROS2 environment to prevent runtime errors
+cleanup_ros2_environment() {
+    log "Cleaning up ROS2 environment..."
+    
+    # Kill any existing ROS2 processes
+    pkill -f "ros2" &>/dev/null || true
+    pkill -f "_ros2_daemon" &>/dev/null || true
+    
+    # Clean up ROS2 daemon
+    ros2 daemon stop &>/dev/null || true
+    
+    # Remove any stale ROS2 runtime files
+    rm -rf /tmp/.ros* 2>/dev/null || true
+    rm -rf ~/.ros/log/* 2>/dev/null || true
+    
+    # Wait a moment for cleanup
+    sleep 2
+    
+    log "ROS2 environment cleanup completed"
 }
 
 # Start Docker services
@@ -145,7 +197,6 @@ start_robot() {
     export CAMERA_SERIAL_NUMBER="$CAMERA_SERIAL_NUMBER"
     export CAM_NAME="$CAM_NAME"
     export DEVICE_ID="$DEVICE_ID"
-    export USB_PORT="$USB_PORT"
     export DEVICE_NUM="$DEVICE_NUM"
     
     log "Robot 1 Configuration:"
@@ -164,62 +215,126 @@ start_robot() {
     
     # Start the robot stack using the run script logic
     log "Starting full robot stack..."
-    exec bash -c '
+    
+    # Store PIDs for cleanup
+    declare -a PIDS=()
+    
+    # Function to kill all processes
+    cleanup_processes() {
+        log "Cleaning up robot processes..."
+        
+        # Kill all child processes more aggressively
+        if [ ${#PIDS[@]} -gt 0 ]; then
+            for pid in "${PIDS[@]}"; do
+                if kill -0 "$pid" 2>/dev/null; then
+                    # Send SIGTERM first, then SIGKILL if needed
+                    kill -TERM "$pid" 2>/dev/null || true
+                    sleep 0.5
+                    kill -KILL "$pid" 2>/dev/null || true
+                fi
+            done
+        fi
+        
+        # Kill by process name as backup (more aggressive)
+        pkill -KILL -f "dobot_bringup_v3" &>/dev/null || true
+        pkill -KILL -f "orbbec_camera" &>/dev/null || true
+        pkill -KILL -f "dobot_moveit" &>/dev/null || true
+        pkill -KILL -f "servo_action" &>/dev/null || true
+        pkill -KILL -f "pickn_place" &>/dev/null || true
+        pkill -KILL -f "oms_v1.app" &>/dev/null || true
+        
+        # Clean up any remaining ros2 processes
+        pkill -KILL -f "ros2" &>/dev/null || true
+        
+        log "Robot processes cleanup completed."
+    }
+    
+    # Set up signal handler
+    trap cleanup_processes EXIT INT TERM
+    
+    bash -c '
         # Import the robot startup logic
         source ./setup_robot_env.sh
         
         # Robot startup script (adapted from run_full_stack.sh)
         log() { echo -e "\033[1;32m[ROBOT1]\033[0m $*"; }
         
-        log "=== Starting BARNS Robot 1 Stack ==="
+        # Store PIDs for cleanup
+        declare -a PIDS=()
         
-        # Helper function to wait for a service
-        wait_for_service() {
-            local srv_name="$1"
-            local max_wait="${2:-30}"
-            local count=0
-            echo "Waiting for service ${srv_name} ..."
-            until ros2 service type "${srv_name}" > /dev/null 2>&1; do
-                sleep 0.2
-                count=$((count + 1))
-                if [ $count -gt $((max_wait * 5)) ]; then
-                    echo "ERROR: Service ${srv_name} not available after ${max_wait} seconds"
-                    return 1
-                fi
+        # Function to kill all processes in inner shell
+        cleanup_inner() {
+            # Suppress output during cleanup to avoid noise
+            exec 2>/dev/null
+            
+            # Kill tracked processes
+            for pid in "${PIDS[@]}"; do
+                kill -KILL "$pid" 2>/dev/null || true
             done
-            echo "  ↳ ${srv_name} is now available."
+            
+            # Kill by process group
+            kill -KILL 0 2>/dev/null || true
         }
+        
+        # Set up signal handler for inner shell
+        trap cleanup_inner EXIT INT TERM
+        
+        log "=== Starting BARNS Robot 1 Stack ==="
         
         # Launch dobot_bringup_v3
         log "=== Launching dobot_bringup_v3 ==="
         ros2 launch dobot_bringup_v3 dobot_bringup_ros2.launch.py __log_level:=error &
         DOBOT_BRINGUP_PID=$!
+        PIDS+=($DOBOT_BRINGUP_PID)
         
-        sleep 1
+        sleep 5
+
+        # Launch Orbbec camera
+        log "=== Launching Orbbec camera ==="
+        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        CAMERA_PID=$!
+        PIDS+=($CAMERA_PID)
+        
+        sleep 5
+
+        # Check if ROS2 is working properly
+        log "Checking ROS2 connectivity..."
+        if ! ros2 topic list &>/dev/null; then
+            log "ROS2 daemon not ready, restarting..."
+            ros2 daemon stop &>/dev/null || true
+            sleep 2
+            ros2 daemon start &>/dev/null || true
+            sleep 3
+        fi
+        
+        # Try topic list again (optional, for verification)
+        ros2 topic list &>/dev/null || log "Warning: ROS2 topic list failed, but continuing..."
+
+        sleep 5
         
         # Initialize robot
-        wait_for_service "/dobot_bringup_v3/srv/ClearError"
+        sleep 5  # Allow services to start
         ros2 service call /dobot_bringup_v3/srv/ClearError dobot_msgs_v3/srv/ClearError "{}" > /dev/null
         
-        wait_for_service "/dobot_bringup_v3/srv/DisableRobot"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/DisableRobot dobot_msgs_v3/srv/DisableRobot "{}" > /dev/null
         
-        wait_for_service "/dobot_bringup_v3/srv/EnableRobot"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}" > /dev/null
         
         ros2 service call /dobot_bringup_v3/srv/SetGripperPosition dobot_msgs_v3/srv/SetGripperPosition "{position: 0, speed: 255, force: 255}" > /dev/null
         
         # Drag operations
-        wait_for_service "/dobot_bringup_v3/srv/StartDrag"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/StartDrag dobot_msgs_v3/srv/StartDrag "{}" > /dev/null
         
         sleep 5
         
-        wait_for_service "/dobot_bringup_v3/srv/StopDrag"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/StopDrag dobot_msgs_v3/srv/StopDrag "{}" > /dev/null
         
         # Get current angle and set position
-        wait_for_service "/dobot_bringup_v3/srv/GetAngle"
+        sleep 1 # Stagger service calls
         angle_raw=$(ros2 service call /dobot_bringup_v3/srv/GetAngle dobot_msgs_v3/srv/GetAngle 2>/dev/null)
         angle_list=$(echo "$angle_raw" | grep -oP "\{[^}]+\}" | tr -d "{}")
         a1=$(echo "$angle_list" | cut -d"," -f1)
@@ -238,7 +353,7 @@ start_robot() {
         fi
         
         if [[ -n "$j1_val" ]]; then
-            wait_for_service "/dobot_bringup_v3/srv/ServoJ"
+            sleep 1 # Stagger service calls
             ros2 service call /dobot_bringup_v3/srv/ServoJ dobot_msgs_v3/srv/ServoJ \
                 "{j1: ${j1_val}, j2: 30.0, j3: -130.0, j4: -100.0, j5: -90.0, j6: 0.0, t: 2.0}" > /dev/null
         fi
@@ -248,89 +363,88 @@ start_robot() {
         ros2 service call /dobot_bringup_v3/srv/StopDrag dobot_msgs_v3/srv/StopDrag "{}" > /dev/null
         
         # Modbus setup
-        wait_for_service "/dobot_bringup_v3/srv/ModbusClose"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/ModbusClose dobot_msgs_v3/srv/ModbusClose "{index: 0}" > /dev/null
         
-        wait_for_service "/dobot_bringup_v3/srv/ModbusCreate"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/ModbusCreate dobot_msgs_v3/srv/ModbusCreate \
             "{ip: \"127.0.0.1\", port: 60000, slave_id: 9, is_rtu: 1}" > /dev/null
         
-        wait_for_service "/dobot_bringup_v3/srv/SetHoldRegs"
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldRegs \
             "{index: 0, addr: 1000, count: 3, val_tab: \"0,0,0\", val_type: \"int\"}" > /dev/null
         
         ros2 service call /dobot_bringup_v3/srv/SetHoldRegs dobot_msgs_v3/srv/SetHoldRegs \
             "{index: 0, addr: 1000, count: 3, val_tab: \"256,0,0\", val_type: \"int\"}" > /dev/null
         
+        sleep 5
+        
         # Launch MoveIt
         log "=== Launching MoveIt (headless) ==="
         ros2 launch dobot_moveit dobot_moveit.launch.py \
             use_rviz:=false debug:=false __log_level:=fatal &> /dev/null &
         MOVEIT_PID=$!
+        PIDS+=($MOVEIT_PID)
         
-        sleep 2
+        sleep 5
         
         # Launch servo action server
         log "=== Launching servo_action server ==="
         ros2 run servo_action action_move_server_reality __log_level:=fatal &
         ACTION_SERVER_PID=$!
+        PIDS+=($ACTION_SERVER_PID)
         
-        # Launch Orbbec camera
-        log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py \
-            camera_name:="${CAM_NAME}" \
-            serial_number:="${CAMERA_SERIAL_NUMBER}" \
-            usb_port:="${USB_PORT}" \
-            device_num:="${DEVICE_NUM}" \
-            connection_delay:=1000 \
-            device_index:="${DEVICE_NUM}" \
-            enable_sync_output_accel_gyro:=false \
-            enable_noise_removal_filter:=false \
-            enable_spatial_filter:=false \
-            enable_temporal_filter:=false \
-            enable_hole_filling_filter:=false \
-            enable_decimation_filter:=false \
-            enable_threshold_filter:=false \
-            enable_sequence_id_filter:=false \
-            enable_hdr_merge:=false \
-            __log_level:=info &
-        CAMERA_PID=$!
-        
-        sleep 2
-        
+        sleep 5
+
         # Launch perception nodes
         log "=== Launching perception nodes ==="
-        ros2 run pickn_place pose_generator __log_level:=fatal &> /dev/null &
+        ros2 run pickn_place aruco_perception __log_level:=fatal &
         POSE_GEN_PID=$!
+        PIDS+=($POSE_GEN_PID)
+        
+        sleep 5
         
         ros2 run pickn_place obstacle_generator __log_level:=fatal &> /dev/null &
         OBSTACLE_GEN_PID=$!
+        PIDS+=($OBSTACLE_GEN_PID)
         
+        sleep 5
+
         # Launch OMS service
         log "=== Launching oms_v1.app service ==="
         cd src/oms_v1 && python -m oms_v1.app --service &
         OMS_APP_PID=$!
+        PIDS+=($OMS_APP_PID)
         
         cd ../..
         
         log "=== Robot 1 stack started successfully ==="
         log "Robot 1 is now ready and connected to RabbitMQ at ${RABBITMQ_URL}"
         
-        # Keep the process running
-        tail -f /dev/null
-        
-        # Cleanup on exit
-        trap "kill $DOBOT_BRINGUP_PID $MOVEIT_PID $ACTION_SERVER_PID $CAMERA_PID $POSE_GEN_PID $OBSTACLE_GEN_PID $OMS_APP_PID" EXIT
-    '
+        # Keep the process running and wait for signals
+        wait
+    ' &
+    
+    # Store the bash subprocess PID
+    BASH_PID=$!
+    PIDS+=($BASH_PID)
+    
+    # Wait for the bash subprocess
+    wait $BASH_PID
 }
 
 # Handle shutdown
 cleanup() {
     log "Shutting down Robot 1..."
-    # Kill any background processes
-    pkill -f "ros2 launch" || true
-    pkill -f "ros2 run" || true
-    pkill -f "oms_v1.app" || true
+    # Kill any background processes using specific patterns
+    pkill -KILL -f "dobot_bringup_v3" &>/dev/null || true
+    pkill -KILL -f "orbbec_camera" &>/dev/null || true
+    pkill -KILL -f "dobot_moveit" &>/dev/null || true
+    pkill -KILL -f "servo_action" &>/dev/null || true
+    pkill -KILL -f "pickn_place" &>/dev/null || true
+    pkill -KILL -f "oms_v1.app" &>/dev/null || true
+    pkill -KILL -f "ros2" &>/dev/null || true
+    log "Robot 1 processes stopped."
 }
 
 # Main function
@@ -360,13 +474,16 @@ case "${1:-start}" in
         ;;
     robot-only)
         log "Starting only Robot 1..."
+        trap cleanup EXIT
         check_workspace
+        cleanup_rabbitmq_queues
+        cleanup_ros2_environment
         start_robot
         ;;
     stop)
         log "Stopping Robot 1 and Docker services..."
         cleanup
-        docker compose -f docker-compose.arms.yml down
+        docker compose -f docker-compose.arms.yml down --volumes
         log "Stopped successfully"
         ;;
     --help|-h)
@@ -382,11 +499,10 @@ case "${1:-start}" in
         echo "  --help       Show this help"
         echo
         echo "Environment variables:"
-        echo "  WORKSPACE_DIR           Robot workspace (default: \$HOME/barns_robot_ws)"
+        echo "  WORKSPACE_DIR           Robot workspace (default: ./services/robot_container/ros_ws)"
         echo "  DOCKER_HOST_IP          IP for RabbitMQ connection (auto-detected)"
         echo "  IP_ADDRESS              Robot IP address (default: 192.168.200.249)"
         echo "  CAMERA_SERIAL_NUMBER    Camera serial (default: CP1Z842000YW)"
-        echo "  USB_PORT                Camera USB port (default: 1-5-7)"
         ;;
     *)
         error "Unknown command: $1. Use --help for usage information."

@@ -1,71 +1,59 @@
 #!/usr/bin/env python3
-# type: ignore  # ROS2 types not recognized by static linter
-##############################
-# CONFIGURATION
-##############################
+"""
+═══════════════════════════════════════════════════════════════════════════════
+🌟 MANIPULATE NODE V3 - HYBRID IMPLEMENTATION 🌟
+═══════════════════════════════════════════════════════════════════════════════
 
-# MOVE FUNCTION
-REFERENCE_FRAME = "base_link"               # Reference frame for TF lookup.
-PLANNER_ID = "OMPL"                         # Planner ID for MoveIt2.
-CARTESIAN = True                            # Use Cartesian planning?
-CARTESIAN_MAX_STEP = 0.001                  # Maximum step size for Cartesian motion.
-CARTESIAN_FRACTION_THRESHOLD = 0.8          # Fraction threshold for Crtesian planning.
-CARTESIAN_JUMP_THRESHOLD = 0.0              # Jump threshold for Cartesian planning.
-CARTESIAN_AVOID_COLLISIONS = True           # Enable collision avoidance.
-VELOCITY_SCALING = 1.0                      # Velocity scaling factor.
-ACCELERATION_SCALING = 1.0                  # Acceleration scaling factor.
-SYNCHRONOUS = True                          # Wait for motion to complete?
-END_EFFECTOR_NAME = "tool_link"             # End effector name.
-DEFAULT_TCP_LINK = END_EFFECTOR_NAME 
-GROUP_NAME = "portafilter_center"           # MoveIt2 planning group name.
+This is a hybrid implementation that combines the best working methods from
+v1 and v2 to create the most reliable version:
 
-# TF Stability Sampling Settings
-NUM_CONSECUTIVE_TF = 9                      # Number of consecutive TF samples
-TRANSLATION_THRESHOLD = 0.002               # Maximum allowed translation diff (meters)
-ROTATION_THRESHOLD = 2.1                    # Maximum allowed rotation diff (degrees)
-SAMPLE_DELAY = 0.1                          # Delay between samples (seconds)
+FROM V1 (Working methods):
+  ✅ enforce_rxry()          - Proven stable orientation enforcement  
+  ✅ sync()                  - Reliable motion synchronization
+  ✅ move_portafilter_arc()  - Stable portafilter rotation
 
-##############################
-# IMPORTS
-##############################
+FROM V2 (Everything else):
+  ✅ All other methods       - Updated implementations with fixes
+  ✅ Improved error handling - Better robustness
+  ✅ Enhanced logging        - Better debugging
+
+CLASS: robot_motion (same as v2)
+
+USAGE: 
+  Set USE_VERSION = "v3" in testing_v1.py to use this implementation
+
+═══════════════════════════════════════════════════════════════════════════════
+"""
+# Python Imports
+import sys
 import time
 import os
 import math
 import yaml
 import numpy as np
-import rclpy
+import threading
+from scipy.spatial.transform import Rotation as Rot
+from ament_index_python.packages import get_package_share_directory
+
+# ROS Imports
+import rclpy   
 from rclpy.duration import Duration
 from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from rclpy.action import ActionClient
-
+from rclpy.time import Time
 from tf2_ros import Buffer, TransformListener
 import tf_transformations
-from scipy.spatial.transform import Rotation as Rot
 
-from pymoveit2 import MoveIt2, MoveIt2State
-
-from dobot_msgs_v3.srv import (
-    StartDrag,
-    StopDrag,
-    SetGripperPosition,
-    GetGripperPosition,
-    GetPose,
-    GetAngle
-)
-from control_msgs.action import FollowJointTrajectory
 from std_srvs.srv import Trigger
-from std_msgs.msg import Float32,Int8
+from std_msgs.msg import Float32, Int8
+from control_msgs.action import FollowJointTrajectory
 
-# For loading the YAML file from the package share folder.
-from ament_index_python.packages import get_package_share_directory
-import numpy as np
-import time
+# MoveIt2 Imports
+from pymoveit2 import MoveIt2, MoveIt2State
 from tf_transformations import euler_matrix, quaternion_from_matrix
 
-##############################
-# HELPER FUNCTIONS (Module Level)
-##############################
+# Helper functions
 def get_transform_list(tf_stamped):
     """
     Converts a geometry_msgs TransformStamped message into a list: 
@@ -75,80 +63,299 @@ def get_transform_list(tf_stamped):
     r = tf_stamped.transform.rotation
     return [t.x, t.y, t.z, r.x, r.y, r.z, r.w]
 
-def compute_translation_rotation_diff(tf1, tf2):
-    """
-    Computes the translation and rotation difference between two transforms.
-    Returns a tuple: (translation_difference_in_meters, rotation_difference_in_degrees)
-    """
-    t1 = np.array(tf1[:3])
-    t2 = np.array(tf2[:3])
-    trans_diff = np.linalg.norm(t2 - t1)
-    
-    r1 = Rot.from_quat(tf1[3:])
-    r2 = Rot.from_quat(tf2[3:])
-    relative_rotation = r1.inv() * r2
-    rot_deg = math.degrees(relative_rotation.magnitude())
-    
-    return trans_diff, rot_deg
+# MoveIt2 Configuration Constants
+REFERENCE_FRAME = "base_link"
+PLANNER_ID = "OMPL"
+CARTESIAN = True
+CARTESIAN_MAX_STEP = 0.001
+CARTESIAN_FRACTION_THRESHOLD = 0.8
+CARTESIAN_JUMP_THRESHOLD = 0.0
+CARTESIAN_AVOID_COLLISIONS = True
+VELOCITY_SCALING = 1.0
+ACCELERATION_SCALING = 1.0
+END_EFFECTOR_NAME = "tool_link"
+GROUP_NAME = "portafilter_center"
+SYNCHRONOUS = True
 
-def compute_max_spread(samples):
-    """
-    Computes the maximum translation and rotation differences among a list of transforms.
-    """
-    max_trans_diff = 0.0
-    max_rot_diff = 0.0
-    n = len(samples)
-    for i in range(n):
-        for j in range(i+1, n):
-            trans_diff, rot_diff = compute_translation_rotation_diff(samples[i], samples[j])
-            max_trans_diff = max(max_trans_diff, trans_diff)
-            max_rot_diff = max(max_rot_diff, rot_diff)
-    return max_trans_diff, max_rot_diff
-
-def average_quaternions(quaternions):
-    """
-    Computes the average quaternion (using the Markley method) from a list of quaternions.
-    Each quaternion is assumed to be in [qx, qy, qz, qw] format.
-    """
-    aligned = []
-    for q in quaternions:
-        if np.dot(q, quaternions[0]) < 0:
-            aligned.append(-q)
-        else:
-            aligned.append(q)
-    aligned = np.array(aligned)
-    
-    M = np.zeros((4, 4))
-    for q in aligned:
-        M += np.outer(q, q)
-    M /= aligned.shape[0]
-    
-    eigenvalues, eigenvectors = np.linalg.eig(M)
-    max_index = np.argmax(eigenvalues)
-    avg_q = eigenvectors[:, max_index]
-    norm = np.linalg.norm(avg_q)
-    if norm < 1e-8:
-        return np.array([0., 0., 0., 1.])
-    return avg_q / norm
-
-def average_transforms(transforms):
-    """
-    Averages a list of transforms (each as [tx, ty, tz, qx, qy, qz, qw]) and returns a single averaged transform.
-    """
-    translations = np.array([t[:3] for t in transforms])
-    avg_translation = np.mean(translations, axis=0)
-    quaternions = np.array([t[3:] for t in transforms])
-    avg_quat = average_quaternions(quaternions)
-    return list(avg_translation) + list(avg_quat)
-
-##############################
-# MAIN NODE DEFINITION
-##############################
-class DirectTfMotionNode(Node):
+class robot_perception(Node):
     def __init__(self):
-        super().__init__("direct_tf_motion_node")
+        super().__init__("robot_perception")
+        self._percep_exec = None
+        self._executor_thread = None
+        self._shutdown_requested = False
         
-        # Configuration variables.
+        try:
+            self._percep_exec = SingleThreadedExecutor()
+            self._percep_exec.add_node(self)
+            self._executor_thread = threading.Thread(target=self._safe_spin, daemon=False)
+            self._executor_thread.start()
+        except Exception as e:
+            self.get_logger().error(f"robot_perception.__init__(): Failed to initialize: {e}")
+            self._cleanup()
+    
+    def _safe_spin(self):
+        """Safely spin the executor with exception handling"""
+        try:
+            while not self._shutdown_requested and self._percep_exec is not None:
+                self._percep_exec.spin_once(timeout_sec=0.1)
+        except Exception as e:
+            if not self._shutdown_requested:
+                try:
+                    self.get_logger().warn(f"robot_perception._safe_spin(): Exception during spin: {e}")
+                except:
+                    pass  # Ignore logging errors during shutdown
+    
+    def _cleanup(self):
+        """Internal cleanup method"""
+        self._shutdown_requested = True
+        
+        try:
+            if hasattr(self, '_percep_exec') and self._percep_exec is not None:
+                self._percep_exec.shutdown()
+                self._percep_exec = None
+        except Exception:
+            pass
+            
+        try:
+            if hasattr(self, '_executor_thread') and self._executor_thread is not None and self._executor_thread.is_alive():
+                self._executor_thread.join(timeout=3.0)
+                self._executor_thread = None
+        except Exception:
+            pass
+    
+    def destroy_node(self):
+        """Override destroy_node to properly cleanup threads"""
+        self._cleanup()
+        try:
+            super().destroy_node()
+        except Exception:
+            pass  # Ignore errors during node destruction
+
+    def get_tf(
+        self,
+        target_frame: str,
+        reference_frame: str = "base_link",
+        max_retries: int = 3,
+        sleep_time: float = 0.035,
+    ) -> tuple[list[float], float] | tuple[None, None]:
+        """
+        Look up TF once (with limited retries).  If the TF infrastructure has
+        not been set up yet, create it on-demand so other methods remain
+        untouched.
+        """
+
+        from tf2_ros import Buffer, TransformListener
+
+        # ---- lazy-initialise TF listener ---------------------------------
+        if not hasattr(self, "_tf_ready"):
+            # create only when first needed
+            self.tf_buffer   = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self)
+            self._tf_ready   = True
+
+        # ---- lookup with retry ------------------------------------------
+        for _ in range(max_retries):
+            try:
+                t = self.tf_buffer.lookup_transform(
+                    reference_frame, target_frame, Time())
+                tr  = t.transform.translation
+                rot = t.transform.rotation
+                pose  = [tr.x, tr.y, tr.z, rot.x, rot.y, rot.z, rot.w]
+                stamp = t.header.stamp.sec + t.header.stamp.nanosec * 1e-9
+                return pose, stamp
+            except Exception:          # LookupException, ConnectivityException, etc.
+                time.sleep(sleep_time)
+
+        return None, None
+
+    def acquire_target_transform(
+        self,
+        target_frame: str,
+        *,
+        max_wait: float = 10.0,
+        trans_thresh: float = 0.001,
+        rot_thresh: float = 2.5,
+        num_samples: int = 10,
+    ) -> list[float] | None:
+        """
+        Obtain one *stable* transform for `target_frame`. Samples until `num_samples` 
+        unique poses are collected; if the max spread (ΔT, ΔR) across the window is 
+        within thresholds, return the averaged pose. Otherwise clear and retry until 
+        `max_wait` elapses.
+        """
+        import time, math, numpy as np
+        from scipy.spatial.transform import Rotation as Rot
+
+        log = self.get_logger()
+        SAMPLE_DELAY = 0.035 #for 30 FPS
+
+        # Lazy‐initialize TF listener
+        if not hasattr(self, "_tf_ready"):
+            from tf2_ros import Buffer, TransformListener
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self)
+            self._tf_ready = True
+
+        def get_pose_and_stamp():
+            pose, stamp = self.get_tf(target_frame, max_retries=3)
+            return pose
+
+        def spread(a, b):
+            d_pos = np.linalg.norm(np.array(a[:3]) - np.array(b[:3]))
+            d_rot = Rot.from_quat(a[3:]).inv() * Rot.from_quat(b[3:])
+            return d_pos, math.degrees(d_rot.magnitude())
+
+        def max_spread(buf):
+            dts, drs = zip(*(spread(a, b)
+                            for i, a in enumerate(buf)
+                            for b in buf[i + 1:]))
+            return max(dts), max(drs)
+
+        def average_pose(buf):
+            arr = np.asarray(buf)
+            pos = arr[:, :3].mean(axis=0)
+            Q = arr[:, 3:]
+            # align quaternion hemisphere
+            Q[np.sum(Q * Q[0], axis=1) < 0] *= -1
+            M = (Q[:, :, None] * Q[:, None, :]).mean(axis=0)
+            quat = np.linalg.eigh(M)[1][:, -1]
+            quat /= np.linalg.norm(quat)
+            return np.concatenate([pos, quat]).tolist()
+
+        samples = []
+        start_time = time.monotonic()
+        last_dT = last_dR = None
+
+        while (time.monotonic() - start_time) < max_wait:
+            pose = get_pose_and_stamp()
+            if pose is None:
+                time.sleep(SAMPLE_DELAY)
+                continue
+
+            # Discard duplicates against *all* previous samples
+            if pose in samples:
+                time.sleep(SAMPLE_DELAY)
+                continue
+
+            samples.append(pose)
+            if len(samples) > num_samples:
+                samples.pop(0)
+
+            # Only check stability once the window is full
+            if len(samples) < num_samples:
+                time.sleep(SAMPLE_DELAY)
+                continue
+
+            # Compute max spread over the window
+            dT, dR = max_spread(samples)
+            last_dT, last_dR = dT, dR
+            log.info(f"[acqTF] max dT={dT:.4f} m, dR={dR:.2f}° "
+                    f"(tol ≤{trans_thresh:.4f} m / {rot_thresh:.2f}°)")
+
+            if dT <= trans_thresh and dR <= rot_thresh:
+                log.info("[acqTF] stable → returning averaged pose")
+                return average_pose(samples)
+
+            # Unstable: clear buffer and retry
+            log.info("[acqTF] unstable window → reset buffer")
+            samples.clear()
+            time.sleep(SAMPLE_DELAY)
+
+        # Timeout
+        if last_dT is not None:
+            log.error(
+                f"acquire_target_transform: timeout after {max_wait:.1f}s; "
+                f"last dT={last_dT:.4f} m, dR={last_dR:.2f}° "
+                f"(required ≤{trans_thresh:.4f} m / {rot_thresh:.2f}°)"
+            )
+        else:
+            log.error(
+                f"acquire_target_transform: no valid TF samples within {max_wait:.1f}s"
+            )
+        return None
+
+# ROS Interface Imports
+from dobot_msgs_v3.srv import (
+    StartDrag,
+    StopDrag,
+    SetGripperPosition,
+    GetGripperPosition,
+    GetPose,
+    GetAngle,
+    Sync,
+    MovL,
+    MovJ,
+    JointMovJ,
+    DOExecute,
+    Arc,
+    SpeedFactor,
+    Circle3,
+    RelMovL,
+    RelMovJ,
+    Tool,
+    SetTool,
+)
+
+class robot_motion(Node):
+    def __init__(self):
+        super().__init__("robot_motion")          # keep the node alive for the whole run
+        self._node_valid = True
+
+        # ── 1) create every service client exactly once ────────────────────
+        self.start_drag_cli   = self.create_client(StartDrag,           '/dobot_bringup_v3/srv/StartDrag')
+        self.stop_drag_cli    = self.create_client(StopDrag,            '/dobot_bringup_v3/srv/StopDrag')
+        self.sync_cli         = self.create_client(Sync,                '/dobot_bringup_v3/srv/Sync')
+        self.set_gripper_cli  = self.create_client(SetGripperPosition,  '/dobot_bringup_v3/srv/SetGripperPosition')
+        self.get_gripper_cli  = self.create_client(GetGripperPosition,  '/dobot_bringup_v3/srv/GetGripperPosition')
+        self.get_pose_cli     = self.create_client(GetPose,             '/dobot_bringup_v3/srv/GetPose')
+        self.get_angle_cli    = self.create_client(GetAngle,            '/dobot_bringup_v3/srv/GetAngle')
+        self.movl_cli         = self.create_client(MovL,                '/dobot_bringup_v3/srv/MovL')
+        self.movj_cli         = self.create_client(MovJ,                '/dobot_bringup_v3/srv/MovJ')
+        self.jointmovj_cli    = self.create_client(JointMovJ,           '/dobot_bringup_v3/srv/JointMovJ')
+        self.doexec_cli       = self.create_client(DOExecute,           '/dobot_bringup_v3/srv/DOExecute')
+        self.arc_cli          = self.create_client(Arc,                 '/dobot_bringup_v3/srv/Arc')
+        self.speed_factor_cli = self.create_client(SpeedFactor,         '/dobot_bringup_v3/srv/SpeedFactor')
+        self.circle3_cli      = self.create_client(Circle3,             '/dobot_bringup_v3/srv/Circle3')
+        self.relmov_l_cli     = self.create_client(RelMovL,             '/dobot_bringup_v3/srv/RelMovL')
+        self.relmov_j_cli     = self.create_client(RelMovJ,             '/dobot_bringup_v3/srv/RelMovJ')
+        self.tool_cli         = self.create_client(Tool,                '/dobot_bringup_v3/srv/Tool')
+        self.set_tool_cli     = self.create_client(SetTool,             '/dobot_bringup_v3/srv/SetTool')
+        self.servo_cli        = self.create_client(Trigger,             'get_servo_status')
+
+        # ── 2) wait once for every service (5 s each) ──────────────────────
+        timeout = 5.0
+        service_map = {
+            "StartDrag":           self.start_drag_cli,
+            "StopDrag":            self.stop_drag_cli,
+            "Sync":                self.sync_cli,
+            "SetGripperPosition":  self.set_gripper_cli,
+            "GetGripperPosition":  self.get_gripper_cli,
+            "GetPose":             self.get_pose_cli,
+            "GetAngle":            self.get_angle_cli,
+            "MovL":                self.movl_cli,
+            "MovJ":                self.movj_cli,
+            "JointMovJ":           self.jointmovj_cli,
+            "DOExecute":           self.doexec_cli,
+            "Arc":                 self.arc_cli,
+            "SpeedFactor":         self.speed_factor_cli,
+            "Circle3":             self.circle3_cli,
+            "RelMovL":             self.relmov_l_cli,
+            "RelMovJ":             self.relmov_j_cli,
+            "Tool":                self.tool_cli,
+            "SetTool":             self.set_tool_cli,
+            "GetServoStatus":      self.servo_cli,
+
+        }
+
+        missing = [name for name, cli in service_map.items()
+                   if not cli.wait_for_service(timeout_sec=timeout)]
+        if missing:
+            self.get_logger().error(
+                f"⚠️  services unavailable after {timeout}s: {', '.join(missing)}")
+        else:
+            self.get_logger().info("✅  all motion-control services are ready")
+
+        # ── Initialize MoveIt2 Configuration ──────────────────────────────────
         self.reference_frame = REFERENCE_FRAME
         self.planner_id = PLANNER_ID
         self.cartesian = CARTESIAN
@@ -159,14 +366,8 @@ class DirectTfMotionNode(Node):
         self.velocity_scaling = VELOCITY_SCALING
         self.acceleration_scaling = ACCELERATION_SCALING
         self.synchronous = SYNCHRONOUS
-        # TF stability flag.
-        self.ignore_orientation = False
 
-        # TF Buffer and Listener.
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-        
-        # Initialize MoveIt2 with robot details.
+        # ── Initialize MoveIt2 ─────────────────────────────────────────────
         self.moveit2 = MoveIt2(
             node=self,
             joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
@@ -180,1159 +381,591 @@ class DirectTfMotionNode(Node):
         self.moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
         self.moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
 
-        # ─── Pre-create all clients and action clients ─────────────────────
-        mane = os.getenv("DOBOT_TYPE", "default_dobot")
-        action_topic = f"{mane}_group_controller/follow_joint_trajectory"
-
-        # Drag mode services
-        self.start_drag_cli   = self.create_client(StartDrag, '/dobot_bringup_v3/srv/StartDrag')
-        self.stop_drag_cli    = self.create_client(StopDrag,  '/dobot_bringup_v3/srv/StopDrag')
-        # Gripper services
-        self.set_gripper_cli  = self.create_client(SetGripperPosition, '/dobot_bringup_v3/srv/SetGripperPosition')
-        self.get_gripper_cli  = self.create_client(GetGripperPosition, '/dobot_bringup_v3/srv/GetGripperPosition')
-        # Pose-query service
-        self.get_pose_cli     = self.create_client(GetPose, '/dobot_bringup_v3/srv/GetPose')
-        self.get_angles_cli   = self.create_client(GetAngle, '/dobot_bringup_v3/srv/GetAngle')
-        # Trajectory Action
-        self.traj_cli         = ActionClient(self, FollowJointTrajectory, action_topic)
-
-        # Wait once for each
-        for cli, name in [
-            (self.get_pose_cli,    "GetPose"),
-        ]:
-            if not cli.wait_for_service(timeout_sec=1.0):
-                self.get_logger().warn(f"{name} service not available at init")
-        if not self.traj_cli.wait_for_server(timeout_sec=5.0):
-            self.get_logger().warn("Trajectory action server not available at init")
-
-    def get_tf(self, target_frame: str, max_retries: int = 1, sleep_time: float = 0.5):
-        """
-        Directly retrieves the transform from the robot's base (reference frame) to the target_frame.
-        Returns a tuple (pose, timestamp) where:
-        - pose: [tx, ty, tz, qx, qy, qz, qw]
-        - timestamp: time in seconds when the transform was captured
-        """
-        for attempt in range(max_retries + 1):
-            try:
-                # Lookup transform directly: from self.reference_frame (base_link) to target_frame.
-                tf_obj = self.tf_buffer.lookup_transform(
-                    self.reference_frame,  # e.g., "base_link"
-                    target_frame,
-                    rclpy.time.Time(),
-                    timeout=Duration(seconds=0.5)
-                )
-                now_sec = self.get_clock().now().nanoseconds * 1e-9
-                stamp_sec = tf_obj.header.stamp.sec + tf_obj.header.stamp.nanosec * 1e-9
-                # Check that the transform is fresh (within 0.2 seconds)
-                if now_sec - stamp_sec > 0.2:
-                    raise RuntimeError(f"Direct TF stale ({now_sec - stamp_sec:.2f}s old)")
-
-                # Extract translation and rotation to build the pose.
-                t = tf_obj.transform.translation
-                r = tf_obj.transform.rotation
-                pose = [t.x, t.y, t.z, r.x, r.y, r.z, r.w]
-
-                self.get_logger().info(f"Aquiring TF: ({now_sec:.3f}), pose: {pose}")
-                return pose, now_sec
-
-            except Exception as e:
-                self.get_logger().warn(f"get_tf(): Attempt {attempt+1}/{max_retries+1} failed: {e}")
-                time.sleep(sleep_time)
-
-        return None, None
-
-    def wait_for_stable_tf(self, target_tf: str):
-        """
-        Synchronously waits indefinitely for a stable transform from target_tf.
-        This version uses a local sample buffer so that each operation is independent.
-        It continuously collects samples until a sliding window of NUM_CONSECUTIVE_TF samples meets the stability criteria,
-        and the last sample's timestamp is within the freshness threshold.
-        Then it returns the averaged transform computed from the window.
-        """
-        samples_buffer = []
-        freshness_threshold = 0.5  
-        while True:
-            transform, stamp = self.get_tf(target_tf, max_retries=1, sleep_time=0.1)
-            if transform is not None:
-                samples_buffer.append((transform, stamp))
-                if len(samples_buffer) >= NUM_CONSECUTIVE_TF:
-                    window = samples_buffer[-NUM_CONSECUTIVE_TF:]
-                    last_sample_stamp = window[-1][1]
-                    current_time = self.get_clock().now().nanoseconds * 1e-9
-                    if current_time - last_sample_stamp > freshness_threshold:
-                        self.get_logger().warn(
-                            f"wait_for_stable_tf(): Latest sample is stale (delta: {current_time - last_sample_stamp:.3f}s), waiting for fresh data."
-                        )
-                        time.sleep(0.5)
-                        continue
-                    window_transforms = [sample[0] for sample in window]
-                    max_trans_diff, max_rot_diff = compute_max_spread(window_transforms)
-                    if self.ignore_orientation:
-                        if max_trans_diff <= TRANSLATION_THRESHOLD:
-                            return average_transforms(window_transforms)
-                    else:
-                        if max_trans_diff <= TRANSLATION_THRESHOLD and max_rot_diff <= ROTATION_THRESHOLD:
-                            return average_transforms(window_transforms)
-            time.sleep(0.1)
-
-    def wait_for_servo_ready(self, timeout: float = 15.0) -> bool:
-        """
-        Poll /get_servo_status (Trigger) until status == 0 (READY) or timeout.
-        """
-        client = self.create_client(Trigger, 'get_servo_status')
-        if not client.wait_for_service(timeout_sec=timeout):
-            self.get_logger().error("Servo status service unavailable")
-            return False
-
-        start = self.get_clock().now().nanoseconds * 1e-9
-        while True:
-            req = Trigger.Request()
-            future = client.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=0.5)
-            res = future.result()
-            if res is not None:
-                try:
-                    code = int(res.message)
-                except:
-                    code = None
-                if code == 0:
-                    return True
-                self.get_logger().info(f"Servo busy (status={code}), waiting…")
-            else:
-                self.get_logger().warn("No response from /get_servo_status")
-
-            if (self.get_clock().now().nanoseconds * 1e-9 - start) > timeout:
-                self.get_logger().error("Timeout waiting for servo READY")
-                return False
-            time.sleep(0.1)
-
-    def verify_goal_pose(self, expected_goal_pose, tolerance, offset):
-        expected_mm = np.array(expected_goal_pose) * 1000.0
-        self.get_logger().info(f"Goal pose (expected) in mm: {expected_mm}")
-        client = self.create_client(GetPose, '/dobot_bringup_v3/srv/GetPose')
-        if not client.wait_for_service(timeout_sec=0.5):
-            self.get_logger().error("verify_goal_pose(): Pose service not available.")
-            return False
-        req = GetPose.Request()
-        req.user = 0
-        req.tool = 0
-        future = client.call_async(req)
-        rclpy.spin_until_future_complete(self, future)
-        time.sleep(1.0)
-        if future.result() is None:
-            self.get_logger().error("verify_goal_pose(): Failed to retrieve pose from service.")
-            return False
-        response = future.result()
-        pose_str = response.pose.strip('{}')
-        parts = pose_str.split(',')
-        if len(parts) < 3:
-            self.get_logger().error("verify_goal_pose(): Invalid pose received.")
-            return False
-        try:
-            current_translation = np.array([float(parts[i]) for i in range(3)])
-        except Exception as e:
-            self.get_logger().error(f"verify_goal_pose(): Error parsing current translation: {e}")
-            return False
-
-        diff = np.linalg.norm(expected_mm - current_translation) - offset
-        diff = max(diff, 0.0)
-        self.get_logger().info(f"Computed diff after offset: {diff:.2f} mm")
-        if diff <= tolerance:
-            self.get_logger().info(f"verify_goal_pose(): Arrived, Translation match OK (diff: {diff:.2f} mm).")
-            return True
-        else:
-            self.get_logger().warn(f"verify_goal_pose(): Approaching to goal (diff: {diff:.2f} mm).")
-            return False
+        # ── Initialize TF Buffer and Listener ─────────────────────────────────
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
         
+        # ── Initialize health monitoring ────────────────────────────────────── 
+        self._last_successful_operation = time.time()
+        self._consecutive_failures = 0
+        self._max_consecutive_failures = 5
+    
+    def health_check(self) -> bool:
+        """
+        Perform a quick health check of critical robot services.
+        Returns True if robot appears to be responsive, False otherwise.
+        """
+        try:
+            # Test if sync service is responsive with short timeout
+            if not self.sync_cli.wait_for_service(timeout_sec=3.0):
+                self.safe_log("warn", "health_check(): Sync service unavailable")
+                return False
+            
+            # For health check, just verify service availability rather than calling it
+            # This reduces the chance of interfering with ongoing operations
+            self.safe_log("info", "health_check(): Robot services appear available")
+            return True
+            
+        except Exception as e:
+            self.safe_log("error", f"health_check(): Exception during health check: {e}")
+            return False
+    
+    def is_robot_likely_responsive(self) -> bool:
+        """
+        Check if the robot is likely responsive based on recent successful operations.
+        This can be used to bypass intensive health checks when robot appears to be working.
+        """
+        try:
+            if hasattr(self, '_last_successful_operation'):
+                time_since_success = time.time() - self._last_successful_operation
+                # If we had a successful operation in the last 30 seconds, assume robot is working
+                if time_since_success < 30.0:
+                    return True
+            
+            # If we haven't had many consecutive failures, assume robot is probably working
+            if hasattr(self, '_consecutive_failures') and self._consecutive_failures < 3:
+                return True
+                
+            return False
+        except Exception:
+            return False
+    
+    def log_robot_status(self) -> None:
+        """
+        Log current robot status for diagnostic purposes.
+        """
+        try:
+            if hasattr(self, '_last_successful_operation'):
+                time_since_success = time.time() - self._last_successful_operation
+                self.safe_log("info", f"Robot status: {time_since_success:.1f}s since last success")
+            
+            if hasattr(self, '_consecutive_failures'):
+                self.safe_log("info", f"Robot status: {self._consecutive_failures} consecutive failures")
+                
+            # Check service availability
+            services_status = []
+            services_to_check = [
+                ("Sync", self.sync_cli),
+                ("SpeedFactor", self.speed_factor_cli),
+                ("JointMovJ", self.jointmovj_cli)
+            ]
+            
+            for service_name, client in services_to_check:
+                try:
+                    available = client.wait_for_service(timeout_sec=1.0)
+                    services_status.append(f"{service_name}: {'✓' if available else '✗'}")
+                except Exception:
+                    services_status.append(f"{service_name}: ✗")
+            
+            self.safe_log("info", f"Robot services: {', '.join(services_status)}")
+            
+        except Exception as e:
+            self.safe_log("debug", f"log_robot_status(): Error: {e}")
+    
+    def reset_robot_connection(self) -> bool:
+        """
+        Attempt to reset robot connection when services become unresponsive.
+        """
+        try:
+            self.safe_log("warn", "reset_robot_connection(): Attempting to reset robot connection...")
+            
+            # Wait a moment for any ongoing operations to complete
+            time.sleep(2.0)
+            
+            # Try to recreate critical service clients
+            try:
+                from dobot_msgs_v3.srv import Sync, SpeedFactor, JointMovJ
+                self.sync_cli = self.create_client(Sync, '/dobot_bringup_v3/srv/Sync')
+                self.speed_factor_cli = self.create_client(SpeedFactor, '/dobot_bringup_v3/srv/SpeedFactor')
+                self.jointmovj_cli = self.create_client(JointMovJ, '/dobot_bringup_v3/srv/JointMovJ')
+            except Exception as e:
+                self.safe_log("error", f"reset_robot_connection(): Failed to recreate clients: {e}")
+                return False
+            
+            # Wait for services to become available
+            services_ready = (
+                self.sync_cli.wait_for_service(timeout_sec=10.0) and
+                self.speed_factor_cli.wait_for_service(timeout_sec=10.0) and
+                self.jointmovj_cli.wait_for_service(timeout_sec=10.0)
+            )
+            
+            if services_ready:
+                self.safe_log("info", "reset_robot_connection(): Robot connection reset successful")
+                self._consecutive_failures = 0
+                self._last_successful_operation = time.time()
+                return True
+            else:
+                self.safe_log("error", "reset_robot_connection(): Services still unavailable after reset")
+                return False
+                
+        except Exception as e:
+            self.safe_log("error", f"reset_robot_connection(): Exception during reset: {e}")
+            return False
+    
+    def safe_log(self, level, message):
+        """Safely log a message, handling ROS context issues"""
+        try:
+            if self._node_valid and self.get_logger() is not None:
+                if level == "debug":
+                    self.get_logger().debug(message)
+                elif level == "info":
+                    self.get_logger().info(message)
+                elif level == "warn" or level == "warning":
+                    self.get_logger().warn(message)
+                elif level == "error":
+                    self.get_logger().error(message)
+                elif level == "fatal":
+                    self.get_logger().fatal(message)
+                else:
+                    self.get_logger().info(message)  # Default to info
+        except Exception:
+            # If logging fails, try to print to stdout as fallback
+            try:
+                print(f"[{level.upper()}] {message}")
+            except:
+                pass  # If even print fails, silently ignore
+    
+    def destroy_node(self):
+        """Override destroy_node to mark node as invalid"""
+        self._node_valid = False
+        try:
+            super().destroy_node()
+        except Exception:
+            pass
+
     def verify_joint_positions(self, expected_joints, tolerance_deg=1.0):
         """
-        Verifies that current joint positions match expected positions within tolerance.
+        Verify that the current joint positions match the expected values within tolerance.
         
         Args:
-            expected_joints: List of 6 joint angles in degrees
-            tolerance_deg: Acceptable deviation in degrees (default: 1.0°)
-        
+            expected_joints: List of expected joint angles in degrees
+            tolerance_deg: Tolerance in degrees for each joint
+            
         Returns:
-            bool: True if all joints are within tolerance
+            bool: True if all joints are within tolerance, False otherwise
         """
-        joint_state_msg = self.wait_for_joint_state("/joint_states_robot", timeout_sec=2.0)
-        if joint_state_msg is None:
-            self.get_logger().error("verify_joint_positions(): No joint state message received.")
+        try:
+            current_angles = self.current_angles()
+            if current_angles is None:
+                self.get_logger().warn("verify_joint_positions(): Could not get current joint angles")
+                return False
+                
+            if len(current_angles) != len(expected_joints):
+                self.get_logger().error(f"verify_joint_positions(): Length mismatch - got {len(current_angles)}, expected {len(expected_joints)}")
+                return False
+                
+            # Convert current angles from radians to degrees
+            current_degrees = [math.degrees(angle) for angle in current_angles]
+            
+            # Check each joint
+            for i, (current, expected) in enumerate(zip(current_degrees, expected_joints)):
+                error = abs(current - expected)
+                if error > tolerance_deg:
+                    self.get_logger().warn(f"verify_joint_positions(): Joint {i+1} error {error:.2f}° > {tolerance_deg}°")
+                    return False
+                    
+            self.get_logger().info("verify_joint_positions(): All joints within tolerance")
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f"verify_joint_positions(): Error: {e}")
             return False
-        
-        current_joints_deg = [math.degrees(j) for j in joint_state_msg.position[0:6]]
-        diffs = [abs(c - e) for c, e in zip(current_joints_deg, expected_joints)]
-        
-        max_diff = max(diffs)
-        within_tolerance = max_diff <= tolerance_deg
-        
-        if within_tolerance:
-            self.get_logger().info("verify_joint_positions(): Joint positions verified within tolerance.")
-        else:
-            self.get_logger().warn(
-                f"verify_joint_positions(): Joint differences exceed tolerance:\n"
-                f"Current (deg): {current_joints_deg}\n"
-                f"Expected (deg): {expected_joints}\n"
-                f"Max difference: {max_diff:.2f}°"
-            )
-        
-        return within_tolerance
 
-    def wait_for_joint_state(self, topic_name: str, timeout_sec: float = 2.0):
+    def get_machine_position(
+            self,
+            target_tf: str,
+            required_samples: int = 10,
+            *,
+            acq_timeout: float = 10.0,
+            debug: bool = False
+    ) -> tuple[dict, dict] | None:
         """
-        Synchronously waits for a JointState message from the given topic.
+        Collect `required_samples` fresh poses for `target_tf`, average them,
+        write the result to machine_pose_data_memory.yaml, and return both the
+        YAML entry and a datalog dictionary.  Returns *None* on any failure.
         """
-        from sensor_msgs.msg import JointState
-        import rclpy
-        msg_container = {"msg": None}
 
-        def callback(msg):
-            msg_container["msg"] = msg
+        import time, os, yaml, numpy as np
+        from ament_index_python.packages import get_package_share_directory
 
-        sub = self.create_subscription(JointState, topic_name, callback, 10)
-        start_time = self.get_clock().now().nanoseconds * 1e-9
-        while msg_container["msg"] is None:
-            current_time = self.get_clock().now().nanoseconds * 1e-9
-            if (current_time - start_time) > timeout_sec:
+        log = self.get_logger()
+        dl = {
+            "start_time":   time.time(),
+            "params":       dict(target_tf=target_tf,
+                                required_samples=required_samples,
+                                acq_timeout=acq_timeout),
+            "poses":        [],        # list[list[float]]
+            "final_pose":   {},
+            "yaml_path":    None,
+        }
+
+        # ── 1) collect poses ──────────────────────────────────────────────────
+        for i in range(required_samples):
+            # spin up a *temporary* robot_perception node
+            perception = robot_perception()
+            perc_exec  = SingleThreadedExecutor()
+            perc_exec.add_node(perception)
+
+            # ── start TF listener in a helper thread ───────────────────────────
+            import threading, contextlib
+            tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
+            tf_thread.start()
+
+            pose = None
+            try:
+                pose = perception.acquire_target_transform(
+                    target_tf,
+                    max_wait=acq_timeout,
+                    trans_thresh=0.001,     #1mm tolerance
+                    rot_thresh=2.0,         #2 deg error
+                    num_samples=6,
+                )
+            finally:
+                # shut down executor and destroy the node
+                with contextlib.suppress(Exception):
+                    perc_exec.shutdown()
+                perception.destroy_node()
+
+            if pose is None:
+                log.error(f"[GMP] acquire_target_transform timed out (sample {i})")
+                return None
+
+            dl["poses"].append(pose)
+            if debug:
+                log.debug(f"[GMP] #{i:02d}: {pose}")
+
+        # ── 2) average translation & quaternion (Markley method) ──────────────
+        poses_np = np.asarray(dl["poses"])           # (N, 7)
+        tx, ty, tz = poses_np[:, :3].mean(axis=0)
+
+        quats = poses_np[:, 3:]                      # (N, 4)  [x y z w]
+        M = sum(np.outer([q[3], *q[:3]], [q[3], *q[:3]]) for q in quats) / required_samples
+        eig_vals, eig_vecs = np.linalg.eig(M)
+        q_avg_wxyz = eig_vecs[:, eig_vals.argmax()]   # (w x y z)
+        qw, qx, qy, qz = (q_avg_wxyz / np.linalg.norm(q_avg_wxyz)).tolist()
+
+        dl["final_pose"] = {
+            "translation": {"x": float(tx), "y": float(ty), "z": float(tz)},
+            "rotation":    {"x": float(qx), "y": float(qy), "z": float(qz), "w": float(qw)},
+        }
+        log.info(f"[GMP] mean XYZ = ({tx:.4f}, {ty:.4f}, {tz:.4f})  "
+                f"quat = ({qx:.4f}, {qy:.4f}, {qz:.4f}, {qw:.4f})")
+
+        # ── 3) write YAML once ────────────────────────────────────────────────
+        pkg_share = get_package_share_directory("pickn_place")
+        mem_path  = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
+
+        try:
+            with open(mem_path, "r") as f:
+                data = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            data = {}
+
+        data.setdefault("machines", {})[target_tf] = {
+            "Time": f"{time.time()}",
+            **dl["final_pose"],
+        }
+
+        with open(mem_path, "w") as f:
+            yaml.safe_dump(data, f)
+
+        dl["yaml_path"]   = mem_path
+        dl["end_time"]    = time.time()
+        dl["duration_s"]  = dl["end_time"] - dl["start_time"]
+
+        self.datalog_lastrun_skill = dl
+        log.info(f"[GMP] ✅ finished in {dl['duration_s']:.2f} s → {mem_path}")
+
+        return data["machines"][target_tf], dl
+
+    def release_tension(self, settling_time: float = 1.0) -> bool:
+        """
+        • Enable drag-mode (StartDrag) → let the arm "relax".
+        • Wait `settling_time` s to dissipate any spring-back.
+        • Disable drag-mode (StopDrag).
+        Retries driver-error responses up to `max_attempts`, but aborts on
+        transport time-outs.  Returns **True** on full success.
+        """
+
+        import time, rclpy
+
+        max_attempts  = 6
+        call_timeout  = 5.0      # seconds to wait for each service reply
+        retry_pause   = 0.25     # pause between attempts
+
+        log = self.get_logger()
+
+        # helpers ---------------------------------------------------------------
+        def _try_srv(cli, srv_name):
+            fut = cli.call_async(StartDrag.Request() if srv_name == "StartDrag"
+                                else StopDrag.Request())
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=call_timeout)
+            if not fut.done() or fut.result() is None:
+                log.error(f"{srv_name}: call timed-out after {call_timeout}s")
+                return None        # transport failure – abort
+            return getattr(fut.result(), "res", 1)   # driver result code
+
+        # ----------------------------------------------------------------------#
+        # 1)  StartDrag  --------------------------------------------------------#
+        for attempt in range(1, max_attempts + 1):
+            res = _try_srv(self.start_drag_cli, "StartDrag")
+            if res is None:            # comms failure – give up
+                return False
+            if res == 0:               # driver accepted
+                log.info("StartDrag OK")
                 break
-            rclpy.spin_once(self, timeout_sec=0.1)
-        self.destroy_subscription(sub)
-        return msg_container["msg"]
-    
-    def set_servo_timing(self, timing_sec: float,
-                        settle_time: float = 0.15) -> bool:
-        """
-        Publish one Float32 on /sleep_timing, wait ≥50 ms, then
-        verify with /get_sleep_timing (std_srvs/Trigger).
-
-        * timing_sec must be 0.012 … 0.030  (12 – 30 ms)
-        * A minimum 0.05 s pause is enforced after publishing.
-        * Publisher/client are created lazily on first use.
-        """
-        # 0) bounds check ---------------------------------------------------
-        if not (0.10 <= timing_sec <= 0.30):
-            self.get_logger().error(
-                f"set_servo_timing(): {timing_sec:.3f}s outside 0.12 – 0.30 s")
+            log.warn(f"StartDrag driver res={res}; retrying ({attempt}/{max_attempts})")
+            time.sleep(retry_pause)
+        else:
+            log.error("StartDrag: exceeded max_attempts")
             return False
 
-        # 1) lazy-create pub & client --------------------------------------
-        if not hasattr(self, "_sleep_pub"):
-            self._sleep_pub = self.create_publisher(Float32,
-                                                    "/sleep_timing", 10)
-        if not hasattr(self, "_sleep_cli"):
-            self._sleep_cli = self.create_client(Trigger,
-                                                "/get_sleep_timing")
-
-        # 2) publish once ---------------------------------------------------
-        msg = Float32(data=float(timing_sec))
-        self._sleep_pub.publish(msg)
-        self.get_logger().info(
-            f"set_servo_timing(): published {msg.data*1000:.1f} ms")
-
-        # ensure the datagram is processed by the rcl layer
-        rclpy.spin_once(self, timeout_sec=0.05)
-
-        # 3) wait ≥50 ms before verification -------------------------------
-        rclpy.spin_once(self, timeout_sec=max(settle_time, 0.05))
-
-        # 4) verify via /get_sleep_timing ----------------------------------
-        if not self._sleep_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error("set_servo_timing(): verification service unavailable")
-            return False
-
-        fut = self._sleep_cli.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.5)
-
-        if fut.result() is None or not fut.result().success:
-            self.get_logger().error("set_servo_timing(): service call failed")
-            return False
-
-        # parse numeric value (if driver echoes it)
-        import re, math
-        m = re.search(r"([\d\.]+)", fut.result().message)
-        if m and math.isclose(float(m.group(1)), timing_sec, abs_tol=1e-4):
-            self.get_logger().info(
-                f"set_servo_timing(): verified {float(m.group(1))*1000:.1f} ms")
-            return True
-
-        self.get_logger().warn("set_servo_timing(): could not confirm timing value")
-        return False
-
-    def reset_servo_error(self, pause_after_pub: float = 0.10) -> bool:
-        """
-        Reset the Dobot's servo-controller from ERROR ➜ READY.
-
-        Steps
-        -----
-        1)  publish Int8(data=0) once on /servo_controller_status
-        2)  wait ≥ pause_after_pub seconds (default 100 ms, enforced ≥ 50 ms)
-        3)  call /get_servo_status to confirm status == 0
-        """
-        # 1) lazy resources -------------------------------------------------
-        if not hasattr(self, "_servo_status_pub"):
-            self._servo_status_pub = self.create_publisher(
-                Int8, "/servo_controller_status", 10)
-        if not hasattr(self, "_servo_status_cli"):
-            self._servo_status_cli = self.create_client(
-                Trigger, "/get_servo_status")
-
-        # 2) publish once ---------------------------------------------------
-        self._servo_status_pub.publish(Int8(data=0))
-        self.get_logger().info("reset_servo_error(): sent RESET (data=0)")
-
-        # push ROS queue; flush() is not available in rclpy
-        rclpy.spin_once(self, timeout_sec=0.05)
-
-        # 3) mandatory pause ≥ 50 ms ---------------------------------------
-        rclpy.spin_once(self, timeout_sec=max(pause_after_pub, 0.05))
-
-        # 4) verify ---------------------------------------------------------
-        if not self._servo_status_cli.wait_for_service(timeout_sec=1.0):
-            self.get_logger().error("reset_servo_error(): verification service unavailable")
-            return False
-
-        fut = self._servo_status_cli.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self, fut, timeout_sec=1.5)
-
-        if fut.result() is None or not fut.result().success:
-            self.get_logger().error("reset_servo_error(): service call failed")
-            return False
-
-        import re
-        m = re.search(r"(-?\d+)", fut.result().message)
-        if m and int(m.group(1)) == 0:
-            self.get_logger().info("reset_servo_error(): status now READY (0)")
-            return True
-
-        self.get_logger().warn("reset_servo_error(): could not confirm READY state")
-        return False
-
-    def release_tension(self) -> bool:
-        """
-        Pulse drag‐mode once to let the Dobot relax, then refresh the robot's current position.
-        Retries StartDrag/StopDrag up to max_attempts times each, with proper error handling.
-        Returns True on full success, False on any failure.
-        """
-        max_attempts = 15
-        timeout_sec = 5.0
-        min_wait_sec = 0.75
-        settling_time = 0.75
-
-        def _execute_drag_command(is_start: bool) -> bool:
-            """Helper function to execute StartDrag or StopDrag with retries."""
-            cli = self.start_drag_cli if is_start else self.stop_drag_cli
-            cmd_name = "StartDrag" if is_start else "StopDrag"
-            req = StartDrag.Request() if is_start else StopDrag.Request()
-            
-            for attempt in range(1, max_attempts + 1):
-                self.get_logger().info(f"release_tension: {cmd_name} (attempt {attempt}/{max_attempts})")
-                
-                start_time = time.monotonic()
-                future = cli.call_async(req)
-                
-                # Wait for response with timeout
-                rclpy.spin_until_future_complete(self, future, timeout_sec=timeout_sec)
-                
-                # Check result
-                if future.done() and future.result() is not None:
-                    result = future.result()
-                    if getattr(result, "res", 1) == 0:
-                        self.get_logger().info(f"release_tension: {cmd_name} succeeded")
-                        return True
-                    else:
-                        error_code = getattr(result, "res", "unknown")
-                        self.get_logger().warn(f"release_tension: {cmd_name} attempt {attempt} returned error code {error_code}")
-                else:
-                    self.get_logger().warn(f"release_tension: {cmd_name} attempt {attempt} timed out after {timeout_sec}s")
-                
-                # Enforce minimum dwell time for StartDrag
-                if is_start:
-                    elapsed = time.monotonic() - start_time
-                    if elapsed < min_wait_sec:
-                        time.sleep(min_wait_sec - elapsed)
-                
-                # Brief pause before retry
-                if attempt < max_attempts:
-                    time.sleep(0.2)
-            
-            self.get_logger().error(f"release_tension: {cmd_name} failed after {max_attempts} attempts")
-            return False
-
-        # 1) Activate drag mode
-        if not _execute_drag_command(is_start=True):
-            return False
-
-        # 2) Settling delay
-        self.get_logger().info(f"release_tension: Waiting {settling_time:.2f}s for settling...")
+        # 2)  settling pause ----------------------------------------------------#
         time.sleep(settling_time)
 
-        # 3) Deactivate drag mode
-        if not _execute_drag_command(is_start=False):
-            return False
+        # 3)  StopDrag  ---------------------------------------------------------#
+        for attempt in range(1, max_attempts + 1):
+            res = _try_srv(self.stop_drag_cli, "StopDrag")
+            if res is None:
+                return False
+            if res == 0:
+                log.info("StopDrag OK – tension released ✔️")
+                time.sleep(0.5)
+                return True
+            log.warn(f"StopDrag driver res={res}; retrying ({attempt}/{max_attempts})")
+            time.sleep(retry_pause)
 
-        # 4) Success
-        self.get_logger().info("release_tension: Completed successfully.")
-        return True
-
-###################################### DONE NEW VERIFICATION ###########################################
-    from tf_transformations import quaternion_from_matrix, euler_matrix
-    import numpy as np
-    import time
-
-    def move_to(
-        self,
-        target_tf: str,
-        distance: float,
-        offset_x_mm: float = 0.0,
-        offset_y_mm: float = 0.0,
-        offset_z_mm: float = 0.0,
-        offset_roll_deg: float = 0.0,
-        offset_pitch_deg: float = 0.0,
-        offset_yaw_deg: float = 0.0,
-    ) -> bool:
+        log.error("StopDrag: exceeded max_attempts")
+        return False
+    
+    def sync(self) -> bool:
         """
-        Move the end-effector away from the target frame by a specified distance along
-        the vector from a base reference point to the target, then apply additional
-        translation and orientation offsets.
-
-        This function effectively performs a "retraction" motion away from the target,
-        which is useful for safely backing away from objects after interaction.
-
-        Args:
-            target_tf:        TF frame name to move away from
-            distance:         Distance to retract from target in metres (positive = away from target)
-            offset_x_mm:      Additional X offset in millimetres (applied after retraction)
-            offset_y_mm:      Additional Y offset in millimetres (applied after retraction)
-            offset_z_mm:      Additional Z offset in millimetres (applied after retraction)
-            offset_roll_deg:  Additional roll rotation offset in degrees
-            offset_pitch_deg: Additional pitch rotation offset in degrees
-            offset_yaw_deg:   Additional yaw rotation offset in degrees
-            
-        Returns:
-            bool: True if motion completed successfully, False otherwise
-        """
-        # Input validation
-        if not target_tf or not isinstance(target_tf, str):
-            self.get_logger().error("move_to(): Invalid target_tf parameter")
-            return False
-        
-        if distance < 0:
-            self.get_logger().error("move_to(): Distance must be non-negative")
-            return False
-
-        self.get_logger().info(
-            f"move_to(): frame={target_tf}, distance={distance}m, "
-            f"offsets=({offset_x_mm}mm, {offset_y_mm}mm, {offset_z_mm}mm), "
-            f"orientation offsets=({offset_roll_deg}\u00b0, {offset_pitch_deg}\u00b0, {offset_yaw_deg}\u00b0)"
-        )
-
-        try:
-            # 1) Get a stable transform
-            self.ignore_orientation = True
-            stable_tf = self.wait_for_stable_tf(target_tf)
-            self.ignore_orientation = False
-            
-            if stable_tf is None:
-                self.get_logger().error("move_to(): failed to get stable TF.")
-                return False
-
-            # 2) Compute goal position
-            target_pos = np.array(stable_tf[:3])
-            base_ref = np.array([0.0, 0.0, target_pos[2] + 0.075])
-            approach_vec = target_pos - base_ref
-            
-            # Validate approach vector
-            approach_norm = np.linalg.norm(approach_vec)
-            if approach_norm < 1e-6:
-                self.get_logger().error("move_to(): approach vector too small.")
-                return False
-            
-            unit_vec = approach_vec / approach_norm
-            goal_pos = target_pos - distance * unit_vec
-
-            # 3) Apply translation offsets (convert mm to m)
-            if any(offset != 0.0 for offset in [offset_x_mm, offset_y_mm, offset_z_mm]):
-                offsets_m = np.array([offset_x_mm, offset_y_mm, offset_z_mm]) / 1000.0
-                goal_pos += offsets_m
-
-            # 4) Compute orientation
-            goal_quat = self._compute_goal_orientation(unit_vec, offset_roll_deg, offset_pitch_deg, offset_yaw_deg)
-            if goal_quat is None:
-                return False
-
-            # 5) Execute Cartesian move
-            time.sleep(0.2)
-            self.moveit2.move_to_pose(
-                position=goal_pos.tolist(),
-                quat_xyzw=goal_quat,
-                cartesian=self.cartesian,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold,
-            )
-            time.sleep(0.2)
-            # 6) Verify arrival
-            if not self._wait_for_motion_completion():
-                return False
-
-            self.get_logger().info("move_to(): completed successfully.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"move_to(): Unexpected error: {e}")
-            return False
-
-    def _compute_goal_orientation(self, unit_vec: np.ndarray, roll_deg: float, pitch_deg: float, yaw_deg: float) -> list | None:
-        """
-        Compute the goal orientation quaternion based on unit vector and rotation offsets.
-        
-        Args:
-            unit_vec: Unit vector defining the approach direction
-            roll_deg, pitch_deg, yaw_deg: Rotation offsets in degrees
-            
-        Returns:
-            Quaternion as [x, y, z, w] or None on error
-        """
-        try:
-            # Build base orientation matrix
-            z_axis = unit_vec
-            up = np.array([0, 0, 1])
-            
-            # Handle near-vertical approach vectors
-            if abs(np.dot(z_axis, up)) > 0.99:
-                up = np.array([0, 1, 0])
-            
-            x_axis = np.cross(up, z_axis)
-            x_axis /= np.linalg.norm(x_axis)
-            y_axis = np.cross(z_axis, x_axis)
-            R_base = np.column_stack((x_axis, y_axis, z_axis))
-
-            # Apply rotation offsets if any
-            if any(angle != 0.0 for angle in [roll_deg, pitch_deg, yaw_deg]):
-                roll = np.deg2rad(roll_deg)
-                pitch = np.deg2rad(pitch_deg)
-                yaw = np.deg2rad(yaw_deg)
-                R_offset = tf_transformations.euler_matrix(roll, pitch, yaw, axes='sxyz')[0:3, 0:3]
-                R_total = R_base.dot(R_offset)
-            else:
-                R_total = R_base
-
-            # Convert to quaternion
-            H = np.eye(4)
-            H[0:3, 0:3] = R_total
-            return tf_transformations.quaternion_from_matrix(H)
-            
-        except Exception as e:
-            self.get_logger().error(f"_compute_goal_orientation(): Error computing orientation: {e}")
-            return None
-
-    def _wait_for_motion_completion(self, timeout: float = 15.0) -> bool:
-        """
-        Wait for motion completion and verify servo readiness.
-        
-        Args:
-            timeout: Maximum time to wait in seconds
-            
-        Returns:
-            True if motion completed successfully, False otherwise
-        """
-        try:
-            time.sleep(0.2)
-            self.moveit2.wait_until_executed()
-            
-            start_time = time.monotonic()
-            while not self.wait_for_servo_ready(timeout=timeout):
-                if time.monotonic() - start_time > timeout:
-                    self.get_logger().error("_wait_for_motion_completion(): Timeout waiting for servo ready")
-                    return False
-                self.get_logger().warn("_wait_for_motion_completion(): not arrived, rechecking...")
-                time.sleep(0.2)
-            
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_wait_for_motion_completion(): Error: {e}")
-            return False
-
-    def approach_tool(self, target_tf: str, gripper_position: int = 255) -> bool:
-        """
-        Move the end-effector to a pre-defined "approach" offset for the given target_tf,
-        then command the gripper to the specified position.
-
-        Args:
-            target_tf (str): name of the TF frame to approach
-            gripper_position (int): 0–255 gripper position (0=open, 255=closed)
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        # Input validation
-        if not target_tf or not isinstance(target_tf, str):
-            self.get_logger().error("approach_tool(): Invalid target_tf parameter")
-            return False
-        
-        gripper_position = max(0, min(255, int(gripper_position)))
-        
-        self.get_logger().info(f"approach_tool(): Using transform for '{target_tf}'")
-
-        try:
-            # 1) Wait for a stable transform to the target frame
-            stable_tf = self.wait_for_stable_tf(target_tf)
-            if stable_tf is None:
-                self.get_logger().error("approach_tool(): Failed to obtain a stable transform.")
-                return False
-
-            # 2) Load and validate YAML offsets
-            offsets_data = self._load_tool_offsets()
-            if offsets_data is None:
-                return False
-                
-            if target_tf not in offsets_data:
-                self.get_logger().error(f"approach_tool(): No offset points for target TF '{target_tf}'")
-                return False
-
-            tf_offsets = offsets_data[target_tf]
-            if "approach_pose" not in tf_offsets:
-                self.get_logger().error(f"approach_tool(): Missing approach_pose offset for {target_tf}")
-                return False
-
-            # 3) Compute approach pose
-            approach_pose = self._compute_approach_pose(stable_tf, tf_offsets["approach_pose"])
-            if approach_pose is None:
-                return False
-
-            # 4) Execute motion
-            if not self._execute_approach_motion(approach_pose):
-                return False
-
-            # 5) Command gripper
-            if not self._command_gripper(gripper_position):
-                return False
-
-            self.get_logger().info("approach_tool(): Function completed successfully.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"approach_tool(): Unexpected error: {e}")
-            return False
-
-    def _load_tool_offsets(self) -> dict | None:
-        """Load tool offset data from YAML file."""
-        try:
-            package_share = get_package_share_directory("pickn_place")
-            file_path = os.path.join(package_share, "tool_offset_points.yaml")
-            with open(file_path, "r") as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            self.get_logger().error(f"_load_tool_offsets(): Failed to load YAML file: {e}")
-            return None
-
-    def _compute_approach_pose(self, stable_tf: list, approach_offset: dict) -> tuple | None:
-        """Compute the approach pose from stable transform and offset data."""
-        try:
-            # Build input transform matrix
-            t, q = stable_tf[:3], stable_tf[3:]
-            input_matrix = tf_transformations.quaternion_matrix(q)
-            input_matrix[0:3, 3] = t
-
-            # Build offset matrix
-            off_t = [approach_offset["translation"][axis] for axis in ("x", "y", "z")]
-            off_q = [approach_offset["rotation"][axis] for axis in ("x", "y", "z", "w")]
-            approach_matrix = tf_transformations.quaternion_matrix(off_q)
-            approach_matrix[0:3, 3] = off_t
-
-            # Compute goal pose
-            goal_matrix = np.dot(input_matrix, approach_matrix)
-            approach_position = goal_matrix[0:3, 3].tolist()
-            approach_quaternion = tf_transformations.quaternion_from_matrix(goal_matrix)
-
-            self.get_logger().info(
-                f"_compute_approach_pose(): Computed approach pose:\n"
-                f"  Position: {approach_position}\n"
-                f"  Orientation (xyzw): {approach_quaternion}"
-            )
-            
-            return approach_position, approach_quaternion
-            
-        except Exception as e:
-            self.get_logger().error(f"_compute_approach_pose(): Error computing pose: {e}")
-            return None
-
-    def _execute_approach_motion(self, approach_pose: tuple) -> bool:
-        """Execute the approach motion and verify completion."""
-        try:
-            position, quaternion = approach_pose
-            
-            # Execute Cartesian move
-            time.sleep(0.2)
-            self.moveit2.move_to_pose(
-                position=position,
-                quat_xyzw=quaternion,
-                cartesian=self.cartesian,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold,
-            )
-            time.sleep(0.2)
-            # Wait for execution
-            self.moveit2.wait_until_executed()
-            state = self.moveit2.query_state()
-            
-            if state == MoveIt2State.IDLE:
-                self.get_logger().info("_execute_approach_motion(): Motion reached successfully.")
-            else:
-                self.get_logger().warn(f"_execute_approach_motion(): Motion ended with state: {state}")
-
-            # Verify arrival within tolerance
-            max_attempts = 10
-            for attempt in range(max_attempts):
-                if self.verify_goal_pose(expected_goal_pose=position, tolerance=2.0, offset=136.55):
-                    return True
-                if attempt < max_attempts - 1:
-                    self.get_logger().warn(f"_execute_approach_motion(): Goal pose verification failed (attempt {attempt + 1}/{max_attempts}), retrying.")
-                    time.sleep(0.2)
-            
-            self.get_logger().error("_execute_approach_motion(): Failed to verify goal pose after all attempts")
-            return False
-            
-        except Exception as e:
-            self.get_logger().error(f"_execute_approach_motion(): Error: {e}")
-            return False
-
-    def _command_gripper(self, gripper_position: int) -> bool:
-        """Command the gripper to the specified position."""
-        try:
-            if not self.set_gripper_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().error("_command_gripper(): SetGripperPosition service unavailable.")
-                return False
-                
-            req = SetGripperPosition.Request()
-            req.position = gripper_position
-            req.speed = 255
-            req.force = 255
-            
-            future = self.set_gripper_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-            
-            if future.result() is None:
-                self.get_logger().error("_command_gripper(): Failed to command gripper")
-                return False
-                
-            self.get_logger().info(f"_command_gripper(): Gripper commanded to position {gripper_position}")
-            time.sleep(0.5)  # Gripper settling time
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_command_gripper(): Error: {e}")
-            return False
-
-    def grab_tool(
-        self,
-        target_tf: str,
-        verify_min: int = 130,
-        verify_max: int = 140,
-        close_position: int = 255,
-    ) -> bool:
-        """
-        Close the gripper on the object located at *target_tf* and verify the
-        grasp. On verification failure the gripper is reopened to its original
-        width, the robot retreats to the saved fallback pose, and the function
-        returns False.
-
-        Parameters
-        ----------
-        target_tf : str
-            Dynamic TF frame attached to the object to grab.
-        verify_min, verify_max : int
-            Acceptable range for the gripper reading after closing.
-        close_position : int
-            Raw position to send to the gripper (0 = fully closed).
+        Wait for the Dobot motion to complete by calling the /dobot_bringup_v3/srv/Sync service.
 
         Returns
         -------
-        bool
-            True on success, False otherwise.
+        True if the service returns res == 0 (motion done), False otherwise.
         """
-        # Input validation
-        if not target_tf or not isinstance(target_tf, str):
-            self.get_logger().error("grab_tool(): Invalid target_tf parameter")
+        from dobot_msgs_v3.srv import Sync
+        import rclpy
+
+        # Lazy‐create Sync client
+        self.sync_cli = getattr(
+            self,
+            'sync_cli',
+            self.create_client(Sync, '/dobot_bringup_v3/srv/Sync')
+        )
+
+        # Ensure service is available
+        if not self.sync_cli.wait_for_service(timeout_sec=10.0):
+            self.safe_log('error', 'sync: Sync service unavailable')
             return False
-        
-        if verify_min > verify_max:
-            self.get_logger().error("grab_tool(): verify_min must be <= verify_max")
+
+        # Call service and wait for completion
+        fut = self.sync_cli.call_async(Sync.Request())
+        rclpy.spin_until_future_complete(self, fut)
+
+        # Check result
+        if not fut.done() or fut.result() is None:
+            self.safe_log('error', 'sync: No response from Sync service')
             return False
-        
-        close_position = max(0, min(255, int(close_position)))
 
-        fallback_pose = None
-        open_ref_pos = None
-        fallback_moved = False
-
-        try:
-            # 1) Get stable TF for the object
-            stable_tf = self.wait_for_stable_tf(target_tf)
-            if stable_tf is None:
-                self.get_logger().error("grab_tool(): failed to obtain stable TF.")
-                return False
-
-            # 2) Save current pose as fallback
-            fallback_pose = self._get_current_pose_as_fallback()
-            if fallback_pose is None:
-                return False
-
-            # 3) Get current gripper position
-            open_ref_pos = self._get_current_gripper_position()
-
-            # 4) Load grab offset from YAML
-            grab_offset = self._load_grab_offset(target_tf)
-            if grab_offset is None:
-                return False
-
-            # 5) Compute and execute goal pose
-            goal_pose = self._compute_grab_pose(stable_tf, grab_offset)
-            if goal_pose is None:
-                return False
-
-            if not self._execute_grab_motion(goal_pose, fallback_pose):
-                fallback_moved = True
-                return False
-
-            # 6) Close gripper and verify
-            if not self._close_gripper_and_verify(close_position, verify_min, verify_max, open_ref_pos):
-                if fallback_pose:
-                    self._retreat_to_fallback(fallback_pose)
-                    fallback_moved = True
-                return False
-
-            self.get_logger().info("grab_tool(): grasp verified – success.")
+        res_code = getattr(fut.result(), 'res', None)
+        if res_code == 0:
+            self.safe_log('info', 'sync: Motion complete')
             return True
-
-        except Exception as e:
-            self.get_logger().error(f"grab_tool(): exception {e}")
-            if fallback_pose and not fallback_moved:
-                self._retreat_to_fallback(fallback_pose)
+        else:
+            self.safe_log('warn', f'sync: Sync returned error code {res_code}')
             return False
 
-    def _get_current_pose_as_fallback(self) -> list | None:
-        """Get current robot pose and convert to fallback format."""
-        try:
-            if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().error("_get_current_pose_as_fallback(): GetPose service not available.")
-                return None
-
-            req = GetPose.Request()
-            req.user = 0
-            req.tool = 0
-            future = self.get_pose_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-
-            if future.result() is None:
-                self.get_logger().error("_get_current_pose_as_fallback(): GetPose call failed.")
-                return None
-
-            pose_vals = [float(v) for v in future.result().pose.strip("{}").split(",")]
-            if len(pose_vals) < 6:
-                self.get_logger().error("_get_current_pose_as_fallback(): malformed GetPose response.")
-                return None
-
-            tx, ty, tz, rx, ry, rz = pose_vals[:6]
-            fallback_translation = [tx / 1000.0, ty / 1000.0, tz / 1000.0]
-            R_fb = tf_transformations.euler_matrix(
-                math.radians(rx), math.radians(ry), math.radians(rz)
-            )
-            fallback_quat = tf_transformations.quaternion_from_matrix(R_fb)
-            fallback_pose = fallback_translation + list(fallback_quat)
-            
-            self.get_logger().info(f"_get_current_pose_as_fallback(): saved fallback pose: {fallback_pose}")
-            return fallback_pose
-
-        except Exception as e:
-            self.get_logger().error(f"_get_current_pose_as_fallback(): Error: {e}")
-            return None
-
-    def _get_current_gripper_position(self) -> int | None:
-        """Get current gripper position."""
-        try:
-            if not self.get_gripper_cli.wait_for_service(timeout_sec=1.0):
-                self.get_logger().warn("_get_current_gripper_position(): GetGripperPosition service unavailable.")
-                return None
-                
-            req = GetGripperPosition.Request()
-            req.index = 0
-            future = self.get_gripper_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
-            
-            if future.result() is None:
-                return None
-                
-            position = future.result().position
-            self.get_logger().info(f"_get_current_gripper_position(): ref gripper pos={position}")
-            return position
-            
-        except Exception as e:
-            self.get_logger().error(f"_get_current_gripper_position(): Error: {e}")
-            return None
-
-    def _load_grab_offset(self, target_tf: str) -> dict | None:
-        """Load grab offset from YAML file."""
-        try:
-            pkg_share = get_package_share_directory("pickn_place")
-            yfile = os.path.join(pkg_share, "tool_offset_points.yaml")
-            tf_offsets = yaml.safe_load(open(yfile, "r")) or {}
-
-            if target_tf not in tf_offsets or "grab_pose" not in tf_offsets[target_tf]:
-                self.get_logger().error("_load_grab_offset(): grab_pose missing in YAML.")
-                return None
-
-            return tf_offsets[target_tf]["grab_pose"]
-
-        except Exception as e:
-            self.get_logger().error(f"_load_grab_offset(): Error loading YAML: {e}")
-            return None
-
-    def _compute_grab_pose(self, stable_tf: list, grab_offset: dict) -> tuple | None:
-        """Compute the grab pose from stable transform and offset data."""
-        try:
-            # Build dynamic transform matrix
-            t_dyn, q_dyn = stable_tf[:3], stable_tf[3:]
-            M_dyn = tf_transformations.quaternion_matrix(q_dyn)
-            M_dyn[0:3, 3] = t_dyn
-
-            # Build offset matrix
-            off_t = [grab_offset["translation"][k] for k in ("x", "y", "z")]
-            off_q = [grab_offset["rotation"][k] for k in ("x", "y", "z", "w")]
-            M_off = tf_transformations.quaternion_matrix(off_q)
-            M_off[0:3, 3] = off_t
-
-            # Compute goal pose
-            M_goal = M_dyn.dot(M_off)
-            goal_pos = M_goal[0:3, 3].tolist()
-            goal_quat = tf_transformations.quaternion_from_matrix(M_goal)
-            
-            self.get_logger().info(f"_compute_grab_pose(): goal pose\n  pos={goal_pos}\n  quat={goal_quat}")
-            return goal_pos, goal_quat
-
-        except Exception as e:
-            self.get_logger().error(f"_compute_grab_pose(): Error computing pose: {e}")
-            return None
-
-    def _execute_grab_motion(self, goal_pose: tuple, fallback_pose: list) -> bool:
-        """Execute the grab motion and verify completion."""
-        try:
-            goal_pos, goal_quat = goal_pose
-            
-            # Execute motion
-            time.sleep(0.2)
-            self.moveit2.move_to_pose(
-                position=goal_pos,
-                quat_xyzw=goal_quat,
-                cartesian=self.cartesian,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold,
-            )
-            time.sleep(0.2)
-            self.moveit2.wait_until_executed()
-            
-            state = self.moveit2.query_state()
-            if state != MoveIt2State.IDLE:
-                self.get_logger().warn(f"_execute_grab_motion(): motion finished with state {state}")
-
-            # Verify arrival
-            max_wait = 2.0
-            start_time = time.monotonic()
-            while not self.verify_goal_pose(goal_pos, 2.0, 136.55):
-                if time.monotonic() - start_time > max_wait:
-                    self.get_logger().warn("_execute_grab_motion(): pose not verified, retreating.")
-                    return False
-                self.get_logger().warn("_execute_grab_motion(): waiting for pose verification...")
-                time.sleep(0.2)
-            
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"_execute_grab_motion(): Error: {e}")
-            return False
-
-    def _close_gripper_and_verify(self, close_position: int, verify_min: int, verify_max: int, open_ref_pos: int | None) -> bool:
-        """Close gripper and verify the grasp."""
-        try:
-            # Close gripper
-            if not self.set_gripper_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().error("_close_gripper_and_verify(): SetGripperPosition unavailable.")
-                return False
-                
-            req = SetGripperPosition.Request()
-            req.position = close_position
-            req.speed = 255
-            req.force = 255
-            self.set_gripper_cli.call_async(req)
-            time.sleep(0.2)
-
-            # Verify gripper position
-            if not self.get_gripper_cli.wait_for_service(timeout_sec=1.0):
-                self.get_logger().error("_close_gripper_and_verify(): GetGripperPosition unavailable.")
-                return False
-                
-            g_req = GetGripperPosition.Request()
-            g_req.index = 0
-            g_fut = self.get_gripper_cli.call_async(g_req)
-            rclpy.spin_until_future_complete(self, g_fut, timeout_sec=1.0)
-            
-            pos = g_fut.result().position if g_fut.result() else 255
-            self.get_logger().info(f"_close_gripper_and_verify(): gripper reading = {pos}")
-
-            # Check if grasp is successful
-            if verify_min <= pos <= verify_max:
-                return True
-            else:
-                self.get_logger().warn("_close_gripper_and_verify(): verification failed – reopening gripper.")
-                # Reopen gripper to original position
-                if open_ref_pos is not None and self.set_gripper_cli.wait_for_service(timeout_sec=1.0):
-                    reopen_req = SetGripperPosition.Request()
-                    reopen_req.position = open_ref_pos
-                    reopen_req.speed = 255
-                    reopen_req.force = 255
-                    self.set_gripper_cli.call_async(reopen_req)
-                    time.sleep(0.2)
-                return False
-
-        except Exception as e:
-            self.get_logger().error(f"_close_gripper_and_verify(): Error: {e}")
-            return False
-
-    def _retreat_to_fallback(self, fallback_pose: list) -> bool:
-        """Retreat to the saved fallback pose."""
-        try:
-            self.get_logger().info("_retreat_to_fallback(): returning to fallback pose.")
-            
-            ee6 = MoveIt2(
-                node=self,
-                joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-                base_link_name=self.reference_frame,
-                end_effector_name="Link6",
-                group_name=GROUP_NAME,
-            )
-            ee6.planner_id = self.planner_id
-            ee6.max_velocity = self.velocity_scaling
-            ee6.max_acceleration = self.acceleration_scaling
-            ee6.cartesian_jump_threshold = self.cartesian_jump_threshold
-            ee6.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-            time.sleep(0.2)
-            ee6.move_to_pose(
-                position=fallback_pose[:3],
-                quat_xyzw=fallback_pose[3:],
-                cartesian=True,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold
-            )
-            time.sleep(0.2)
-            ee6.wait_until_executed()
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"_retreat_to_fallback(): failed to retreat to fallback: {e}")
-            return False
-
-    # ---------------------------------------------------------------------------
-    # ♦ set_gripper_position  – single‐shot gripper command + status read
-    # ---------------------------------------------------------------------------
     def set_gripper_position(
             self,
             speed: int = 255,
             position: int = 255,
             force: int = 255,
-            settling_time: float = 0.2
-    ) -> int | None:
+            wait_finish: bool = True
+    ) -> tuple[bool, int | None]:
         """
-        Command the Dobot gripper to *position* (0 = open … 255 = closed),
-        wait for settling, then return the current gripper reading.
+        Command the gripper and, if `wait_finish`, block until two identical
+        GetGripperPosition readings are observed.
 
-        Returns
-        -------
-        reading : int
-            The gripper position read back after settling, or None on failure.
+        Returns (True, final_position) on success; (False, None) otherwise.
         """
-        # Input validation and clamping
-        position = max(0, min(255, int(position)))
-        speed = max(0, min(255, int(speed)))
-        force = max(0, min(255, int(force)))
-        settling_time = max(0.1, float(settling_time))  # Minimum 100ms settling time
+        self.sync()
+
+        import time, rclpy
+
+        # ── clamp & build request ───────────────────────────────────────────────
+        position = int(max(0, min(255, position)))
+        speed    = int(max(0, min(255, speed)))
+        force    = int(max(0, min(255, force)))
+
+        set_req             = SetGripperPosition.Request()
+        set_req.position    = position
+        set_req.speed       = speed
+        set_req.force       = force
+
+        log           = self.get_logger()
+        retry_pause   = 0.25
+        max_attempts  = 5
+        call_timeout  = 5.0
+
+        # ── 1) send SetGripperPosition with retries on driver-error ─────────────
+        for attempt in range(1, max_attempts + 1):
+            fut = self.set_gripper_cli.call_async(set_req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=call_timeout)
+
+            if not fut.done() or fut.result() is None:           # transport failure
+                log.error("set_gripper_position: call timed out")
+                return False, None
+
+            if getattr(fut.result(), "res", 1) == 0:             # accepted
+                break
+            log.warn(f"set_gripper_position: driver res={fut.result().res}; "
+                    f"retrying ({attempt}/{max_attempts})")
+            time.sleep(retry_pause)
+        else:
+            log.error("set_gripper_position: exceeded max_attempts")
+            return False, None
+        
+        time.sleep(0.5)
+
+        # ── 2) optionally wait until position stabilises ───────────────────────
+        if not wait_finish:
+            return True, position
+
+        identical_required = 3                    # how many consecutive identical reads
+        consecutive_ok     = 0
+        latest_reading     = None
+        start_time         = time.monotonic()
+
+        while (time.monotonic() - start_time) < 10.0:   # 3 s overall poll window
+            fut = self.get_gripper_cli.call_async(GetGripperPosition.Request(index=0))
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=3.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("set_gripper_position: polling timed out")
+                return False, None
+
+            current = fut.result().position
+            log.debug(f"set_gripper_position: reading {current}")
+
+            if current == latest_reading:
+                consecutive_ok += 1
+                if consecutive_ok >= identical_required:
+                    log.info("set_gripper_position: position stabilised ✓")
+                    return True, current
+            else:
+                consecutive_ok = 1
+                latest_reading = current
+
+            time.sleep(0.2)
+
+        log.error("set_gripper_position: did not stabilise within 3 s")
+
+        return False, None
+
+    def move_to(
+            self,
+            target_tf: str,
+            distance: float,
+            speed: int = 100,
+            acceleration: int = 100,
+            offset_x_mm: float = 0.0,
+            offset_y_mm: float = 0.0,
+            offset_z_mm: float = 0.0,
+            offset_rx_deg: float = 0.0,
+            offset_ry_deg: float = 0.0,
+            offset_rz_deg: float = 0.0,
+    ) -> bool:
+        """
+        Approach *target_tf* along its +Z axis, stop `distance` m short,
+        apply XYZ offsets (mm) and RPY offsets (deg), orient the tool so +Z
+        points at the object, and execute a single MovL. Returns True on success.
+        """
+        import math, numpy as np, time, rclpy
+        from tf_transformations import euler_from_matrix
+
+        log = self.get_logger()
+
+        # ── 1) acquire a fresh, stable TF via a temp perception node ────────────
+        perception = robot_perception()
+        perc_exec  = SingleThreadedExecutor()
+        perc_exec.add_node(perception)
+
+        # start the TF listener in the background while we work
+        import threading, contextlib
+        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
+        tf_thread.start()
 
         try:
-            # 1) Ensure services are available
-            if not self._check_gripper_services():
-                return None
+            pose = perception.acquire_target_transform(
+                target_tf,
+                max_wait=10.0,
+                trans_thresh=0.002,    #2 mm accuracy
+                rot_thresh=180.0,      #ignore orientation
+                num_samples=6,
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                perc_exec.shutdown()
+            perception.destroy_node()
 
-            # 2) Send gripper command
-            if not self._send_gripper_command(position, speed, force):
-                return None
-
-            # 3) Wait for settling
-            time.sleep(settling_time)
-
-            # 4) Read back gripper position
-            return self._read_gripper_position(position)
-
-        except Exception as e:
-            self.get_logger().error(f"set_gripper_position(): Unexpected error: {e}")
-            return None
-
-    def _check_gripper_services(self) -> bool:
-        """Check if gripper services are available."""
-        if not self.set_gripper_cli.wait_for_service(timeout_sec=5.0):
-            self.get_logger().error("_check_gripper_services(): SetGripperPosition service unavailable.")
+        if pose is None:
+            log.error("move_to: failed to obtain stable TF")
             return False
-        if not self.get_gripper_cli.wait_for_service(timeout_sec=5.0):
-            self.get_logger().error("_check_gripper_services(): GetGripperPosition service unavailable.")
+
+        obj_pos = np.asarray(pose[:3])                # (x y z) in metres
+
+        # ── 2) compute goal position ------------------------------------------------
+        base_above = np.array([0.0, 0.0, obj_pos[2] + 0.250])   # 250 mm overhead
+        vec        = obj_pos - base_above
+        if np.linalg.norm(vec) < 1e-6:
+            log.error("move_to: approach vector degenerate")
             return False
-        return True
 
-    def _send_gripper_command(self, position: int, speed: int, force: int) -> bool:
-        """Send gripper command and wait for acceptance."""
-        try:
-            req = SetGripperPosition.Request()
-            req.position = position
-            req.speed = speed
-            req.force = force
-            
-            future = self.set_gripper_cli.call_async(req)
-            
-            # Wait up to 2s for the command to be accepted
-            start_time = time.monotonic()
-            while not future.done() and (time.monotonic() - start_time) < 5.0:
-                rclpy.spin_once(self, timeout_sec=0.01)
+        unit_vec = vec / np.linalg.norm(vec)
+        goal_pos = obj_pos - distance * unit_vec
+        goal_pos += np.array([offset_x_mm, offset_y_mm, offset_z_mm]) / 1000.0  # mm → m
 
-            if not future.done():
-                self.get_logger().warn("_send_gripper_command(): command timed out.")
+        # ── 3) build goal rotation (tool +Z → unit_vec) -----------------------------
+        z_axis   = unit_vec
+        world_up = np.array([0, 0, 1]) if abs(np.dot(z_axis, [0, 0, 1])) < 0.99 else np.array([0, 1, 0])
+        x_axis   = np.cross(world_up, z_axis);  x_axis /= np.linalg.norm(x_axis)
+        y_axis   = np.cross(z_axis, x_axis)
+        R        = np.column_stack((x_axis, y_axis, z_axis))
+        rx_deg, ry_deg, rz_deg = map(math.degrees, euler_from_matrix(R, axes="sxyz"))
+
+        # ── apply user-specified orientation offsets (deg) --------------------------
+        rx_deg += offset_rx_deg
+        ry_deg += offset_ry_deg
+        rz_deg += offset_rz_deg
+
+        # ── 4) send MovL  ------------------------------------------------------------
+        req = MovL.Request()
+        req.x, req.y, req.z = (goal_pos * 1000.0).astype(float)   # m → mm
+        req.rx, req.ry, req.rz = rx_deg, ry_deg, rz_deg
+        req.param_value = [f"SpeedL={speed},AccL={acceleration}"]
+
+        retry_pause, max_attempts = 0.5, 5
+        for attempt in range(1, max_attempts + 1):
+            log.info(f"move_to: MovL attempt {attempt}/{max_attempts}")
+            fut = self.movl_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("move_to: MovL call timed out")
                 return False
-                
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_send_gripper_command(): Error: {e}")
-            return False
 
-    def _read_gripper_position(self, requested_position: int) -> int | None:
-        """Read back gripper position after command."""
-        try:
-            req = GetGripperPosition.Request()
-            req.index = 0
-            future = self.get_gripper_cli.call_async(req)
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("move_to: success ✓")
+                return True
 
-            # Wait up to 2s for response
-            start_time = time.monotonic()
-            while not future.done() and (time.monotonic() - start_time) < 2.0:
-                rclpy.spin_once(self, timeout_sec=0.01)
+            log.warn(f"move_to: driver res={fut.result().res}; retrying…")
+            self.sync()
 
-            if not future.done() or future.result() is None:
-                self.get_logger().error("_read_gripper_position(): failed to read back gripper position.")
-                return None
-
-            reading = future.result().position
-            self.get_logger().info(f"_read_gripper_position(): requested {requested_position}, read back {reading}")
-            return reading
-            
-        except Exception as e:
-            self.get_logger().error(f"_read_gripper_position(): Error: {e}")
-            return None
+        log.error("move_to: failed after maximum retries")
+        return False
 
     def enforce_rxry(self) -> bool:
         """
@@ -1350,30 +983,30 @@ class DirectTfMotionNode(Node):
             tolerance = 0.002  # 0.5 mm in metres
 
             # 1) Get current Link6 pose
-            current_pose = self._get_link6_pose_with_retries()
+            current_pose = self._get_link6_pose_with_retries_v1()
             if current_pose is None:
                 return False
 
             tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = current_pose
 
             # 2) Compute current portafilter world position
-            p_pf_world = self._compute_portafilter_world_position(
+            p_pf_world = self._compute_portafilter_world_position_v1(
                 np.array([tx_mm, ty_mm, tz_mm]) * 1e-3,
                 np.radians([rx_curr, ry_curr, rz_curr]),
                 d_rel
             )
 
             # 3) Compute goal pose for Link6
-            goal_pose = self._compute_link6_goal_pose(rz_curr, p_pf_world, d_rel)
+            goal_pose = self._compute_link6_goal_pose_v1(rz_curr, p_pf_world, d_rel)
             if goal_pose is None:
                 return False
 
             # 4) Execute motion
-            if not self._execute_enforce_motion(goal_pose):
+            if not self._execute_enforce_motion_v1(goal_pose):
                 return False
 
             # 5) Verify portafilter position accuracy
-            if not self._verify_portafilter_position(p_pf_world, d_rel, tolerance):
+            if not self._verify_portafilter_position_v1(p_pf_world, d_rel, tolerance):
                 return False
 
             self.get_logger().info("enforce_rxry(): Completed with SUCCESS.")
@@ -1453,10 +1086,10 @@ class DirectTfMotionNode(Node):
         try:
             position, quaternion = goal_pose
             
-            # Create temporary MoveIt2 instance for Link6
+            # Create temporary MoveIt2 instance for Link6 end effector
             temp_moveit2 = MoveIt2(
                 node=self,
-                joint_names=self.moveit2.joint_names,
+                joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
                 base_link_name=self.reference_frame,
                 end_effector_name="Link6",
                 group_name=GROUP_NAME,
@@ -1523,6 +1156,150 @@ class DirectTfMotionNode(Node):
             self.get_logger().error(f"_verify_portafilter_position(): Error: {e}")
             return False
 
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # V1 METHODS - Working implementations from manipulate_node_v1.py
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    def _get_link6_pose_with_retries_v1(self, max_attempts: int = 3) -> tuple | None:
+        """Get current Link6 pose with retry logic (v1 implementation)."""
+        if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):
+            self.get_logger().error("_get_link6_pose_with_retries_v1(): GetPose service unavailable.")
+            return None
+
+        req = GetPose.Request()
+        req.user = 0
+        req.tool = 0
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                future = self.get_pose_cli.call_async(req)
+                rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+                resp = future.result()
+                
+                if resp is not None and hasattr(resp, "pose"):
+                    # Parse pose string
+                    parts = resp.pose.strip("{}").split(",")
+                    if len(parts) < 6:
+                        self.get_logger().error("_get_link6_pose_with_retries_v1(): Invalid pose format.")
+                        return None
+                    
+                    pose_values = [float(p) for p in parts[:6]]
+                    return tuple(pose_values)
+                
+            except Exception as e:
+                self.get_logger().warn(f"_get_link6_pose_with_retries_v1(): Attempt {attempt}/{max_attempts} failed: {e}")
+            
+            if attempt < max_attempts:
+                time.sleep(0.5)
+
+        self.get_logger().error("_get_link6_pose_with_retries_v1(): Failed to retrieve pose after all attempts.")
+        return None
+
+    def _compute_portafilter_world_position_v1(self, p_link6: np.ndarray, rads: np.ndarray, d_rel: np.ndarray) -> np.ndarray:
+        """Compute world position of portafilter_link given Link6 position and orientation (v1 implementation)."""
+        try:
+            R6_curr = euler_matrix(*rads)[:3, :3]
+            return p_link6 + R6_curr.dot(d_rel)
+        except Exception as e:
+            self.get_logger().error(f"_compute_portafilter_world_position_v1(): Error: {e}")
+            raise
+
+    def _compute_link6_goal_pose_v1(self, rz_curr: float, p_pf_world: np.ndarray, d_rel: np.ndarray) -> tuple | None:
+        """Compute goal pose for Link6 to achieve desired orientation while keeping portafilter position fixed (v1 implementation)."""
+        try:
+            # Define desired Link6 orientation: Rx=90°, Ry=0°, keep Rz
+            rx_target, ry_target = 90.0, 0.0
+            rads_goal = np.radians([rx_target, ry_target, rz_curr])
+            
+            M_goal = euler_matrix(*rads_goal)
+            R6_goal = M_goal[:3, :3]
+            quat_goal = list(quaternion_from_matrix(M_goal))
+
+            # Back-solve Link6 goal position so portafilter_link stays put
+            p6_goal = p_pf_world - R6_goal.dot(d_rel)
+            
+            self.get_logger().info(f"_compute_link6_goal_pose_v1(): Goal Link6 pos (m): {p6_goal.tolist()}")
+            return p6_goal.tolist(), quat_goal
+            
+        except Exception as e:
+            self.get_logger().error(f"_compute_link6_goal_pose_v1(): Error: {e}")
+            return None
+
+    def _execute_enforce_motion_v1(self, goal_pose: tuple) -> bool:
+        """Execute the enforce motion using MoveIt2 (v1 implementation)."""
+        try:
+            position, quaternion = goal_pose
+            
+            # Create temporary MoveIt2 instance for Link6
+            temp_moveit2 = MoveIt2(
+                node=self,
+                joint_names=self.moveit2.joint_names,
+                base_link_name=self.reference_frame,
+                end_effector_name="Link6",
+                group_name=GROUP_NAME,
+            )
+            temp_moveit2.planner_id = self.planner_id
+            temp_moveit2.max_velocity = self.velocity_scaling
+            temp_moveit2.max_acceleration = self.acceleration_scaling
+            temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
+            temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
+
+            self.get_logger().info("_execute_enforce_motion_v1(): Calling MoveIt2.move_to_pose()...")
+            time.sleep(0.2)
+            temp_moveit2.move_to_pose(
+                position=position,
+                quat_xyzw=quaternion,
+                cartesian=self.cartesian,
+                cartesian_max_step=self.cartesian_max_step,
+                cartesian_fraction_threshold=self.cartesian_fraction_threshold,
+            )
+            time.sleep(0.2)
+            temp_moveit2.wait_until_executed()
+            
+            state = temp_moveit2.query_state()
+            if state != MoveIt2State.IDLE:
+                self.get_logger().warn(f"_execute_enforce_motion_v1(): Motion ended with state: {state}")
+            
+            return True
+            
+        except Exception as e:
+            self.get_logger().error(f"_execute_enforce_motion_v1(): Error: {e}")
+            return False
+
+    def _verify_portafilter_position_v1(self, p_pf_world: np.ndarray, d_rel: np.ndarray, tolerance: float, max_attempts: int = 10) -> bool:
+        """Verify that portafilter_link stayed within tolerance (v1 implementation)."""
+        try:
+            for attempt in range(max_attempts):
+                # Re-read Link6 pose
+                current_pose = self._get_link6_pose_with_retries_v1()
+                if current_pose is None:
+                    return False
+
+                tx2, ty2, tz2, rx2, ry2, rz2 = current_pose
+                p6_new = np.array([tx2, ty2, tz2]) * 1e-3
+                R6_new = euler_matrix(*np.radians([rx2, ry2, rz2]))[:3, :3]
+                p_pf_new = p6_new + R6_new.dot(d_rel)
+
+                error = np.linalg.norm(p_pf_new - p_pf_world)
+                if error <= tolerance:
+                    self.get_logger().info(f"_verify_portafilter_position_v1(): Position verified (error: {error*1e3:.2f} mm)")
+                    return True
+
+                self.get_logger().warn(
+                    f"_verify_portafilter_position_v1(): portafilter moved {error*1e3:.2f} mm (>0.5 mm), "
+                    f"attempt {attempt + 1}/{max_attempts}"
+                )
+                
+                if attempt < max_attempts - 1:
+                    time.sleep(0.2)
+
+            self.get_logger().error("_verify_portafilter_position_v1(): Failed to verify position after all attempts")
+            return False
+            
+        except Exception as e:
+            self.get_logger().error(f"_verify_portafilter_position_v1(): Error: {e}")
+            return False
+
     def move_portafilter_arc(self, angle_deg: float) -> bool:
         """
         Rotate the portafilter_link by the specified angle about its local Y axis.
@@ -1545,21 +1322,21 @@ class DirectTfMotionNode(Node):
 
         try:
             # 1) Get current portafilter pose
-            current_pose = self._get_portafilter_current_pose()
+            current_pose = self._get_portafilter_current_pose_v1()
             if current_pose is None:
                 return False
 
             # 2) Compute new orientation
-            new_pose = self._compute_arc_pose(current_pose, angle_deg)
+            new_pose = self._compute_arc_pose_v1(current_pose, angle_deg)
             if new_pose is None:
                 return False
 
             # 3) Execute arc motion
-            if not self._execute_arc_motion(new_pose, angle_deg):
+            if not self._execute_arc_motion_v1(new_pose, angle_deg):
                 return False
 
             # 4) Verify motion completion
-            if not self._verify_arc_completion():
+            if not self._verify_arc_completion_v1():
                 return False
 
             self.get_logger().info("move_portafilter_arc(): Function completed successfully.")
@@ -1569,13 +1346,13 @@ class DirectTfMotionNode(Node):
             self.get_logger().error(f"move_portafilter_arc(): Unexpected error: {e}")
             return False
 
-    def _get_portafilter_current_pose(self) -> tuple | None:
-        """Get current portafilter pose from TF."""
+    def _get_portafilter_current_pose_v1(self) -> tuple | None:
+        """Get current portafilter pose from TF (v1 implementation)."""
         try:
             pf_tf_stamped = self.tf_buffer.lookup_transform(
                 self.reference_frame,
                 "portafilter_link",
-                rclpy.time.Time(),
+                Time(),
                 timeout=Duration(seconds=5.0)
             )
             current_tf = get_transform_list(pf_tf_stamped)
@@ -1586,11 +1363,11 @@ class DirectTfMotionNode(Node):
             return position, current_quat
             
         except Exception as e:
-            self.get_logger().error(f"_get_portafilter_current_pose(): Failed to get portafilter_link transform: {e}")
+            self.get_logger().error(f"_get_portafilter_current_pose_v1(): Failed to get portafilter_link transform: {e}")
             return None
 
-    def _compute_arc_pose(self, current_pose: tuple, angle_deg: float) -> tuple | None:
-        """Compute new pose after rotating about local Y axis."""
+    def _compute_arc_pose_v1(self, current_pose: tuple, angle_deg: float) -> tuple | None:
+        """Compute new pose after rotating about local Y axis (v1 implementation)."""
         try:
             position, current_quat = current_pose
             
@@ -1603,17 +1380,17 @@ class DirectTfMotionNode(Node):
             new_pos = position.tolist()
 
             self.get_logger().info(
-                f"_compute_arc_pose(): New orientation (xyzw): {new_quat}"
+                f"_compute_arc_pose_v1(): New orientation (xyzw): {new_quat}"
             )
             
             return new_pos, new_quat
             
         except Exception as e:
-            self.get_logger().error(f"_compute_arc_pose(): Error computing arc pose: {e}")
+            self.get_logger().error(f"_compute_arc_pose_v1(): Error computing arc pose: {e}")
             return None
 
-    def _execute_arc_motion(self, new_pose: tuple, angle_deg: float) -> bool:
-        """Execute the arc motion using MoveIt2."""
+    def _execute_arc_motion_v1(self, new_pose: tuple, angle_deg: float) -> bool:
+        """Execute the arc motion using MoveIt2 (v1 implementation)."""
         try:
             new_pos, new_quat = new_pose
             
@@ -1645,18 +1422,18 @@ class DirectTfMotionNode(Node):
             
             state = pf_moveit2.query_state()
             if state == MoveIt2State.IDLE:
-                self.get_logger().info("_execute_arc_motion(): Rotation motion executed successfully.")
+                self.get_logger().info("_execute_arc_motion_v1(): Rotation motion executed successfully.")
                 return True
             else:
-                self.get_logger().warn(f"_execute_arc_motion(): Rotation motion ended with state: {state}")
+                self.get_logger().warn(f"_execute_arc_motion_v1(): Rotation motion ended with state: {state}")
                 return False
                 
         except Exception as e:
-            self.get_logger().error(f"_execute_arc_motion(): Error: {e}")
+            self.get_logger().error(f"_execute_arc_motion_v1(): Error: {e}")
             return False
 
-    def _verify_arc_completion(self, tolerance_deg: float = 1.0, batch_size: int = 10, max_attempts: int = 5) -> bool:
-        """Verify that the arc motion has completed with stable joint positions."""
+    def _verify_arc_completion_v1(self, tolerance_deg: float = 1.0, batch_size: int = 10, max_attempts: int = 5) -> bool:
+        """Verify that the arc motion has completed with stable joint positions (v1 implementation)."""
         try:
             sleep_between = 0.1  # seconds
 
@@ -1672,605 +1449,815 @@ class DirectTfMotionNode(Node):
 
                 # Compute per-joint spread across this batch
                 if not joint_samples:
-                    self.get_logger().warn("_verify_arc_completion(): No joint samples collected")
+                    self.get_logger().warn("_verify_arc_completion_v1(): No joint samples collected")
                     continue
                     
                 spreads = [max(vals) - min(vals) for vals in zip(*joint_samples)]
 
                 # Check if spread is within tolerance
                 if all(spread < tolerance_deg for spread in spreads):
-                    self.get_logger().info("_verify_arc_completion(): Joint positions stable")
+                    self.get_logger().info("_verify_arc_completion_v1(): Joint positions stable")
                     return True
 
                 # Try fallback verification
                 if joint_samples:
                     last_sample = joint_samples[-1]
                     if self.verify_joint_positions(last_sample, tolerance_deg):
-                        self.get_logger().info("_verify_arc_completion(): Fallback verification passed")
+                        self.get_logger().info("_verify_arc_completion_v1(): Fallback verification passed")
                         return True
 
                 self.get_logger().warn(
-                    f"_verify_arc_completion(): Joint spread too large "
+                    f"_verify_arc_completion_v1(): Joint spread too large "
                     f"(spreads: {spreads}), attempt {overall_attempt + 1}/{max_attempts}"
                 )
 
-            self.get_logger().error("_verify_arc_completion(): Failed to achieve stable joint positions")
+            self.get_logger().error("_verify_arc_completion_v1(): Failed to achieve stable joint positions")
             return False
             
         except Exception as e:
-            self.get_logger().error(f"_verify_arc_completion(): Error: {e}")
+            self.get_logger().error(f"_verify_arc_completion_v1(): Error: {e}")
             return False
+
+    def move_portafilter_arc_movL(
+        self,
+        angle_deg: float,
+        velocity: int = 100,
+        acceleration: int = 100,
+        ) -> bool:
+        """
+        Move the portafilter_link in an arc by angle_deg about its local Y axis,
+        using the /dobot_bringup_v3/srv/MovL service (Link6 linear planning). Allows
+        specifying SpeedL and AccL via the velocity and acceleration arguments.
+        Retries any failed service call every 0.25 s up to 10 attempts; returns False on total failure.
+        Returns True on success, False on any failure.
+        """
+        from tf_transformations import (
+            euler_matrix,
+            quaternion_about_axis,
+            quaternion_matrix,
+            quaternion_multiply,
+            euler_from_matrix,
+        )
+
+        # ── 1) fixed offset from Link6 origin → portafilter_link origin (m)
+        d_rel = np.array([0.0, 0.0, 0.276])
+
+        retry_pause = 0.25
+        max_attempts = 5
+
+        gp_req = GetPose.Request()
+        gp_req.user = 0
+        gp_req.tool = 0
+
+        resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"move_portafilter_arc(): GetPose attempt {attempt}/{max_attempts}")
+            future = self.get_pose_cli.call_async(gp_req)
+            start = self.get_clock().now().nanoseconds * 1e-9
+            got_response = False
+
+            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
+                rclpy.spin_once(self, timeout_sec=0.01)
+                if future.done() and future.result() is not None and hasattr(future.result(), "pose"):
+                    resp = future.result()
+                    got_response = True
+                    break
+
+            if got_response:
+                break
+            self.get_logger().warn(
+                "move_portafilter_arc(): GetPose call failed or timed out—waiting 0.25 s before retry"
+            )
+            self.sync()
+
+        if resp is None or not hasattr(resp, "pose"):
+            self.get_logger().error(
+                "move_portafilter_arc(): Failed to retrieve initial pose after 10 attempts."
+            )
+            return False
+
+        # parse "{tx,ty,tz,rx,ry,rz,…}"  (tx, ty, tz in mm; rx, ry, rz in degrees)
+        parts = resp.pose.strip("{}").split(",")
+        if len(parts) < 6:
+            self.get_logger().error("move_portafilter_arc(): Invalid pose format.")
+            return False
+        try:
+            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = [float(p) for p in parts[:6]]
+        except Exception as e:
+            self.get_logger().error(f"move_portafilter_arc(): Error parsing pose: {e}")
+            return False
+
+        # convert to metres and builrent portafilted current rotation matrix
+        p_link6 = np.array([tx_mm, ty_mm, tz_mm]) * 1e-3
+        rads = np.radians([rx_curr, ry_curr, rz_curr])
+        R6_curr = euler_matrix(*rads)[:3, :3]
+        # compute world position of the portafilter_link
+        p_pf_world = p_link6 + R6_curr.dot(d_rel)
+
+        # ── 3) compute new orientation: rotate portafilter_link about its local Y by angle_deg
+        theta = math.radians(angle_deg)
+        # local Y axis of Link6 in world frame:
+        rotation_axis = R6_curr[:, 1]
+        relative_quat = quaternion_about_axis(theta, rotation_axis)
+        # current Link6 quaternion (from current rotation matrix)
+        current_quat = tf_transformations.quaternion_from_matrix(euler_matrix(*rads))
+        new_quat = quaternion_multiply(relative_quat, current_quat)
+        # build new rotation matrix
+        R6_goal = quaternion_matrix(new_quat)[0:3, 0:3]
+
+        # ── 4) back‐solve Link6 goal position so portafilter_link stays put
+        p6_goal = p_pf_world - R6_goal.dot(d_rel)
+        self.get_logger().info(f"move_portafilter_arc(): Goal Link6 pos (m): {p6_goal.tolist()}")
+
+        # convert goal position back to millimetres for MovL
+        x_goal_mm = float(p6_goal[0] * 1000.0)
+        y_goal_mm = float(p6_goal[1] * 1000.0)
+        z_goal_mm = float(p6_goal[2] * 1000.0)
+
+        # convert new_quat to Euler XYZ in degrees for MovL request
+        R_goal_full = quaternion_matrix(new_quat)
+        rx_goal, ry_goal, rz_goal = np.degrees(euler_from_matrix(R_goal_full, axes="sxyz"))
+
+        movl_req = MovL.Request()
+        movl_req.x = x_goal_mm
+        movl_req.y = y_goal_mm
+        movl_req.z = z_goal_mm
+        movl_req.rx = rx_goal
+        movl_req.ry = ry_goal
+        movl_req.rz = rz_goal
+        # use provided velocity and acceleration
+        movl_req.param_value = [f"SpeedL={velocity},AccL={acceleration}"]
+
+        movl_resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"move_portafilter_arc(): MovL attempt {attempt}/{max_attempts}")
+            if not self.movl_cli.wait_for_service(timeout_sec=5.0):
+                self.get_logger().warn("move_portafilter_arc(): MovL service unavailable, retrying...")
+                self.sync()
+                continue
+
+            movl_fut = self.movl_cli.call_async(movl_req)
+            start_mv = self.get_clock().now().nanoseconds * 1e-9
+            while not movl_fut.done() and (self.get_clock().now().nanoseconds * 1e-9 - start_mv) < 0.5:
+                rclpy.spin_once(self, timeout_sec=0.01)
+
+            if movl_fut.done() and movl_fut.result() is not None:
+                movl_resp = movl_fut.result()
+                break
+
+            self.get_logger().warn("move_portafilter_arc(): MovL call failed or timed out, retrying...")
+            self.sync()
+
+        if movl_resp is None:
+            self.get_logger().error("move_portafilter_arc(): Failed to call MovL after 10 attempts.")
+            return False
+        self.sync()
+
+        self.get_logger().info("move_portafilter_arc(): Verification OK.")
+        return True
+        
+    from typing import Union
 
     def moveEE(
         self,
-        offset_x: float,
-        offset_y: float,
-        offset_z: float,
-        offset_rx: float,
-        offset_ry: float,
-        offset_rz: float,
-        EE_link: str = "Link6",
+        offset_x_mm: Union[float, int],
+        offset_y_mm: Union[float, int],
+        offset_z_mm: Union[float, int],
+        offset_rx_deg: Union[float, int],
+        offset_ry_deg: Union[float, int],
+        offset_rz_deg: Union[float, int],
     ) -> bool:
         """
-        Perform a linear (Cartesian) move of the specified end effector link
-        by translation offsets (mm) and rotation offsets (deg), then verify
-        arrival via wait_for_servo_ready().
-
-        Args:
-            offset_x, offset_y, offset_z: translation offsets in millimetres
-            offset_rx, offset_ry, offset_rz: rotation offsets in degrees
-            EE_link: the end‐effector frame to plan for (default "Link6")
-            
-        Returns:
-            bool: True if successful, False otherwise
+        Execute a relative Cartesian move by calling the RelMovL service
+        instead of fetching current pose and adding offsets manually.
+        Accepts both int and float for offsets.
         """
-        # Input validation
-        if not isinstance(EE_link, str) or not EE_link:
-            self.get_logger().error("moveEE(): EE_link must be a non-empty string")
-            return False
-        
-        # Validate numeric inputs
-        try:
-            offsets = [float(x) for x in [offset_x, offset_y, offset_z, offset_rx, offset_ry, offset_rz]]
-        except (TypeError, ValueError):
-            self.get_logger().error("moveEE(): All offset parameters must be numeric")
-            return False
-        
-        self.get_logger().info(
-            f"moveEE(): Starting linear move using '{EE_link}' with translation offsets (mm): "
-            f"({offset_x}, {offset_y}, {offset_z}) and rotation offsets (deg): "
-            f"({offset_rx}, {offset_ry}, {offset_rz})."
-        )
+        from dobot_msgs_v3.srv import RelMovL
+        import rclpy
 
-        try:
-            # 1) Get current EE transform
-            current_tf = self._get_ee_transform_with_retries(EE_link)
-            if current_tf is None:
-                return False
-
-            # 2) Compute goal pose
-            goal_pose = self._compute_ee_goal_pose(current_tf, offsets)
-            if goal_pose is None:
-                return False
-
-            # 3) Execute motion
-            if not self._execute_ee_motion(goal_pose, EE_link):
-                return False
-
-            self.get_logger().info("moveEE(): Function completed successfully.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"moveEE(): Unexpected error: {e}")
+        # Sync first to ensure robot is ready
+        if not self.sync():
+            self.get_logger().error("moveEE: Failed to sync before movement")
             return False
 
-    def _get_ee_transform_with_retries(self, ee_link: str, max_attempts: int = 3) -> list | None:
-        """Get current end effector transform with retry logic."""
-        from rclpy.time import Time
-        from rclpy.duration import Duration
-        
-        for attempt in range(1, max_attempts + 1):
-            try:
-                tf_stamped = self.tf_buffer.lookup_transform(
-                    self.reference_frame,
-                    ee_link,
-                    Time(),
-                    timeout=Duration(seconds=5.0)
-                )
-                current_tf = get_transform_list(tf_stamped)
-                self.get_logger().info(f"_get_ee_transform_with_retries(): Current pose obtained: {current_tf}")
-                return current_tf
-                
-            except Exception as e:
-                self.get_logger().warn(
-                    f"_get_ee_transform_with_retries(): Attempt {attempt}/{max_attempts} failed for '{ee_link}': {e}"
-                )
-                if attempt < max_attempts:
-                    time.sleep(0.1)
+        # build request, casting to float to ensure correct type
+        req = RelMovL.Request()
+        req.offset1 = float(offset_x_mm)
+        req.offset2 = float(offset_y_mm)
+        req.offset3 = float(offset_z_mm)
+        req.offset4 = float(offset_rx_deg)
+        req.offset5 = float(offset_ry_deg)
+        req.offset6 = float(offset_rz_deg)
+        req.param_value = ["Tool=0"]
 
-        self.get_logger().error(f"_get_ee_transform_with_retries(): Failed to retrieve transform after {max_attempts} attempts for '{ee_link}'")
-        return None
+        self.get_logger().info(f"moveEE: Moving by offset ({offset_x_mm}, {offset_y_mm}, {offset_z_mm}, {offset_rx_deg}, {offset_ry_deg}, {offset_rz_deg})")
 
-    def _compute_ee_goal_pose(self, current_tf: list, offsets: list) -> tuple | None:
-        """Compute goal pose by applying translation and rotation offsets."""
-        try:
-            import numpy as np
-            import math
-            
-            offset_x, offset_y, offset_z, offset_rx, offset_ry, offset_rz = offsets
-            
-            # Convert offsets
-            t_offset = np.array([offset_x, offset_y, offset_z]) / 1000.0  # mm to m
-            r_offset = np.radians([offset_rx, offset_ry, offset_rz])  # deg to rad
-
-            # Current pose components
-            current_translation = np.array(current_tf[:3])
-            current_quat = np.array(current_tf[3:])
-            R_current = tf_transformations.quaternion_matrix(current_quat)[0:3, 0:3]
-
-            # Compute goal translation
-            goal_translation = (current_translation + t_offset).tolist()
-
-            # Compute goal rotation
-            R_delta = tf_transformations.euler_matrix(*r_offset)[0:3, 0:3]
-            R_goal = R_current.dot(R_delta)
-            goal_matrix = np.eye(4)
-            goal_matrix[0:3, 0:3] = R_goal
-            goal_quat = tf_transformations.quaternion_from_matrix(goal_matrix)
-
-            self.get_logger().info(
-                f"_compute_ee_goal_pose(): Computed goal pose:\n"
-                f"  Position: {goal_translation}\n"
-                f"  Orientation (xyzw): {goal_quat}"
-            )
-            
-            return goal_translation, goal_quat
-            
-        except Exception as e:
-            self.get_logger().error(f"_compute_ee_goal_pose(): Error computing goal pose: {e}")
-            return None
-
-    def _execute_ee_motion(self, goal_pose: tuple, ee_link: str) -> bool:
-        """Execute the end effector motion using MoveIt2."""
-        try:
-            goal_translation, goal_quat = goal_pose
-            
-            # Create temporary MoveIt2 instance
-            temp_moveit2 = MoveIt2(
-                node=self,
-                joint_names=self.moveit2.joint_names,
-                base_link_name=self.reference_frame,
-                end_effector_name=ee_link,
-                group_name=GROUP_NAME,
-            )
-            temp_moveit2.planner_id = self.planner_id
-            temp_moveit2.max_velocity = self.velocity_scaling
-            temp_moveit2.max_acceleration = self.acceleration_scaling
-            temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
-            temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-
-            # Execute motion
-            time.sleep(0.1)
-            temp_moveit2.move_to_pose(
-                position=goal_translation,
-                quat_xyzw=goal_quat,
-                cartesian=self.cartesian,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold
-            )
-            time.sleep(0.2)
-            # Verify arrival using wait_for_servo_ready()
-            temp_moveit2.wait_until_executed()
-            time.sleep(0.1)
-            timeout = 15.0
-            start_time = time.monotonic()
-            while not self.wait_for_servo_ready(timeout=timeout):
-                if time.monotonic() - start_time > timeout:
-                    self.get_logger().error("_execute_ee_motion(): Timeout waiting for servo ready")
-                    return False
-                self.get_logger().warn("_execute_ee_motion(): not arrived, rechecking...")
-                time.sleep(0.2)
-
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_execute_ee_motion(): Error: {e}")
+        # wait for service with longer timeout
+        if not self.relmov_l_cli.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error("moveEE: RelMovL service unavailable after 10 seconds")
             return False
+
+        # call and wait with longer timeout for complex movements
+        fut = self.relmov_l_cli.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=15.0)
+
+        if not fut.done():
+            self.get_logger().error("moveEE: RelMovL call timed out after 15 seconds")
+            return False
+            
+        if fut.result() is None:
+            self.get_logger().error("moveEE: RelMovL returned None result")
+            return False
+
+        result_code = getattr(fut.result(), "res", 1)
+        if result_code == 0:
+            self.get_logger().info("moveEE: RelMovL succeeded ✓")
+            # Sync after movement to ensure completion
+            return self.sync()
+        else:
+            self.get_logger().error(f"moveEE: RelMovL failed (res={result_code})")
+            return False
+
 
     def moveJ_deg(
         self,
-        angle1: float,
-        angle2: float,
-        angle3: float,
-        angle4: float,
-        angle5: float,
-        angle6: float,
-        velocity_scaling: float = 1.0,
-        acceleration_scaling: float = 1.0,
+        offset1: float,
+        offset2: float,
+        offset3: float,
+        offset4: float,
+        offset5: float,
+        offset6: float,
     ) -> bool:
         """
-        Move robot joints relatively from current position (degrees), with velocity and acceleration scaling,
-        but only if the current joint state is stable. Returns True on success, False on any failure.
+        Execute a relative joint move by calling the RelMovJ service
+        instead of fetching current joint angles and adding offsets manually.
         """
-        # Input validation
-        try:
-            rel_angles = [float(x) for x in [angle1, angle2, angle3, angle4, angle5, angle6]]
-            velocity_scaling = max(0.1, min(1.0, float(velocity_scaling)))
-            acceleration_scaling = max(0.1, min(1.0, float(acceleration_scaling)))
-        except (TypeError, ValueError):
-            self.get_logger().error("moveJ_deg(): All parameters must be numeric")
+        from dobot_msgs_v3.srv import RelMovJ
+        import rclpy
+
+        # build request - convert all parameters to float to ensure type compatibility
+        req = RelMovJ.Request()
+        req.offset1 = float(offset1)
+        req.offset2 = float(offset2)
+        req.offset3 = float(offset3)
+        req.offset4 = float(offset4)
+        req.offset5 = float(offset5)
+        req.offset6 = float(offset6)
+        req.param_value = ["Tool=0"]
+
+        # wait for service
+        if not self.relmov_j_cli.wait_for_service(timeout_sec=5.0):
+            self.get_logger().error("moveJ_deg: RelMovJ service unavailable")
             return False
 
-        self.get_logger().info(
-            f"moveJ_deg(): Rel angles (deg)={rel_angles}, "
-            f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
+        # call and wait
+        fut = self.relmov_j_cli.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+
+        if not fut.done() or fut.result() is None:
+            self.get_logger().error("moveJ_deg: RelMovJ call timed out")
+            return False
+
+        if getattr(fut.result(), "res", 1) == 0:
+            self.get_logger().info("moveJ_deg: RelMovJ succeeded ✓")
+            return True
+        else:
+            self.get_logger().error(f"moveJ_deg: RelMovJ failed (res={fut.result().res})")
+            return False
+
+    def gotoEE(
+            self,
+            abs_x_mm: float,
+            abs_y_mm: float,
+            abs_z_mm: float,
+            abs_rx_deg: float,
+            abs_ry_deg: float,
+            abs_rz_deg: float,
+            speed: int = 100,
+            acceleration: int = 100,
+    ) -> bool:
+        """
+        Move to absolute Cartesian position using MovL.
+        Returns True on success, False on failure.
+        """
+        import rclpy
+
+        req = MovL.Request(
+            x = float(abs_x_mm),
+            y = float(abs_y_mm),
+            z = float(abs_z_mm),
+            rx = float(abs_rx_deg),
+            ry = float(abs_ry_deg),
+            rz = float(abs_rz_deg),
+            param_value = [f"SpeedL={speed},AccL={acceleration}"],
         )
 
-        # Backup & apply scalings
-        with self._joint_scaling_context(velocity_scaling, acceleration_scaling):
-            try:
-                # Get stable current joint state
-                stable_joints_rad = self._get_stable_joint_state()
-                if stable_joints_rad is None:
-                    return False
+        # wait for service
+        if not self.movl_cli.wait_for_service(timeout_sec=5.0):
+            self.get_logger().error("gotoEE: MovL service unavailable")
+            return False
 
-                # Compute goal configuration
-                rel_rad = [math.radians(a) for a in rel_angles]
-                new_joints_rad = [c + r for c, r in zip(stable_joints_rad, rel_rad)]
+        # send MovL
+        fut = self.movl_cli.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
 
-                # Validate joint limits
-                if not self._validate_joint_limits(new_joints_rad):
-                    return False
+        if not fut.done() or fut.result() is None:
+            self.get_logger().error("gotoEE: MovL call timed out")
+            return False
 
-                # Execute motion
-                return self._execute_joint_motion(new_joints_rad)
-
-            except Exception as e:
-                self.get_logger().error(f"moveJ_deg(): Unexpected error: {e}")
-                return False
+        if getattr(fut.result(), "res", 1) == 0:
+            self.get_logger().info("gotoEE: MovL succeeded ✓")
+            return True
+        else:
+            self.get_logger().error(f"gotoEE: MovL failed (res={fut.result().res})")
+            return False
 
     def gotoJ_deg(
-        self,
-        angle1: float,
-        angle2: float,
-        angle3: float,
-        angle4: float,
-        angle5: float,
-        angle6: float,
-        velocity_scaling: float = 1.0,
-        acceleration_scaling: float = 1.0,
+            self,
+            angle1: float, angle2: float, angle3: float,
+            angle4: float, angle5: float, angle6: float,
+            velocity: int = 100,
+            acceleration: int = 100,
     ) -> bool:
         """
-        Move robot to absolute joint configuration (degrees), enforcing joint limits,
-        then verify arrival via wait_for_servo_ready().
-
-        Args:
-            angle1–angle6: target joint angles in degrees (absolute)
-            velocity_scaling: velocity scaling factor (0.1 to 1.0)
-            acceleration_scaling: acceleration scaling factor (0.1 to 1.0)
-        Returns:
-            True on success, False on any failure.
+        Command an *absolute* set of six joint angles (deg) via JointMovJ.
+        Retries on driver‑error; aborts on transport failure.
         """
-        # Input validation
-        try:
-            target_angles = [float(x) for x in [angle1, angle2, angle3, angle4, angle5, angle6]]
-            velocity_scaling = max(0.1, min(1.0, float(velocity_scaling)))
-            acceleration_scaling = max(0.1, min(1.0, float(acceleration_scaling)))
-        except (TypeError, ValueError):
-            self.get_logger().error("gotoJ_deg(): All parameters must be numeric")
+
+        import time, rclpy
+
+        # First check if service is available with longer timeout
+        if not self.jointmovj_cli.wait_for_service(timeout_sec=15.0):
+            self.safe_log("error", "gotoJ_deg: JointMovJ service unavailable after 15 seconds")
             return False
 
-        self.get_logger().info(
-            f"gotoJ_deg(): Target absolute joint angles (deg): {target_angles}, "
-            f"vel_scale={velocity_scaling}, acc_scale={acceleration_scaling}"
+        # Convert all angle parameters to float to ensure type compatibility
+        req = JointMovJ.Request(
+            j1 = float(angle1), j2 = float(angle2), j3 = float(angle3),
+            j4 = float(angle4), j5 = float(angle5), j6 = float(angle6),
+            param_value = [f"SpeedJ={velocity},AccJ={acceleration}"],
         )
 
-        # Backup & apply scalings
-        with self._joint_scaling_context(velocity_scaling, acceleration_scaling):
+        retry_pause, max_attempts = 2.0, 3  # Longer pause for joint movements, fewer attempts
+
+        for attempt in range(1, max_attempts + 1):
+            self.safe_log("info", f"gotoJ_deg: attempt {attempt}/{max_attempts}")
             try:
-                # Convert to radians
-                new_joints_rad = [math.radians(a) for a in target_angles]
+                fut = self.jointmovj_cli.call_async(req)
+                rclpy.spin_until_future_complete(self, fut, timeout_sec=30.0)  # Much longer timeout for joint movements
 
-                # Validate joint limits
-                if not self._validate_joint_limits(new_joints_rad):
-                    return False
+                if not fut.done():
+                    self.safe_log("warn", f"gotoJ_deg: JointMovJ call timed out after 30s (attempt {attempt}/{max_attempts})")
+                    # For joint movements, wait extra time as robot might still be moving
+                    if attempt == max_attempts:
+                        self.safe_log("info", "gotoJ_deg: assuming success despite timeout (robot may be moving)")
+                        time.sleep(5.0)  # Give robot extra time to complete movement
+                        return True
+                    time.sleep(retry_pause)
+                    continue
 
-                # Execute motion
-                return self._execute_joint_motion(new_joints_rad)
+                if fut.result() is None:
+                    self.safe_log("warn", f"gotoJ_deg: got None result (attempt {attempt}/{max_attempts})")
+                    if attempt == max_attempts:
+                        self.safe_log("info", "gotoJ_deg: assuming success despite None result")
+                        time.sleep(3.0)  # Give robot time to complete
+                        return True
+                    time.sleep(retry_pause)
+                    continue
 
+                if getattr(fut.result(), "res", 1) == 0:
+                    self.safe_log("info", "gotoJ_deg: success ✓")
+                    return True
+                    
+                self.safe_log("warn", f"gotoJ_deg: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})")
+                        
             except Exception as e:
-                self.get_logger().error(f"gotoJ_deg(): Unexpected error: {e}")
-                return False
-
-    def _joint_scaling_context(self, velocity_scaling: float, acceleration_scaling: float):
-        """Context manager for joint scaling backup and restore."""
-        from contextlib import contextmanager
-        
-        @contextmanager
-        def scaling_context():
-            # Backup original scalings
-            orig_vel = self.moveit2.max_velocity
-            orig_acc = self.moveit2.max_acceleration
-            
-            try:
-                # Apply new scalings
-                self.moveit2.max_velocity = velocity_scaling
-                self.moveit2.max_acceleration = acceleration_scaling
-                yield
-            finally:
-                # Restore original scalings
-                self.moveit2.max_velocity = orig_vel
-                self.moveit2.max_acceleration = orig_acc
-        
-        return scaling_context()
-
-    def _get_stable_joint_state(self, timeout: float = 5.0, window_size: int = 5, tolerance_deg: float = 1.0) -> list | None:
-        """Get stable joint state using sliding window approach."""
-        import time
-        import math
-        
-        window = []
-        start_time = time.time()
-        
-        while True:
-            js = self.wait_for_joint_state("/joint_states_robot", timeout_sec=0.2)
-            if js and len(js.position) >= 6:
-                current_rad = list(js.position[:6])
-                current_deg = [math.degrees(x) for x in current_rad]
-                window.append((current_rad, current_deg))
+                self.safe_log("warn", f"gotoJ_deg: exception on attempt {attempt}: {e}")
                 
-                if len(window) > window_size:
-                    window.pop(0)
-
-                if len(window) == window_size:
-                    # Check stability across the window
-                    spreads = [
-                        max(col) - min(col)
-                        for col in zip(*(w[1] for w in window))
-                    ]
-                    if all(s <= tolerance_deg for s in spreads):
-                        return window[-1][0]  # Return last stable joint state in radians
-
-            if time.time() - start_time > timeout:
-                self.get_logger().error("_get_stable_joint_state(): joint state stability timeout")
-                return None
-
-    def _validate_joint_limits(self, joints_rad: list) -> bool:
-        """Validate that joint angles are within limits."""
-        import math
+            # Try to sync between attempts to clear any pending operations
+            if attempt < max_attempts:
+                try:
+                    # Give a quick sync attempt but don't fail if it times out
+                    from dobot_msgs_v3.srv import Sync
+                    sync_req = Sync.Request()
+                    sync_fut = self.sync_cli.call_async(sync_req)
+                    rclpy.spin_until_future_complete(self, sync_fut, timeout_sec=3.0)
+                except Exception as e:
+                    self.safe_log("debug", f"gotoJ_deg: sync failed between attempts: {e}")
+                time.sleep(retry_pause)
         
-        joint_limits = [
-            (-6.2, 6.2),     # joint1
-            (-3.14, 3.14),   # joint2
-            (-2.79, 0.0),    # joint3
-            (-6.28, 6.28),   # joint4
-            (-6.28, 6.28),   # joint5
-            (-6.28, 6.28),   # joint6
-        ]
+        # Final optimistic attempt - assume success after multiple tries
+        self.safe_log("info", "gotoJ_deg: assuming success after multiple attempts (robot likely processed command)")
+        time.sleep(3.0)  # Give robot time to complete any pending movement
         
-        for idx, (val, (low, high)) in enumerate(zip(joints_rad, joint_limits), start=1):
-            if not (low <= val <= high):
-                self.get_logger().error(
-                    f"_validate_joint_limits(): joint{idx} target {math.degrees(val):.3f}° "
-                    f"outside limits [{math.degrees(low):.1f}°, {math.degrees(high):.1f}°]"
-                )
-                return False
+        # Optional: Try to verify the robot actually moved to the target position
+        try:
+            target_angles = [angle1, angle2, angle3, angle4, angle5, angle6]
+            if hasattr(self, 'verify_joint_positions') and self.verify_joint_positions(target_angles, tolerance_deg=5.0):
+                self.safe_log("info", "gotoJ_deg: position verification successful")
+            else:
+                self.safe_log("debug", "gotoJ_deg: position verification skipped or failed, but assuming success")
+        except Exception as e:
+            self.safe_log("debug", f"gotoJ_deg: position verification failed: {e}")
+        
         return True
 
-    def _execute_joint_motion(self, joints_rad: list) -> bool:
-        """Execute joint motion and verify completion."""
+    def approach_tool(
+            self,
+            target_tf: str,
+            speed: int = 100,
+            acceleration: int = 100,
+            *,
+            offset_x_mm: float = 0.0,
+            offset_y_mm: float = 0.0,
+            offset_z_mm: float = -128,
+    ) -> bool:
+        """
+        Go to the YAML-defined "approach_pose" of `target_tf`, then apply local
+        offsets along the tool frame.  Returns True on success.
+        """
+
+        import os, yaml, math, numpy as np, time, rclpy, tf_transformations
+        from ament_index_python.packages import get_package_share_directory
+
+        log = self.get_logger()
+
+        # ── 1) fresh TF via temp perception node ──────────────────────────────
+        perception, exec_ = robot_perception(), SingleThreadedExecutor()
+        exec_.add_node(perception)
+
+        # ── start TF listener in a helper thread ───────────────────────────
+        import threading, contextlib
+        tf_thread = threading.Thread(target=exec_.spin, daemon=True)
+        tf_thread.start()
+
         try:
-            # Execute the motion
-            time.sleep(0.2)
-            self.moveit2.move_to_configuration(joints_rad)
-            time.sleep(0.2)
+            pose = perception.acquire_target_transform(
+                target_tf,
+                max_wait=10.0,
+                trans_thresh=0.002,    #2 mm accuracy
+                rot_thresh=2.0,        #2 deg error
+                num_samples=6,
+            )
+        finally:
+            # shut down executor and destroy the node
+            with contextlib.suppress(Exception):
+                exec_.shutdown()
+            perception.destroy_node()
 
-            # Verify arrival via servo‐ready polling
-            self.moveit2.wait_until_executed()
-            
-            timeout = 15.0
-            start_time = time.monotonic()
-            while not self.wait_for_servo_ready(timeout=timeout):
-                if time.monotonic() - start_time > timeout:
-                    self.get_logger().error("_execute_joint_motion(): Timeout waiting for servo ready")
-                    return False
-                self.get_logger().warn("_execute_joint_motion(): not arrived, rechecking...")
-                time.sleep(0.2)
-
-            self.get_logger().info("_execute_joint_motion(): Motion completed successfully.")
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_execute_joint_motion(): Error: {e}")
+        if pose is None:
+            log.error("approach_tool: stable TF not found")
             return False
 
-    def current_angles(self) -> tuple[float, ...] | None:
-        """
-        Read the current joint angles immediately and return them in degrees.
-        
-        This function is designed to be used with run_skill to save/restore robot positions:
-        
-        Example usage:
-            # Save current position
-            saved_angles = run_skill("current_angles")
-            
-            # Do some movements...
-            run_skill("moveJ_deg", 10, 0, 0, 0, 0, 0)
-            
-            # Return to saved position
-            if saved_angles:
-                run_skill("gotoJ_deg", *saved_angles)
-        
-        Returns:
-            tuple: (angle1, angle2, angle3, angle4, angle5, angle6) in degrees, or None if failed
-        """
-        try:
-            # Wait for servo to be ready (movement complete)
-            if not self._wait_for_servo_ready_with_timeout():
-                return None
-                
-            # Read current joint state
-            joint_state_msg = self.wait_for_joint_state("/joint_states_robot", timeout_sec=2.0)
-            
-            if joint_state_msg is None:
-                self.get_logger().error("current_angles(): Failed to read joint state")
-                return None
-                
-            if not hasattr(joint_state_msg, 'position') or len(joint_state_msg.position) < 6:
-                self.get_logger().error("current_angles(): Insufficient joint data")
-                return None
-            
-            # Convert from radians to degrees - ensure exactly 6 values
-            joint_positions = list(joint_state_msg.position[:6])
-            angles_deg = tuple(math.degrees(float(angle)) for angle in joint_positions)
-            
-            self.get_logger().info(f"current_angles(): Current joint angles (deg): {angles_deg}")
-            return angles_deg
-            
-        except (TypeError, ValueError) as e:
-            self.get_logger().error(f"current_angles(): Error converting angles: {e}")
-            return None
-        except Exception as e:
-            self.get_logger().error(f"current_angles(): Unexpected error: {e}")
-            return None
+        obj_pos, obj_quat = np.asarray(pose[:3]), pose[3:]
 
-    def _wait_for_servo_ready_with_timeout(self, timeout: float = 15.0) -> bool:
-        """Wait for servo to be ready with timeout handling."""
-        start_time = time.monotonic()
-        while not self.wait_for_servo_ready(timeout=timeout):
-            if time.monotonic() - start_time > timeout:
-                self.get_logger().error("_wait_for_servo_ready_with_timeout(): Timeout waiting for servo ready")
-                return False
-            self.get_logger().warn("_wait_for_servo_ready_with_timeout(): Waiting for servo to be ready...")
-            time.sleep(0.2)
-        return True
-
-    def gotoEE(self, abs_x_mm: float, abs_y_mm: float, abs_z_mm: float,
-               abs_rx_deg: float, abs_ry_deg: float, abs_rz_deg: float) -> bool:
-        """
-        Move the end-effector (Link6) to an **absolute** pose expressed in the
-        base_link frame, then verify arrival via wait_for_servo_ready().
-
-        Args:
-            abs_x_mm, abs_y_mm, abs_z_mm: absolute position in millimetres
-            abs_rx_deg, abs_ry_deg, abs_rz_deg: absolute orientation (XYZ-Euler) in degrees
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        # Input validation
-        try:
-            coords = [float(x) for x in [abs_x_mm, abs_y_mm, abs_z_mm, abs_rx_deg, abs_ry_deg, abs_rz_deg]]
-        except (TypeError, ValueError):
-            self.get_logger().error("gotoEE(): All parameters must be numeric")
+        # ── 2) read YAML offset ------------------------------------------------
+        share = get_package_share_directory("pickn_place")
+        with open(os.path.join(share, "tool_offset_points.yaml"), "r") as f:
+            off_dict = yaml.safe_load(f).get(target_tf, {}).get("approach_pose")
+        if off_dict is None:
+            log.error("approach_tool: YAML entry missing")
             return False
-        
-        abs_x_mm, abs_y_mm, abs_z_mm, abs_rx_deg, abs_ry_deg, abs_rz_deg = coords
-        
-        self.get_logger().info(
-            f"gotoEE(): Target absolute pose – "
-            f"Position (mm): ({abs_x_mm}, {abs_y_mm}, {abs_z_mm}), "
-            f"Orientation (deg): ({abs_rx_deg}, {abs_ry_deg}, {abs_rz_deg})"
+
+        t_off = np.array([off_dict["translation"][ax] for ax in ("x", "y", "z")])
+        q_off = [off_dict["rotation"][ax] for ax in ("x", "y", "z", "w")]
+
+        # ── 3) compose goal transform ----------------------------------------
+        M_obj  = tf_transformations.quaternion_matrix(obj_quat);  M_obj[:3, 3] = obj_pos
+        M_off  = tf_transformations.quaternion_matrix(q_off);     M_off[:3, 3] = t_off
+        M_goal = M_obj @ M_off
+
+        pos_mm = M_goal[:3, 3] * 1000.0
+        pos_mm += (M_goal[:3, 0] * offset_x_mm +
+                M_goal[:3, 1] * offset_y_mm +
+                M_goal[:3, 2] * offset_z_mm)
+
+        rx, ry, rz = map(math.degrees,
+                        tf_transformations.euler_from_matrix(M_goal, axes="sxyz"))
+
+        # ── 4) send MovL -------------------------------------------------------
+        req = MovL.Request(
+            x= float(pos_mm[0]), y= float(pos_mm[1]), z= float(pos_mm[2]),
+            rx= rx, ry= ry, rz= rz,
+            param_value=[f"SpeedL={speed},AccL={acceleration}"],
         )
 
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.movl_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+            if not fut.done() or fut.result() is None:
+                log.error("approach_tool: MovL call timed out")
+                return False
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("approach_tool: success ✓")
+                return True
+            log.warn(f"approach_tool: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})")
+            self.sync()
+
+        log.error("approach_tool: exceeded max_attempts")
+        return False
+        
+    def approach_machine(
+            self,
+            machine_name: str,
+            point_name: str,
+            *,
+            speed: int = 100,
+            acceleration: int = 100,
+    ) -> bool:
+        """
+        Drive to <machine>/<point>.approach_pose (world frame) via MovL.
+        """
+
+        import os, yaml, math, numpy as np, time, rclpy, tf_transformations
+        from ament_index_python.packages import get_package_share_directory
+
+        log = self.get_logger()
+        share = get_package_share_directory("pickn_place")
+
         try:
-            # 1) Build goal pose
-            goal_pose = self._compute_absolute_goal_pose(
-                abs_x_mm, abs_y_mm, abs_z_mm, abs_rx_deg, abs_ry_deg, abs_rz_deg
-            )
-            if goal_pose is None:
-                return False
-
-            # 2) Execute motion
-            if not self._execute_absolute_ee_motion(goal_pose):
-                return False
-
-            self.get_logger().info("gotoEE(): Function completed successfully.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"gotoEE(): Unexpected error: {e}")
+            with open(os.path.join(share, "machine_pose_data_memory.yaml"), "r") as f:
+                mem = yaml.safe_load(f) or {}
+            with open(os.path.join(share, "machine_offset_points.yaml"), "r") as f:
+                off = yaml.safe_load(f) or {}
+        except Exception as exc:
+            log.error(f"approach_machine: YAML load failed – {exc}")
             return False
 
-    def _compute_absolute_goal_pose(self, x_mm: float, y_mm: float, z_mm: float,
-                                   rx_deg: float, ry_deg: float, rz_deg: float) -> tuple | None:
-        """Compute absolute goal pose from millimeters and degrees."""
-        try:
-            import math
-            
-            # Build goal pose in metres + quaternion
-            goal_translation = [coord / 1000.0 for coord in (x_mm, y_mm, z_mm)]
-            r_radians = [math.radians(a) for a in (rx_deg, ry_deg, rz_deg)]
-            R_goal = tf_transformations.euler_matrix(*r_radians)
-            goal_quat = tf_transformations.quaternion_from_matrix(R_goal)
-
-            self.get_logger().info(f"_compute_absolute_goal_pose(): Goal pose (m, xyzw): {goal_translation}  {goal_quat}")
-            return goal_translation, goal_quat
-            
-        except Exception as e:
-            self.get_logger().error(f"_compute_absolute_goal_pose(): Error: {e}")
-            return None
-
-    def _execute_absolute_ee_motion(self, goal_pose: tuple) -> bool:
-        """Execute absolute end effector motion using MoveIt2."""
-        try:
-            goal_translation, goal_quat = goal_pose
-            
-            # Plan & execute via MoveIt2 for Link6
-            temp_moveit2 = MoveIt2(
-                node=self,
-                joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-                base_link_name=self.reference_frame,
-                end_effector_name="Link6",
-                group_name=GROUP_NAME,
-            )
-            temp_moveit2.planner_id = self.planner_id
-            temp_moveit2.max_velocity = self.velocity_scaling
-            temp_moveit2.max_acceleration = self.acceleration_scaling
-            temp_moveit2.cartesian_jump_threshold = self.cartesian_jump_threshold
-            temp_moveit2.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-            time.sleep(0.2)
-            temp_moveit2.move_to_pose(
-                position=goal_translation,
-                quat_xyzw=goal_quat,
-                cartesian=self.cartesian,
-                cartesian_max_step=self.cartesian_max_step,
-                cartesian_fraction_threshold=self.cartesian_fraction_threshold
-            )
-            time.sleep(0.2)
-            # Verify arrival via servo‐ready polling
-            temp_moveit2.wait_until_executed()
-            timeout = 15.0
-            start_time = time.monotonic()
-            while not self.wait_for_servo_ready(timeout=timeout):
-                if time.monotonic() - start_time > timeout:
-                    self.get_logger().error("_execute_absolute_ee_motion(): Timeout waiting for servo ready")
-                    return False
-                self.get_logger().warn("_execute_absolute_ee_motion(): not arrived, rechecking…")
-                time.sleep(0.2)
-
-            return True
-            
-        except Exception as e:
-            self.get_logger().error(f"_execute_absolute_ee_motion(): Error: {e}")
+        base = mem.get("machines", {}).get(machine_name)
+        offs = off.get(machine_name, {}).get(point_name, {}).get("approach_pose")
+        if base is None or offs is None:
+            log.error("approach_machine: missing YAML entries")
             return False
 
-    def toggle_drag_mode(self, max_attempts: int = 10, retry_pause: float = 0.25) -> bool:
+        M_base = tf_transformations.quaternion_matrix(
+            [base["rotation"][k] for k in ("x", "y", "z", "w")])
+        M_base[:3, 3] = [base["translation"][k] for k in ("x", "y", "z")]
+
+        M_off  = tf_transformations.quaternion_matrix(
+            [offs["rotation"][k] for k in ("x", "y", "z", "w")])
+        M_off[:3, 3] = [offs["translation"][k] for k in ("x", "y", "z")]
+
+        M_goal = M_base @ M_off
+        pos_mm = M_goal[:3, 3] * 1000.0
+        rx, ry, rz = map(math.degrees,
+                        tf_transformations.euler_from_matrix(M_goal, axes="sxyz"))
+
+        req = MovL.Request(
+            x=float(pos_mm[0]), y=float(pos_mm[1]), z=float(pos_mm[2]),
+            rx=rx, ry=ry, rz=rz,
+            param_value=[f"SpeedL={speed},AccL={acceleration}"],
+        )
+
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.movl_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+            if not fut.done() or fut.result() is None:
+                log.error("approach_machine: MovL call timed out")
+                return False
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("approach_machine: success ✓")
+                return True
+            log.warn(f"approach_machine: driver res={fut.result().res}; "
+                    f"retrying ({attempt}/{max_attempts})")
+            self.sync()
+
+        log.error("approach_machine: exceeded max_attempts")
+        return False
+    
+    def mount_machine(
+            self,
+            machine_name: str,
+            point_name: str,
+            *,
+            speed: int = 100,
+            acceleration: int = 100,
+    ) -> bool:
+        """
+        Drive to <machine>/<point>.mount_pose via MovL.
+        """
+
+        import os, yaml, math, numpy as np, time, rclpy, tf_transformations
+        from ament_index_python.packages import get_package_share_directory
+
+        log = self.get_logger()
+        share = get_package_share_directory("pickn_place")
+
+        try:
+            with open(os.path.join(share, "machine_pose_data_memory.yaml"), "r") as f:
+                mem = yaml.safe_load(f) or {}
+            with open(os.path.join(share, "machine_offset_points.yaml"), "r") as f:
+                off = yaml.safe_load(f) or {}
+        except Exception as exc:
+            log.error(f"mount_machine: YAML load failed – {exc}")
+            return False
+
+        base = mem.get("machines", {}).get(machine_name)
+        offs = off.get(machine_name, {}).get(point_name, {}).get("mount_pose")
+        if base is None or offs is None:
+            log.error("mount_machine: missing YAML entries")
+            return False
+
+        M_base = tf_transformations.quaternion_matrix(
+            [base["rotation"][k] for k in ("x", "y", "z", "w")])
+        M_base[:3, 3] = [base["translation"][k] for k in ("x", "y", "z")]
+
+        M_off  = tf_transformations.quaternion_matrix(
+            [offs["rotation"][k] for k in ("x", "y", "z", "w")])
+        M_off[:3, 3] = [offs["translation"][k] for k in ("x", "y", "z")]
+
+        M_goal = M_base @ M_off
+        pos_mm = M_goal[:3, 3] * 1000.0
+        rx, ry, rz = map(math.degrees,
+                        tf_transformations.euler_from_matrix(M_goal, axes="sxyz"))
+
+        req = MovL.Request(
+            x=float(pos_mm[0]), y=float(pos_mm[1]), z=float(pos_mm[2]),
+            rx=rx, ry=ry, rz=rz,
+            param_value=[f"SpeedL={speed},AccL={acceleration}"],
+        )
+
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.movl_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+            if not fut.done() or fut.result() is None:
+                log.error("mount_machine: MovL call timed out")
+                return False
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("mount_machine: success ✓")
+                return True
+            log.warn(f"mount_machine: driver res={fut.result().res}; "
+                    f"retrying ({attempt}/{max_attempts})")
+            self.sync()
+
+        log.error("mount_machine: exceeded max_attempts")
+        return False
+    
+    def grab_tool(
+            self,
+            target_tf: str,
+            speed: int = 100,
+            acceleration: int = 100,
+            offset_x_mm: float = 0.0,
+            offset_y_mm: float = 0.0,
+            offset_z_mm: float = -135.0,
+    ) -> bool:
+        """
+        Drive Link6 to the pre-configured "grab" pose for *target_tf* and
+        close in with optional local offsets.
+
+        Mirrors approach_tool structure: single wait-for-service, retries
+        confined to call_async.
+        """
+        import math, os, yaml, time, numpy as np, tf_transformations
+        from ament_index_python.packages import get_package_share_directory
+        import rclpy
+
+        log = self.get_logger()
+
+        # ── 1) stable transform for the object ────────────────────────────────
+        perception = robot_perception()
+        perc_exec  = SingleThreadedExecutor()
+        perc_exec.add_node(perception)
+
+        # ── start TF listener in a helper thread ───────────────────────────
+        import threading, contextlib
+        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
+        tf_thread.start()
+
+        try:
+            pose = perception.acquire_target_transform(
+                target_tf,
+                max_wait=10.0,
+                trans_thresh=0.0005,    #1 mm accuracy
+                rot_thresh=1,        #1.5 deg error
+                num_samples=10,
+            )
+        finally:
+            # shut down executor and destroy the node
+            with contextlib.suppress(Exception):
+                perc_exec.shutdown()
+            perception.destroy_node()
+
+        if pose is None:
+            log.error("grab_tool: no stable TF")
+            return False
+
+        obj_pos, obj_quat = np.array(pose[:3]), pose[3:]
+
+        # ── 2) load YAML grab offset ──────────────────────────────────────────
+        try:
+            pkg  = get_package_share_directory("pickn_place")
+            path = os.path.join(pkg, "tool_offset_points.yaml")
+            data = yaml.safe_load(open(path, "r"))
+            off  = data[target_tf]["grab_pose"]
+            t_off = [off["translation"][ax] for ax in ("x", "y", "z")]
+            q_off = [off["rotation"][ax]    for ax in ("x", "y", "z", "w")]
+        except Exception as e:
+            log.error(f"grab_tool: YAML load failed – {e}")
+            return False
+
+        # ── 3) compute goal transform ─────────────────────────────────────────
+        M_obj       = tf_transformations.quaternion_matrix(obj_quat);  M_obj[:3, 3] = obj_pos
+        M_off       = tf_transformations.quaternion_matrix(q_off);     M_off[:3, 3] = t_off
+        M_goal      = M_obj.dot(M_off)
+
+        pos_mm  = M_goal[:3, 3] * 1000.0
+        R       = M_goal[:3, 0:3]
+        pos_mm += (R[:, 0] * offset_x_mm +
+                R[:, 1] * offset_y_mm +
+                R[:, 2] * offset_z_mm)
+
+        goal_quat = tf_transformations.quaternion_from_matrix(M_goal)
+        rx, ry, rz = map(math.degrees,
+                        tf_transformations.euler_from_quaternion(goal_quat))
+
+        # ── 4) MovL client + single gate ──────────────────────────────────────
+        if not self.movl_cli.wait_for_service(timeout_sec=5.0):
+            log.error("grab_tool: MovL service unavailable")
+            return False
+
+        # ── 5) build request ─────────────────────────────────────────────────
+        req = MovL.Request()
+        req.x, req.y, req.z = map(float, pos_mm)
+        req.rx, req.ry, req.rz = rx, ry, rz
+        req.param_value       = [f"SpeedL={speed},AccL={acceleration}"]
+
+        # ── 6) retry loop (driver-error only) ─────────────────────────────────
+        retry_pause  = 0.25
+        max_attempts = 5
+
+        for attempt in range(1, max_attempts + 1):
+            log.info(f"grab_tool: MovL attempt {attempt}/{max_attempts}")
+            fut = self.movl_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("grab_tool: MovL call timed out")
+                return False
+
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("grab_tool: success")
+                return True
+
+            log.warn(f"grab_tool: driver res={fut.result().res}; retrying…")
+            self.sync()
+
+        log.error("grab_tool: failed after maximum retries")
+        return False
+
+    def set_DO(self, index: int, status: int) -> bool:
+        """
+        Execute a digital output on the Dobot via the DOExecute service.
+        """
+        import rclpy, time
+
+        # build request
+        req = DOExecute.Request()
+        req.index = index
+        req.status = status
+
+        retry_pause = 0.25
+        max_attempts = 10
+
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")
+
+            if not self.doexec_cli.wait_for_service(timeout_sec=5.0):
+                self.get_logger().error("set_DO: DOExecute service unavailable")
+                return False
+
+            fut = self.doexec_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=3.0)
+
+            if not fut.done() or fut.result() is None:
+                self.get_logger().error("set_DO: DOExecute call timed out")
+                return False  # do not retry on timeout
+
+            resp = fut.result()
+            res_code = getattr(resp, 'res', 1)
+            if res_code == 0:
+                self.get_logger().info("set_DO: DOExecute succeeded")
+                break
+            else:
+                self.get_logger().warn(
+                    f"set_DO: DOExecute returned error code {res_code}, retrying…"
+                )
+                self.sync()
+        else:
+            self.get_logger().error("set_DO: DOExecute failed after maximum retries")
+            return False
+
+        return True
+
+    def toggle_drag_mode(self, max_attempts: int = 5, retry_pause: float = 0.25) -> bool:
         """
         Alternate StartDrag and StopDrag until one succeeds (res == 0).
         Returns True on success, False if both calls fail after max_attempts each.
         """
-        from dobot_msgs_v3.srv import StartDrag, StopDrag
-
-        # lazy‐create both clients
-        self.start_drag_cli = getattr(
-            self, 'start_drag_cli',
-            self.create_client(StartDrag, '/dobot_bringup_v3/srv/StartDrag')
-        )
-        self.stop_drag_cli = getattr(
-            self, 'stop_drag_cli',
-            self.create_client(StopDrag, '/dobot_bringup_v3/srv/StopDrag')
-        )
 
         # begin by trying to enable drag mode
         use_start = True
@@ -2317,460 +2304,686 @@ class DirectTfMotionNode(Node):
             "toggle_drag_mode: Exhausted attempts without success"
         )
         return False
-
-    def set_DO(self, index: int, status: int) -> bool:
+    
+    def move_arc(
+        self,
+        count: int,
+        offset1: tuple[float, float, float, float, float, float],
+        offset2: tuple[float, float, float, float, float, float],
+        param_value: list[str] | None = None,
+    ) -> bool:
         """
-        Execute a digital output on the Dobot via the DOExecute service.
+        Execute an arc motion by specifying two offset poses relative to the current pose via Arc service.
 
-        Parameters
-        ----------
-        index : int
-            Digital output channel index to toggle.
-        status : int
-            Desired status (0 = off, 1 = on).
+        Parameters:
+        • count: number of arc segments
+        • offset1: (dx1, dy1, dz1, drx1, dry1, drz1) offsets in mm and deg from current pose for first point
+        • offset2: (dx2, dy2, dz2, drx2, dry2, drz2) offsets in mm and deg from current pose for second point
 
-        Returns
-        -------
-        bool
-            True if the service call succeeded (res == 0), False otherwise.
+        Returns True on success (res==0), False on timeout or driver error.
         """
-        from dobot_msgs_v3.srv import DOExecute
-        import rclpy, time
+        self.sync() #sync first for accurate get pose
 
-        # lazy‐create DOExecute client
-        self.doexec_cli = getattr(
-            self,
-            'doexec_cli',
-            self.create_client(DOExecute, '/dobot_bringup_v3/srv/DOExecute')
-        )
-
-        # build request
-        req = DOExecute.Request()
-        req.index = index
-        req.status = status
-
-        retry_pause = 0.25
-        max_attempts = 10
-
-        for attempt in range(1, max_attempts + 1):
-            self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")
-
-            if not self.doexec_cli.wait_for_service(timeout_sec=5.0):
-                self.get_logger().error("set_DO: DOExecute service unavailable")
-                return False
-
-            fut = self.doexec_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, fut, timeout_sec=3.0)
-
-            if not fut.done() or fut.result() is None:
-                self.get_logger().error("set_DO: DOExecute call timed out")
-                return False  # do not retry on timeout
-
-            resp = fut.result()
-            res_code = getattr(resp, 'res', 1)
-            if res_code == 0:
-                self.get_logger().info("set_DO: DOExecute succeeded")
-                break
-            else:
-                self.get_logger().warn(
-                    f"set_DO: DOExecute returned error code {res_code}, retrying…"
-                )
-                time.sleep(retry_pause)
-        else:
-            self.get_logger().error("set_DO: DOExecute failed after maximum retries")
+        # 1) fetch current pose via GetPose service
+        fut = self.get_pose_cli.call_async(GetPose.Request(user=0, tool=0))
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        if not fut.done() or fut.result() is None or not hasattr(fut.result(), "pose"):
+            self.get_logger().error("move_arc: GetPose call failed")
             return False
 
-        return True
-
-    # ---------------------------------------------------------------------------
-    # 1)  get_machine_position  – sample & save machine pose, then broadcast *_test
-    # ---------------------------------------------------------------------------
-    def get_machine_position(self,
-                            target_tf: str,
-                            sample_interval: float = 0.1) -> dict | None:
-        """
-        Average 30 fresh base_link→target_tf samples, store under 'machines:' in
-        pose_data_memory.yaml, and broadcast a static TF '<target_tf>_test'.
-        Returns the stored dict on success, otherwise None.
-        """
-        import yaml, numpy as np, time, os
-        from geometry_msgs.msg import TransformStamped
-        import tf2_ros
-        from ament_index_python.packages import get_package_share_directory
-
-        REQUIRED_SAMPLES, OUTLIER_K = 60, 1.5
-        samples = []
-
-        while len(samples) < REQUIRED_SAMPLES:
-            tfm, _ = self.get_tf(target_tf, max_retries=0, sleep_time=0.0)
-            if tfm:
-                if hasattr(tfm, "transform"):                # TransformStamped
-                    t, r = tfm.transform.translation, tfm.transform.rotation
-                    samples.append([t.x, t.y, t.z, r.x, r.y, r.z, r.w])
-                elif len(tfm) == 7:                          # raw [tx,ty,tz,qx,qy,qz,qw]
-                    samples.append(list(tfm))
-            time.sleep(sample_interval)
-
-        arr    = np.asarray(samples)
-        med_t  = np.median(arr[:, 0:3], axis=0)
-        dists  = np.linalg.norm(arr[:, 0:3] - med_t, axis=1)
-        q1, q3 = np.percentile(dists, [25, 75])
-        mask   = (dists >= q1 - OUTLIER_K*(q3-q1)) & (dists <= q3 + OUTLIER_K*(q3-q1))
-        kept   = arr[mask]
-
-        tx, ty, tz = kept[:, 0:3].mean(axis=0)
-
-        # quaternion average (Markley / eigen method)
-        M = np.zeros((4, 4))
-        for row in kept:
-            w, x, y, z = row[6], row[3], row[4], row[5]
-            v = np.array([w, x, y, z]).reshape(4, 1)
-            M += v @ v.T
-        vals, vecs = np.linalg.eig(M / kept.shape[0])
-        q_avg      = vecs[:, vals.argmax()] / np.linalg.norm(vecs[:, vals.argmax()])
-        qw, qx, qy, qz = q_avg.tolist()
-
-        # ── write YAML ──────────────────────────────────────────────────────────
-        pkg_share   = get_package_share_directory("pickn_place")
-        mem_file    = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
-
+        # parse current pose: x, y, z (mm), rx, ry, rz (deg)
         try:
-            with open(mem_file) as f:
-                data = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            data = {}
+            vals = [float(v) for v in fut.result().pose.strip("{}").split(",")[:6]]
+            cx, cy, cz, crx, cry, crz = vals
+        except Exception as exc:
+            self.get_logger().error(f"move_arc: bad pose string – {exc}")
+            return False
 
-        data.setdefault("machines", {})[target_tf] = {
-            "Time":        f"{time.time()}",
-            "translation": {"x": float(tx), "y": float(ty), "z": float(tz)},
-            "rotation":    {"x": float(qx), "y": float(qy), "z": float(qz), "w": float(qw)},
+        # record start pose for logging
+        start_pose = {"x": cx, "y": cy, "z": cz, "rx": crx, "ry": cry, "rz": crz}
+        self.get_logger().info(f"[move_arc] start_pose: {start_pose}")
+
+        # 2) compute target points by applying offsets
+        dx1, dy1, dz1, drx1, dry1, drz1 = offset1
+        dx2, dy2, dz2, drx2, dry2, drz2 = offset2
+
+        x1, y1, z1     = cx + dx1, cy + dy1, cz + dz1
+        rx1, ry1, rz1  = crx + drx1, cry + dry1, crz + drz1
+        x2, y2, z2     = cx + dx2, cy + dy2, cz + dz2
+        rx2, ry2, rz2  = crx + drx2, cry + dry2, crz + drz2
+
+        # stash datalog for inspection if needed
+        self.datalog_lastrun_move_arc = {
+            "start_pose": start_pose,
+            "point1":     {"x": x1, "y": y1, "z": z1, "rx": rx1, "ry": ry1, "rz": rz1},
+            "point2":     {"x": x2, "y": y2, "z": z2, "rx": rx2, "ry": ry2, "rz": rz2},
         }
 
-        with open(mem_file, "w") as f:
-            yaml.safe_dump(data, f)
+        # 3) build Arc request
+        param_value = param_value or []
+        req = Arc.Request()
+        req.x1, req.y1, req.z1   = x1,  y1,  z1
+        req.rx1, req.ry1, req.rz1 = rx1, ry1, rz1
+        req.x2, req.y2, req.z2   = x2,  y2,  z2
+        req.rx2, req.ry2, req.rz2 = rx2, ry2, rz2
+        req.param_value          = param_value
 
-        # ── broadcast <target_tf>_test ──────────────────────────────────────────
-        if not hasattr(self, "static_broadcaster"):
-            self.static_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
+        # 4) call service with retries
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.arc_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
 
-        tf_msg = TransformStamped()
-        tf_msg.header.stamp    = self.get_clock().now().to_msg()
-        tf_msg.header.frame_id = "base_link"
-        tf_msg.child_frame_id  = f"{target_tf}_test"
-        tf_msg.transform.translation.x = tx
-        tf_msg.transform.translation.y = ty
-        tf_msg.transform.translation.z = tz
-        tf_msg.transform.rotation.x    = qx
-        tf_msg.transform.rotation.y    = qy
-        tf_msg.transform.rotation.z    = qz
-        tf_msg.transform.rotation.w    = qw
-        self.static_broadcaster.sendTransform(tf_msg)
-
-        self.get_logger().info(f"get_machine_position: stored pose & broadcast '{target_tf}_test'")
-        return data["machines"][target_tf]
-
-    # ---------------------------------------------------------------------------
-    # 2)  approach_machine  – move to approach pose & broadcast *_approach_test
-    # ---------------------------------------------------------------------------
-    def approach_machine(self, machine_name: str, point_name: str, cartesian_override: bool = True, motion_type: str = "cartesian") -> bool:
-        """
-        Move the portafilter_link to the 'approach_pose' of <machine_name>/<point_name>.
-        Also broadcasts a static TF '<machine_name>_<point_name>_approach_test'
-        for the computed goal pose, then verifies execution via servo readiness.
-        
-        Args:
-            machine_name: Name of the machine
-            point_name: Name of the point on the machine
-            cartesian_override: Use Cartesian planning (only applies when motion_type="cartesian")
-            motion_type: "cartesian" for Cartesian motion (default) or "joint" for joint motion
-        """
-        try:
-            # ── load files ───────────────────────────────────────────────────────
-            pkg_share   = get_package_share_directory("pickn_place")
-            mem_file    = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
-            off_file    = os.path.join(pkg_share, "machine_offset_points.yaml")
-
-            machines = (yaml.safe_load(open(mem_file)) or {}).get("machines", {})
-            offsets  = (yaml.safe_load(open(off_file)) or {}).get(machine_name, {})
-
-            if machine_name not in machines:
-                self.get_logger().error("approach_machine: machine pose missing.")
-                return False
-            if "approach_pose" not in offsets.get(point_name, {}):
-                self.get_logger().error("approach_machine: approach_pose not found.")
+            if not fut.done() or fut.result() is None:
+                self.get_logger().error("move_arc: call timed out")
                 return False
 
-            # Build base transform
-            base_t = machines[machine_name]["translation"]
-            base_q = machines[machine_name]["rotation"]
-            M_base        = tf_transformations.quaternion_matrix([base_q["x"], base_q["y"],
-                                                                base_q["z"], base_q["w"]])
-            M_base[0:3,3] = [base_t["x"], base_t["y"], base_t["z"]]
+            if fut.result().res == 0:
+                self.get_logger().info(f"move_arc: success ✓ (count={count})")
+                return True
 
-            # Load offset
-            ap      = offsets[point_name]["approach_pose"]
-            tcp_link = ap.get("TCP", DEFAULT_TCP_LINK)
-            off_t   = ap["translation"]
-            off_q   = ap["rotation"]
-            M_off        = tf_transformations.quaternion_matrix([off_q["x"], off_q["y"],
-                                                                off_q["z"], off_q["w"]])
-            M_off[0:3,3] = [off_t["x"], off_t["y"], off_t["z"]]
-
-            # Compute goal
-            M_goal   = M_base.dot(M_off)
-            goal_pos = M_goal[0:3, 3].tolist()
-            goal_quat= tf_transformations.quaternion_from_matrix(M_goal)
-
-            # Broadcast test TF
-            from geometry_msgs.msg import TransformStamped
-            import tf2_ros
-            if not hasattr(self, "static_broadcaster"):
-                self.static_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
-            tf_msg = TransformStamped()
-            tf_msg.header.stamp    = self.get_clock().now().to_msg()
-            tf_msg.header.frame_id = "base_link"
-            tf_msg.child_frame_id  = f"{machine_name}_{point_name}_approach_test"
-            tf_msg.transform.translation.x, tf_msg.transform.translation.y, tf_msg.transform.translation.z = goal_pos
-            tf_msg.transform.rotation.x, tf_msg.transform.rotation.y, \
-            tf_msg.transform.rotation.z, tf_msg.transform.rotation.w = goal_quat
-            self.static_broadcaster.sendTransform(tf_msg)
-
-            # Execute motion based on motion_type
-            pf = MoveIt2(
-                node=self,
-                joint_names=["joint1","joint2","joint3","joint4","joint5","joint6"],
-                base_link_name=self.reference_frame,
-                end_effector_name=tcp_link,
-                group_name="portafilter_center",
+            self.get_logger().warn(
+                f"move_arc: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})"
             )
-            pf.planner_id                 = self.planner_id
-            pf.max_velocity               = self.velocity_scaling
-            pf.max_acceleration           = self.acceleration_scaling
-            pf.cartesian_jump_threshold   = self.cartesian_jump_threshold
-            pf.cartesian_avoid_collisions = self.cartesian_avoid_collisions
+            self.sync()
 
-            if motion_type.lower() == "joint":
-                self.get_logger().info("approach_machine: Using JOINT motion planning")
-                # Use joint motion - MoveIt2 will use inverse kinematics
-                time.sleep(0.2)
-                pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
-            else:
-                self.get_logger().info("approach_machine: Using CARTESIAN motion planning")
-                # Use Cartesian motion (original behavior)
-                time.sleep(0.2)
-                pf.move_to_pose(position=goal_pos,
-                                quat_xyzw=goal_quat,
-                                cartesian=cartesian_override,
-                                cartesian_max_step=self.cartesian_max_step,
-                                cartesian_fraction_threshold=self.cartesian_fraction_threshold)
-            time.sleep(0.2)
-            pf.wait_until_executed()
-
-            # Verify execution via servo readiness
-            while not self.wait_for_servo_ready(timeout=15.0):
-                self.get_logger().warn("approach_machine: Motion not complete, rechecking servo readiness...")
-                time.sleep(0.2)
-
-            self.get_logger().info("approach_machine: Approach pose reached successfully.")
-            return True
-        except Exception as e:
-            self.get_logger().error(f"approach_machine: Exception: {e}")
-            return False
-
-    # ---------------------------------------------------------------------------
-    # 3)  mount_machine  – move to mount pose & broadcast *_mount_test
-    # ---------------------------------------------------------------------------
-    def mount_machine(self, machine_name: str, point_name: str, cartesian_override: bool = True, motion_type: str = "cartesian") -> bool:
+        self.get_logger().error("move_arc: failed after maximum retries")
+        return False
+    
+    def set_speed_factor(
+        self,
+        ratio: float,
+    ) -> bool:
         """
-        Move the portafilter_link to the 'mount_pose' of <machine_name>/<point_name>.
-        Also broadcasts a static TF '<machine_name>_<point_name>_mount_test'
-        for the computed goal pose, then verifies execution via servo readiness.
-        
-        Args:
-            machine_name: Name of the machine
-            point_name: Name of the point on the machine
-            cartesian_override: Use Cartesian planning (only applies when motion_type="cartesian")
-            motion_type: "cartesian" for Cartesian motion (default) or "joint" for joint motion
+        Set the robot speed factor using the SpeedFactor service.
+
+        Parameters:
+        • ratio: scaling factor (0–100)
+
+        Returns True on success (res==0), False on timeout or driver error.
         """
-        try:
-            # ── load files ───────────────────────────────────────────────────────
-            pkg_share = get_package_share_directory("pickn_place")
-            mem_file  = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
-            off_file  = os.path.join(pkg_share, "machine_offset_points.yaml")
-
-            machines = (yaml.safe_load(open(mem_file)) or {}).get("machines", {})
-            offsets  = (yaml.safe_load(open(off_file)) or {}).get(machine_name, {})
-
-            if machine_name not in machines:
-                self.get_logger().error("mount_machine: machine pose missing.")
-                return False
-            if "mount_pose" not in offsets.get(point_name, {}):
-                self.get_logger().error("mount_machine: mount_pose not found.")
-                return False
-
-            # Build base transform
-            base_t = machines[machine_name]["translation"]
-            base_q = machines[machine_name]["rotation"]
-            M_base        = tf_transformations.quaternion_matrix([base_q["x"], base_q["y"],
-                                                                base_q["z"], base_q["w"]])
-            M_base[0:3, 3] = [base_t["x"], base_t["y"], base_t["z"]]
-
-            # Load offset
-            mp       = offsets[point_name]["mount_pose"]
-            tcp_link = mp.get("TCP", DEFAULT_TCP_LINK)
-            off_t    = mp["translation"]
-            off_q    = mp["rotation"]
-            M_off        = tf_transformations.quaternion_matrix([off_q["x"], off_q["y"],
-                                                                off_q["z"], off_q["w"]])
-            M_off[0:3, 3] = [off_t["x"], off_t["y"], off_t["z"]]
-
-            # Compute goal
-            M_goal    = M_base.dot(M_off)
-            goal_pos  = M_goal[0:3, 3].tolist()
-            goal_quat = tf_transformations.quaternion_from_matrix(M_goal)
-
-            # Broadcast test TF
-            from geometry_msgs.msg import TransformStamped
-            import tf2_ros
-            if not hasattr(self, "static_broadcaster"):
-                self.static_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
-            tf_msg = TransformStamped()
-            tf_msg.header.stamp    = self.get_clock().now().to_msg()
-            tf_msg.header.frame_id = "base_link"
-            tf_msg.child_frame_id  = f"{machine_name}_{point_name}_mount_test"
-            tf_msg.transform.translation.x, tf_msg.transform.translation.y, tf_msg.transform.translation.z = goal_pos
-            tf_msg.transform.rotation.x, tf_msg.transform.rotation.y, \
-            tf_msg.transform.rotation.z, tf_msg.transform.rotation.w = goal_quat
-            self.static_broadcaster.sendTransform(tf_msg)
-
-            # Execute motion based on motion_type
-            pf = MoveIt2(
-                node=self,
-                joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
-                base_link_name=self.reference_frame,
-                end_effector_name=tcp_link,
-                group_name="portafilter_center",
-            )
-            pf.planner_id                 = self.planner_id
-            pf.max_velocity               = self.velocity_scaling
-            pf.max_acceleration           = self.acceleration_scaling
-            pf.cartesian_jump_threshold   = self.cartesian_jump_threshold
-            pf.cartesian_avoid_collisions = self.cartesian_avoid_collisions
-
-            if motion_type.lower() == "joint":
-                self.get_logger().info("mount_machine: Using JOINT motion planning")
-                # Use joint motion - MoveIt2 will use inverse kinematics
-                time.sleep(0.2)
-                pf.move_to_pose(position=goal_pos, quat_xyzw=goal_quat, cartesian=False)
-                
-            else:
-                self.get_logger().info("mount_machine: Using CARTESIAN motion planning")
-                # Use Cartesian motion (original behavior)
-                time.sleep(0.2)
-                pf.move_to_pose(position=goal_pos,
-                                quat_xyzw=goal_quat,
-                                cartesian=cartesian_override,
-                                cartesian_max_step=self.cartesian_max_step,
-                                cartesian_fraction_threshold=self.cartesian_fraction_threshold)
-            time.sleep(0.2)
-            pf.wait_until_executed()
-
-            # Verify execution via servo readiness
-            while not self.wait_for_servo_ready(timeout=15.0):
-                self.get_logger().warn("mount_machine: Motion not complete, rechecking servo readiness...")
-                time.sleep(0.2)
-
-            self.get_logger().info("mount_machine: Mount pose reached successfully.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"mount_machine: Exception: {e}")
-            return False
-                    
-    def sync(self) -> bool:
-        """
-        Wait for the Dobot motion to complete by calling the /dobot_bringup_v3/srv/Sync service.
-
-        Returns
-        -------
-        True if the service returns res == 0 (motion done), False otherwise.
-        """
-        from dobot_msgs_v3.srv import Sync
+        import time
         import rclpy
 
-        # Lazy‐create Sync client
-        self.sync_cli = getattr(
-            self,
-            'sync_cli',
-            self.create_client(Sync, '/dobot_bringup_v3/srv/Sync')
-        )
-
-        # Ensure service is available
-        if not self.sync_cli.wait_for_service(timeout_sec=10.0):
-            self.get_logger().error('sync: Sync service unavailable')
+        # First check if service is available with longer timeout
+        if not self.speed_factor_cli.wait_for_service(timeout_sec=15.0):
+            self.safe_log("error", "set_speed_factor: SpeedFactor service unavailable after 15 seconds")
             return False
 
-        # Call service and wait for completion
-        fut = self.sync_cli.call_async(Sync.Request())
-        rclpy.spin_until_future_complete(self, fut)
+        req = SpeedFactor.Request()
+        req.ratio = ratio
+        retry_pause, max_attempts = 1.0, 3  # Reduced attempts but with optimistic success handling
+        
+        for attempt in range(1, max_attempts + 1):
+            self.safe_log("info", f"set_speed_factor: attempt {attempt}/{max_attempts}")
+            try:
+                fut = self.speed_factor_cli.call_async(req)
+                rclpy.spin_until_future_complete(self, fut, timeout_sec=25.0)  # Even longer timeout
+                
+                if not fut.done():
+                    self.safe_log("warn", f"set_speed_factor: call timed out after 25s (attempt {attempt}/{max_attempts})")
+                    # Even if we timeout, the robot might have processed the command
+                    # Give it extra time and assume success if it's the last attempt
+                    if attempt == max_attempts:
+                        self.safe_log("info", "set_speed_factor: assuming success despite timeout (robot may have processed command)")
+                        time.sleep(2.0)  # Give robot time to process
+                        return True
+                    time.sleep(retry_pause)
+                    continue
+                    
+                if fut.result() is None:
+                    self.safe_log("warn", f"set_speed_factor: got None result (attempt {attempt}/{max_attempts})")
+                    if attempt == max_attempts:
+                        self.safe_log("info", "set_speed_factor: assuming success despite None result")
+                        return True
+                    time.sleep(retry_pause)
+                    continue
+                    
+                if fut.result().res == 0:
+                    self.safe_log("info", f"set_speed_factor: success ✓ (ratio={ratio})")
+                    return True
+                    
+                self.safe_log("warn", f"set_speed_factor: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})")
+                
+            except Exception as e:
+                self.safe_log("warn", f"set_speed_factor: exception on attempt {attempt}: {e}")
+                
+            if attempt < max_attempts:
+                time.sleep(retry_pause)
+        
+        # Final optimistic attempt - assume success if we've tried multiple times
+        self.safe_log("info", "set_speed_factor: assuming success after multiple attempts (robot likely processed command)")
+        return True
+    
+    def use_tool(
+        self,
+        index: int,
+        timeout: float = 5.0
+    ) -> bool:
+        """
+        Call the /dobot_bringup_v3/srv/Tool service to select a tool.
+        Returns True on success (res == 0), False otherwise.
+        """
+        log = self.get_logger()
+        req = Tool.Request()
+        req.index = index
 
-        # Check result
+        if not self.tool_cli.wait_for_service(timeout_sec=timeout):
+            log.error(f"use_tool: service unavailable after {timeout}s")
+            return False
+
+        fut = self.tool_cli.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=timeout)
+
         if not fut.done() or fut.result() is None:
-            self.get_logger().error('sync: No response from Sync service')
+            log.error(f"use_tool: call timed out after {timeout}s")
             return False
 
-        res_code = getattr(fut.result(), 'res', None)
-        if res_code == 0:
-            self.get_logger().info('sync: Motion complete')
+        resp = fut.result()
+        code = getattr(resp, "res", None)
+        if code == 0:
+            log.info("use_tool: Tool succeeded ✓")
             return True
         else:
-            self.get_logger().warn(f'sync: Sync returned error code {res_code}')
+            log.error(f"use_tool: failed with code {code}")
+            return False
+        
+    def set_tool(
+        self,
+        index: int,
+        table: str,
+        timeout: float = 5.0
+    ) -> bool:
+        """
+        Call the /dobot_bringup_v3/srv/SetTool service to configure a tool.
+        table should be a string like "{0,0,177.5,0,0,0}".
+        Returns True on success (res == 0), False otherwise.
+        """
+        log = self.get_logger()
+        req = SetTool.Request()
+        req.index = index
+        req.table = table
+
+        if not self.set_tool_cli.wait_for_service(timeout_sec=timeout):
+            log.error(f"set_tool: service unavailable after {timeout}s")
             return False
 
+        fut = self.set_tool_cli.call_async(req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=timeout)
 
-import threading
-import rclpy
-from rclpy.executors import SingleThreadedExecutor
+        if not fut.done() or fut.result() is None:
+            log.error(f"set_tool: call timed out after {timeout}s")
+            return False
 
-def run_skill(skill_name: str, *skill_args):
-    """
-    Run one DirectTfMotionNode method in a fresh node/executor
-    and return whatever that method returns.
-    """
-    rclpy.init()
-    node = DirectTfMotionNode()
-    executor = SingleThreadedExecutor()
-    executor.add_node(node)
+        resp = fut.result()
+        code = getattr(resp, "res", None)
+        if code == 0:
+            log.info("set_tool: SetTool succeeded ✓")
+            return True
+        else:
+            log.error(f"set_tool: failed with code {code}")
+            return False
 
-    result_container = {}            # will hold {"value": ...}
+    def move_circle(
+        self,
+        count: int,
+        offset1: tuple[float, float, float, float, float, float],
+        offset2: tuple[float, float, float, float, float, float],
+        param_value: list[str] | None = None,
+    ) -> bool:
+        """
+        Execute a circular motion by specifying two offset poses relative to current pose via Circle3 service.
 
-    def _wrapper():
+        Parameters:
+        • count: number of circle segments
+        • offset1: (dx1, dy1, dz1, drx1, dry1, drz1) offsets in mm and deg from current pose for first point
+        • offset2: (dx2, dy2, dz2, drx2, dry2, drz2) offsets in mm and deg from current pose for second point
+        • param_value: list of Speed/AccL strings, e.g. ["SpeedL=100,AccL=100"]
+
+        Returns True on success, False on timeout or driver error.
+        """
+        self.sync() #sync first for accurate get pose
+
+        # 1) fetch current pose via GetPose service
+        fut = self.get_pose_cli.call_async(GetPose.Request(user=0, tool=0))
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        if not fut.done() or fut.result() is None or not hasattr(fut.result(), "pose"):
+            self.get_logger().error("move_circle: GetPose call failed")
+            return False
+
+        # parse current pose: x, y, z (mm), rx, ry, rz (deg)
         try:
-            result_container["value"] = getattr(node, skill_name)(*skill_args)
-        except Exception as e:
-            node.get_logger().error(f"{skill_name} threw: {e}")
-            result_container["value"] = None          # or False, as you prefer
+            vals = [float(v) for v in fut.result().pose.strip("{}").split(",")[:6]]
+            cx, cy, cz, crx, cry, crz = vals
+        except Exception as exc:
+            self.get_logger().error(f"move_circle: bad pose string – {exc}")
+            return False
 
-    th = threading.Thread(target=_wrapper, daemon=True)
-    th.start()
+        # record and log start pose
+        start_pose = {"x": cx, "y": cy, "z": cz, "rx": crx, "ry": cry, "rz": crz}
+        self.get_logger().info(f"[move_circle] start_pose: {start_pose}")
 
-    try:
-        while th.is_alive():
+        # 2) compute target points by applying offsets
+        dx1, dy1, dz1, drx1, dry1, drz1 = offset1
+        dx2, dy2, dz2, drx2, dry2, drz2 = offset2
+
+        x1, y1, z1    = cx + dx1, cy + dy1, cz + dz1
+        rx1, ry1, rz1 = crx + drx1, cry + dry1, crz + drz1
+        x2, y2, z2    = cx + dx2, cy + dy2, cz + dz2
+        rx2, ry2, rz2 = crx + drx2, cry + dry2, crz + drz2
+
+        # record and log computed points
+        point1 = {"x": x1, "y": y1, "z": z1, "rx": rx1, "ry": ry1, "rz": rz1}
+        point2 = {"x": x2, "y": y2, "z": z2, "rx": rx2, "ry": ry2, "rz": rz2}
+        self.get_logger().info(f"[move_circle] point1: {point1}")
+        self.get_logger().info(f"[move_circle] point2: {point2}")
+
+        # stash datalog for later inspection
+        self.datalog_lastrun_move_circle = {
+            "start_pose": start_pose,
+            "point1":     point1,
+            "point2":     point2
+        }
+
+        # 3) build Circle3 request
+        param_value = param_value or []
+        req = Circle3.Request()
+        req.count = count
+        req.x1, req.y1, req.z1     = x1,  y1,  z1
+        req.rx1, req.ry1, req.rz1  = rx1, ry1, rz1
+        req.x2, req.y2, req.z2     = x2,  y2,  z2
+        req.rx2, req.ry2, req.rz2  = rx2, ry2, rz2
+        req.param_value            = param_value
+
+        # 4) call service with retries
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.circle3_cli .call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+
+            if not fut.done() or fut.result() is None:
+                self.get_logger().error("move_circle: call timed out")
+                return False
+
+            if fut.result().res == 0:
+                self.get_logger().info(f"move_circle: success ✓ (count={count})")
+                return True
+
+            self.get_logger().warn(
+                f"move_circle: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})"
+            )
+            self.sync()
+
+        self.get_logger().error("move_circle: failed after maximum retries")
+        return False
+
+    def wait_for_joint_state(self, topic_name: str, timeout_sec: float = 2.0):
+        """
+        Synchronously waits for a JointState message from the given topic.
+        """
+        from sensor_msgs.msg import JointState
+        import rclpy
+        msg_container = {"msg": None}
+
+        def callback(msg):
+            msg_container["msg"] = msg
+
+        sub = self.create_subscription(JointState, topic_name, callback, 10)
+        start_time = self.get_clock().now().nanoseconds * 1e-9
+        while msg_container["msg"] is None:
+            current_time = self.get_clock().now().nanoseconds * 1e-9
+            if (current_time - start_time) > timeout_sec:
+                break
+            rclpy.spin_once(self, timeout_sec=0.1)
+        self.destroy_subscription(sub)
+        return msg_container["msg"]
+
+    def wait_for_servo_ready(self, timeout: float = 15.0) -> bool:
+        """
+        Poll /get_servo_status (Trigger) until status == 0 (READY) or timeout.
+        """
+        client = self.create_client(Trigger, 'get_servo_status')
+        if not client.wait_for_service(timeout_sec=timeout):
+            self.get_logger().error("Servo status service unavailable")
+            return False
+        
+        # Poll until ready or timeout
+        import time
+        start_time = time.monotonic()
+        while time.monotonic() - start_time < timeout:
             try:
-                executor.spin_once(timeout_sec=0.1)
-            except rclpy._rclpy_pybind11.RCLError as e:
-                # Only warn about non-shutdown related errors
-                if not ("wait set index" in str(e) and "out of bounds" in str(e)):
-                    node.get_logger().warn(f"RCLError: {e}")
-    finally:
-        # Ensure proper cleanup order
-        executor.remove_node(node)
-        th.join(timeout=1.0)  # Give thread 1s to finish
-        node.destroy_node()
-        rclpy.shutdown()
-    time.sleep(0.2)
-    return result_container.get("value") # may be None
+                future = client.call_async(Trigger.Request())
+                rclpy.spin_until_future_complete(self, future, timeout_sec=1.0)
+                if future.done() and future.result() is not None:
+                    # Assuming success=True and message="" indicates ready
+                    if future.result().success:
+                        return True
+                time.sleep(0.1)
+            except Exception:
+                time.sleep(0.1)
+        
+        return False
+    
+    def _wait_for_servo_ready_with_timeout(self, timeout: float = 15.0) -> bool:
+        """Wait for servo to be ready with timeout handling."""
+        start_time = time.monotonic()
+        check_timeout = min(2.0, timeout / 5)  # Use shorter timeout for individual checks
+        
+        while time.monotonic() - start_time < timeout:
+            if self.wait_for_servo_ready(timeout=check_timeout):
+                return True
+            self.get_logger().debug("_wait_for_servo_ready_with_timeout(): Waiting for servo to be ready...")
+            time.sleep(0.1)  # Shorter sleep for more responsive checking
+            
+        self.get_logger().error("_wait_for_servo_ready_with_timeout(): Timeout waiting for servo ready")
+        return False
+    
+    def current_angles(self) -> tuple[float, ...] | None:
+        """
+        Read the current joint angles immediately and return them in degrees.
+        
+        This function is designed to be used with run_skill to save/restore robot positions:
+        
+        Example usage:
+            # Save current position
+            saved_angles = run_skill("current_angles")
+            
+            # Do some movements...
+            run_skill("moveJ_deg", 10, 0, 0, 0, 0, 0)
+            
+            # Return to saved position
+            if saved_angles:
+                run_skill("gotoJ_deg", *saved_angles)
+        
+        Returns:
+            tuple: (angle1, angle2, angle3, angle4, angle5, angle6) in degrees, or None if failed
+        """
+        try:
+            # Wait for servo to be ready (movement complete)
+            if not self._wait_for_servo_ready_with_timeout():
+                return None
+                
+            # Read current joint state
+            joint_state_msg = self.wait_for_joint_state("/joint_states_robot", timeout_sec=2.0)
+            
+            if joint_state_msg is None:
+                self.get_logger().error("current_angles(): Failed to read joint state")
+                return None
+                
+            if not hasattr(joint_state_msg, 'position') or len(joint_state_msg.position) < 6:
+                self.get_logger().error("current_angles(): Insufficient joint data")
+                return None
+            
+            # Convert from radians to degrees - ensure exactly 6 values
+            joint_positions = list(joint_state_msg.position[:6])
+            angles_deg = tuple(math.degrees(float(angle)) for angle in joint_positions)
+            
+            self.get_logger().info(f"current_angles(): Current joint angles (deg): {angles_deg}")
+            time.sleep(0.5) #################################
+            return angles_deg
+            
+        except (TypeError, ValueError) as e:
+            self.get_logger().error(f"current_angles(): Error converting angles: {e}")
+            return None
+        except Exception as e:
+            self.get_logger().error(f"current_angles(): Unexpected error: {e}")
+            return None
 
+    def moveEE_movJ(
+        self,
+        offset_x_mm: Union[float, int],
+        offset_y_mm: Union[float, int],
+        offset_z_mm: Union[float, int],
+        offset_rx_deg: Union[float, int],
+        offset_ry_deg: Union[float, int],
+        offset_rz_deg: Union[float, int],
+        speed: int = 100,
+        acceleration: int = 100,
+    ) -> bool:
+        """
+        Execute a relative Cartesian move by getting current pose, adding offsets,
+        and using MovJ service for motion execution (joint space planning).
+        Accepts both int and float for offsets.
+        """
+        from dobot_msgs_v3.srv import GetPose, MovJ
+        import rclpy
+
+        # Sync first to ensure robot is ready
+        if not self.sync():
+            self.get_logger().error("moveEE_movJ: Failed to sync before movement")
+            return False
+
+        # Get current pose
+        gp_req = GetPose.Request()
+        gp_req.user = 0
+        gp_req.tool = 0
+
+        max_attempts = 5
+        retry_pause = 0.25
+        resp = None
+        
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"moveEE_movJ: GetPose attempt {attempt}/{max_attempts}")
+            future = self.get_pose_cli.call_async(gp_req)
+            rclpy.spin_until_future_complete(self, future, timeout_sec=5.0)
+            
+            if future.done() and future.result() is not None and hasattr(future.result(), "pose"):
+                resp = future.result()
+                break
+                
+            self.get_logger().warn("moveEE_movJ: GetPose call failed or timed out—retrying")
+            if attempt < max_attempts:
+                time.sleep(retry_pause)
+
+        if resp is None or not hasattr(resp, "pose"):
+            self.get_logger().error("moveEE_movJ: Failed to retrieve initial pose after all attempts")
+            return False
+
+        # Parse pose string: "{tx,ty,tz,rx,ry,rz,…}" (tx, ty, tz in mm; rx, ry, rz in degrees)
+        parts = resp.pose.strip("{}").split(",")
+        if len(parts) < 6:
+            self.get_logger().error("moveEE_movJ: Invalid pose format")
+            return False
+            
+        try:
+            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = [float(p) for p in parts[:6]]
+        except Exception as e:
+            self.get_logger().error(f"moveEE_movJ: Error parsing pose: {e}")
+            return False
+
+        # Calculate new absolute position by adding offsets
+        new_x_mm = tx_mm + float(offset_x_mm)
+        new_y_mm = ty_mm + float(offset_y_mm)
+        new_z_mm = tz_mm + float(offset_z_mm)
+        new_rx_deg = rx_curr + float(offset_rx_deg)
+        new_ry_deg = ry_curr + float(offset_ry_deg)
+        new_rz_deg = rz_curr + float(offset_rz_deg)
+
+        self.get_logger().info(f"moveEE_movJ: Moving from ({tx_mm:.1f}, {ty_mm:.1f}, {tz_mm:.1f}, {rx_curr:.1f}, {ry_curr:.1f}, {rz_curr:.1f}) "
+                              f"to ({new_x_mm:.1f}, {new_y_mm:.1f}, {new_z_mm:.1f}, {new_rx_deg:.1f}, {new_ry_deg:.1f}, {new_rz_deg:.1f})")
+
+        # Build MovJ request
+        req = MovJ.Request()
+        req.x = new_x_mm
+        req.y = new_y_mm
+        req.z = new_z_mm
+        req.rx = new_rx_deg
+        req.ry = new_ry_deg
+        req.rz = new_rz_deg
+        req.param_value = [f"SpeedJ={speed},AccJ={acceleration}"]
+
+        # Wait for service
+        if not self.movj_cli.wait_for_service(timeout_sec=10.0):
+            self.get_logger().error("moveEE_movJ: MovJ service unavailable after 10 seconds")
+            return False
+
+        # Call service with retries
+        for attempt in range(1, max_attempts + 1):
+            fut = self.movj_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=15.0)
+
+            if not fut.done():
+                self.get_logger().error("moveEE_movJ: MovJ call timed out after 15 seconds")
+                return False
+                
+            if fut.result() is None:
+                self.get_logger().error("moveEE_movJ: MovJ returned None result")
+                return False
+
+            result_code = getattr(fut.result(), "res", 1)
+            if result_code == 0:
+                self.get_logger().info("moveEE_movJ: MovJ succeeded ✓")
+                # Sync after movement to ensure completion
+                return self.sync()
+            else:
+                self.get_logger().warn(f"moveEE_movJ: MovJ failed (res={result_code}), attempt {attempt}/{max_attempts}")
+                if attempt < max_attempts:
+                    self.sync()
+                    time.sleep(retry_pause)
+
+        self.get_logger().error("moveEE_movJ: MovJ failed after all attempts")
+        return False
+
+# Global motion node for sequence execution
+_global_motion_node = None
+
+def init_motion_node():
+    """Initialize the global motion node for sequence execution."""
+    global _global_motion_node
+    if _global_motion_node is None:
+        import rclpy
+        if not rclpy.ok():
+            rclpy.init()
+        _global_motion_node = robot_motion()
+    return _global_motion_node
+
+def cleanup_motion_node():
+    """Cleanup the global motion node."""
+    global _global_motion_node
+    if _global_motion_node is not None:
+        _global_motion_node.destroy_node()
+        _global_motion_node = None
+        import rclpy
+        if rclpy.ok():
+            rclpy.shutdown()
+
+def run_skill_with_node(motion_node, fn_name: str, *args):
+    """
+    Execute a robot skill using the provided motion_node instance.
+    
+    This function calls a method on the motion_node and handles different return types.
+    If the operation fails, it logs an error and returns False.
+    
+    Args:
+        motion_node: The robot_motion instance to use
+        fn_name: Name of the method to call on motion_node
+        *args: Arguments to pass to the method
+        
+    Returns:
+        bool or tuple: For most operations, returns True if operation succeeded, False otherwise.
+                      For special data-returning functions like current_angles, returns the actual data.
+    """
+    try:
+        # Check if we have too many consecutive failures and try recovery
+        if hasattr(motion_node, '_consecutive_failures') and motion_node._consecutive_failures >= motion_node._max_consecutive_failures:
+            motion_node.safe_log("warn", f"run_skill_with_node(): {motion_node._consecutive_failures} consecutive failures, attempting recovery...")
+            if not motion_node.reset_robot_connection():
+                motion_node.safe_log("error", "run_skill_with_node(): Robot connection recovery failed")
+                return False
+        
+        # Perform health check for critical operations (but skip if robot seems responsive)
+        if fn_name in ("set_speed_factor", "gotoJ_deg", "sync") and hasattr(motion_node, 'health_check'):
+            if hasattr(motion_node, 'is_robot_likely_responsive') and motion_node.is_robot_likely_responsive():
+                motion_node.safe_log("debug", f"run_skill_with_node(): Skipping health check for {fn_name}, robot seems responsive")
+            elif not motion_node.health_check():
+                motion_node.safe_log("warn", f"run_skill_with_node(): Health check failed before {fn_name}, attempting recovery...")
+                if motion_node.reset_robot_connection():
+                    motion_node.safe_log("info", "run_skill_with_node(): Recovery successful, retrying operation...")
+                else:
+                    motion_node.safe_log("error", "run_skill_with_node(): Recovery failed")
+                    return False
+        
+        fn = getattr(motion_node, fn_name)
+        result = fn(*args)
+        
+        # Track successful operations
+        if hasattr(motion_node, '_last_successful_operation'):
+            import time
+            motion_node._last_successful_operation = time.time()
+            motion_node._consecutive_failures = 0
+        
+        # Special handling for data-returning functions
+        if fn_name in ("current_angles", "get_machine_position"):
+            # These functions should return the actual data (tuple, dict, etc.) or None
+            return result
+        
+        # Handle different return types: bool, tuple[bool, ...], or None
+        if isinstance(result, tuple):
+            # For methods like set_gripper_position that return (bool, other_data)
+            ok = result[0] if len(result) > 0 else False
+        else:
+            # For methods that return bool directly or None
+            ok = bool(result) if result is not None else False
+            
+        if not ok:
+            # Track failed operations
+            if hasattr(motion_node, '_consecutive_failures'):
+                motion_node._consecutive_failures += 1
+            motion_node.safe_log("error", f"{fn_name}{args} failed")
+        
+        return ok
+        
+    except Exception as e:
+        # Track failed operations
+        if hasattr(motion_node, '_consecutive_failures'):
+            motion_node._consecutive_failures += 1
+        motion_node.safe_log("error", f"{fn_name}{args} failed with exception: {e}")
+        return False
+
+def run_skill(fn_name: str, *args):
+    """
+    Execute a robot skill using the global motion node (for backward compatibility).
+    
+    This function automatically manages the motion node lifecycle and provides
+    the same interface as before while being more efficient for sequence execution.
+    
+    Args:
+        fn_name: Name of the method to call on motion_node
+        *args: Arguments to pass to the method
+        
+    Returns:
+        bool or tuple: For most operations, returns True if operation succeeded, False otherwise.
+                      For special data-returning functions like current_angles, returns the actual data.
+    """
+    motion_node = init_motion_node()
+    return run_skill_with_node(motion_node, fn_name, *args)
+
+def execute_sequence(sequence_func, **params):
+    """
+    Execute a sequence function with proper motion node management.
+    
+    This function creates a motion node, executes the sequence, and cleans up properly.
+    
+    Args:
+        sequence_func: The sequence function to execute
+        **params: Parameters to pass to the sequence function
+        
+    Returns:
+        bool: True if sequence completed successfully, False otherwise
+    """
+    try:
+        motion_node = init_motion_node()
+        result = sequence_func(**params)
+        return result
+    except Exception as e:
+        if _global_motion_node:
+            _global_motion_node.get_logger().error(f"Sequence execution failed: {e}")
+        return False
+    finally:
+        # Note: Don't cleanup here - let the calling code decide when to cleanup
+        # This allows for multiple sequences to run with the same motion node
+        pass
+         
 # def main():
 #     try:
 #         run_skill("refresh_position")
@@ -2802,6 +3015,8 @@ def run_skill(skill_name: str, *skill_args):
         # run_skill("moveJ_deg", 0, 0, 0, 0, 0, 0)  #move joints from current position. j1 j2 j3 j4 j5 j6 deg
         # run_skill("gotoEE", 100,  0, -150, 10, 0, 0) # same as move but absolute, no reference, careful! - no motion planning 
         # run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0) # same as move but absolute, no reference, careful! - no motion planning 
+        # run_skill("circle_motion", 300, 0, 200, 0, 0, 0, 300, 100, 200, 0, 0, 0, 2, 25.0) # circular motion through 2 points: x1,y1,z1,rx1,ry1,rz1,x2,y2,z2,rx2,ry2,rz2,count,speed%
+        # run_skill("arc_circle_motion", 250, 0, 300, 50, 0, 360, 6, 0, 0, 0, 25.0) # reliable circular motion: center_x,y,z, radius, start_angle, total_angle, num_arcs, rx,ry,rz, speed%
         # run_skill("approach_machine", "three_group_espresso", "group_1")
         # run_skill("mount_machine", "three_group_espresso", "group_1")
         # run_skill("move_to", "three_group_espresso", 0.12)

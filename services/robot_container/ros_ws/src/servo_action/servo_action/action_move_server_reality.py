@@ -59,7 +59,7 @@ class MoveCircleActionServer(Node):
         self._external_moving = False
 
         # -------------------- PARAMS --------------------
-        self.max_points = 55
+        self.max_points = 35
         self.sleep_timing = 0.12
         self.cache_expiry = None                     # watchdog disabled
         self.verify_tolerance_rad = rad(0.5)
@@ -147,7 +147,7 @@ class MoveCircleActionServer(Node):
         )
 
         # 10) Timer (0.1 s) for mirror-back & external-motion detection
-        self.create_timer(0.1, self._on_timer_tick)
+        self.create_timer(0.025, self._on_timer_tick)
 
         self.get_logger().info('Servo action node initialised.')
 

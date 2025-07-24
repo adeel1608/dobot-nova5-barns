@@ -38,7 +38,7 @@ set(srv_files
       "srv/Arc.srv"
       "srv/Arch.srv"
       "srv/BrakeControl.srv"
-      "srv/Circle.srv"
+      "srv/Circle3.srv"
       "srv/ClearError.srv"
       "srv/Continues.srv"
       "srv/ContinueScript.srv"
@@ -113,6 +113,7 @@ set(srv_files
       "srv/ToolDOExecute.srv"
       "srv/User.srv"
       "srv/Wait.srv"
+      "srv/SetTool.srv"
 
         )
 
