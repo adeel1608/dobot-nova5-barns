@@ -23,6 +23,7 @@ failed_count = 0     # Counter for tasks failed
 lock = threading.Lock()  # Lock to synchronize access to shared data
 current_status = {"order_id": None, "cup_index": None, "step": None, "status": "idle"}
 status_callback = None  # Callback function to notify about status updates
+order_completion_notified = False  # Flag to prevent duplicate completion notifications
 
 # Configuration for the routine service
 ROUTINE_SERVICE_URL = "http://routine:8000"  # Can be overridden via environment variable
@@ -301,7 +302,7 @@ def register_status_callback(callback):
 
 def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Create task entries for an order received through the API."""
-    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count
+    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified
     
     logger.log(f"🔍 DEBUG: setup_tasks_from_order called for order {order_id}")
     logger.log(f"🔍 DEBUG: Received recipes: {list(recipes.keys()) if recipes else 'None/Empty'}")
@@ -314,6 +315,7 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
     failed_tasks = []
     failed_count = 0
     tasks_total = 0
+    order_completion_notified = False  # Reset completion notification flag for new order
     
     current_status.update({"order_id": order_id, "status": "in_progress", "step": "preparing"})
     
@@ -349,7 +351,7 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
 
 async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Process an order asynchronously using the scheduler."""
-    global current_status, completed_count, tasks_total, failed_count
+    global current_status, completed_count, tasks_total, failed_count, order_completion_notified
     
     logger.log(f"🔍 DEBUG: process_order_async called for order {order_id} with {len(drinks)} drinks")
     logger.log(f"🔍 DEBUG: Available recipes: {list(recipes.keys()) if recipes else 'No recipes loaded'}")
@@ -418,7 +420,11 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         
         # Check if order was successful or failed
         with lock:
-            if failed_count > 0:
+            if order_completion_notified:
+                # Completion already notified by feedback handler
+                logger.log(f"✅ [SCHEDULER] Order {order_id} completion already notified by feedback handler")
+                return completed_count == tasks_total and failed_count == 0
+            elif failed_count > 0:
                 # Some tasks failed - mark order as failed
                 current_status.update({"status": "error", "step": f"{failed_count} tasks failed"})
                 await update_status(f"Order {order_id} failed: {failed_count} out of {tasks_total} tasks failed")
@@ -429,6 +435,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 
                 # Notify OMS about order failure
                 await notify_oms_completion(order_id, False, reason)
+                order_completion_notified = True
                 return False
             elif completed_count == tasks_total:
                 # All tasks completed successfully
@@ -437,6 +444,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 
                 # Notify OMS about order completion
                 await notify_oms_completion(order_id, True)
+                order_completion_notified = True
                 return True
             else:
                 # This shouldn't happen, but handle it as a failure
@@ -446,6 +454,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 
                 # Notify OMS about order failure
                 await notify_oms_completion(order_id, False, reason)
+                order_completion_notified = True
                 return False
                 
     except Exception as e:
@@ -468,6 +477,7 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     
     # Variables to track what needs to be done outside the lock
     update_message = None
+    should_check_order_completion = False
     
     with lock:
         # Find the first matching task that is not yet completed/failed
@@ -496,6 +506,9 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                     failed_tasks.append(task)
                     failed_count += 1
                     logger.log(f"❌ [SCHEDULER] Task failed: {action} for cup {cup_id}. New failed_count: {failed_count}")
+                
+                # Check if we should evaluate order completion after this task update
+                should_check_order_completion = True
                 break
         
         if not task_found:
@@ -505,6 +518,62 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     # Call async operations outside the lock to prevent blocking
     if update_message:
         await update_status(update_message)
+    
+    # Check for order completion after processing this task feedback
+    if should_check_order_completion:
+        await check_and_notify_order_completion()
+
+async def check_and_notify_order_completion():
+    """Check if the current order is complete and notify OMS if so."""
+    global completed_count, failed_count, tasks_total, current_status, order_completion_notified
+    
+    with lock:
+        total_finished = completed_count + failed_count
+        order_id = current_status.get("order_id")
+        
+        logger.log(f"🔍 [SCHEDULER] Checking order completion: completed={completed_count}, failed={failed_count}, total={tasks_total}")
+        
+        # Only proceed if we have an order_id and all tasks are finished
+        if not order_id or total_finished < tasks_total:
+            return
+        
+        # Prevent duplicate notifications
+        if order_completion_notified:
+            logger.log(f"⚠️ [SCHEDULER] Order {order_id} completion already notified. Skipping.")
+            return
+        
+        logger.log(f"🎯 [SCHEDULER] All tasks finished for order {order_id}. Determining final status...")
+        
+        if failed_count > 0:
+            # Some tasks failed - notify failure
+            failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_tasks]
+            reason = f"Failed tasks: {', '.join(failed_task_names)}"
+            
+            current_status.update({"status": "error", "step": f"{failed_count} tasks failed"})
+            await update_status(f"Order {order_id} failed: {failed_count} out of {tasks_total} tasks failed")
+            
+            logger.log(f"❌ [SCHEDULER] Notifying OMS of order {order_id} failure: {reason}")
+            await notify_oms_completion(order_id, False, reason)
+            
+        elif completed_count == tasks_total:
+            # All tasks completed successfully
+            current_status.update({"status": "completed", "step": None, "cup_index": None})
+            await update_status(f"Order {order_id} completed successfully")
+            
+            logger.log(f"✅ [SCHEDULER] Notifying OMS of order {order_id} completion")
+            await notify_oms_completion(order_id, True)
+            
+        else:
+            # This shouldn't happen, but handle it as a failure
+            reason = f"Unexpected state: {completed_count} completed, {failed_count} failed out of {tasks_total} total"
+            current_status.update({"status": "error", "step": reason})
+            await update_status(f"Order {order_id} failed: {reason}")
+            
+            logger.log(f"❌ [SCHEDULER] Notifying OMS of order {order_id} unexpected failure: {reason}")
+            await notify_oms_completion(order_id, False, reason)
+
+        # Set the flag after successful notification
+        order_completion_notified = True
 
 # Helper function to notify OMS of order completion
 async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None):

@@ -71,6 +71,9 @@ def get_frother_position(**params) -> bool:
             return False
         print("   ✅ Gripper opened successfully")
         
+        run_skill("moveEE_deg", -10, 0, 0, 0, 0, 0)
+        run_skill("sync")
+
         # Step 3: Steam wand positioning and preparation
         print("🎯 Step 3/5: Steam wand positioning and preparation...")
         print("   📍 Moving to steam wand...")

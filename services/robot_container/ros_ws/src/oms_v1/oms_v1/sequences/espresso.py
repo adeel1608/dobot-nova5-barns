@@ -964,7 +964,7 @@ def pour_espresso_pitcher(**params) -> bool:
         
         # Step 6: Rotate back
         print("🔄 Step 6/6: Rotating back to original orientation...")
-        rotate_result = run_skill("moveJ_deg", -90, 0, -15, -30, 0, 0)
+        rotate_result = run_skill("moveJ_deg", -70, 0, -15, -30, 0, 0)
         
         if rotate_result is False:
             print("[ERROR] Failed to rotate back")
