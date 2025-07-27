@@ -364,8 +364,8 @@ start_robot() {
         
         if [[ -n "$j1_val" ]]; then
             sleep 1 # Stagger service calls
-            ros2 service call /dobot_bringup_v3/srv/ServoJ dobot_msgs_v3/srv/ServoJ \
-                "{j1: ${j1_val}, j2: 30.0, j3: -130.0, j4: -100.0, j5: -90.0, j6: 0.0, t: 2.0}" > /dev/null
+            ros2 service call /dobot_bringup_v3/srv/JointMovJ dobot_msgs_v3/srv/JointMovJ \
+                "{j1: ${j1_val}, j2: 30.0, j3: -130.0, j4: -100.0, j5: -90.0, j6: 0.0}" > /dev/null
         fi
         
         # More drag operations
