@@ -79,7 +79,7 @@
     {
       "action": "Milk_Dispensing",
       "assigned_arm": "",
-      "depends_on": [""],
+      "depends_on": [],
       "params": {
         "milk_type": "whole",
         "amount": 20
@@ -88,7 +88,7 @@
     {
       "action": "Milk_Frother_Calibration",
       "assigned_arm": "Arm2",
-      "depends_on": [""]
+      "depends_on": []
     },
     {
       "action": "Milk_Frothing",

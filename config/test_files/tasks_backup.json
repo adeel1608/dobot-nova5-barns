@@ -32,14 +32,14 @@
         "type": "robot",
         "function": "grab_plastic_cup",
         "params": {
-          "cup_size": "7oz" # options 7oz, 9oz, 12oz, 16oz
+          "cup_size": "7oz"
         }
       },
       {
         "type": "robot",
         "function": "place_plastic_cup",
         "params": {
-          "stage": "1" # options 1, 2
+          "stage": "1"
         }
       }
     ]
@@ -129,7 +129,7 @@
         "type": "robot",
         "function": "clean",
         "params": {
-          "port": "port_2" # options port_1, port_2, port_3
+          "port": "port_2"
         }
       }
     ]
@@ -140,7 +140,7 @@
         "type": "robot",
         "function": "pick_espresso_pitcher",
         "params": {
-          "port": "port_2" # options port_1, port_2, port_3
+          "port": "port_2"
         }
       },
       {
@@ -157,14 +157,14 @@
         "type": "robot",
         "function": "pour_espresso_pitcher",
         "params": {
-          "stage": "stage_1" # options stage_1, stage_2
+          "stage": "stage_1"
         }
       },
       {
         "type": "robot",
         "function": "return_espresso_pitcher",
         "params": {
-          "port": "port_2" # options port_1, port_2, port_3
+          "port": "port_2"
         }
       }
     ]
@@ -176,9 +176,9 @@
         "function": "dispense_milk",
         "params": {
           "milk_type": "whole",
-          "amount": 60 # options machiato - 20, cortado - 70ml, cappucino - 110ml/260ml, latte 160ml/280ml
+          "amount": 60
         }
-      },
+      }
     ]
   },
   "Milk_Frother_Calibration": {
