@@ -346,10 +346,18 @@ start_robot() {
         elif awk "BEGIN {exit !($a1 >=  67.51 && $a1 <= 112.49)}"; then j1_val=90.0
         elif awk "BEGIN {exit !($a1 >= 112.51 && $a1 <= 157.49)}"; then j1_val=135.0
         elif awk "BEGIN {exit !($a1 >= 157.51 && $a1 <= 202.49)}"; then j1_val=180.0
+        elif awk "BEGIN {exit !($a1 >= 202.51 && $a1 <= 247.49)}"; then j1_val=-135.0
+        elif awk "BEGIN {exit !($a1 >= 247.51 && $a1 <= 292.49)}"; then j1_val=-90.0
+        elif awk "BEGIN {exit !($a1 >= 292.51 && $a1 <= 337.49)}"; then j1_val=-45.0
+        elif awk "BEGIN {exit !($a1 >= 337.51 && $a1 <= 360.00)}"; then j1_val=0.0
         elif awk "BEGIN {exit !($a1 <= -22.51 && $a1 >= -67.49)}"; then j1_val=-45.0
         elif awk "BEGIN {exit !($a1 <= -67.51 && $a1 >= -112.49)}"; then j1_val=-90.0
         elif awk "BEGIN {exit !($a1 <= -112.51 && $a1 >= -157.49)}"; then j1_val=-135.0
         elif awk "BEGIN {exit !($a1 <= -157.51 && $a1 >= -202.49)}"; then j1_val=-180.0
+        elif awk "BEGIN {exit !($a1 <= -202.51 && $a1 >= -247.49)}"; then j1_val=135.0
+        elif awk "BEGIN {exit !($a1 <= -247.51 && $a1 >= -292.49)}"; then j1_val=90.0
+        elif awk "BEGIN {exit !($a1 <= -292.51 && $a1 >= -337.49)}"; then j1_val=45.0
+        elif awk "BEGIN {exit !($a1 <= -337.51 && $a1 >= -360.00)}"; then j1_val=0.0
         fi
         
         if [[ -n "$j1_val" ]]; then

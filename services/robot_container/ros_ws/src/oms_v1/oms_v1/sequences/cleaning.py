@@ -32,7 +32,7 @@ def clean(**params) -> bool:
     both hard and soft brush cleaning methods with automated positioning.
     
     Args:
-        port (str): The portafilter port to clean ('port_1', 'port_2', or 'port_3')
+        port (str): The portafilter port to clean ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if cleaning sequence completed successfully, False otherwise
@@ -47,7 +47,7 @@ def clean(**params) -> bool:
     """
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False

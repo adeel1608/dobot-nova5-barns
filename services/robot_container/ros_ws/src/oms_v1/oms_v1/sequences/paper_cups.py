@@ -29,7 +29,7 @@ def grab_paper_cup(**params) -> bool:
     5. Returns to intermediate position ready for placement
     
     Args:
-        size (str): Paper cup size to grab ('7oz', '9oz', '12oz', etc.)
+        size (str): Paper cup size to grab ('7oz', '9oz', '12oz', etc.), defaults to '7oz'
         
     Returns:
         bool: True if paper cup grabbed successfully, False otherwise
@@ -44,7 +44,7 @@ def grab_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate size parameter
-        size = params.get("size")
+        size = params.get("size", "7oz")  # Default to 7oz
         if not size:
             print("[ERROR] No size parameter provided")
             return False
@@ -174,7 +174,7 @@ def place_paper_cup(**params) -> bool:
     5. Returns to staging home position
     
     Args:
-        stage (str): Target stage for paper cup placement ('stage_1', 'stage_2', etc.)
+        stage (str): Target stage for paper cup placement ('stage_1', 'stage_2', etc.), defaults to 'stage_1'
         
     Returns:
         bool: True if paper cup placed successfully, False otherwise
@@ -189,7 +189,7 @@ def place_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = params.get("stage")
+        stage = params.get("stage", "stage_1")  # Default to stage_1
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
@@ -316,7 +316,7 @@ def serve_paper_cup(**params) -> bool:
     5. Returns to espresso home position
     
     Args:
-        stage (str): Source stage where paper cup is located ('stage_1', 'stage_2', etc.)
+        stage (str): Source stage where paper cup is located ('stage_1', 'stage_2', etc.), defaults to 'stage_1'
         
     Returns:
         bool: True if paper cup served successfully, False otherwise
@@ -331,7 +331,7 @@ def serve_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = params.get("stage")
+        stage = params.get("stage", "stage_1")  # Default to stage_1
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False

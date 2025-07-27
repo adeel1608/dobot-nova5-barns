@@ -25,7 +25,7 @@ def home(**params) -> bool:
     configurations for different operational contexts.
     
     Args:
-        position (str): Name of the home position to move to (must exist in HOME_ANGLES)
+        position (str): Name of the home position to move to (must exist in HOME_ANGLES), defaults to 'north'
         
     Returns:
         bool: True if robot moved to home position successfully, False otherwise
@@ -40,7 +40,7 @@ def home(**params) -> bool:
     """
     try:
         # Extract and validate position parameter
-        position = params.get("position")
+        position = params.get("position", "north")  # Default to north
         if not position:
             print("[ERROR] No position parameter provided")
             return False

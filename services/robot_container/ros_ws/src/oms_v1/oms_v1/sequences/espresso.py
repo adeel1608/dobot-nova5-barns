@@ -33,7 +33,7 @@ def unmount(**params) -> bool:
     6. Safely retracts and moves to clear path
     
     Args:
-        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if portafilter unmounted successfully, False otherwise
@@ -49,7 +49,7 @@ def unmount(**params) -> bool:
     global below_espresso_port, mount_espresso_port
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -255,7 +255,7 @@ def grinder(**params) -> bool:
     6. Opens gripper to complete process
     
     Args:
-        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if grinding and tamping completed successfully, False otherwise
@@ -270,7 +270,7 @@ def grinder(**params) -> bool:
     """
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -473,7 +473,7 @@ def mount(**params) -> bool:
     7. Returns to home position
     
     Args:
-        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if portafilter mounted successfully, False otherwise
@@ -488,7 +488,7 @@ def mount(**params) -> bool:
     """
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -689,7 +689,7 @@ def pick_espresso_pitcher(**params) -> bool:
     - Positions for subsequent operations
     
     Args:
-        port (str): Target port ('port_1', 'port_2', or 'port_3')
+        port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if espresso pitcher picked successfully, False otherwise
@@ -704,7 +704,7 @@ def pick_espresso_pitcher(**params) -> bool:
     """
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -848,7 +848,7 @@ def pour_espresso_pitcher(**params) -> bool:
     - Moves back to holding position
     
     Args:
-        stage (str): Target stage ('stage_1' or 'stage_2')
+        stage (str): Target stage ('stage_1' or 'stage_2'), defaults to 'stage_1'
         
     Returns:
         bool: True if pouring completed successfully, False otherwise
@@ -863,7 +863,7 @@ def pour_espresso_pitcher(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = params.get("stage")
+        stage = params.get("stage", "stage_1")  # Default to stage_1
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
@@ -1120,7 +1120,7 @@ def return_espresso_pitcher(**params) -> bool:
     - Returns to espresso home position
     
     Args:
-        port (str): Source port ('port_1', 'port_2', or 'port_3')
+        port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
         
     Returns:
         bool: True if espresso pitcher returned successfully, False otherwise
@@ -1135,7 +1135,7 @@ def return_espresso_pitcher(**params) -> bool:
     """
     try:
         # Extract and validate port parameter
-        port = params.get("port")
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
