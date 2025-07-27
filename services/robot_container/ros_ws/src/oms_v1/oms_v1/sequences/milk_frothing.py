@@ -225,10 +225,7 @@ def pick_frother(**params) -> bool:
             return False
         
         run_skill("sync")
-        print("   🤏 Securing frother with full grip...")
-        run_skill("set_gripper_position", 255, 255)
-        print("   ✅ Milk frother secured successfully")
-        
+
         # Step 6: Record current grab position
         print("💾 Step 6/6: Recording grab position...")
         grab_angles = run_skill("current_angles")
@@ -237,6 +234,11 @@ def pick_frother(**params) -> bool:
         else:
             print("[WARNING] Failed to record grab angles - continuing without position memory")
             grab_angles = None
+
+        # Step 7: Secure the frother with full grip
+        print("   🤏 Securing frother with full grip...")
+        run_skill("set_gripper_position", 255, 255)
+        print("   ✅ Milk frother secured successfully")
         
         # Final success summary
         print("=" * 50)
