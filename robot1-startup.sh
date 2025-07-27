@@ -59,24 +59,15 @@ restart_camera_and_perception() {
     RESTART_IN_PROGRESS=true
     warn "Restarting camera and perception nodes due to camera info error..."
     
-    # Kill camera and perception processes
-    if [ -n "$CAMERA_PID" ] && kill -0 "$CAMERA_PID" 2>/dev/null; then
-        warn "Terminating camera node (PID: $CAMERA_PID)"
-        kill -TERM "$CAMERA_PID" 2>/dev/null || true
-        sleep 1
-        kill -KILL "$CAMERA_PID" 2>/dev/null || true
-    fi
+    # Kill camera and perception processes by name
+    warn "Terminating camera and perception processes..."
+    pkill -TERM -f "orbbec_camera" &>/dev/null || true
+    pkill -TERM -f "aruco_perception" &>/dev/null || true
     
-    if [ -n "$POSE_GEN_PID" ] && kill -0 "$POSE_GEN_PID" 2>/dev/null; then
-        warn "Terminating perception node (PID: $POSE_GEN_PID)"
-        kill -TERM "$POSE_GEN_PID" 2>/dev/null || true
-        sleep 1
-        kill -KILL "$POSE_GEN_PID" 2>/dev/null || true
-    fi
-    
-    # Kill any remaining camera/perception processes
-    pkill -f "orbbec_camera" &>/dev/null || true
-    pkill -f "aruco_perception" &>/dev/null || true
+    # Wait a moment then force kill if needed
+    sleep 2
+    pkill -KILL -f "orbbec_camera" &>/dev/null || true
+    pkill -KILL -f "aruco_perception" &>/dev/null || true
     
     log "Waiting 5 seconds before restarting camera..."
     sleep 5
@@ -84,7 +75,6 @@ restart_camera_and_perception() {
     # Restart camera
     log "Restarting Orbbec camera..."
     ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
-    CAMERA_PID=$!
     
     log "Waiting 5 seconds before restarting perception..."
     sleep 5
@@ -92,63 +82,94 @@ restart_camera_and_perception() {
     # Restart perception
     log "Restarting ArUco perception..."
     ros2 run pickn_place aruco_perception __log_level:=fatal &
-    POSE_GEN_PID=$!
     
     log "Camera and perception nodes restarted successfully"
     RESTART_IN_PROGRESS=false
 }
 
+# Function to wait for robot stack to be fully initialized
+wait_for_robot_stack_ready() {
+    log "Waiting for robot stack to be fully initialized..."
+    local max_wait=120  # 2 minutes maximum wait
+    local count=0
+    
+    while [ $count -lt $max_wait ]; do
+        # Check for essential nodes and topics
+        local camera_node=$(ros2 node list 2>/dev/null | grep "/camera/camera" || true)
+        local aruco_node=$(ros2 node list 2>/dev/null | grep "aruco_perception_node" || true)
+        local color_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/image_raw" || true)
+        local camera_info_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
+        
+        if [ -n "$camera_node" ] && [ -n "$aruco_node" ] && [ -n "$color_topic" ] && [ -n "$camera_info_topic" ]; then
+            log "Robot stack fully initialized and ready for monitoring"
+            return 0
+        fi
+        
+        sleep 5
+        count=$((count + 5))
+        echo -n "."
+    done
+    
+    warn "Robot stack initialization timeout after $max_wait seconds, starting monitoring anyway..."
+    return 1
+}
+
 # Function to monitor perception node logs for errors
 monitor_perception_errors() {
-    local error_count=0
-    local max_errors=3
-    local last_error_time=0
+    # First wait for the robot stack to be ready
+    wait_for_robot_stack_ready
+    
+    log "Starting camera info error monitoring..."
+    log "Will restart camera and perception when 'No color camera info received' warning appears"
+    
+    local consecutive_warnings=0
+    local max_warnings=2
     
     while true; do
         sleep 15
         
-        # Check if perception node is still running
-        if [ -n "$POSE_GEN_PID" ] && ! kill -0 "$POSE_GEN_PID" 2>/dev/null; then
-            warn "Perception node died, restarting camera and perception..."
+        # Check if processes are still running
+        if ! pgrep -f "aruco_perception" >/dev/null 2>&1; then
+            warn "ArUco perception process died, restarting..."
             restart_camera_and_perception
-            error_count=0
+            consecutive_warnings=0
             continue
         fi
         
-        # Check if camera node is still running
-        if [ -n "$CAMERA_PID" ] && ! kill -0 "$CAMERA_PID" 2>/dev/null; then
-            warn "Camera node died, restarting camera and perception..."
+        if ! pgrep -f "orbbec_camera" >/dev/null 2>&1; then
+            warn "Camera process died, restarting..."
             restart_camera_and_perception
-            error_count=0
+            consecutive_warnings=0
             continue
         fi
         
-        # Check if aruco_perception_node is in the node list
-        local node_exists=$(ros2 node list 2>/dev/null | grep "aruco_perception_node" || true)
-        if [ -z "$node_exists" ]; then
-            warn "ArUco perception node not found in ROS2 node list, restarting..."
-            restart_camera_and_perception
-            error_count=0
-            continue
-        fi
+        # Check the most recent ROS logs for camera info warning
+        local recent_warning=$(timeout 3 bash -c '
+            # Check recent ROS log entries
+            ros_log_dir="$HOME/.ros/log"
+            if [ -d "$ros_log_dir" ]; then
+                # Find the most recent aruco perception log file
+                latest_log=$(find "$ros_log_dir" -name "*aruco_perception*" -type f 2>/dev/null | head -1)
+                if [ -n "$latest_log" ]; then
+                    # Check last few lines for the warning
+                    tail -n 5 "$latest_log" 2>/dev/null | grep -q "No color camera info received" && echo "WARNING_FOUND"
+                fi
+            fi
+        ' 2>/dev/null || true)
         
-        # Check for camera topics
-        local color_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/image_raw" || true)
-        local camera_info_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
-        
-        if [ -z "$color_topic" ] || [ -z "$camera_info_topic" ]; then
-            error_count=$((error_count + 1))
-            warn "Camera topics missing ($error_count/$max_errors)"
+        if [ "$recent_warning" = "WARNING_FOUND" ]; then
+            consecutive_warnings=$((consecutive_warnings + 1))
+            warn "Camera info warning detected ($consecutive_warnings/$max_warnings)"
             
-            if [ $error_count -ge $max_errors ]; then
-                warn "Camera topics consistently missing, triggering restart..."
+            if [ $consecutive_warnings -ge $max_warnings ]; then
+                warn "Multiple camera info warnings detected, restarting camera and perception..."
                 restart_camera_and_perception
-                error_count=0
+                consecutive_warnings=0
             fi
         else
-            # Reset error count if topics are available
-            if [ $error_count -gt 0 ]; then
-                error_count=$((error_count - 1))
+            # Reset counter if no warning found
+            if [ $consecutive_warnings -gt 0 ]; then
+                consecutive_warnings=$((consecutive_warnings - 1))
             fi
         fi
     done
@@ -539,12 +560,6 @@ start_robot() {
         log "=== Robot 1 stack started successfully ==="
         log "Robot 1 is now ready and connected to RabbitMQ at ${RABBITMQ_URL}"
         
-        # Start error monitoring in background
-        log "Starting camera and perception error monitoring..."
-        monitor_perception_errors &
-        MONITOR_PID=$!
-        PIDS+=($MONITOR_PID)
-        
         # Keep the process running and wait for signals
         wait
     ' &
@@ -552,6 +567,15 @@ start_robot() {
     # Store the bash subprocess PID
     BASH_PID=$!
     PIDS+=($BASH_PID)
+    
+    # Wait a moment for the robot stack to start launching
+    sleep 10
+    
+    # Start error monitoring in background (after all nodes are launched)
+    log "Starting camera and perception error monitoring..."
+    monitor_perception_errors &
+    MONITOR_PID=$!
+    PIDS+=($MONITOR_PID)
     
     # Wait for the bash subprocess
     wait $BASH_PID
