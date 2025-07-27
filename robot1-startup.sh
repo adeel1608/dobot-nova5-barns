@@ -114,62 +114,75 @@ wait_for_robot_stack_ready() {
     return 1
 }
 
-# Function to monitor perception node logs for errors
+# Function to monitor perception node logs for errors  
 monitor_perception_errors() {
     # First wait for the robot stack to be ready
     wait_for_robot_stack_ready
     
-    log "Starting camera info error monitoring..."
-    log "Will restart camera and perception when 'No color camera info received' warning appears"
+    log "Starting ArUco warning monitoring..."
+    log "Only restarting when actual 'No color camera info received' warnings appear"
     
-    local consecutive_warnings=0
-    local max_warnings=2
+    local warning_count=0
+    local last_warning_time=0
     
     while true; do
-        sleep 15
+        sleep 10
         
         # Check if processes are still running
         if ! pgrep -f "aruco_perception" >/dev/null 2>&1; then
             warn "ArUco perception process died, restarting..."
             restart_camera_and_perception
-            consecutive_warnings=0
+            warning_count=0
             continue
         fi
         
         if ! pgrep -f "orbbec_camera" >/dev/null 2>&1; then
             warn "Camera process died, restarting..."
             restart_camera_and_perception
-            consecutive_warnings=0
+            warning_count=0
             continue
         fi
         
-        # Check the most recent ROS logs for camera info warning
-        local recent_warning=$(timeout 3 bash -c '
-            # Check recent ROS log entries
-            ros_log_dir="$HOME/.ros/log"
-            if [ -d "$ros_log_dir" ]; then
-                # Find the most recent aruco perception log file
-                latest_log=$(find "$ros_log_dir" -name "*aruco_perception*" -type f 2>/dev/null | head -1)
-                if [ -n "$latest_log" ]; then
-                    # Check last few lines for the warning
-                    tail -n 5 "$latest_log" 2>/dev/null | grep -q "No color camera info received" && echo "WARNING_FOUND"
-                fi
-            fi
-        ' 2>/dev/null || true)
+        # Check for actual "No color camera info received" warnings in recent logs
+        local current_time=$(date +%s)
+        local found_warning="false"
         
-        if [ "$recent_warning" = "WARNING_FOUND" ]; then
-            consecutive_warnings=$((consecutive_warnings + 1))
-            warn "Camera info warning detected ($consecutive_warnings/$max_warnings)"
+        # Method 1: Check recent system logs
+        if journalctl --since "30 seconds ago" 2>/dev/null | grep -q "No color camera info received"; then
+            found_warning="true"
+        fi
+        
+        # Method 2: Check ROS log files if they exist  
+        if [ "$found_warning" = "false" ] && [ -d "$HOME/.ros/log" ]; then
+            if find "$HOME/.ros/log" -name "*.log" -newermt "30 seconds ago" -exec grep -l "No color camera info received" {} \; 2>/dev/null | head -1 | grep -q .; then
+                found_warning="true"
+            fi
+        fi
+        
+        if [ "$found_warning" = "true" ]; then
+            # Only count if warnings are close together (within 60 seconds)
+            if [ $((current_time - last_warning_time)) -lt 60 ]; then
+                warning_count=$((warning_count + 1))
+            else
+                warning_count=1  # Reset if too much time passed
+            fi
             
-            if [ $consecutive_warnings -ge $max_warnings ]; then
+            last_warning_time=$current_time
+            warn "Detected 'No color camera info received' warning ($warning_count/3)"
+            
+            # Restart after 3 warnings within reasonable time
+            if [ $warning_count -ge 3 ]; then
                 warn "Multiple camera info warnings detected, restarting camera and perception..."
                 restart_camera_and_perception
-                consecutive_warnings=0
+                warning_count=0
             fi
         else
-            # Reset counter if no warning found
-            if [ $consecutive_warnings -gt 0 ]; then
-                consecutive_warnings=$((consecutive_warnings - 1))
+            # No warnings found, gradually reduce count
+            if [ $warning_count -gt 0 ] && [ $((current_time - last_warning_time)) -gt 120 ]; then
+                warning_count=$((warning_count - 1))
+                if [ $warning_count -eq 0 ]; then
+                    log "No camera warnings for 2+ minutes, warning count reset"
+                fi
             fi
         fi
     done
