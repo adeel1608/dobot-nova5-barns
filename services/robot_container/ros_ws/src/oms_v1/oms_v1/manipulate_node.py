@@ -678,7 +678,7 @@ class robot_motion(Node):
 
         return data["machines"][target_tf], dl
 
-    def release_tension(self, settling_time: float = 1.0) -> bool:
+    def release_tension(self, settling_time: float = 0.5) -> bool:
         """
         • Enable drag-mode (StartDrag) → let the arm "relax".
         • Wait `settling_time` s to dissipate any spring-back.
@@ -689,9 +689,9 @@ class robot_motion(Node):
 
         import time, rclpy
 
-        max_attempts  = 6
+        max_attempts  = 10
         call_timeout  = 5.0      # seconds to wait for each service reply
-        retry_pause   = 0.25     # pause between attempts
+        retry_pause   = 0.2     # pause between attempts
 
         log = self.get_logger()
 
@@ -749,34 +749,57 @@ class robot_motion(Node):
         from dobot_msgs_v3.srv import Sync
         import rclpy
 
-        # Lazy‐create Sync client
-        self.sync_cli = getattr(
-            self,
-            'sync_cli',
-            self.create_client(Sync, '/dobot_bringup_v3/srv/Sync')
-        )
-
         # Ensure service is available
         if not self.sync_cli.wait_for_service(timeout_sec=10.0):
             self.safe_log('error', 'sync: Sync service unavailable')
             return False
 
-        # Call service and wait for completion
-        fut = self.sync_cli.call_async(Sync.Request())
-        rclpy.spin_until_future_complete(self, fut)
+        # Retry logic for robustness
+        max_attempts = 3
+        timeout_sec = 30.0  # Generous timeout for motion completion
+        
+        for attempt in range(1, max_attempts + 1):
+            try:
+                # Call service and wait for completion WITH TIMEOUT
+                fut = self.sync_cli.call_async(Sync.Request())
+                rclpy.spin_until_future_complete(self, fut, timeout_sec=timeout_sec)
 
-        # Check result
-        if not fut.done() or fut.result() is None:
-            self.safe_log('error', 'sync: No response from Sync service')
-            return False
+                # Check result
+                if not fut.done():
+                    self.safe_log('warn', f'sync: Timeout after {timeout_sec}s (attempt {attempt}/{max_attempts})')
+                    if attempt == max_attempts:
+                        self.safe_log('error', 'sync: All sync attempts timed out')
+                        return False
+                    continue
 
-        res_code = getattr(fut.result(), 'res', None)
-        if res_code == 0:
-            self.safe_log('info', 'sync: Motion complete')
-            return True
-        else:
-            self.safe_log('warn', f'sync: Sync returned error code {res_code}')
-            return False
+                if fut.result() is None:
+                    self.safe_log('warn', f'sync: No response from Sync service (attempt {attempt}/{max_attempts})')
+                    if attempt == max_attempts:
+                        self.safe_log('error', 'sync: No response after all attempts')
+                        return False
+                    continue
+
+                res_code = getattr(fut.result(), 'res', None)
+                if res_code == 0:
+                    self.safe_log('info', 'sync: Motion complete')
+                    return True
+                else:
+                    self.safe_log('warn', f'sync: Sync returned error code {res_code} (attempt {attempt}/{max_attempts})')
+                    if attempt == max_attempts:
+                        self.safe_log('error', f'sync: Failed with error code {res_code} after all attempts')
+                        return False
+                    
+            except Exception as e:
+                self.safe_log('warn', f'sync: Exception during attempt {attempt}/{max_attempts}: {e}')
+                if attempt == max_attempts:
+                    self.safe_log('error', f'sync: Failed with exception after all attempts: {e}')
+                    return False
+            
+            # Short pause between retries
+            import time
+            time.sleep(0.5)
+
+        return False
 
     def set_gripper_position(
             self,
