@@ -804,7 +804,7 @@ class OMSService:
                 target_service="scheduler",
                 action="process_order",
                 data=order_data,
-                timeout=30
+                timeout=180
             )
             
             if not response.get("success"):
