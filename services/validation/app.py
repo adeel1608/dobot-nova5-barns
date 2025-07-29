@@ -8,6 +8,7 @@ import logging
 import signal
 import sys
 import os
+import time
 from typing import Dict, Any
 from datetime import datetime
 import json
@@ -43,31 +44,44 @@ class ValidationServiceApp:
     
     async def start(self):
         """Start the validation service and register handlers"""
-        try:
-            # Connect to RabbitMQ
-            await self.rabbitmq_client.connect()
-            
-            # Register handlers for all validation actions
-            self.register_handlers()
+        max_retries = 5
+        retry_delay = 5  # seconds
 
-            # START THE PERIODIC COFFEE BEANS DETECTION
-            await self.main_validation.start_periodic_detection()
-            
-            self.is_running = True
-            self.logger.info(f"Validation service started. Listening on service: {self.service_name}")
-            self.logger.info("Available actions: pre_check, update_inventory, ingredient_status, refill_inventory")
-            
-            # Run forever
+        for attempt in range(max_retries):
             try:
-                await asyncio.Future()
-            except KeyboardInterrupt:
-                self.logger.info("Received interrupt signal, stopping service...")
-                await self.stop()
+                # Connect to RabbitMQ
+                await self.rabbitmq_client.connect()
                 
-        except Exception as e:
-            self.logger.error(f"Failed to start validation service: {e}")
-            await self.stop()
-            raise
+                # Register handlers for all validation actions
+                self.register_handlers()
+
+                # START THE PERIODIC COFFEE BEANS DETECTION
+                await self.main_validation.start_periodic_detection()
+                
+                self.is_running = True
+                self.logger.info(f"Validation service started. Listening on service: {self.service_name}")
+                self.logger.info("Available actions: pre_check, update_inventory, ingredient_status, refill_inventory")
+                
+                # Run forever
+                try:
+                    await asyncio.Future()
+                except KeyboardInterrupt:
+                    self.logger.info("Received interrupt signal, stopping service...")
+                    await self.stop()
+                
+                # Break the loop if connection is successful
+                break
+                    
+            except Exception as e:
+                self.logger.error(f"Failed to start validation service (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    self.logger.info(f"Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    self.logger.error("Max retries reached. Could not start validation service.")
+                    await self.stop()
+                    raise
     
     def register_handlers(self):
         """Register message handlers for all validation actions"""

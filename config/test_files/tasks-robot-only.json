@@ -70,13 +70,6 @@
   "Espresso": {
     "steps": [
       {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 1
-        }
-      },
-      {
         "type": "robot",
         "function": "unmount",
         "params": {
@@ -89,13 +82,6 @@
         "params": {}
       },
       {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
-      {
         "type": "robot",
         "function": "tamper",
         "params": {}
@@ -105,14 +91,6 @@
         "function": "mount",
         "params": {
           "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
         }
       },
       {
@@ -144,14 +122,6 @@
         "type": "robot",
         "function": "get_frother_position",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "dispense_milk",
-        "params": {
-          "milk_type": "whole",
-          "amount": 80
-        }
       },
       {
         "type": "robot",
@@ -249,14 +219,6 @@
         "function": "get_slush",
         "params": {
           "dispenser": "1"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "slush_machine",
-        "params": {
-          "slush_type": "slush_1",
-          "cup": "C12"
         }
       },
       {

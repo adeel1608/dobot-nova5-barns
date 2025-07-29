@@ -1318,7 +1318,7 @@ async def send_to_scheduler(order_data: dict):
                 target_service="scheduler",
                 action="process_order",
                 data=scheduler_payload,
-                timeout=30
+                timeout=180
             )
             
             logger.info(f"🔍 DEBUG: Scheduler response: {response}")
