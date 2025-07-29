@@ -71,10 +71,6 @@ def get_frother_position(**params) -> bool:
             return False
         print("   ✅ Gripper opened successfully")
         
-        run_skill("sync")
-        run_skill("moveEE", -10, 0, 0, 0, 0, 0)
-        run_skill("sync")
-
         # Step 3: Steam wand positioning and preparation
         print("🎯 Step 3/5: Steam wand positioning and preparation...")
         print("   📍 Moving to steam wand...")
@@ -83,10 +79,12 @@ def get_frother_position(**params) -> bool:
         
         print("   🔧 Grabbing steam wand tool...")
         run_skill("grab_tool", "left_steam_wand")
+
         run_skill("sync")
         
         print("   🤏 Setting grip position...")
         run_skill("set_gripper_position", 255, 200)
+
         run_skill("sync")
         
         print("   📍 Moving to calibration position...")
@@ -96,9 +94,14 @@ def get_frother_position(**params) -> bool:
             return False
         
         run_skill("sync")
+
         print("   🤏 Releasing grip for calibration...")
         run_skill("set_gripper_position", 255, 0)
         print("   ✅ Steam wand positioning completed")
+        
+        run_skill("sync")
+        run_skill("moveEE", -10, 0, 0, 0, 0, 0)
+        run_skill("sync")
         
         # Step 4: Perform multiple approaches for accuracy
         print("🎯 Step 4/5: Performing calibration approaches (5 attempts)...")
