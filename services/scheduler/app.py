@@ -85,6 +85,11 @@ class SchedulerService:
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
                 logger.info("✅ [SCHEDULER] RabbitMQ connections established")
+                
+                # Set the global RabbitMQ client in the scheduler module
+                logger.info("🔗 [SCHEDULER] Setting global RabbitMQ client in scheduler module...")
+                scheduler.set_rabbitmq_client(self.rabbitmq_client)
+                
                 break
             except Exception as e:
                 logger.error(f"❌ [SCHEDULER] Failed to connect to RabbitMQ: {e}")

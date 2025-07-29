@@ -73,7 +73,7 @@
         "type": "automation",
         "function": "grinding_machine",
         "params": {
-          "shots_number": 1
+          "shots_number": 2
         }
       },
       {

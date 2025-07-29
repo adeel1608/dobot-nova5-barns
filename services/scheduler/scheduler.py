@@ -28,6 +28,15 @@ current_status = {"order_id": None, "cup_index": None, "step": None, "status": "
 status_callback = None  # Callback function to notify about status updates
 order_completion_notified = False  # Flag to prevent duplicate completion notifications
 
+# Global RabbitMQ client reference for notifications
+_global_rabbitmq_client = None
+
+def set_rabbitmq_client(client):
+    """Set the global RabbitMQ client for use in notifications."""
+    global _global_rabbitmq_client
+    _global_rabbitmq_client = client
+    logger.info("🔧 [SCHEDULER] Global RabbitMQ client set for notifications")
+
 # Configuration for the routine service
 ROUTINE_SERVICE_URL = "http://routine:8000"  # Can be overridden via environment variable
 
@@ -632,20 +641,40 @@ async def check_and_notify_order_completion():
             order_completion_notified = True
 
 # Helper function to notify OMS of order completion
-async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None):
+async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None, rabbitmq_client=None):
     """Notify the OMS service that an order has completed or failed via RabbitMQ events."""
-    client = None
+    global _global_rabbitmq_client
+    
     try:
-        # Create a temporary RabbitMQ client for sending events (same pattern as submit_task_to_routine)
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-        from shared.rabbitmq_client import RabbitMQClient
+        # Use provided client or the global client
+        client = rabbitmq_client or _global_rabbitmq_client
         
-        # Create a temporary RabbitMQ client for sending completion events with unique ID
-        import uuid
-        client = RabbitMQClient(f"scheduler_completion_notifier_{uuid.uuid4().hex[:8]}")
-        await client.connect()
+        # If no client available, try to get it from service instance as fallback
+        if not client:
+            try:
+                # Try to import and get the service instance directly
+                import importlib
+                app_module = importlib.import_module('services.scheduler.app')
+                if hasattr(app_module, '_scheduler_service_instance') and app_module._scheduler_service_instance:
+                    service_instance = app_module._scheduler_service_instance
+                    if hasattr(service_instance, 'rabbitmq_client'):
+                        client = service_instance.rabbitmq_client
+                        logger.info(f"🔧 [SCHEDULER] Using service instance RabbitMQ client as fallback for order {order_id}")
+                    else:
+                        logger.warning(f"⚠️ [SCHEDULER] Service instance has no rabbitmq_client, skipping notification for order {order_id}")
+                        return
+                else:
+                    logger.warning(f"⚠️ [SCHEDULER] No service instance available, skipping notification for order {order_id}")
+                    return
+            except Exception as fallback_error:
+                logger.error(f"❌ [SCHEDULER] Fallback client access failed for order {order_id}: {fallback_error}")
+                return
+        
+        if not client:
+            logger.warning(f"⚠️ [SCHEDULER] No RabbitMQ client available, skipping notification for order {order_id}")
+            return
+            
+        logger.info(f"🔧 [SCHEDULER] Using RabbitMQ client for order {order_id} notification")
         
         if success:
             event_data = {
@@ -681,10 +710,5 @@ async def notify_oms_completion(order_id: int, success: bool, reason: Optional[s
         
     except Exception as e:
         logger.error(f"⚠️ [SCHEDULER] Failed to notify OMS for order {order_id}: {e}")
-    finally:
-        # Ensure client is disconnected even if an exception occurs
-        if client:
-            try:
-                await client.disconnect()
-            except Exception as disconnect_error:
-                logger.warning(f"⚠️ Error disconnecting RabbitMQ client: {disconnect_error}")
+        import traceback
+        logger.error(f"⚠️ [SCHEDULER] Traceback: {traceback.format_exc()}")

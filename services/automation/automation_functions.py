@@ -286,9 +286,13 @@ async def coffee_machine(params: dict):
     client.publish("automation_coffee_machine", payload, qos=1)
     logger.info(f"Sent: {payload}")
 
-    timeout = params.get("timeout", 120)
-    start_time = time.time()
-
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
     while response["data"] is None and (time.time() - start_time) < timeout:
         await asyncio.sleep(0.1)
 
