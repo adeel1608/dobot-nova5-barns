@@ -18,8 +18,6 @@ setup(
         ('share/' + package_name, ['share/arucoID_name_config.yaml']),
         ('share/' + package_name, ['share/axab_calibration.yaml']),
         ('share/' + package_name, ['share/pose_data_memory.yaml']),
-        ('share/' + package_name, ['share/pose_data_memory_robot_1.yaml']),
-        ('share/' + package_name, ['share/pose_data_memory_robot_2.yaml']),
         ('share/' + package_name, ['share/tool_offset_points.yaml']),
         ('share/' + package_name, ['share/machine_offset_points.yaml']),
         # Include launch files (if any).
