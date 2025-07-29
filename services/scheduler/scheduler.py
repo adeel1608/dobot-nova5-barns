@@ -9,8 +9,11 @@ import sys
 import os
 
 # Import logger from the volume-mounted data directory
-sys.path.insert(0, '/app/data')
-import logger
+# sys.path.insert(0, '/app/data')
+# import logger
+
+import logging
+logger = logging.getLogger(__name__)
 
 # Shared data structures for scheduling
 tasks = []           # All pending tasks across orders
@@ -131,14 +134,14 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
         )
         
         if response.get("success"):
-            logger.log(f"✅ Task submitted to routine: {function} on arm {arm_id} for cup {cup_id}")
+            logger.info(f"✅ Task submitted to routine: {function} on arm {arm_id} for cup {cup_id}")
             return True
         else:
-            logger.log(f"❌ Failed to submit task to routine: {response.get('error', 'Unknown error')}")
+            logger.error(f"❌ Failed to submit task to routine: {response.get('error', 'Unknown error')}")
             return False
             
     except Exception as e:
-        logger.log(f"❌ Error submitting task to routine: {str(e)}")
+        logger.error(f"❌ Error submitting task to routine: {str(e)}")
         return False
     finally:
         # Ensure client is disconnected even if an exception occurs
@@ -146,12 +149,12 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
             try:
                 await client.disconnect()
             except Exception as disconnect_error:
-                logger.log(f"⚠️ Error disconnecting RabbitMQ client: {disconnect_error}")
+                logger.warning(f"⚠️ Error disconnecting RabbitMQ client: {disconnect_error}")
 
 async def arm_worker(arm_name: str):
     """Worker thread for a robotic arm that executes tasks when they are ready."""
     global completed_count, failed_count
-    logger.log(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
+    logger.info(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
     
     consecutive_no_work_count = 0
     max_consecutive_no_work = 300  # Increased timeout for better reliability
@@ -165,7 +168,7 @@ async def arm_worker(arm_name: str):
             # Exit when all tasks are either completed or failed (NOT just submitted)
             total_finished = completed_count + failed_count
             if total_finished >= tasks_total:
-                logger.log(f"🤖 DEBUG: {arm_name} worker finished. Completed: {completed_count}, Failed: {failed_count}, Total: {tasks_total}")
+                logger.info(f"🤖 DEBUG: {arm_name} worker finished. Completed: {completed_count}, Failed: {failed_count}, Total: {tasks_total}")
                 should_exit = True
             else:
                 # Check for pending tasks that can be executed
@@ -206,14 +209,14 @@ async def arm_worker(arm_name: str):
                 # Mark the task as submitted - completion will be handled by callback
                 with lock:
                     task["status"] = "submitted"
-                    logger.log(f"✅ Task {action} for cup {cup_id} successfully submitted to routine")
+                    logger.info(f"✅ Task {action} for cup {cup_id} successfully submitted to routine")
             else:
                 # Mark the task as failed immediately
                 with lock:
                     task["status"] = "failed"
                     failed_tasks.append(task)
                     failed_count += 1
-                    logger.log(f"❌ Failed to submit task: {action} for cup {cup_id}")
+                    logger.error(f"❌ Failed to submit task: {action} for cup {cup_id}")
         else:
             # No available task for this arm right now
             consecutive_no_work_count += 1
@@ -226,14 +229,14 @@ async def arm_worker(arm_name: str):
                 failed_tasks_status = [t for t in tasks if t["status"] == "failed"]
                 
                 if consecutive_no_work_count % 50 == 0:  # Log every 5 seconds
-                    logger.log(f"🤖 DEBUG: {arm_name} waiting - Pending: {len(pending_tasks)}, Submitted: {len(submitted_tasks)}, Completed: {len(completed_tasks)}, Failed: {len(failed_tasks_status)}")
+                    logger.info(f"🤖 DEBUG: {arm_name} waiting - Pending: {len(pending_tasks)}, Submitted: {len(submitted_tasks)}, Completed: {len(completed_tasks)}, Failed: {len(failed_tasks_status)}")
             
             # Prevent infinite waiting - if we've been waiting too long, check if we should exit
             if consecutive_no_work_count >= max_consecutive_no_work:
                 with lock:
                     total_finished = completed_count + failed_count
                     if total_finished >= tasks_total:
-                        logger.log(f"🤖 DEBUG: {arm_name} worker exiting after waiting - all tasks done")
+                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting after waiting - all tasks done")
                         break
                     
                     # Check if there are any tasks left that could potentially be processed
@@ -241,16 +244,16 @@ async def arm_worker(arm_name: str):
                     submitted_tasks = [t for t in tasks if t["status"] == "submitted"]
                     
                     if not pending_tasks and not submitted_tasks:
-                        logger.log(f"🤖 DEBUG: {arm_name} worker exiting - no pending or submitted tasks left")
+                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting - no pending or submitted tasks left")
                         break
                         
                     # If there are submitted tasks, continue waiting for them to complete
                     if submitted_tasks:
-                        logger.log(f"🤖 DEBUG: {arm_name} continuing to wait for {len(submitted_tasks)} submitted tasks to complete")
+                        logger.info(f"🤖 DEBUG: {arm_name} continuing to wait for {len(submitted_tasks)} submitted tasks to complete")
                         consecutive_no_work_count = 0  # Reset counter and continue waiting
                     elif not any(all(dep in completed[t["cup"]] for dep in t["depends_on"]) for t in pending_tasks if t["assigned_arm"] == arm_name):
                         # No tasks for this arm can be executed due to dependencies
-                        logger.log(f"🤖 DEBUG: {arm_name} worker exiting - no executable tasks for this arm")
+                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting - no executable tasks for this arm")
                         break
                     else:
                         consecutive_no_work_count = 0  # Reset and continue
@@ -266,13 +269,13 @@ def run(order_file: str = 'data/orders.txt', recipe_file: str = 'data/recipes.js
         print("No orders to process.")
         return
     setup_tasks(orders, recipes)
-    logger.log(f"Starting coffee order simulation for {len(orders)} orders...")
+    logger.info(f"Starting coffee order simulation for {len(orders)} orders...")
     
     # Run with asyncio since workers are now async
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run_async())
     
-    logger.log("All orders completed.")
+    logger.info("All orders completed.")
 
 async def run_async():
     """Async version of the run function for running arm workers."""
@@ -288,7 +291,7 @@ async def run_async():
 async def update_status(message: str):
     """Update current status and call the callback if set."""
     global current_status
-    logger.log(message)
+    logger.info(message)
     if status_callback:
         if asyncio.iscoroutinefunction(status_callback):
             await status_callback(message)
@@ -302,22 +305,27 @@ def register_status_callback(callback):
 
 def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Create task entries for an order received through the API."""
-    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified
+    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count
     
-    logger.log(f"🔍 DEBUG: setup_tasks_from_order called for order {order_id}")
-    logger.log(f"🔍 DEBUG: Received recipes: {list(recipes.keys()) if recipes else 'None/Empty'}")
-    logger.log(f"🔍 DEBUG: Received drinks: {drinks}")
+    logger.info(f"[SCHEDULER] Setting up tasks for order {order_id} with {len(drinks)} drinks")
     
-    # Reset or initialize the task structures
+    # Reset ALL global variables for the new order to prevent race conditions
     tasks = []
     tasks_by_cup = {}
     completed = {}
     failed_tasks = []
     failed_count = 0
+    completed_count = 0  # Reset completed count
     tasks_total = 0
-    order_completion_notified = False  # Reset completion notification flag for new order
+    order_completion_notified = False  # Critical: Reset completion notification flag for new order
     
-    current_status.update({"order_id": order_id, "status": "in_progress", "step": "preparing"})
+    # Update current status with new order info
+    current_status.update({
+        "order_id": order_id, 
+        "status": "in_progress", 
+        "step": "preparing",
+        "cup_index": None
+    })
     
     # Convert API drink format to scheduler format
     orders = []
@@ -325,27 +333,21 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
         drink_type = cup.get("type")
         cup_id = f"{order_id}-{idx}"  # Create a unique cup ID
         orders.append((drink_type, cup_id))
-        logger.log(f"🔍 DEBUG: Created order: drink={drink_type}, cup_id={cup_id}")
         
         # Check if recipe exists for this drink
         if drink_type not in recipes:
-            logger.log(f"❌ ERROR: No recipe found for drink type '{drink_type}'")
-            logger.log(f"❌ Available recipes: {list(recipes.keys())}")
+            logger.warning(f"[SCHEDULER] No recipe found for drink type '{drink_type}'")
             return False
         else:
-            logger.log(f"✅ Found recipe for '{drink_type}' with {len(recipes[drink_type])} steps")
-    
-    logger.log(f"🔍 DEBUG: Processing {len(orders)} orders: {orders}")
+            logger.info(f"[SCHEDULER] Found recipe for '{drink_type}' with {len(recipes[drink_type])} steps")
     
     # Use existing setup_tasks logic
     try:
         setup_tasks(orders, recipes)
-        logger.log(f"🔍 DEBUG: setup_tasks completed. Created {tasks_total} total tasks")
+        logger.info(f"[SCHEDULER] Created {tasks_total} tasks for order {order_id}")
         return True
     except Exception as e:
-        logger.log(f"❌ Error setting up tasks: {str(e)}")
-        import traceback
-        logger.log(f"❌ Setup tasks traceback: {traceback.format_exc()}")
+        logger.error(f"[SCHEDULER] Error setting up tasks: {str(e)}")
         current_status.update({"status": "error", "step": str(e)})
         return False
 
@@ -353,35 +355,35 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
     """Process an order asynchronously using the scheduler."""
     global current_status, completed_count, tasks_total, failed_count, order_completion_notified
     
-    logger.log(f"🔍 DEBUG: process_order_async called for order {order_id} with {len(drinks)} drinks")
-    logger.log(f"🔍 DEBUG: Available recipes: {list(recipes.keys()) if recipes else 'No recipes loaded'}")
-    logger.log(f"🔍 DEBUG: Recipe count: {len(recipes) if recipes else 0}")
-    logger.log(f"🔍 DEBUG: Drinks to process: {drinks}")
+    logger.info(f"🔍 DEBUG: process_order_async called for order {order_id} with {len(drinks)} drinks")
+    logger.info(f"🔍 DEBUG: Available recipes: {list(recipes.keys()) if recipes else 'No recipes loaded'}")
+    logger.info(f"🔍 DEBUG: Recipe count: {len(recipes) if recipes else 0}")
+    logger.info(f"🔍 DEBUG: Drinks to process: {drinks}")
     
     # Check if recipes is empty
     if not recipes:
-        logger.log(f"❌ CRITICAL: No recipes available for order {order_id}")
+        logger.error(f"❌ CRITICAL: No recipes available for order {order_id}")
         await notify_oms_completion(order_id, False, "No recipes available")
         return False
     
     # Setup tasks for the order
     try:
         setup_result = setup_tasks_from_order(order_id, drinks, recipes)
-        logger.log(f"🔍 DEBUG: setup_tasks_from_order returned: {setup_result}")
+        logger.info(f"🔍 DEBUG: setup_tasks_from_order returned: {setup_result}")
         
         if not setup_result:
-            logger.log(f"❌ Failed to setup tasks for order {order_id}")
+            logger.error(f"❌ Failed to setup tasks for order {order_id}")
             # Notify OMS about order failure
             await notify_oms_completion(order_id, False, "Failed to setup tasks for order")
             return False
     except Exception as e:
-        logger.log(f"❌ Exception in setup_tasks_from_order for order {order_id}: {e}")
+        logger.error(f"❌ Exception in setup_tasks_from_order for order {order_id}: {e}")
         import traceback
-        logger.log(f"❌ Setup tasks exception traceback: {traceback.format_exc()}")
+        logger.error(f"❌ Setup tasks exception traceback: {traceback.format_exc()}")
         await notify_oms_completion(order_id, False, f"Setup tasks exception: {str(e)}")
         return False
     
-    logger.log(f"✅ Tasks setup successfully for order {order_id}. Total tasks: {tasks_total}")
+    logger.info(f"✅ Tasks setup successfully for order {order_id}. Total tasks: {tasks_total}")
     
     # Reset counters
     completed_count = 0
@@ -401,7 +403,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         num_cups = len(drinks)
         dynamic_timeout = base_timeout + (per_cup_timeout * num_cups)
         
-        logger.log(f"🕐 Order {order_id} timeout set to {dynamic_timeout:.0f} seconds ({dynamic_timeout/60:.1f} minutes) for {num_cups} cups")
+        logger.info(f"🕐 Order {order_id} timeout set to {dynamic_timeout:.0f} seconds ({dynamic_timeout/60:.1f} minutes) for {num_cups} cups")
         
         # Wait for both arms to finish all tasks with dynamic timeout
         try:
@@ -409,9 +411,9 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 asyncio.gather(arm1, arm2, return_exceptions=True),
                 timeout=dynamic_timeout
             )
-            logger.log(f"✅ Both arm workers completed for order {order_id}")
+            logger.info(f"✅ Both arm workers completed for order {order_id}")
         except asyncio.TimeoutError:
-            logger.log(f"❌ Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes")
+            logger.error(f"❌ Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes")
             # Cancel both arms
             arm1.cancel()
             arm2.cancel()
@@ -422,7 +424,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         with lock:
             if order_completion_notified:
                 # Completion already notified by feedback handler
-                logger.log(f"✅ [SCHEDULER] Order {order_id} completion already notified by feedback handler")
+                logger.info(f"✅ [SCHEDULER] Order {order_id} completion already notified by feedback handler")
                 return completed_count == tasks_total and failed_count == 0
             elif failed_count > 0:
                 # Some tasks failed - mark order as failed
@@ -469,150 +471,220 @@ def get_current_status():
     return current_status
 
 async def handle_routine_feedback(cup_id: str, action: str, success: bool):
-    """Handle feedback from the routine service about task completion."""
-    global completed_count, completed, failed_count, failed_tasks
+    """
+    Handle feedback from the routine service about task completion.
     
-    logger.log(f"🔄 [SCHEDULER] Processing feedback: cup_id={cup_id}, action={action}, success={success}")
-    logger.log(f"🔍 [SCHEDULER] Current counts - completed: {completed_count}, failed: {failed_count}, total: {tasks_total}")
+    When a task fails, immediately notifies OMS and cancels remaining tasks
+    instead of waiting for all tasks to complete.
+    """
+    global completed_count, completed, failed_count, failed_tasks, order_completion_notified
     
-    # Variables to track what needs to be done outside the lock
-    update_message = None
-    should_check_order_completion = False
+    logger.info(f"[SCHEDULER] Processing feedback: {action} for {cup_id} - {'SUCCESS' if success else 'FAILED'}")
     
-    with lock:
-        # Find the first matching task that is not yet completed/failed
-        task_found = False
-        for task in tasks:
-            if task["cup"] == cup_id and task["action"] == action and task["status"] not in ["done", "failed"]:
-                task_found = True
-                logger.log(f"✅ [SCHEDULER] Found matching task: {task}")
-                
-                # This task is ready to be processed
-                
-                if success:
-                    # Mark task as completed
-                    task["status"] = "done"
-                    completed[cup_id].add(action)
-                    completed_count += 1
-                    logger.log(f"✅ [SCHEDULER] Task marked as completed. New completed_count: {completed_count}")
-                    
-                    # Check if this was the final task for this cup
-                    if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
-                        update_message = f"Order complete: {task['drink']} for {cup_id}"
-                        logger.log(f" --- {update_message} ---")
-                else:
-                    # Mark task as failed and count in failed_count
-                    task["status"] = "failed"
-                    failed_tasks.append(task)
-                    failed_count += 1
-                    logger.log(f"❌ [SCHEDULER] Task failed: {action} for cup {cup_id}. New failed_count: {failed_count}")
-                
-                # Check if we should evaluate order completion after this task update
-                should_check_order_completion = True
-                break
+    try:
+        # Variables to track what needs to be done outside the lock
+        update_message = None
+        should_check_order_completion = False
+        should_notify_immediate_failure = False
+        failed_task_info = None
         
-        if not task_found:
-            logger.log(f"⚠️ [SCHEDULER] No matching task found for cup_id={cup_id}, action={action}")
-            logger.log(f"🔍 [SCHEDULER] Available tasks: {[(t['cup'], t['action']) for t in tasks]}")
-    
-    # Call async operations outside the lock to prevent blocking
-    if update_message:
-        await update_status(update_message)
-    
-    # Check for order completion after processing this task feedback
-    if should_check_order_completion:
-        await check_and_notify_order_completion()
+        with lock:
+            # Find the first matching task that is not yet completed/failed
+            task_found = False
+            for task in tasks:
+                if task["cup"] == cup_id and task["action"] == action and task["status"] not in ["done", "failed"]:
+                    task_found = True
+                    
+                    if success:
+                        # Mark task as completed
+                        task["status"] = "done"
+                        completed[cup_id].add(action)
+                        completed_count += 1
+                        logger.info(f"[SCHEDULER] Task completed: {action} for {cup_id}")
+                        
+                        # Check if this was the final task for this cup
+                        if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
+                            update_message = f"Order complete: {task['drink']} for {cup_id}"
+                    else:
+                        # Mark task as failed
+                        task["status"] = "failed"
+                        failed_tasks.append(task)
+                        failed_count += 1
+                        logger.error(f"[SCHEDULER] Task failed: {action} for {cup_id}")
+                        
+                        # Set flag for immediate failure notification
+                        if not order_completion_notified:
+                            should_notify_immediate_failure = True
+                            failed_task_info = task.copy()
+                    
+                    # Check if we should evaluate order completion after this task update
+                    should_check_order_completion = True
+                    break
+            
+            if not task_found:
+                # Check if task was already completed
+                if cup_id in completed and action in completed[cup_id]:
+                    logger.warning(f"[SCHEDULER] Duplicate feedback ignored for {action} on {cup_id}")
+                    return
+                else:
+                    logger.warning(f"[SCHEDULER] Task not found: {action} for {cup_id}")
+        
+        # Call async operations outside the lock to prevent blocking
+        if update_message:
+            await update_status(update_message)
+        
+        # Handle immediate failure notification
+        if should_notify_immediate_failure and failed_task_info:
+            with lock:
+                order_id = current_status.get("order_id")
+            
+            if order_id:
+                # Mark as notified to prevent duplicate notifications
+                with lock:
+                    order_completion_notified = True
+                
+                failed_action = failed_task_info['action']
+                failed_cup = failed_task_info['cup']
+                reason = f"Task failed: {failed_action} for {failed_cup}"
+                
+                with lock:
+                    current_status.update({"status": "error", "step": f"Task {failed_action} failed"})
+                
+                await update_status(f"Order {order_id} failed: {reason}")
+                logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
+                await notify_oms_completion(order_id, False, reason)
+                
+                # Cancel remaining tasks
+                with lock:
+                    for task in tasks:
+                        if task["status"] not in ["done", "failed"]:
+                            task["status"] = "cancelled"
+        
+        # Check for order completion
+        elif should_check_order_completion and not order_completion_notified:
+            logger.info(f"🔍 DEBUG: Calling check_and_notify_order_completion for order_id={current_status.get('order_id')}, should_check={should_check_order_completion}, notified={order_completion_notified}")
+            await check_and_notify_order_completion()
+        elif not task_found and not order_completion_notified:
+            logger.info(f"🔍 DEBUG: Task not found, calling check_and_notify_order_completion for order_id={current_status.get('order_id')}, task_found={task_found}, notified={order_completion_notified}")
+            await check_and_notify_order_completion()
+        else:
+            logger.info(f"🔍 DEBUG: Skipping completion check - should_check={should_check_order_completion}, task_found={task_found}, notified={order_completion_notified}")
+        
+    except Exception as e:
+        logger.error(f"[SCHEDULER] Error in feedback processing: {e}")
+        raise
 
 async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
     global completed_count, failed_count, tasks_total, current_status, order_completion_notified
     
     with lock:
-        total_finished = completed_count + failed_count
+        # Count actual task statuses instead of relying on counters (more reliable)
+        completed_tasks = sum(1 for task in tasks if task["status"] == "done")
+        failed_tasks_count = sum(1 for task in tasks if task["status"] == "failed")
+        cancelled_tasks = sum(1 for task in tasks if task["status"] == "cancelled")
+        total_finished = completed_tasks + failed_tasks_count + cancelled_tasks
+        
         order_id = current_status.get("order_id")
         
-        logger.log(f"🔍 [SCHEDULER] Checking order completion: completed={completed_count}, failed={failed_count}, total={tasks_total}")
+        logger.info(f"🔍 DEBUG: check_and_notify_order_completion called - order_id={order_id}, completed={completed_tasks}, failed={failed_tasks_count}, cancelled={cancelled_tasks}, total={tasks_total}, notified={order_completion_notified}")
         
-        # Only proceed if we have an order_id and all tasks are finished
-        if not order_id or total_finished < tasks_total:
+        # Only proceed if we have an order_id and not already notified
+        if not order_id or order_completion_notified:
+            logger.info(f"🔍 DEBUG: Early return - no order_id ({not order_id}) or already notified ({order_completion_notified})")
+            return
+            
+        # If not all tasks are finished and no failures, continue waiting
+        if total_finished < tasks_total and failed_tasks_count == 0:
+            logger.info(f"🔍 DEBUG: Waiting for more tasks - finished({total_finished}) < total({tasks_total}) and no failures")
             return
         
-        # Prevent duplicate notifications
-        if order_completion_notified:
-            logger.log(f"⚠️ [SCHEDULER] Order {order_id} completion already notified. Skipping.")
-            return
-        
-        logger.log(f"🎯 [SCHEDULER] All tasks finished for order {order_id}. Determining final status...")
-        
-        if failed_count > 0:
+        if failed_tasks_count > 0:
             # Some tasks failed - notify failure
-            failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_tasks]
+            failed_task_list = [task for task in tasks if task["status"] == "failed"]
+            failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_task_list]
             reason = f"Failed tasks: {', '.join(failed_task_names)}"
             
-            current_status.update({"status": "error", "step": f"{failed_count} tasks failed"})
-            await update_status(f"Order {order_id} failed: {failed_count} out of {tasks_total} tasks failed")
+            current_status.update({"status": "error", "step": f"{failed_tasks_count} tasks failed"})
+            await update_status(f"Order {order_id} failed: {failed_tasks_count} out of {tasks_total} tasks failed")
             
-            logger.log(f"❌ [SCHEDULER] Notifying OMS of order {order_id} failure: {reason}")
+            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
             await notify_oms_completion(order_id, False, reason)
+            order_completion_notified = True
             
-        elif completed_count == tasks_total:
+        elif completed_tasks == tasks_total:
             # All tasks completed successfully
             current_status.update({"status": "completed", "step": None, "cup_index": None})
             await update_status(f"Order {order_id} completed successfully")
             
-            logger.log(f"✅ [SCHEDULER] Notifying OMS of order {order_id} completion")
+            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} completion")
             await notify_oms_completion(order_id, True)
+            order_completion_notified = True
             
         else:
-            # This shouldn't happen, but handle it as a failure
-            reason = f"Unexpected state: {completed_count} completed, {failed_count} failed out of {tasks_total} total"
+            # Unexpected state
+            reason = f"Unexpected state: {completed_tasks} completed, {failed_tasks_count} failed, {cancelled_tasks} cancelled out of {tasks_total} total"
             current_status.update({"status": "error", "step": reason})
             await update_status(f"Order {order_id} failed: {reason}")
             
-            logger.log(f"❌ [SCHEDULER] Notifying OMS of order {order_id} unexpected failure: {reason}")
+            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} unexpected failure")
             await notify_oms_completion(order_id, False, reason)
-
-        # Set the flag after successful notification
-        order_completion_notified = True
+            order_completion_notified = True
 
 # Helper function to notify OMS of order completion
 async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None):
     """Notify the OMS service that an order has completed or failed via RabbitMQ events."""
     client = None
     try:
-        # Import RabbitMQ client here to avoid circular imports
+        # Create a temporary RabbitMQ client for sending events (same pattern as submit_task_to_routine)
         import sys
         import os
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
         from shared.rabbitmq_client import RabbitMQClient
         
-        # Create a temporary RabbitMQ client for sending events with unique ID
+        # Create a temporary RabbitMQ client for sending completion events with unique ID
         import uuid
-        client = RabbitMQClient(f"scheduler_notifier_{uuid.uuid4().hex[:8]}")
+        client = RabbitMQClient(f"scheduler_completion_notifier_{uuid.uuid4().hex[:8]}")
         await client.connect()
         
         if success:
-            # Order completed successfully - send event
-            await client.send_event("scheduler.order_completed", {
+            event_data = {
                 "order_id": order_id,
                 "timestamp": time.time()
-            })
-            logger.log(f"✅ Sent RabbitMQ event: Order {order_id} completed successfully")
+            }
+            try:
+                await asyncio.wait_for(
+                    client.send_event("scheduler.order_completed", event_data),
+                    timeout=10.0
+                )
+                logger.info(f"✅ [SCHEDULER] Order {order_id} completion sent to OMS")
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ [SCHEDULER] Timeout sending completion event for order {order_id}")
+            except Exception as send_error:
+                logger.error(f"❌ [SCHEDULER] Error sending completion event for order {order_id}: {send_error}")
         else:
-            # Order failed - send event
-            await client.send_event("scheduler.order_failed", {
+            event_data = {
                 "order_id": order_id, 
                 "error": reason or "Processing failed",
                 "timestamp": time.time()
-            })
-            logger.log(f"❌ Sent RabbitMQ event: Order {order_id} failed - {reason}")
+            }
+            try:
+                await asyncio.wait_for(
+                    client.send_event("scheduler.order_failed", event_data),
+                    timeout=10.0
+                )
+                logger.error(f"❌ [SCHEDULER] Order {order_id} failure sent to OMS: {reason}")
+            except asyncio.TimeoutError:
+                logger.error(f"⏰ [SCHEDULER] Timeout sending failure event for order {order_id}")
+            except Exception as send_error:
+                logger.error(f"❌ [SCHEDULER] Error sending failure event for order {order_id}: {send_error}")
         
     except Exception as e:
-        logger.log(f"⚠️ Failed to send RabbitMQ event for order {order_id}: {e}")
+        logger.error(f"⚠️ [SCHEDULER] Failed to notify OMS for order {order_id}: {e}")
     finally:
         # Ensure client is disconnected even if an exception occurs
         if client:
             try:
                 await client.disconnect()
             except Exception as disconnect_error:
-                logger.log(f"⚠️ Error disconnecting RabbitMQ notifier client: {disconnect_error}")
+                logger.warning(f"⚠️ Error disconnecting RabbitMQ client: {disconnect_error}")

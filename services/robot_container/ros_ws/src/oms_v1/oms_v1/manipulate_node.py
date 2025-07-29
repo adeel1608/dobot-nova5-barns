@@ -994,50 +994,131 @@ class robot_motion(Node):
         """
         Override Link6's Rx→90°, Ry→0° (keep current Rz) while freezing
         the world‐space position of portafilter_link to ±0.5 mm.
-        Returns True on success.
+        Uses the /dobot_bringup_v3/srv/MovJ service (Link6 planning) instead of MoveIt2.
+        Retries any failed service call every 0.25 s up to 10 attempts; returns False on total failure.
+        Returns True on success, False on any failure.
         """
+        from tf_transformations import euler_matrix
+        from dobot_msgs_v3.srv import GetPose, MovJ
         import numpy as np
         import time
-        from tf_transformations import euler_matrix, quaternion_from_matrix
+        import rclpy
 
-        try:
-            # Constants
-            d_rel = np.array([0.0, 0.0, 0.2825])  # Fixed offset from Link6 origin → portafilter_link origin (m)
-            tolerance = 0.002  # 0.5 mm in metres
+        # ── 1) fixed offset from Link6 origin → portafilter_link origin (m)
+        d_rel = np.array([0.0, 0.0, 0.2825])
 
-            # 1) Get current Link6 pose
-            current_pose = self._get_link6_pose_with_retries_v1()
-            if current_pose is None:
-                return False
+        retry_pause = 0.25
+        max_attempts = 10
 
-            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = current_pose
+        gp_req = GetPose.Request()
+        gp_req.user = 0
+        gp_req.tool = 0
 
-            # 2) Compute current portafilter world position
-            p_pf_world = self._compute_portafilter_world_position_v1(
-                np.array([tx_mm, ty_mm, tz_mm]) * 1e-3,
-                np.radians([rx_curr, ry_curr, rz_curr]),
-                d_rel
+        resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"enforce_rxry(): GetPose attempt {attempt}/{max_attempts}")
+
+            future = self.get_pose_cli.call_async(gp_req)
+            start = self.get_clock().now().nanoseconds * 1e-9
+            got_response = False
+
+            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
+                rclpy.spin_once(self, timeout_sec=0.01)
+                if future.done() and future.result() is not None and hasattr(future.result(), "pose"):
+                    resp = future.result()
+                    got_response = True
+                    break
+
+            if got_response:
+                break  # success!
+
+            # If we reach here, the call either timed out or returned nothing
+            self.get_logger().warn(
+                "enforce_rxry(): GetPose call failed or timed out—waiting 0.25 s before retry"
             )
+            time.sleep(retry_pause)
 
-            # 3) Compute goal pose for Link6
-            goal_pose = self._compute_link6_goal_pose_v1(rz_curr, p_pf_world, d_rel)
-            if goal_pose is None:
-                return False
-
-            # 4) Execute motion
-            if not self._execute_enforce_motion_v1(goal_pose):
-                return False
-
-            # 5) Verify portafilter position accuracy
-            if not self._verify_portafilter_position_v1(p_pf_world, d_rel, tolerance):
-                return False
-
-            self.get_logger().info("enforce_rxry(): Completed with SUCCESS.")
-            return True
-
-        except Exception as e:
-            self.get_logger().error(f"enforce_rxry(): Unexpected error: {e}")
+        if resp is None or not hasattr(resp, "pose"):
+            self.get_logger().error(
+                "enforce_rxry(): Failed to retrieve initial pose after 10 attempts."
+            )
             return False
+
+        # parse "{tx,ty,tz,rx,ry,rz,…}"  (tx, ty, tz in mm; rx, ry, rz in degrees)
+        parts = resp.pose.strip("{}").split(",")
+        if len(parts) < 6:
+            self.get_logger().error("enforce_rxry(): Invalid pose format.")
+            return False
+        try:
+            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = [float(p) for p in parts[:6]]
+        except Exception as e:
+            self.get_logger().error(f"enforce_rxry(): Error parsing pose: {e}")
+            return False
+
+        # convert to metres and build current rotation matrix
+        p_link6 = np.array([tx_mm, ty_mm, tz_mm]) * 1e-3
+        rads = np.radians([rx_curr, ry_curr, rz_curr])
+        R6_curr = euler_matrix(*rads)[:3, :3]
+
+        # compute world position of the portafilter_link
+        p_pf_world = p_link6 + R6_curr.dot(d_rel)
+
+        # ── 3) define desired Link6 orientation: Rx=90°, Ry=0°, keep Rz
+        rx_t, ry_t, rz_t = 90.0, 0.0, rz_curr
+        rads_goal = np.radians([rx_t, ry_t, rz_t])
+        M_goal = euler_matrix(*rads_goal)
+        R6_goal = M_goal[:3, :3]
+
+        # ── 4) back‐solve Link6 goal position so portafilter_link stays put
+        p6_goal = p_pf_world - R6_goal.dot(d_rel)
+        self.get_logger().info(f"enforce_rxry(): Goal Link6 pos (m): {p6_goal.tolist()}")
+
+        # convert goal position back to millimetres for MovJ
+        x_goal_mm = float(p6_goal[0] * 1000.0)
+        y_goal_mm = float(p6_goal[1] * 1000.0)
+        z_goal_mm = float(p6_goal[2] * 1000.0)
+
+        # ── 5) call /dobot_bringup_v3/srv/MovJ for Link6 move (up to 10 retries)
+        self.movj_cli = getattr(
+            self, "movj_cli",
+            self.create_client(MovJ, '/dobot_bringup_v3/srv/MovJ')
+        )
+        movj_req = MovJ.Request()
+        movj_req.x = x_goal_mm
+        movj_req.y = y_goal_mm
+        movj_req.z = z_goal_mm
+        movj_req.rx = rx_t
+        movj_req.ry = ry_t
+        movj_req.rz = rz_t
+        # Use SpeedL=100, AccL=100 as example
+        movj_req.param_value = ["SpeedJ=100,AccJ=100"]
+
+        movj_resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(f"enforce_rxry(): MovJ attempt {attempt}/{max_attempts}")
+            if not self.movj_cli.wait_for_service(timeout_sec=20.0):
+                self.get_logger().warn("enforce_rxry(): MovJ service unavailable, retrying...")
+                time.sleep(retry_pause)
+                continue
+
+            movj_fut = self.movj_cli.call_async(movj_req)
+            start_mv = self.get_clock().now().nanoseconds * 1e-9
+            while not movj_fut.done() and (self.get_clock().now().nanoseconds * 1e-9 - start_mv) < 0.5:
+                rclpy.spin_once(self, timeout_sec=0.01)
+
+            if movj_fut.done() and movj_fut.result() is not None:
+                movj_resp = movj_fut.result()
+                break
+
+            self.get_logger().warn("enforce_rxry(): MovJ call failed or timed out, retrying...")
+            time.sleep(retry_pause)
+
+        if movj_resp is None:
+            self.get_logger().error("enforce_rxry(): Failed to call MovJ after 10 attempts.")
+            return False
+        
+        self.get_logger().info("enforce_rxry(): Completed successfully.")
+        return True
 
     def _get_link6_pose_with_retries(self, max_attempts: int = 3) -> tuple | None:
         """Get current Link6 pose with retry logic."""
@@ -1523,7 +1604,7 @@ class robot_motion(Node):
         )
 
         # ── 1) fixed offset from Link6 origin → portafilter_link origin (m)
-        d_rel = np.array([0.0, 0.0, 0.276])
+        d_rel = np.array([0.0, 0.0, 0.2825])
 
         retry_pause = 0.25
         max_attempts = 5
@@ -2866,6 +2947,320 @@ class robot_motion(Node):
 
         self.get_logger().error("moveEE_movJ: MovJ failed after all attempts")
         return False
+
+    def move_portafilter_arc_movJ(
+        self,
+        angle_deg: float,
+        d_rel_z: float = 282.5,     # mm from Link-6 flange (+Z) to portafilter pivot
+        velocity: int = 100,
+        acceleration: int = 100,
+    ) -> bool:
+        """
+        Rotate the portafilter_link about its local Y axis by `angle_deg`
+        while keeping its pivot (d_rel_z ahead of Link-6) fixed.
+        • Reads /GetPose ONCE, then iteratively computes each ≤ 5 ° goal.
+        • Queues one /MovJ per chunk, no retries.
+        • Returns True only if every chunk's /MovJ succeeds.
+        """
+        import math, numpy as np, rclpy, tf_transformations
+        from scipy.spatial.transform import Rotation as Rot
+        from dobot_msgs_v3.srv import GetPose, MovJ
+
+        log = self.get_logger()
+
+        # ── 0) trivial no-op ────────────────────────────────────────────────
+        if abs(angle_deg) <= 0.1:
+            log.info("move_portafilter_arc_movJ: |angle| ≤ 0.1°, nothing to do")
+            return True
+
+        # ── 1) chunk the requested angle (≤ 5 ° each) ───────────────────────
+        seg = 11.25 ############################################## SEGMENT SIZE
+        n_full    = int(abs(angle_deg) // seg)
+        remainder = abs(angle_deg) % seg
+        chunks = [seg] * n_full
+        if remainder > 0.1:
+            chunks.append(remainder)
+        sign = 1 if angle_deg > 0 else -1
+        chunks = [c * sign for c in chunks]
+
+        # ── 2) single GetPose at the start ──────────────────────────────────
+        gp_future = self.get_pose_cli.call_async(GetPose.Request(user=0, tool=0))
+        rclpy.spin_until_future_complete(self, gp_future, timeout_sec=5.0)
+        if not gp_future.done() or gp_future.result() is None or not hasattr(gp_future.result(), "pose"):
+            log.error("move_portafilter_arc_movJ: initial GetPose failed")
+            return False
+
+        try:
+            tx_mm, ty_mm, tz_mm, rx_deg, ry_deg, rz_deg = \
+                map(float, gp_future.result().pose.strip("{}").split(",")[:6])
+        except ValueError as exc:
+            log.error(f"move_portafilter_arc_movJ: bad pose string – {exc}")
+            return False
+
+        # Cache current pose (metres & rotation matrix)
+        p6 = np.array([tx_mm, ty_mm, tz_mm]) * 1e-3
+        R6 = tf_transformations.euler_matrix(
+                 *np.radians([rx_deg, ry_deg, rz_deg]))[:3, :3]
+
+        if not self.movj_cli.wait_for_service(timeout_sec=5.0):
+            log.error("move_portafilter_arc_movJ: MovJ service unavailable")
+            return False
+
+        # ── 3) iterate over chunks ──────────────────────────────────────────
+        for idx, delta in enumerate(chunks, 1):
+            # a) compute pivot-fixed goal for this chunk
+            pivot   = p6 + R6 @ (np.array([0, 0, d_rel_z]) * 1e-3)
+            v0      = p6 - pivot
+            axis_w  = R6[:, 1]                                   # local Y in world
+            rot_w   = Rot.from_rotvec(axis_w * math.radians(delta))
+            p6_goal = pivot + rot_w.apply(v0)
+            R6_goal = rot_w.as_matrix() @ R6
+
+            # Euler XYZ for the goal orientation
+            M_goal           = np.eye(4);  M_goal[:3, :3] = R6_goal
+            rx_g, ry_g, rz_g = np.degrees(
+                                tf_transformations.euler_from_matrix(M_goal, 'sxyz'))
+
+            # b) queue MovJ (single shot, no retry)
+            req = MovJ.Request()
+            req.x  = float(p6_goal[0] * 1000.0)
+            req.y  = float(p6_goal[1] * 1000.0)
+            req.z  = float(p6_goal[2] * 1000.0)
+            req.rx, req.ry, req.rz = rx_g, ry_g, rz_g
+            req.param_value = [f"SpeedJ={velocity},AccJ={acceleration}"]
+
+            log.info(f"[arc] chunk {idx}/{len(chunks)} → {delta:+.2f}°")
+            fut = self.movj_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("move_portafilter_arc_movJ: MovJ call timed out")
+                return False
+            if getattr(fut.result(), "res", 1) != 0:
+                log.error(f"move_portafilter_arc_movJ: driver res={fut.result().res}")
+                return False
+
+            # c) update cached pose for the next chunk
+            p6, R6 = p6_goal, R6_goal
+
+        # ── 4) optional final sync ──────────────────────────────────────────
+        self.sync()
+
+        log.info("move_portafilter_arc_movJ: completed all chunks ✓")
+        return True
+
+    def move_portafilter_arc_tool(
+        self,
+        arc_size_deg: float = 45.0,
+        axis: str = "z",
+        tcp_table: str = "{0,0,282.5,0,0,0}",
+    ) -> bool:
+        """
+        1) Configure TCP via SetTool (tool index 1, tcp_table)
+        2) Pivot the portafilter_link by arc_size_deg around the given axis
+           via RelMovL (relative linear move) using Tool=1
+        3) Reset TCP to default (tool 0, zero table)
+        Returns True on success, False otherwise.
+        """
+        from dobot_msgs_v3.srv import SetTool, RelMovL
+        import rclpy
+        import time
+
+        time.sleep(0.2) #stability settling
+    
+        log = self.get_logger()
+        retry_pause = 0.25
+        max_attempts = 5
+
+        # ── 1) SetTool to configure the TCP for tool 1 ─────────────────────────
+        set_req = SetTool.Request()
+        set_req.index = 1
+        set_req.table = tcp_table
+
+        if not self.set_tool_cli.wait_for_service(timeout_sec=5.0):
+            log.error("move_portafilter_arc_tool: SetTool service unavailable")
+            return False
+        fut = self.set_tool_cli.call_async(set_req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        if not fut.done() or fut.result() is None or fut.result().res != 0:
+            log.error(f"move_portafilter_arc_tool: SetTool failed (res={getattr(fut.result(), 'res', None)})")
+            return False
+
+        # ── 2) Build the RelMovL request for the arc around the specified axis ─
+        off1 = off2 = off3 = off4 = off5 = off6 = 0.0
+        axis = axis.lower()
+        if axis == "x":
+            off4 = arc_size_deg
+        elif axis == "y":
+            off5 = arc_size_deg
+        elif axis == "z":
+            off6 = arc_size_deg
+        else:
+            log.error(f"move_portafilter_arc_tool: invalid axis '{axis}'")
+            return False
+
+        rel_req = RelMovL.Request()
+        rel_req.offset1 = off1
+        rel_req.offset2 = off2
+        rel_req.offset3 = off3
+        rel_req.offset4 = off4
+        rel_req.offset5 = off5
+        rel_req.offset6 = off6
+        rel_req.param_value = ["Tool=1"]
+
+        for attempt in range(1, max_attempts + 1):
+            if not self.relmov_l_cli.wait_for_service(timeout_sec=5.0):
+                log.warn(f"move_portafilter_arc_tool: RelMovL unavailable, retry {attempt}/{max_attempts}")
+                time.sleep(retry_pause)
+                continue
+
+            fut2 = self.relmov_l_cli.call_async(rel_req)
+            rclpy.spin_until_future_complete(self, fut2, timeout_sec=5.0)
+            if fut2.done() and fut2.result() is not None and fut2.result().res == 0:
+                log.info("move_portafilter_arc_tool: RelMovL succeeded ✓")
+                break
+
+            log.warn(f"move_portafilter_arc_tool: RelMovL attempt {attempt} failed (res={getattr(fut2.result(), 'res', None)})")
+            time.sleep(retry_pause)
+        else:
+            log.error("move_portafilter_arc_tool: RelMovL failed after retries")
+            return False
+        
+        self.use_tool(index=0)
+
+        log.info("move_portafilter_arc_tool: completed successfully")
+        return True
+
+    def enforce_rxry_moveit(
+        self,
+        d_rel_z: float = 0.2825,   # ← Link-6 ➜ portafilter_link offset (metres)
+    ) -> bool:
+        """
+        Freeze the portafilter_link origin (±0.5 mm) while forcing Link-6 to
+        Rx = 90 °, Ry = 0 ° (retain the current Rz).
+        """
+        import numpy as np, math, time, rclpy
+        from tf_transformations import euler_matrix, quaternion_from_matrix
+        from pymoveit2 import MoveIt2, MoveIt2State
+        from dobot_msgs_v3.srv import GetPose
+
+        d_rel = np.array([0.0, 0.0, d_rel_z])          # configurable offset
+
+        # ── Wait until the robot is idle ─────────────────────────────────────
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("enforce_rxry_moveit: not arrived, rechecking…")
+            time.sleep(0.2)
+
+        # ── 1) Grab the current Link-6 pose ──────────────────────────────────
+        req, max_attempts, call_timeout = GetPose.Request(user=0, tool=0), 3, 2.0
+        for attempt in range(max_attempts):
+            fut = self.get_pose_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=call_timeout)
+            if fut.done() and fut.result() and hasattr(fut.result(), "pose"):
+                try:
+                    tx, ty, tz, rx, ry, rz = map(
+                        float, fut.result().pose.strip("{}").split(",")[:6]
+                    )
+                    break
+                except Exception:
+                    pass
+            time.sleep(0.25)
+        else:
+            self.get_logger().error("enforce_rxry_moveit: GetPose failed")
+            return False
+
+        p6     = np.array([tx, ty, tz]) * 1e-3
+        R6_now = euler_matrix(*np.radians([rx, ry, rz]))[:3, :3]
+        p_pf   = p6 + R6_now @ d_rel                   # world-space portafilter_link
+
+        # ── 2) Desired Link-6 orientation ────────────────────────────────────
+        rx_t, ry_t, rz_t = 90.0, 0.0, rz               # lock Rx/Ry, keep Rz
+        R6_goal   = euler_matrix(*np.radians([rx_t, ry_t, rz_t]))[:3, :3]
+        quat_goal = list(
+            quaternion_from_matrix(euler_matrix(*np.radians([rx_t, ry_t, rz_t])))
+        )
+
+        p6_goal = p_pf - R6_goal @ d_rel               # keep portafilter fixed
+
+        # ── 3) Plan/execute with MoveIt 2 ────────────────────────────────────
+        moveit = MoveIt2(
+            node=self,
+            joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6"],
+            base_link_name="base_link",
+            end_effector_name="Link6",         
+            group_name="nova5_group",
+        )
+
+        moveit.move_to_pose(
+            position=p6_goal.tolist(),
+            quat_xyzw=quat_goal,
+            cartesian=True,
+            cartesian_fraction_threshold=0.8,
+        )
+        moveit.wait_until_executed()
+
+        if moveit.query_state() != MoveIt2State.IDLE:
+            self.get_logger().warn(
+                "enforce_rxry_moveit: MoveIt2 finished in non-IDLE state"
+            )
+
+        # ── Confirm arrival ──────────────────────────────────────────────────
+        while not self.wait_for_servo_ready(timeout=15.0):
+            self.get_logger().warn("enforce_rxry_moveit: not arrived, rechecking…")
+            time.sleep(0.2)
+
+        return True
+
+    def gotoEE_movJ(
+        self,
+        abs_x_mm: float,
+        abs_y_mm: float,
+        abs_z_mm: float,
+        abs_rx_deg: float,
+        abs_ry_deg: float,
+        abs_rz_deg: float,
+        speed: int = 100,
+        acceleration: int = 100,
+    ) -> bool:
+        """
+        Drive Link-6 to an absolute Cartesian pose (mm/deg) using MovJ.
+        """
+        import time
+
+        log = self.get_logger()
+
+        req = MovJ.Request(
+            x=abs_x_mm,
+            y=abs_y_mm,
+            z=abs_z_mm,
+            rx=abs_rx_deg,
+            ry=abs_ry_deg,
+            rz=abs_rz_deg,
+            param_value=[f"SpeedJ={speed},AccJ={acceleration}"],
+        )
+
+        retry_pause, max_attempts = 0.25, 5
+        for attempt in range(1, max_attempts + 1):
+            fut = self.movj_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("gotoEE_movJ: MovJ call timed out")
+                return False
+
+            if getattr(fut.result(), "res", 1) == 0:
+                log.info("gotoEE_movJ: success ✓")
+                return True
+
+            log.warn(
+                f"gotoEE_movJ: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})"
+            )
+            time.sleep(retry_pause)
+        else:
+            log.error("gotoEE_movJ: exceeded max_attempts")
+            return False
+
+        return True
 
 # Global motion node for sequence execution
 _global_motion_node = None

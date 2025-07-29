@@ -7,6 +7,7 @@ import os
 import sys
 import logging
 from datetime import datetime
+import asyncio
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -115,32 +116,96 @@ async def publish_event(event_name: str, data: dict, rabbitmq_client: RabbitMQCl
         logger.error(f"Error publishing event {event_name}: {str(e)}")
 
 async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, rabbitmq_client: RabbitMQClient, message: str = ""):
-    """
-    Sends feedback to the scheduler service about task completion.
-    """
-    try:
-        response = await rabbitmq_client.send_request(
-            target_service="scheduler",
-            action="feedback",
-            data={
-                "cup_id": cup_id,
-                "action": action,
-                "success": success,
-                "message": message,
-                "timestamp": datetime.now().isoformat()
-            },
-            timeout=10
-        )
-        
-        if response.get("success", True):
-            logger.info(f"Feedback sent to scheduler for {action} on cup {cup_id}: {'success' if success else 'failed'}")
-            return True
-        else:
-            logger.error(f"Failed to send feedback to scheduler: {response.get('error', 'Unknown error')}")
-            return False
+    """Send feedback to scheduler with retry logic and fallback event notification."""
+    logger.info(f"Sending feedback to scheduler: {action} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}")
+    
+    feedback_data = {
+        "cup_id": cup_id,
+        "action": action,
+        "success": success,
+        "message": message,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    max_retries = 3
+    retry_delay = 2  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            logger.info(f"Sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {feedback_data}")
             
-    except Exception as e:
-        logger.error(f"Error sending feedback to scheduler: {str(e)}")
+            # Send feedback to scheduler
+            response = await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="feedback",
+                data=feedback_data,
+                timeout=10  # Increased timeout to 10 seconds
+            )
+            
+            if response and response.get("success"):
+                logger.info(f"Feedback sent to scheduler for {action} on cup {cup_id}: success")
+                return True
+            else:
+                logger.warning(f"Scheduler returned error for feedback (attempt {attempt + 1}): {response}")
+                if attempt < max_retries - 1:
+                    logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    continue
+                else:
+                    logger.error(f"Failed to send feedback after {max_retries} attempts: {response}")
+                    break
+                    
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout sending feedback to scheduler (attempt {attempt + 1}/{max_retries})")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                continue
+            else:
+                logger.error(f"Failed to send feedback after {max_retries} timeout attempts")
+                break
+                
+        except ConnectionError as e:
+            logger.error(f"Connection error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                continue
+            else:
+                logger.error(f"Failed to send feedback after {max_retries} connection error attempts")
+                break
+                
+        except Exception as e:
+            logger.error(f"Unexpected error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                continue
+            else:
+                logger.error(f"Failed to send feedback after {max_retries} attempts due to error: {e}")
+                break
+    
+    # If all retries failed, use event-based fallback notification
+    logger.warning(f"All feedback retries failed. Using event-based fallback for {action} on cup {cup_id}")
+    try:
+        # Send event as fallback - this uses a different RabbitMQ mechanism that may be more resilient
+        event_name = "routine.task_completed" if success else "routine.task_failed"
+        event_data = {
+            "cup_id": cup_id,
+            "function": action,
+            "arm_id": 1,  # This could be made dynamic if needed
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        if not success:
+            event_data["error"] = message or "Task execution failed"
+            
+        await rabbitmq_client.send_event(event_name, event_data)
+        logger.info(f"Fallback event sent: {event_name} for {action} on cup {cup_id}")
+        return True
+        
+    except Exception as fallback_error:
+        logger.error(f"Fallback event notification also failed for {action} on cup {cup_id}: {fallback_error}")
         return False
 
 async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: RabbitMQClient):

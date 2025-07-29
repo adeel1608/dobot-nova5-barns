@@ -10,6 +10,8 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Dict
+import time
+from datetime import datetime
 
 # PYTHONPATH is set via environment variables in docker-compose
 
@@ -74,95 +76,171 @@ class RobotContainerService:
         self.robot_id = robot_id
         self.service_name = f"robot_container_{robot_id}"
         self.rabbitmq_client = None
+        self.is_running = asyncio.Event()
         
     async def start(self):
-        """Start the robot container service."""
+        """Start the robot container service with automatic reconnection."""
+        while True:
+            try:
+                await self._start_service()
+                # If we get here, the service was interrupted
+                break
+            except KeyboardInterrupt:
+                logger.info("Shutting down robot container service...")
+                await self.stop()
+                break
+            except Exception as e:
+                logger.error(f"Service error: {e}")
+                logger.info("Restarting service in 10 seconds...")
+                await self.stop()  # Clean up before retrying
+                await asyncio.sleep(10)
+
+    async def _start_service(self):
+        """Internal method to start service components."""
         try:
-            # Import RabbitMQ client
             from shared.rabbitmq_client import RabbitMQClient
-            
             self.rabbitmq_client = RabbitMQClient(self.service_name)
-            await self.rabbitmq_client.connect()
+
+            # Retry connection logic for RabbitMQ
+            while True:
+                try:
+                    logger.info(f"🤖 [ROBOT-{self.robot_id}] Attempting to connect to RabbitMQ...")
+                    await self.rabbitmq_client.connect()
+                    logger.info(f"✅ [ROBOT-{self.robot_id}] Successfully connected to RabbitMQ")
+                    break
+                except Exception as e:
+                    logger.error(f"❌ [ROBOT-{self.robot_id}] Failed to connect to RabbitMQ: {e}")
+                    logger.info("Retrying connection in 10 seconds...")
+                    await asyncio.sleep(10)
             
-            # Register message handlers
             self.rabbitmq_client.register_handler("execute_action", self.handle_execute_action)
             self.rabbitmq_client.register_handler("list_actions", self.handle_list_actions)
             self.rabbitmq_client.register_handler("health", self.handle_health)
-            
+
             logger.info(f"Robot Container {self.robot_id} service started and listening for messages")
             logger.info(f"Available actions: {list(ACTION_MAP.keys())}")
-            
+
+            # Wait forever - this is what was missing!
             try:
                 await asyncio.Future()  # Run forever
             except KeyboardInterrupt:
                 logger.info("Shutting down robot container service...")
-            finally:
-                await self.stop()
-                
+                raise
+
         except ImportError:
-            logger.error("RabbitMQ client not available. Running in standalone mode.")
+            logger.error("RabbitMQ client not available. Could not start service.")
+            raise
         except Exception as e:
             logger.error(f"Error starting robot container service: {e}")
-    
+            raise  # Re-raise to trigger restart
+
     async def stop(self):
         """Stop the robot container service."""
         if self.rabbitmq_client:
             await self.rabbitmq_client.disconnect()
         logger.info(f"Robot container {self.robot_id} service stopped")
-    
+
     async def handle_execute_action(self, data: Dict) -> Dict:
         """Handle action execution requests."""
+        action_name = data.get("action_name", "unknown")
+        
         try:
-            action_name = data.get("action_name")
             params = data.get("params", {})
             
-            if not action_name:
+            logger.info(f"🤖 [ROBOT-{self.robot_id}] Received action request: {action_name}")
+            logger.info(f"🤖 [ROBOT-{self.robot_id}] Parameters: {params}")
+            
+            if not action_name or action_name == "unknown":
+                logger.error(f"❌ [ROBOT-{self.robot_id}] No action_name provided")
                 return {
                     "success": False,
-                    "error": "No action_name provided"
+                    "error": "No action_name provided",
+                    "robot_id": self.robot_id
                 }
             
             if action_name not in ACTION_MAP:
+                logger.error(f"❌ [ROBOT-{self.robot_id}] Unknown action: {action_name}")
+                logger.info(f"🤖 [ROBOT-{self.robot_id}] Available actions: {list(ACTION_MAP.keys())}")
                 return {
                     "success": False,
                     "error": f"Unknown action: {action_name}",
-                    "available_actions": list(ACTION_MAP.keys())
+                    "available_actions": list(ACTION_MAP.keys()),
+                    "robot_id": self.robot_id,
+                    "action_name": action_name
                 }
             
-            logger.info(f"Executing action: {action_name} with params: {params}")
+            logger.info(f"✅ [ROBOT-{self.robot_id}] Action {action_name} accepted - starting execution...")
             
             # Execute the action
             fn = ACTION_MAP[action_name]
             
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, lambda: fn(**params))
+            start_time = asyncio.get_event_loop().time()
             
-            if result== True:
-                response = {
-                    "success": result,
-                    "message": f"Action {action_name} completed successfully",
-                    "robot_id": self.robot_id,
-                    "action_name": action_name
-                }
+            try:
+                result = await loop.run_in_executor(None, lambda: fn(**params))
+                execution_time = asyncio.get_event_loop().time() - start_time
                 
-                logger.info(f"Action {action_name} completed successfully")
-            else:
-                response = {
-                    "success": result,
-                    "error": result,
-                    "message": f"Action {action_name} completed with error",
-                    "robot_id": self.robot_id,
-                    "action_name": action_name
-                }
+                if result == True:
+                    response = {
+                        "success": True,
+                        "message": f"Action {action_name} completed successfully",
+                        "robot_id": self.robot_id,
+                        "action_name": action_name,
+                        "execution_time": round(execution_time, 2)
+                    }
+                    
+                    logger.info(f"✅ [ROBOT-{self.robot_id}] Action {action_name} completed successfully in {execution_time:.2f}s")
+                    
+                elif result == False:
+                    response = {
+                        "success": False,
+                        "error": f"Action {action_name} returned False",
+                        "message": f"Action {action_name} execution failed",
+                        "robot_id": self.robot_id,
+                        "action_name": action_name,
+                        "execution_time": round(execution_time, 2)
+                    }
+                    
+                    logger.error(f"❌ [ROBOT-{self.robot_id}] Action {action_name} failed (returned False) in {execution_time:.2f}s")
+                    
+                else:
+                    # Handle other return types (strings, dicts, etc.)
+                    response = {
+                        "success": True,
+                        "result": result,
+                        "message": f"Action {action_name} completed",
+                        "robot_id": self.robot_id,
+                        "action_name": action_name,
+                        "execution_time": round(execution_time, 2)
+                    }
+                    
+                    logger.info(f"✅ [ROBOT-{self.robot_id}] Action {action_name} completed with result: {result} in {execution_time:.2f}s")
                 
-                logger.error(f"Action {action_name} completed with error: {result}")
+                return response
+                
+            except Exception as exec_error:
+                execution_time = asyncio.get_event_loop().time() - start_time
+                error_msg = f"Exception during action execution: {str(exec_error)}"
+                logger.error(f"💥 [ROBOT-{self.robot_id}] {error_msg} (after {execution_time:.2f}s)")
+                
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "message": f"Action {action_name} threw exception",
+                    "robot_id": self.robot_id,
+                    "action_name": action_name,
+                    "execution_time": round(execution_time, 2)
+                }
             
-            return response
-            
+        except ConnectionError as e:
+            logger.error(f"Connection error in handle_execute_action: {e}")
+            # This will trigger service restart
+            raise
         except Exception as e:
-            error_msg = f"Error executing action {action_name}: {str(e)}"
-            logger.error(error_msg)
+            error_msg = f"Error processing action request: {str(e)}"
+            logger.error(f"💥 [ROBOT-{self.robot_id}] {error_msg}")
             return {
                 "success": False,
                 "error": error_msg,
@@ -186,7 +264,11 @@ class RobotContainerService:
             "service": self.service_name,
             "robot_id": self.robot_id,
             "available_actions": len(ACTION_MAP),
-            "timestamp": str(asyncio.get_event_loop().time())
+            "actions_count": len(ACTION_MAP),
+            "timestamp": datetime.now().isoformat(),
+            "connection_status": "connected",
+            "ready": True,
+            "healthy": True  # Explicit boolean for easier checking
         }
 
 async def run_service_mode():
@@ -195,7 +277,10 @@ async def run_service_mode():
     robot_id = int(os.getenv("ROBOT_ID", "1"))
     
     service = RobotContainerService(robot_id)
-    await service.start()
+    try:
+        await service.start()
+    except KeyboardInterrupt:
+        logger.info("Service interrupted by user. Exiting.")
 
 # CLI functionality remains the same
 def main():
@@ -209,7 +294,10 @@ def main():
     
     if args.service:
         # Run as service
-        asyncio.run(run_service_mode())
+        try:
+            asyncio.run(run_service_mode())
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
     elif args.action:
         # Run single action
         try:

@@ -12,7 +12,7 @@ from oms_v1.params import HOME_ANGLES
 from oms_v1.manipulate_node import run_skill
 
 # Predefined home positions for specific operational contexts
-Espresso_home = (42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
 Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
 
@@ -105,7 +105,7 @@ def get_machine_position(**params) -> bool:
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/8: Moving to espresso home position...")
-        home_result = run_skill("gotoJ_deg", 42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+        home_result = run_skill("gotoJ_deg", 42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
         if home_result is False:
             print("[ERROR] Failed to move to espresso home position")
             return False
@@ -216,7 +216,7 @@ def get_machine_position(**params) -> bool:
         
         # Step 8: Return to espresso home position
         print("🏠 Step 8/8: Returning to espresso home position...")
-        final_home_result = run_skill("gotoJ_deg", 42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+        final_home_result = run_skill("gotoJ_deg", 42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
         if final_home_result is False:
             print("[ERROR] Failed to return to espresso home position")
             return False

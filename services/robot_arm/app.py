@@ -30,9 +30,36 @@ class RobotArmService:
         self.simulation_mode = os.getenv("ROBOT_SIMULATION", "true").lower() == "true"
         
     async def start(self):
-        """Start the robot arm service."""
-        await self.rabbitmq_client.connect()
-        await self.event_listener.connect()
+        """Start the robot arm service with automatic reconnection."""
+        while True:
+            try:
+                await self._start_service()
+                # If we get here, the service was interrupted
+                break
+            except KeyboardInterrupt:
+                logger.info("Shutting down robot arm service...")
+                await self.stop()
+                break
+            except Exception as e:
+                logger.error(f"Service error: {e}")
+                logger.info("Restarting service in 10 seconds...")
+                await self._cleanup()
+                await asyncio.sleep(10)
+
+    async def _start_service(self):
+        """Internal method to start the service components."""
+        # Retry connection logic for RabbitMQ
+        while True:
+            try:
+                logger.info("🤖 [ROBOT-ARM] Attempting to connect to RabbitMQ...")
+                await self.rabbitmq_client.connect()
+                await self.event_listener.connect()
+                logger.info("✅ [ROBOT-ARM] Successfully connected to RabbitMQ")
+                break
+            except Exception as e:
+                logger.error(f"❌ [ROBOT-ARM] Failed to connect to RabbitMQ: {e}")
+                logger.info("Retrying connection in 10 seconds...")
+                await asyncio.sleep(10)
         
         # Register message handlers
         self.rabbitmq_client.register_handler("robot_action", self.handle_robot_action)
@@ -54,13 +81,28 @@ class RobotArmService:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
             logger.info("Shutting down robot arm service...")
-        finally:
-            await self.stop()
-    
+            raise
+
+    async def _cleanup(self):
+        """Clean up connections and tasks."""
+        try:
+            # Disconnect from RabbitMQ
+            try:
+                await self.rabbitmq_client.disconnect()
+            except:
+                pass
+            
+            try:
+                await self.event_listener.disconnect()
+            except:
+                pass
+                
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
     async def stop(self):
         """Stop the robot arm service."""
-        await self.rabbitmq_client.disconnect()
-        await self.event_listener.disconnect()
+        await self._cleanup()
         logger.info("Robot arm service stopped")
     
     async def handle_robot_action(self, data: Dict) -> Dict:
@@ -83,36 +125,51 @@ class RobotArmService:
             params["simulation_mode"] = self.simulation_mode
             
             # Send start event
-            await self.rabbitmq_client.send_event("robot.action_started", {
-                "function": function,
-                "arm_id": arm_id,
-                "params": params,
-                "timestamp": datetime.now().isoformat()
-            })
+            try:
+                await self.rabbitmq_client.send_event("robot.action_started", {
+                    "function": function,
+                    "arm_id": arm_id,
+                    "params": params,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except ConnectionError as e:
+                logger.error(f"Connection error sending action started event: {e}")
+                # Continue with action execution but note the connection issue
             
             # Execute robot action (this will route to robot container for non-test actions)
             result = await execute_robot_action(function, params)
             
             # Send completion event
-            await self.rabbitmq_client.send_event("robot.action_completed", {
-                "function": function,
-                "arm_id": arm_id,
-                "result": result,
-                "timestamp": datetime.now().isoformat()
-            })
+            try:
+                await self.rabbitmq_client.send_event("robot.action_completed", {
+                    "function": function,
+                    "arm_id": arm_id,
+                    "result": result,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except ConnectionError as e:
+                logger.error(f"Connection error sending action completed event: {e}")
             
             return result
             
+        except ConnectionError as e:
+            logger.error(f"Connection error in handle_robot_action: {e}")
+            raise  # This will trigger service restart
         except Exception as e:
             logger.error(f"Error in robot action: {e}")
             
             # Send error event
-            await self.rabbitmq_client.send_event("robot.action_error", {
-                "function": function or "unknown",
-                "arm_id": arm_id,
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            })
+            try:
+                await self.rabbitmq_client.send_event("robot.action_error", {
+                    "function": function or "unknown",
+                    "arm_id": arm_id,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+            except ConnectionError as conn_error:
+                logger.error(f"Connection error sending action error event: {conn_error}")
+            except Exception as event_error:
+                logger.error(f"Error sending action error event: {event_error}")
             
             return {
                 "success": False,
@@ -283,7 +340,11 @@ class RobotArmService:
 async def main():
     """Main service entry point."""
     service = RobotArmService()
-    await service.start()
+    try:
+        await service.start()
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down...")
+        await service.stop()
 
 if __name__ == "__main__":
     asyncio.run(main()) 

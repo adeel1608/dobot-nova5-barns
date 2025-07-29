@@ -211,7 +211,7 @@ def test_1(**params) -> bool:
             
             # Step 1: Move to espresso machine position
             print("📍 Step 1: Positioning at espresso machine...")
-            espresso_angles = (42.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+            espresso_angles = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
             position_result = run_skill("gotoJ_deg", *espresso_angles)
             
             if position_result is False:

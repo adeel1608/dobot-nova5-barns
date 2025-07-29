@@ -1,17 +1,17 @@
 calibration_transform:
   rotation:
-    w: -0.018758
-    x: 0.009627
-    y: -0.067375
-    z: 0.997505
+    w: -0.024768
+    x: 0.020226
+    y: -0.062288
+    z: 0.997546
   rotation_degrees:
-    pitch: -0.955635
-    roll: -7.746738
-    yaw: -177.78066
+    pitch: -2.135776
+    roll: -7.20156
+    yaw: -177.021026
   translation:
-    x: -0.005378
-    y: 0.064083
-    z: 0.012471
+    x: -0.014392
+    y: 0.064999
+    z: 0.011373
 metadata:
   camera_frame: camera_depth_optical_frame
   method: ax=xb calibration (hand-eye)
@@ -19,4 +19,4 @@ metadata:
   units:
     rotation: quaternion/degrees
     translation: meter
-timestamp: '2025-07-22T09:43:07.971032'
+timestamp: '2025-07-02T10:55:44.528719'

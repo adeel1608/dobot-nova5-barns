@@ -11,6 +11,7 @@ import os
 import sys
 from datetime import datetime
 from typing import Dict
+import time
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -39,9 +40,31 @@ class RoutineService:
         self.worker_tasks = []
         
     async def start(self):
-        """Start the routine service."""
-        await self.rabbitmq_client.connect()
-        await self.event_listener.connect()
+        """Start the routine service with automatic reconnection."""
+        while True:
+            try:
+                await self._start_service()
+            except Exception as e:
+                logger.error(f"Service error: {e}")
+                logger.info("Restarting service in 10 seconds...")
+                await asyncio.sleep(10)
+                # Clean up any existing connections
+                await self._cleanup()
+    
+    async def _start_service(self):
+        """Internal method to start the service components."""
+        # Retry connection logic for RabbitMQ
+        while True:
+            try:
+                logger.info("Attempting to connect to RabbitMQ...")
+                await self.rabbitmq_client.connect()
+                await self.event_listener.connect()
+                logger.info("Successfully connected to RabbitMQ")
+                break
+            except Exception as e:
+                logger.error(f"Failed to connect to RabbitMQ: {e}")
+                logger.info("Retrying connection in 10 seconds...")
+                await asyncio.sleep(10)
         
         # Load task configurations
         await self._load_task_configs()
@@ -67,20 +90,40 @@ class RoutineService:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
             logger.info("Shutting down routine service...")
-        finally:
-            await self.stop()
+            raise
     
+    async def _cleanup(self):
+        """Clean up connections and tasks."""
+        try:
+            # Cancel worker tasks
+            for task in self.worker_tasks:
+                if not task.done():
+                    task.cancel()
+            
+            # Wait for tasks to complete
+            if self.worker_tasks:
+                await asyncio.gather(*self.worker_tasks, return_exceptions=True)
+            
+            # Clear worker tasks list
+            self.worker_tasks.clear()
+            
+            # Disconnect from RabbitMQ
+            try:
+                await self.rabbitmq_client.disconnect()
+            except:
+                pass
+            
+            try:
+                await self.event_listener.disconnect()
+            except:
+                pass
+                
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+
     async def stop(self):
         """Stop the routine service."""
-        # Cancel worker tasks
-        for task in self.worker_tasks:
-            task.cancel()
-        
-        # Wait for tasks to complete
-        await asyncio.gather(*self.worker_tasks, return_exceptions=True)
-        
-        await self.rabbitmq_client.disconnect()
-        await self.event_listener.disconnect()
+        await self._cleanup()
         logger.info("Routine service stopped")
     
     async def _load_task_configs(self):
@@ -119,25 +162,37 @@ class RoutineService:
             except asyncio.CancelledError:
                 logger.info(f"Worker for Arm {arm_id} cancelled")
                 break
+            except ConnectionError as e:
+                logger.error(f"[Routine][Arm{arm_id}] RabbitMQ connection error: {e}")
+                # This will trigger service restart
+                raise
             except Exception as e:
                 logger.error(f"[Routine][Arm{arm_id}] unexpected error: {e}")
     
     async def _send_task_event(self, event_type: str, task_data: Dict, arm_id: int, error: str = None):
         """Send task completion or failure event."""
-        cup_id = task_data.get("item", {}).get("cup_id", "unknown")
-        function = task_data.get("function", "unknown")
-        
-        event_data = {
-            "cup_id": cup_id,
-            "function": function,
-            "arm_id": arm_id,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        if error:
-            event_data["error"] = error
+        try:
+            cup_id = task_data.get("item", {}).get("cup_id", "unknown")
+            function = task_data.get("function", "unknown")
             
-        await self.rabbitmq_client.send_event(event_type, event_data)
+            event_data = {
+                "cup_id": cup_id,
+                "function": function,
+                "arm_id": arm_id,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            if error:
+                event_data["error"] = error
+                
+            await self.rabbitmq_client.send_event(event_type, event_data)
+        except ConnectionError as e:
+            logger.error(f"Connection error sending event: {e}")
+            # Re-raise to trigger service restart
+            raise
+        except Exception as e:
+            logger.error(f"Error sending task event: {e}")
+            # Don't re-raise other exceptions as they shouldn't cause reconnection
     
     async def handle_submit_task(self, data: Dict) -> Dict:
         """Handle task submission requests."""
@@ -164,12 +219,16 @@ class RoutineService:
             await task_queues[arm_id].put(task_data)
             
             # Send event
-            await self.rabbitmq_client.send_event("routine.task_queued", {
-                "arm_id": arm_id,
-                "function": function,
-                "queue_size": task_queues[arm_id].qsize()
-            })
-            
+            try:
+                await self.rabbitmq_client.send_event("routine.task_queued", {
+                    "arm_id": arm_id,
+                    "function": function,
+                    "queue_size": task_queues[arm_id].qsize()
+                })
+            except ConnectionError as e:
+                logger.error(f"Connection error sending task queued event: {e}")
+                # Still return success as task was queued, but log the connection issue
+                
             return {
                 "status": "queued",
                 "arm_id": arm_id,
@@ -178,6 +237,9 @@ class RoutineService:
                 "success": True
             }
             
+        except ConnectionError as e:
+            logger.error(f"Connection error in handle_submit_task: {e}")
+            raise  # This will trigger service restart
         except Exception as e:
             logger.error(f"Error submitting task: {e}")
             return {"error": str(e), "success": False}
@@ -231,10 +293,13 @@ class RoutineService:
                     except asyncio.QueueEmpty:
                         break
                 
-                await self.rabbitmq_client.send_event("routine.queue_cleared", {
-                    "arm_id": arm_id,
-                    "timestamp": datetime.now().isoformat()
-                })
+                try:
+                    await self.rabbitmq_client.send_event("routine.queue_cleared", {
+                        "arm_id": arm_id,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except ConnectionError as e:
+                    logger.error(f"Connection error sending queue cleared event: {e}")
                 
                 return {"arm_id": arm_id, "cleared": True, "success": True}
             else:
@@ -249,13 +314,19 @@ class RoutineService:
                             break
                     cleared_arms.append(arm_id)
                 
-                await self.rabbitmq_client.send_event("routine.all_queues_cleared", {
-                    "cleared_arms": cleared_arms,
-                    "timestamp": datetime.now().isoformat()
-                })
+                try:
+                    await self.rabbitmq_client.send_event("routine.all_queues_cleared", {
+                        "cleared_arms": cleared_arms,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except ConnectionError as e:
+                    logger.error(f"Connection error sending all queues cleared event: {e}")
                 
                 return {"cleared_arms": cleared_arms, "success": True}
                 
+        except ConnectionError as e:
+            logger.error(f"Connection error in handle_clear_queue: {e}")
+            raise  # This will trigger service restart
         except Exception as e:
             logger.error(f"Error clearing queue: {e}")
             return {"error": str(e), "success": False}
@@ -268,7 +339,11 @@ class RoutineService:
 async def main():
     """Main service entry point."""
     service = RoutineService()
-    await service.start()
+    try:
+        await service.start()
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down...")
+        await service.stop()
 
 if __name__ == "__main__":
     asyncio.run(main()) 
