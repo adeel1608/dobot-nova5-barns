@@ -94,7 +94,7 @@ def unmount(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        mount_result = run_skill("grab_tool", "double_portafilter")#run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
+        mount_result = run_skill("grab_tool", "double_portafilter",100,100,0.0,0.0,-130.0)#run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
         
         if mount_result is False:
             print("[ERROR] Failed to mount to portafilter")

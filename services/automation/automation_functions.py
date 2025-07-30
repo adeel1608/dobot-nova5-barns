@@ -234,7 +234,7 @@ async def coffee_machine(params: dict):
     # coffee_type is the number of the shots 1,2
     coffee_t = params.get("coffee_t", 1)
     slot_number = params.get("slot_number", 1)
-    print("Calling Slush mach function")
+    print("Calling Coffee machine function")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
