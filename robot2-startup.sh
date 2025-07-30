@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ###############################
-# BARNS Robot 1 Startup Script
-# For separate PC running both Docker services and Robot 1
+# BARNS Robot 2 Startup Script
+# For Docker host PC (connects to existing Docker services)
 ###############################
 
 set -euo pipefail
@@ -9,15 +9,15 @@ set -euo pipefail
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
-DOCKER_HOST_IP=${DOCKER_HOST_IP:-$(hostname -I | awk '{print $1}')}
-ROBOT_ID=1
+DOCKER_HOST_IP=${DOCKER_HOST_IP:-192.168.200.254}
+ROBOT_ID=2
 DOBOT_TYPE=${DOBOT_TYPE:-nova5}
 IP_ADDRESS=${IP_ADDRESS:-192.168.200.248}
 ROS_DOMAIN_ID=1
-CAMERA_SERIAL_NUMBER=${CAMERA_SERIAL_NUMBER:- CP1Z842000F6}
-CAM_NAME=cam0
-DEVICE_ID=1
-DEVICE_NUM=1
+CAMERA_SERIAL_NUMBER=${CAMERA_SERIAL_NUMBER:-CP1Z842000F6}
+CAM_NAME=cam1
+DEVICE_ID=2
+DEVICE_NUM=2
 ORBBEC_CONNECTION_DELAY=3000
 USBFS_MEMORY_MB=128
 
@@ -34,7 +34,7 @@ POSE_GEN_PID=""
 RESTART_IN_PROGRESS=false
 
 log() {
-    echo -e "${GREEN}[ROBOT1]${NC} $*"
+    echo -e "${GREEN}[ROBOT2]${NC} $*"
 }
 
 warn() {
@@ -324,7 +324,7 @@ wait_for_services() {
 
 # Start robot process
 start_robot() {
-    log "Starting Robot 1 process..."
+    log "Starting Robot 2 process..."
     
     # Source the environment
     source "$WORKSPACE_DIR/setup_robot_env.sh"
@@ -342,7 +342,7 @@ start_robot() {
     export DEVICE_ID="$DEVICE_ID"
     export DEVICE_NUM="$DEVICE_NUM"
     
-    log "Robot 1 Configuration:"
+    log "Robot 2 Configuration:"
     info "  - Robot ID: $ROBOT_ID"
     info "  - Dobot IP: $IP_ADDRESS"
     info "  - ROS Domain: $ROS_DOMAIN_ID"
@@ -423,7 +423,7 @@ start_robot() {
         # Set up signal handler for inner shell
         trap cleanup_inner EXIT INT TERM
         
-        log "=== Starting BARNS Robot 1 Stack ==="
+        log "=== Starting BARNS Robot 2 Stack ==="
         
         # Launch dobot_bringup_v3
         log "=== Launching dobot_bringup_v3 ==="
@@ -570,8 +570,8 @@ start_robot() {
         
         cd ../..
         
-        log "=== Robot 1 stack started successfully ==="
-        log "Robot 1 is now ready and connected to RabbitMQ at ${RABBITMQ_URL}"
+        log "=== Robot 2 stack started successfully ==="
+        log "Robot 2 is now ready and connected to RabbitMQ at ${RABBITMQ_URL}"
         
         # Keep the process running and wait for signals
         wait
@@ -584,7 +584,7 @@ start_robot() {
     # Wait a moment for the robot stack to start launching
     sleep 10
     
-    # Start error monitoring in background (after all nodes are launched)
+    # Start error monitoring in background
     log "Starting camera and perception error monitoring..."
     monitor_perception_errors &
     MONITOR_PID=$!
@@ -596,7 +596,7 @@ start_robot() {
 
 # Handle shutdown
 cleanup() {
-    log "Shutting down Robot 1..."
+    log "Shutting down Robot 2..."
     # Kill any background processes using specific patterns
     pkill -KILL -f "dobot_bringup_v3" &>/dev/null || true
     pkill -KILL -f "orbbec_camera" &>/dev/null || true
@@ -605,12 +605,12 @@ cleanup() {
     pkill -KILL -f "pickn_place" &>/dev/null || true
     pkill -KILL -f "oms_v1.app" &>/dev/null || true
     pkill -KILL -f "ros2" &>/dev/null || true
-    log "Robot 1 processes stopped."
+    log "Robot 2 processes stopped."
 }
 
 # Main function
 main() {
-    log "Starting BARNS Robot 1 (Separate PC Mode)"
+    log "Starting BARNS Robot 2 (Docker Host PC Mode)"
     log "Docker Host IP: $DOCKER_HOST_IP"
     log "Robot IP: $IP_ADDRESS"
     echo
@@ -634,7 +634,7 @@ case "${1:-start}" in
         log "Docker services started. Use '$0 robot-only' to start robot."
         ;;
     robot-only)
-        log "Starting only Robot 1..."
+        log "Starting only Robot 2..."
         trap cleanup EXIT
         check_workspace
         cleanup_rabbitmq_queues
@@ -642,21 +642,21 @@ case "${1:-start}" in
         start_robot
         ;;
     stop)
-        log "Stopping Robot 1 and Docker services..."
+        log "Stopping Robot 2 and Docker services..."
         cleanup
         docker compose -f docker-compose.arms.yml down --volumes
         log "Stopped successfully"
         ;;
     --help|-h)
-        echo "BARNS Robot 1 Startup Script"
+        echo "BARNS Robot 2 Startup Script"
         echo
         echo "Usage: $0 [start|docker-only|robot-only|stop|--help]"
         echo
         echo "Commands:"
-        echo "  start        Start Docker services and Robot 1 (default)"
+        echo "  start        Start Docker services and Robot 2 (default)"
         echo "  docker-only  Start only Docker services"
-        echo "  robot-only   Start only Robot 1 (assumes Docker is running)"
-        echo "  stop         Stop Robot 1 and Docker services"
+        echo "  robot-only   Start only Robot 2 (assumes Docker is running)"
+        echo "  stop         Stop Robot 2 and Docker services"
         echo "  --help       Show this help"
         echo
         echo "Environment variables:"
