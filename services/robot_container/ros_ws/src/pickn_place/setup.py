@@ -39,9 +39,9 @@ setup(
             'aruco_perception = pickn_place.aruco_perception:main',
             'calibration_move = pickn_place.calibration_move:main',
             'pose_generator = pickn_place.pose_generator:main',
-            'axxb_calibration = pickn_place.axxb_calibration:main',
-            'manipulate_move = pickn_place.manipulate_move:main',
-            'motion_command_service = pickn_place.motion_command_service:main',
+            # 'axxb_calibration = pickn_place.axxb_calibration:main',  # Missing module
+            # 'manipulate_move = pickn_place.manipulate_move:main',    # Missing module
+            # 'motion_command_service = pickn_place.motion_command_service:main',  # Missing module
             'machine_mount_teach = pickn_place.machine_mount_teach:main',
             'obstacle_generator = pickn_place.obstacle_generator:main',
             'tool_mount_teach = pickn_place.tool_mount_teach:main'
