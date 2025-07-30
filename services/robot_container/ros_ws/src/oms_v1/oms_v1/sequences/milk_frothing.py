@@ -342,7 +342,7 @@ def mount_frother(**params) -> bool:
 
         # Step 1: Set slower servo timing for precise movements
         print("⚙️ Step 1/4: Setting precise servo timing...")
-        timing_result = run_skill("set_speed_factor", 50)
+        timing_result = run_skill("set_speed_factor", 40)
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing with default...")
         else:
@@ -579,7 +579,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed second pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 50, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE", 25, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -728,6 +728,8 @@ def return_frother(**params) -> bool:
             return False
         print("   ✅ Gripper opened, frother released")
         
+        time.sleep(0.5)
+
         # Step 5: Use stored approach position if available
         print("⬅️ Step 5/7: Moving to stored approach position...")
         if approach_angles is not None and len(approach_angles) >= 6:
