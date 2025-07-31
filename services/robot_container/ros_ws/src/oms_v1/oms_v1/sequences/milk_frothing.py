@@ -468,6 +468,99 @@ def froth_milk(**params) -> bool:
         return False
 
 
+def swirl_milk(**params) -> bool:
+    """
+    Swirl frothed milk in a circular motion for latte art preparation.
+    
+    This function performs a milk swirling sequence for latte art:
+    1. Approaches steam wand position 
+    2. Sets precise timing for smooth swirling
+    3. Moves through positioning sequence to optimal swirling location
+    4. Executes circular swirling motion
+    
+    Args:
+        **params: Additional parameters (currently unused but reserved for future expansion)
+        
+    Returns:
+        bool: True if milk swirling completed successfully, False otherwise
+        
+    Raises:
+        Exception: If unexpected error occurs during swirling process
+        
+    Example:
+        success = swirl_milk()
+        if success:
+            print("Milk swirled successfully")
+    """
+    try:
+        
+        print("🌀 Starting milk swirling sequence")
+        print("=" * 50)
+
+        # Step 1: Approach steam wand position
+        print("🎯 Step 1/4: Approaching steam wand (deep position)...")
+        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
+        if approach_result is False:
+            print("[ERROR] Failed to approach steam wand")
+            return False
+        print("   ✅ Successfully approached steam wand")
+        
+        # Step 2: Set precise servo timing for swirling
+        print("⚙️ Step 2/4: Setting precise servo timing for swirling...")
+        timing_result = run_skill("set_speed_factor", 25)
+        if timing_result is False:
+            print("[WARNING] Failed to set servo timing - continuing...")
+        else:
+            print("   ✅ Servo timing adjusted for swirling")
+        
+        # Step 3: Position sequence for optimal swirling location
+        print("📍 Step 3/4: Moving through positioning sequence...")
+        
+        print("   📍 Moving to intermediate position 1...")
+        intermediate1_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193)
+        if intermediate1_result is False:
+            print("[ERROR] Failed to move to intermediate position 1")
+            return False
+        print("   ✅ Successfully moved to intermediate position 1")
+        
+        print("   📍 Moving to optimal swirling position...")
+        swirl_pos_result = run_skill("gotoJ_deg", -12.437663,-14.896273,-128.797852,-40.173279,-21.011709,4.812856)
+        if swirl_pos_result is False:
+            print("[ERROR] Failed to move to swirling position")
+            return False
+        print("   ✅ Successfully positioned for swirling")
+
+        sync_result = run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
+        
+        # Step 4: Execute circular swirling motion
+        print("🌀 Step 4/4: Executing circular swirling motion...")
+        circle_result = run_skill("move_circle", 3,
+            (-30.0, 0.0, 0.0, 0.0, 0.0, 0.0),    # point1 offset1
+            (-15.0, -15.0, 0.0, 0.0, 0.0, 0.0),   # point2 offset2
+            ["tool=0"])
+        if circle_result is False:
+            print("[WARNING] Circular motion may not have completed optimally")
+        
+        sync_result = run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
+        
+        # Final success summary
+        print("=" * 50)
+        print("✅ MILK SWIRLING COMPLETED SUCCESSFULLY")
+        print("   ✓ Precise positioning achieved")
+        print("   ✓ Optimal swirling technique executed")
+        print("   ✓ Perfect preparation for latte art")
+        print("=" * 50)
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during milk swirling: {e}")
+        print("[INFO] Milk swirling process terminated due to error")
+        return False
+
 def pour_milk(**params) -> bool:
     """
     Pour frothed milk into cup at specified stage.
@@ -509,34 +602,6 @@ def pour_milk(**params) -> bool:
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
         print("=" * 50)
-
-        # Step 1: Approach steam wand position
-        print("🎯 Step 1/5: Approaching steam wand (deep position)...")
-        approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
-        if approach_result is False:
-            print("[ERROR] Failed to approach steam wand")
-            return False
-        print("   ✅ Successfully approached steam wand")
-        
-        # Step 2: Set normal servo timing
-        print("⚙️ Step 2/5: Setting normal servo timing...")
-        timing_result = run_skill("set_speed_factor", 50)
-        if timing_result is False:
-            print("[WARNING] Failed to set servo timing - continuing...")
-        else:
-            print("   ✅ Servo timing adjusted for pouring")
-        
-        # Step 3: Move to intermediate pouring position
-        print("📍 Step 3/5: Moving to intermediate pouring position...")
-        intermediate_result = run_skill("gotoJ_deg", -53.498047, -56.063831, -104.329971, -23.914228, -67.359390, 3.238193)
-        if intermediate_result is False:
-            print("[ERROR] Failed to move to intermediate position")
-            return False
-        print("   ✅ Successfully moved to intermediate position")
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
         
         # Step 4: Stage-specific pouring sequence
         if stage == '1':
@@ -654,7 +719,6 @@ def pour_milk(**params) -> bool:
         print(f"[ERROR] Unexpected error during milk pouring: {e}")
         print("[INFO] Milk pouring process terminated due to error")
         return False
-    
 
 def return_frother(**params) -> bool:
     """
@@ -810,7 +874,7 @@ def clean_steam_wand(**params) -> bool:
         print("=" * 50)
         
         # Step 1: Activate steam for cleaning
-        print("💨 Step 1/4: Activating steam for cleaning...")
+        print("💨 Step 1/6: Activating steam for cleaning...")
         steam_on_result = run_skill("set_DO", 2, 1)
         if steam_on_result is False:
             print("[ERROR] Failed to activate steam for cleaning")
@@ -818,13 +882,34 @@ def clean_steam_wand(**params) -> bool:
         print("   ✅ Steam successfully activated for cleaning")
         
         # Step 2: Allow cleaning time
-        print(f"🧽 Step 2/4: Running cleaning steam ({duration} seconds)...")
+        print(f"🧽 Step 2/6: Running cleaning steam ({duration} seconds)...")
         print("   💨 Steam cleaning in progress...")
         time.sleep(duration)
         print("   ✅ Steam cleaning duration completed")
+
+        # Step 2: Activate steam for cleaning
+        print("💨 Step 3/6: Activating steam for cleaning...")
+        steam_on_result = run_skill("set_DO", 1, 1)
+        if steam_on_result is False:
+            print("[ERROR] Failed to activate steam for cleaning")
+            return False
+        print("   ✅ Steam successfully activated for cleaning")
+
+        time.sleep(5)
+
+        # Step 3: Deactivate steam
+        print("💨 Step 4/6: Deactivating steam...")
+        steam_off_result = run_skill("set_DO", 1, 0)
+        if steam_off_result is False:
+            print("[ERROR] Failed to deactivate steam")
+            return False
+        print("   ✅ Steam successfully deactivated")
+
+        time.sleep(5)
+
         
         # Step 3: Deactivate steam
-        print("💨 Step 3/4: Deactivating steam...")
+        print("💨 Step 5/6: Deactivating steam...")
         steam_off_result = run_skill("set_DO", 2, 0)
         if steam_off_result is False:
             print("[ERROR] Failed to deactivate steam")
@@ -832,7 +917,7 @@ def clean_steam_wand(**params) -> bool:
         print("   ✅ Steam successfully deactivated")
         
         # Step 4: Allow settling time
-        print("⏰ Step 4/4: Allowing settling time...")
+        print("⏰ Step 6/6: Allowing settling time...")
         time.sleep(2)
         print("   ✅ Settling time completed")
         
@@ -856,6 +941,7 @@ SEQUENCES = {
     'get_frother_position': get_frother_position,
     'pick_frother': pick_frother,
     'froth_milk': froth_milk,
+    'swirl_milk': swirl_milk,
     'pour_milk': pour_milk,
     'return_frother': return_frother,
     'mount_frother': mount_frother,

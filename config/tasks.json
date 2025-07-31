@@ -159,8 +159,24 @@
         "type": "robot",
         "function": "pick_frother",
         "params": {}
-      }
-          
+      },
+      {
+        "type": "robot",
+        "function": "mount_frother",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "froth_milk",
+        "params": {
+          "duration": 5
+        }
+      },
+      {
+        "type": "robot",
+        "function": "swirl_milk",
+        "params": {}
+      }   
     ]
   },
   "Espresso_pouring": {
@@ -182,19 +198,7 @@
     ]
   },
   "Milk_Pouring": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "mount_frother",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "froth_milk",
-        "params": {
-          "duration": 5
-        }
-      },  
+    "steps": [ 
       {
         "type": "robot",
         "function": "pour_milk",
