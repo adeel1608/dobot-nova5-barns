@@ -465,7 +465,11 @@ start_robot() {
         
         sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/EnableRobot dobot_msgs_v3/srv/EnableRobot "{load: 2.0}" > /dev/null
-        
+
+        sleep 1 # Stagger service calls
+        ros2 service call /dobot_bringup_v3/srv/CP dobot_msgs_v3/srv/CP "{ r: 100 }" > /dev/null
+
+        sleep 1 # Stagger service calls
         ros2 service call /dobot_bringup_v3/srv/SetGripperPosition dobot_msgs_v3/srv/SetGripperPosition "{position: 0, speed: 255, force: 255}" > /dev/null
         
         # Drag operations
