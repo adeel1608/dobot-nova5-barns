@@ -14,10 +14,12 @@
       {
         "type": "automation",
         "function": "coffee_machine",
-        "params": {}
+        "params": {
+          "coffee_t": 1,
+          "slot_number": 2
+        }
       }
     ]
-  
   },
   "tampering_machine": {
     "steps": [
