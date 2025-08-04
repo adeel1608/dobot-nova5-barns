@@ -22,7 +22,7 @@ from transformations import quaternion_from_matrix
 from collections import deque
 
 # ─── Constants ────────────────────────────────────────────────────────────────
-DEFAULT_VISUALIZE       = True
+DEFAULT_VISUALIZE       = False
 DEFAULT_SAMPLE_WINDOW   = 6
 DEFAULT_LOG_INTERVAL    = 5.0
 
@@ -74,74 +74,105 @@ def average_quaternions(qs):
 class ArucoPerceptionNode(Node):
     def __init__(self):
         super().__init__('aruco_perception_node')
+        self.get_logger().info("Initializing ArucoPerceptionNode...")
 
         # Params
         self.declare_parameter('visualize', DEFAULT_VISUALIZE)
         self.declare_parameter('sample_window_size', DEFAULT_SAMPLE_WINDOW)
         self.VISUALIZE     = self.get_parameter('visualize').get_parameter_value().bool_value
         self.sample_window = self.get_parameter('sample_window_size').get_parameter_value().integer_value
+        self.get_logger().info(f"Visualization: {'Enabled' if self.VISUALIZE else 'Disabled'}")
+        self.get_logger().info(f"Sample window size: {self.sample_window}")
 
         # Logging throttle
         self.last_log_time = 0.0
 
         # Bridge
         self.bridge = CvBridge()
+        self.get_logger().info("CvBridge initialized.")
 
         # Intrinsics flags
         self.camera_info_received = False
         self.depth_info_received  = False
+        self.image_received       = False
+        self.depth_image_received = False
 
         # Latest frames
         self.latest_depth_image = None
 
         # TF broadcaster & buffers
         self.tf_broadcaster        = tf2_ros.TransformBroadcaster(self)
+        self.get_logger().info("TF broadcaster initialized.")
         self.last_marker_transforms = {}  # id → TransformStamped
         self.marker_samples         = {}  # id → {'positions': deque, 'orientations': deque}
 
         # Timers
         self.create_timer(CALIBRATION_TF_INT, self.publish_calibration_tf)
         self.create_timer(DEFAULT_LOG_INTERVAL, self.check_input_topics)
+        self.get_logger().info("Timers created for calibration TF publishing and topic checks.")
 
         # Load static calibration
         pkg_dir = get_package_share_directory(PACKAGE_NAME)
+        self.get_logger().info(f"Loading calibration from '{CALIB_FILE}'...")
         try:
             with open(os.path.join(pkg_dir, CALIB_FILE), 'r') as f:
                 ct = yaml.safe_load(f)['calibration_transform']
             self.calib_quat  = np.array([ct['rotation'][k] for k in ('x','y','z','w')], dtype=np.float32)
             self.calib_trans = np.array([ct['translation'][k] for k in ('x','y','z')], dtype=np.float32)
             self.calib_loaded = True
+            self.get_logger().info("Successfully loaded static calibration transform.")
         except Exception as e:
             self.get_logger().error(f"Calibration load error: {e}")
+            self.get_logger().warn("Using default identity calibration.")
             self.calib_quat  = np.array([0,0,0,1], dtype=np.float32)
             self.calib_trans = np.zeros(3, dtype=np.float32)
             self.calib_loaded = False
 
         # Load ID→name mapping
+        self.get_logger().info(f"Loading ArUco ID-to-name mapping from '{ID_NAME_CONFIG_FILE}'...")
         try:
             with open(os.path.join(pkg_dir, ID_NAME_CONFIG_FILE), 'r') as f:
                 items = yaml.safe_load(f).get('aruco_id', [])
+            self.marker_name_mapping = {it['id']: it['name'] for it in items}
+            self.get_logger().info(f"Loaded {len(self.marker_name_mapping)} ArUco ID mappings.")
         except Exception as e:
             self.get_logger().error(f"ID→name load error: {e}")
             items = []
-        self.marker_name_mapping = {it['id']: it['name'] for it in items}
+            self.marker_name_mapping = {}
 
         # Subscriptions
+        self.get_logger().info("Creating subscriptions...")
         self.create_subscription(CameraInfo, DEFAULT_CAMERA_INFO_TOPIC, self.camera_info_callback, 10)
         self.create_subscription(Image,      DEFAULT_IMAGE_TOPIC,      self.image_callback,      10)
         self.create_subscription(CameraInfo, DEFAULT_DEPTH_INFO_TOPIC, self.depth_info_callback,10)
         self.create_subscription(Image,      DEFAULT_DEPTH_IMAGE_TOPIC,self.depth_callback,     10)
         self.create_subscription(TransformStamped, DEFAULT_EXTRINSICS_TOPIC, self.extrinsics_callback,10)
+        self.get_logger().info("Subscriptions created.")
 
         # Visualization
         if self.VISUALIZE:
+            self.get_logger().info("Initializing visualization window...")
             cv2.namedWindow("Aruco Detection - RGB (top) and Depth (bottom)", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("Aruco Detection - RGB (top) and Depth (bottom)", 900, 1000)
+
+        self.get_logger().info("ArucoPerceptionNode initialized successfully.")
 
     # ─── Logging helper ─────────────────────────────────────────────────────
     def throttled_log(self, msg, level="info"):
         if time() - self.last_log_time >= DEFAULT_LOG_INTERVAL:
-            getattr(self.get_logger(), level)(msg)
+            # Use conditional statements instead of getattr to avoid ROS2 logging severity issues
+            if level == "debug":
+                self.get_logger().debug(msg)
+            elif level == "info":
+                self.get_logger().info(msg)
+            elif level == "warn" or level == "warning":
+                self.get_logger().warn(msg)
+            elif level == "error":
+                self.get_logger().error(msg)
+            elif level == "fatal":
+                self.get_logger().fatal(msg)
+            else:
+                self.get_logger().info(msg)  # Default to info if unknown level
             self.last_log_time = time()
 
     # ─── Callbacks ─────────────────────────────────────────────────────────
@@ -151,7 +182,7 @@ class ArucoPerceptionNode(Node):
             self.dist_coeffs   = np.array(msg.d)
             self.image_width, self.image_height = msg.width, msg.height
             self.camera_info_received = True
-            self.throttled_log("Color camera intrinsics received.")
+            self.get_logger().info("Color camera intrinsics received and processed.")
 
     def depth_info_callback(self, msg: CameraInfo):
         if not self.depth_info_received:
@@ -159,19 +190,21 @@ class ArucoPerceptionNode(Node):
             self.depth_dist_coeffs   = np.array(msg.d)
             self.depth_width, self.depth_height = msg.width, msg.height
             self.depth_info_received = True
-            self.throttled_log("Depth camera intrinsics received.")
+            self.get_logger().info("Depth camera intrinsics received and processed.")
 
     def depth_callback(self, msg: Image):
+        if not self.depth_image_received:
+            self.throttled_log("First depth image received.")
         self.depth_image_received = True
         try:
             self.latest_depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         except cv2.error as e:
-            self.throttled_log(f"Depth callback error: {e}", "error")
+            self.get_logger().error(f"Depth callback cv2 error: {e}")
 
     def extrinsics_callback(self, msg: TransformStamped):
         t = msg.transform.translation
         self.depth_to_color_t = np.array([[t.x],[t.y],[t.z]], dtype=np.float32)
-        self.get_logger().info("Depth→Color extrinsics updated.")
+        self.get_logger().info(f"Depth→Color extrinsics updated: T=({t.x:.4f}, {t.y:.4f}, {t.z:.4f})")
 
     def check_input_topics(self):
         if not self.camera_info_received:
@@ -185,6 +218,8 @@ class ArucoPerceptionNode(Node):
 
     # ─── Main image callback ─────────────────────────────────────────────────
     def image_callback(self, msg: Image):
+        if not self.image_received:
+            self.get_logger().info("First color image received.")
         self.image_received = True
 
         # Guards
@@ -199,7 +234,11 @@ class ArucoPerceptionNode(Node):
             return
 
         # Convert & crop
-        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except Exception as e:
+            self.get_logger().error(f"Failed to convert image: {e}")
+            return
         frame = self.crop_center(frame)
 
         # Depth visualization
@@ -209,7 +248,11 @@ class ArucoPerceptionNode(Node):
 
         # Detect markers
         corners, ids, _ = cv2.aruco.detectMarkers(frame, ARUCO_DICT, parameters=ARUCO_PARAMS)
+        if ids is None:
+            self.throttled_log("No ArUco markers detected in the current frame.", "info")
+
         if ids is not None:
+            self.throttled_log(f"Detected {len(ids)} marker(s): {ids.flatten().tolist()}", "info")
             for i, mid in enumerate(ids.flatten()):
                 mid = int(mid)
 
@@ -261,6 +304,7 @@ class ArucoPerceptionNode(Node):
                 T4[:3,:3] = R
                 q = quaternion_from_matrix(T4)
                 rq = np.array([-q[2], q[1], -q[0], q[3]], dtype=np.float32)
+                self.get_logger().debug(f"Processed marker ID {mid}, added new pose to buffer.")
 
                 # Append to sliding window
                 buf['positions'].append(t)
@@ -270,10 +314,16 @@ class ArucoPerceptionNode(Node):
                 if len(buf['orientations']) == self.sample_window:
                     avg_t = np.mean(np.vstack(buf['positions']), axis=0)
                     avg_q = average_quaternions(np.vstack(buf['orientations']))
+                    marker_name = self.marker_name_mapping.get(mid, f"ID_{mid}")
+                    self.get_logger().debug(
+                        f"Buffer for marker '{marker_name}' is full. Averaging and broadcasting transform.\n"
+                        f"\t- Avg Position: [{avg_t[0]:.3f}, {avg_t[1]:.3f}, {avg_t[2]:.3f}]\n"
+                        f"\t- Avg Orientation: [{avg_q[0]:.3f}, {avg_q[1]:.3f}, {avg_q[2]:.3f}, {avg_q[3]:.3f}]"
+                    )
                     tfm = TransformStamped()
                     tfm.header.stamp    = self.get_clock().now().to_msg()
                     tfm.header.frame_id = "calibrated_camera_link"
-                    tfm.child_frame_id  = self.marker_name_mapping.get(mid, f"ID_{mid}")
+                    tfm.child_frame_id  = marker_name
                     tfm.transform.translation.x = float(avg_t[0])
                     tfm.transform.translation.y = float(avg_t[1])
                     tfm.transform.translation.z = float(avg_t[2])
@@ -334,8 +384,10 @@ class ArucoPerceptionNode(Node):
         self.tf_broadcaster.sendTransform(t)
 
     def destroy_node(self):
+        self.get_logger().info("Shutting down ArucoPerceptionNode...")
         if self.VISUALIZE:
             cv2.destroyAllWindows()
+            self.get_logger().info("Visualization window destroyed.")
         super().destroy_node()
 
 
@@ -345,7 +397,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        pass
+        node.get_logger().info("Keyboard interrupt received, shutting down.")
     finally:
         node.destroy_node()
         rclpy.shutdown()
