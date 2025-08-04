@@ -78,5 +78,19 @@
       "assigned_arm": "Arm1",
       "depends_on": []
     }
+  ],
+  "Brew_Coffee": [
+    {
+      "action": "coffee_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Extra": [
+    {
+      "action": "Extra",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
   ]
 }
