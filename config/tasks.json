@@ -274,5 +274,56 @@
           }
         }
     ]
+  },
+  "Extra": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "coffee_machine",
+        "params": {
+          "coffee_t": 1,
+          "slot_number": 2
+        }
+      },
+      {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
+        }
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "automation",
+        "function": "coffee_machine",
+        "params": {
+          "coffee_t": 1,
+          "slot_number": 2
+        }
+      },
+      {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
+        }
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {}
+      }      
+    ]
   }
 }

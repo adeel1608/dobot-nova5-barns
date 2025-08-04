@@ -1135,6 +1135,8 @@ def pour_espresso_pitcher(**params) -> bool:
         print("🏠 Returning to holding position...")
         final_result = run_skill("gotoJ_deg", 31.076585, -40.253154, -136.313679, -3.210446, -58.931112, -0.206957)
         
+        run_skill("sync")
+        
         if final_result is False:
             print("[ERROR] Failed to return to holding position")
             return False
