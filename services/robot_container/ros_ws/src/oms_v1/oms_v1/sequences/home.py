@@ -131,6 +131,8 @@ def get_machine_position(**params) -> bool:
                 return False
         print("   ✅ All cleaner approaches completed successfully")
         
+        run_skill("sync")
+
         # Record portafilter cleaner position
         print("💾 Step 4/8: Recording portafilter cleaner position...")
         print("   🔍 Waiting for ArUco marker ID 23 (portafilter_cleaner) to be detected...")
@@ -167,6 +169,8 @@ def get_machine_position(**params) -> bool:
                 return False
         print("   ✅ All grinder approaches completed successfully")
         
+        run_skill("sync")
+
         # Record espresso grinder position
         print("💾 Recording espresso grinder position...")
         print("   🔍 Waiting for ArUco marker ID 31 (espresso_grinder) to be detected...")
@@ -202,6 +206,8 @@ def get_machine_position(**params) -> bool:
                 print(f"[ERROR] Failed espresso machine approach {i+1}/5")
                 return False
         print("   ✅ All espresso machine approaches completed successfully")
+        
+        run_skill("sync")
         
         # Record three-group espresso machine position
         print("💾 Recording three-group espresso machine position...")

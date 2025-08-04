@@ -136,7 +136,7 @@ def get_frother_position(**params) -> bool:
         
         # Step 4: Perform multiple approaches for accuracy
         print("🎯 Step 4/5: Performing calibration approaches (5 attempts)...")
-        for i in range(5):
+        for i in range(3):
             print(f"   📍 Approach {i+1}/5...")
             time.sleep(1.0)  # Allow settling time between approaches
             
@@ -618,21 +618,21 @@ def pour_milk(**params) -> bool:
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            # sync_result = run_skill("sync")
+            # if sync_result is False:
+            #     print("[WARNING] Sync operation failed - continuing...")
             
-            print("   🥛 Executing circular pouring motion...")
-            circle_result = run_skill("move_circle", 3,
-                (-30.0, 0.0, 0.0, 0.0, 0.0, 0.0),    # point1 offset1
-                (-15.0, -15.0, 0.0, 0.0, 0.0, 0.0),   # point2 offset2
-                ["tool=0"])
-            if circle_result is False:
-                print("[WARNING] Circular motion may not have completed optimally")
+            # print("   🥛 Executing circular pouring motion...")
+            # circle_result = run_skill("move_circle", 3,
+            #     (-30.0, 0.0, 0.0, 0.0, 0.0, 0.0),    # point1 offset1
+            #     (-15.0, -15.0, 0.0, 0.0, 0.0, 0.0),   # point2 offset2
+            #     ["tool=0"])
+            # if circle_result is False:
+            #     print("[WARNING] Circular motion may not have completed optimally")
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            # sync_result = run_skill("sync")
+            # if sync_result is False:
+            #     print("[WARNING] Sync operation failed - continuing...")
             
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", -117.388901, -41.489887, -93.944572, -48.045307, -115.074539, -31.141111)
