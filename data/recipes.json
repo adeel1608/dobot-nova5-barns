@@ -86,6 +86,13 @@
       "depends_on": []
     }
   ],
+  "Cleaning": [
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
   "Extra": [
     {
       "action": "Extra",

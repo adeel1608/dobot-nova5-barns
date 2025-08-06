@@ -661,7 +661,7 @@ def mount(**params) -> bool:
         # Step 5.1: Move end effector up to fix portafilter
         print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
         print(f"   📍 Executing: moveEE(0, 0, 10, 0, 0, 0)")
-        clear_result = run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)
+        clear_result = run_skill("moveEE_movJ", 0, 0, 1, 0, 0, 0)
         
         if clear_result is False:
             print("[ERROR] Failed to move up to fix portafilter")

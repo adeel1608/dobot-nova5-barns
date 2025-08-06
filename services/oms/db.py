@@ -691,3 +691,62 @@ def get_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
             return cur.fetchall()
     finally:
         release_connection(conn)
+
+def mark_processing_orders_as_failed(reason: str = "Container restart - processing interrupted") -> int:
+    """Mark all processing orders as failed during container startup.
+    
+    Args:
+        reason: The reason for marking orders as failed
+        
+    Returns:
+        int: Number of orders that were marked as failed
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # First, get all processing orders
+            cur.execute(
+                """
+                SELECT id FROM orders 
+                WHERE status = %s
+                """,
+                ('processing',)
+            )
+            processing_orders = cur.fetchall()
+            
+            if not processing_orders:
+                return 0
+            
+            # Update all processing orders to error status
+            cur.execute(
+                """
+                UPDATE orders 
+                SET status = %s, completed_at = %s, error_message = %s
+                WHERE status = %s
+                """,
+                ('error', datetime.now(), reason, 'processing')
+            )
+            
+            # Log events for each failed order
+            for order_row in processing_orders:
+                order_id = order_row[0]
+                cur.execute(
+                    """
+                    INSERT INTO events (event_type, payload)
+                    VALUES (%s, %s)
+                    """,
+                    ('order_failed_on_restart', json.dumps({
+                        'order_id': order_id,
+                        'reason': reason,
+                        'timestamp': datetime.now().isoformat()
+                    }))
+                )
+            
+            conn.commit()
+            return len(processing_orders)
+            
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        release_connection(conn)

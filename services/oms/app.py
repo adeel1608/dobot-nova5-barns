@@ -95,6 +95,24 @@ async def lifespan(app: FastAPI):
     db.connect()        # Connect to PostgreSQL
     queue.connect()     # Connect to Redis
     
+    # Mark any processing orders as failed due to container restart
+    print("Marking processing orders as failed due to container restart...")
+    try:
+        failed_count = db.mark_processing_orders_as_failed()
+        if failed_count > 0:
+            print(f"✅ Marked {failed_count} processing orders as failed due to container restart")
+            # Broadcast the failure events to any connected clients
+            for i in range(failed_count):
+                broadcast({
+                    "event": "container_restart_order_cleanup",
+                    "message": f"Marked {failed_count} orders as failed due to container restart",
+                    "timestamp": "now"
+                })
+        else:
+            print("✅ No processing orders found to mark as failed")
+    except Exception as e:
+        print(f"⚠️ Error marking processing orders as failed: {e}")
+    
     # Sync queue with database on startup
     print("Syncing queue with database on startup...")
     queue.sync_with_database()
@@ -170,6 +188,7 @@ def register_rabbitmq_handlers():
     rabbitmq_client.register_handler("get_active_alerts", handle_get_active_alerts_mq)
     rabbitmq_client.register_handler("get_acknowledged_alerts", handle_get_acknowledged_alerts_mq)
     rabbitmq_client.register_handler("acknowledge_alert", handle_acknowledge_alert_mq)
+    rabbitmq_client.register_handler("mark_processing_orders_failed", handle_mark_processing_orders_failed_mq)
     rabbitmq_client.register_handler("health", handle_health_mq)
     
     logger.info("Registered all RabbitMQ message handlers")
@@ -561,6 +580,40 @@ async def handle_acknowledge_alert_mq(data: Dict) -> Dict:
         
     except Exception as e:
         logger.error(f"Error acknowledging alert via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_mark_processing_orders_failed_mq(data: Dict) -> Dict:
+    """Handle mark processing orders as failed requests via RabbitMQ"""
+    try:
+        reason = data.get("reason", "Processing interrupted via RabbitMQ request")
+        
+        failed_count = db.mark_processing_orders_as_failed(reason)
+        
+        if failed_count > 0:
+            # Broadcast the failure events to any connected clients
+            broadcast({
+                "event": "processing_orders_marked_failed",
+                "count": failed_count,
+                "reason": reason,
+                "timestamp": "now"
+            })
+            
+            return {
+                "success": True,
+                "message": f"Marked {failed_count} processing orders as failed",
+                "failed_count": failed_count,
+                "reason": reason
+            }
+        else:
+            return {
+                "success": True,
+                "message": "No processing orders found to mark as failed",
+                "failed_count": 0,
+                "reason": reason
+            }
+        
+    except Exception as e:
+        logger.error(f"Error marking processing orders as failed via MQ: {e}")
         return {"success": False, "error": str(e)}
 
 async def handle_health_mq(data: Dict) -> Dict:
@@ -1159,6 +1212,37 @@ def sync_queue():
             return {"status": "error", "message": "Failed to sync queue with database"}
     except Exception as e:
         return {"status": "error", "message": f"Sync error: {str(e)}"}
+
+@app.post("/orders/mark-processing-failed")
+def mark_processing_orders_failed(reason: str = Query("Manual cleanup of processing orders", title="Reason for marking orders as failed")):
+    """Manually mark all processing orders as failed."""
+    try:
+        failed_count = db.mark_processing_orders_as_failed(reason)
+        
+        if failed_count > 0:
+            # Broadcast the failure events to any connected clients
+            broadcast({
+                "event": "processing_orders_marked_failed",
+                "count": failed_count,
+                "reason": reason,
+                "timestamp": "now"
+            })
+            
+            return {
+                "status": "success",
+                "message": f"Marked {failed_count} processing orders as failed",
+                "failed_count": failed_count,
+                "reason": reason
+            }
+        else:
+            return {
+                "status": "success", 
+                "message": "No processing orders found to mark as failed",
+                "failed_count": 0,
+                "reason": reason
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to mark processing orders as failed: {str(e)}")
 
 # Inventory Management Endpoints
 

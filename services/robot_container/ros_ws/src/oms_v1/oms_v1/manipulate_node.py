@@ -2001,7 +2001,7 @@ class robot_motion(Node):
                 max_wait=10.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=2.0,        #2 deg error
-                num_samples=6,
+                num_samples=3,
             )
         finally:
             # shut down executor and destroy the node
@@ -2238,7 +2238,7 @@ class robot_motion(Node):
                 max_wait=10.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
-                num_samples=10,
+                num_samples=9,
             )
         finally:
             # shut down executor and destroy the node
