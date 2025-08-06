@@ -28,6 +28,10 @@ current_status = {"order_id": None, "cup_index": None, "step": None, "status": "
 status_callback = None  # Callback function to notify about status updates
 order_completion_notified = False  # Flag to prevent duplicate completion notifications
 
+# Per-arm cup priority scheduling data structures
+per_arm_current_cups = {}    # Map arm_name -> cup_id currently being worked on (one cup per arm)
+cup_completion_status = {}   # Map cup_id -> "pending" | "in_progress" | "completed" | "failed"
+
 # Global RabbitMQ client reference for notifications
 _global_rabbitmq_client = None
 
@@ -62,13 +66,17 @@ def parse_orders(order_file: str):
 
 def setup_tasks(orders, recipes):
     """Create task entries for each order based on the recipes."""
-    global tasks, tasks_by_cup, completed, tasks_total, failed_tasks, failed_count
+    global tasks, tasks_by_cup, completed, tasks_total, failed_tasks, failed_count, per_arm_current_cups, cup_completion_status
     tasks = []
     tasks_by_cup = {}
     completed = {}
     failed_tasks = []
     failed_count = 0
     tasks_total = 0
+    
+    # Reset cup-priority scheduling data structures
+    per_arm_current_cups = {"Arm1": None, "Arm2": None}
+    cup_completion_status = {}
 
     for drink, cup_id in orders:
         # Check that the recipe exists
@@ -77,6 +85,7 @@ def setup_tasks(orders, recipes):
         recipe = recipes[drink]
         completed[cup_id] = set()
         tasks_by_cup[cup_id] = []
+        cup_completion_status[cup_id] = "pending"  # Initialize cup status
         # Validate that dependencies in recipe refer to valid actions
         valid_actions = {step["action"] for step in recipe}
         for step in recipe:
@@ -108,6 +117,69 @@ def setup_tasks(orders, recipes):
             tasks.append(task)
             tasks_by_cup[cup_id].append(task)
             tasks_total += 1
+
+def select_task_with_per_arm_cup_priority(arm_name: str):
+    """
+    Select a task for the given arm using per-arm cup-priority scheduling.
+    
+    This algorithm allows parallel processing across arms while ensuring each arm
+    completes all its tasks for a cup before starting a new cup.
+    
+    Priority order:
+    1. Tasks from the cup this arm is currently working on
+    2. Tasks from new cups (only if arm has no current cup)
+    
+    Returns the selected task or None if no task is available.
+    """
+    global tasks, per_arm_current_cups, completed, cup_completion_status
+    
+    # Get all pending tasks for this arm
+    pending_tasks = [t for t in tasks if t["assigned_arm"] == arm_name and t["status"] == "pending"]
+    
+    # Filter to tasks whose dependencies are satisfied
+    available_tasks = []
+    for task in pending_tasks:
+        cup_id = task["cup"]
+        deps = task["depends_on"]
+        if all(dep in completed[cup_id] for dep in deps):
+            available_tasks.append(task)
+    
+    if not available_tasks:
+        return None
+    
+    # Priority 1: Tasks from cups this arm is currently working on
+    current_cup_id = per_arm_current_cups[arm_name]
+    current_cup_tasks = [t for t in available_tasks if t["cup"] == current_cup_id]
+    
+    if current_cup_tasks:
+        # Select the first available task from current cups
+        task = current_cup_tasks[0]
+        task["status"] = "in_progress"
+        logger.info(f"🎯 [CUP-PRIORITY] {arm_name} continuing work on cup {task['cup']} - {task['action']}")
+        return task
+    
+    # Priority 2: Tasks from new cups (only if arm has no current cup)
+    if current_cup_id is None:
+        # Start working on a new cup - prefer pending cups, but also allow in-progress cups
+        new_cup_tasks = [t for t in available_tasks if cup_completion_status[t["cup"]] in ["pending", "in_progress"]]
+        
+        if new_cup_tasks:
+            task = new_cup_tasks[0]
+            task["status"] = "in_progress"
+            cup_id = task["cup"]
+            
+            # Mark this cup as being worked on by this arm
+            per_arm_current_cups[arm_name] = cup_id
+            if cup_completion_status[cup_id] == "pending":
+                cup_completion_status[cup_id] = "in_progress"
+            
+            logger.info(f"🆕 [PER-ARM-CUP-PRIORITY] {arm_name} starting new cup {cup_id} - {task['action']}")
+            return task
+    
+    # If we get here, the arm has a current cup but no available tasks for it
+    # This means we're waiting for dependencies to be satisfied
+    logger.debug(f"⏳ [PER-ARM-CUP-PRIORITY] {arm_name} waiting for dependencies on cup: {current_cup_id}")
+    return None
 
 async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_type: str):
     """Submit a task to the routine service via RabbitMQ."""
@@ -172,7 +244,7 @@ async def arm_worker(arm_name: str):
         task = None
         should_exit = False
         
-        # Find a pending task for this arm with all dependencies satisfied
+        # Find a pending task for this arm with all dependencies satisfied (Cup-Priority Algorithm)
         with lock:
             # Exit when all tasks are either completed or failed (NOT just submitted)
             total_finished = completed_count + failed_count
@@ -180,17 +252,8 @@ async def arm_worker(arm_name: str):
                 logger.info(f"🤖 DEBUG: {arm_name} worker finished. Completed: {completed_count}, Failed: {failed_count}, Total: {tasks_total}")
                 should_exit = True
             else:
-                # Check for pending tasks that can be executed
-                for t in tasks:
-                    if t["assigned_arm"] == arm_name and t["status"] == "pending":
-                        # Check if all dependencies for this task are completed
-                        cup_id = t["cup"]
-                        deps = t["depends_on"]
-                        if all(dep in completed[cup_id] for dep in deps):
-                            # Take this task for execution
-                            t["status"] = "in_progress"
-                            task = t
-                            break
+                # Per-Arm Cup-Priority Task Selection Algorithm
+                task = select_task_with_per_arm_cup_priority(arm_name)
         
         if should_exit:
             break
@@ -314,7 +377,7 @@ def register_status_callback(callback):
 
 def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Create task entries for an order received through the API."""
-    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count
+    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count, per_arm_current_cups, cup_completion_status
     
     logger.info(f"[SCHEDULER] Setting up tasks for order {order_id} with {len(drinks)} drinks")
     
@@ -327,6 +390,10 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
     completed_count = 0  # Reset completed count
     tasks_total = 0
     order_completion_notified = False  # Critical: Reset completion notification flag for new order
+    
+    # Reset per-arm cup priority scheduling data structures
+    per_arm_current_cups = {"Arm1": None, "Arm2": None}
+    cup_completion_status = {}
     
     # Update current status with new order info
     current_status.update({
@@ -486,7 +553,7 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     When a task fails, immediately notifies OMS and cancels remaining tasks
     instead of waiting for all tasks to complete.
     """
-    global completed_count, completed, failed_count, failed_tasks, order_completion_notified
+    global completed_count, completed, failed_count, failed_tasks, order_completion_notified, per_arm_current_cups, cup_completion_status
     
     logger.info(f"[SCHEDULER] Processing feedback: {action} for {cup_id} - {'SUCCESS' if success else 'FAILED'}")
     
@@ -514,12 +581,26 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                         # Check if this was the final task for this cup
                         if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
                             update_message = f"Order complete: {task['drink']} for {cup_id}"
+                            
+                            # Cup is now complete - remove from arm's current cup
+                            arm_name = task["assigned_arm"]
+                            if arm_name in per_arm_current_cups and per_arm_current_cups[arm_name] == cup_id:
+                                per_arm_current_cups[arm_name] = None
+                            cup_completion_status[cup_id] = "completed"
+                            logger.info(f"🏁 [PER-ARM-CUP-PRIORITY] Cup {cup_id} completed by {arm_name}")
                     else:
                         # Mark task as failed
                         task["status"] = "failed"
                         failed_tasks.append(task)
                         failed_count += 1
                         logger.error(f"[SCHEDULER] Task failed: {action} for {cup_id}")
+                        
+                        # Mark cup as failed and remove from arm's current cup
+                        arm_name = task["assigned_arm"]
+                        if arm_name in per_arm_current_cups and per_arm_current_cups[arm_name] == cup_id:
+                            per_arm_current_cups[arm_name] = None
+                        cup_completion_status[cup_id] = "failed"
+                        logger.error(f"❌ [PER-ARM-CUP-PRIORITY] Cup {cup_id} failed due to {action} task failure")
                         
                         # Set flag for immediate failure notification
                         if not order_completion_notified:

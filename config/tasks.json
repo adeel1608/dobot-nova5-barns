@@ -114,7 +114,7 @@
         "function": "coffee_machine",
         "params": {
           "coffee_t": 1,
-          "slot_number": 2
+          "slot_number": 1
         }
       },
       {
