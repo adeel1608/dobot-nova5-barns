@@ -11,6 +11,7 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
+from oms_v1.params import SLUSH_PARAMS
 
 
 def get_slush(**params) -> bool:
@@ -64,7 +65,7 @@ def get_slush(**params) -> bool:
             
             # Step 1: Move to approach position for dispenser 1
             print("🎯 Step 1/2: Moving to dispenser 1 approach position...")
-            approach_result = run_skill("gotoJ_deg", 27.351225, -41.244622, -131.515709, -6.958192, -152.611468, 0.0)
+            approach_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['approach'])
             if approach_result is False:
                 print("[ERROR] Failed to move to dispenser 1 approach position")
                 return False
@@ -73,7 +74,7 @@ def get_slush(**params) -> bool:
             # Step 2: Move to dispensing position
             print("⬇️ Step 2/2: Moving to dispensing position...")
             print("   📍 Positioning for optimal slush flow...")
-            dispense_result = run_skill("gotoJ_deg", 63.173412, -59.329338, -104.639252, -17.729839, -112.244003, 0.0)
+            dispense_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
             if dispense_result is False:
                 print("[ERROR] Failed to move to dispensing position")
                 return False
@@ -84,7 +85,7 @@ def get_slush(**params) -> bool:
             
             # Step 1: Move to approach position for dispenser 2
             print("🎯 Step 1/3: Moving to dispenser 2 approach position...")
-            approach_result = run_skill("gotoJ_deg", 27.351225, -41.244622, -131.515709, -6.958192, -152.611468, 0.0)
+            approach_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['approach'])
             if approach_result is False:
                 print("[ERROR] Failed to move to dispenser 2 approach position")
                 return False
@@ -93,7 +94,7 @@ def get_slush(**params) -> bool:
             # Step 2: Move to intermediate position
             print("📍 Step 2/3: Moving to intermediate position...")
             print("   📍 Navigating to extended reach position...")
-            intermediate_result = run_skill("gotoJ_deg", 16.886827, -53.178346, -90.576631, -35.737992, -163.024408, 0.0)
+            intermediate_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
             if intermediate_result is False:
                 print("[ERROR] Failed to move to intermediate position")
                 return False
@@ -102,7 +103,7 @@ def get_slush(**params) -> bool:
             # Step 3: Move to dispensing position (extended reach)
             print("⬇️ Step 3/3: Moving to extended dispensing position...")
             print("   📍 Positioning for optimal slush flow with extended reach...")
-            dispense_result = run_skill("gotoJ_deg", 45.045738, -70.610674, -67.497199, -43.970287, -130.385694, -0.683135)
+            dispense_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
             if dispense_result is False:
                 print("[ERROR] Failed to move to extended dispensing position")
                 return False
@@ -186,7 +187,7 @@ def place_slush(**params) -> bool:
         if dispenser == '1':
             print("📍 Step 1/8: Using dispenser 1 return sequence...")
             print("⬆️ Returning to approach position...")
-            return_result = run_skill("gotoJ_deg", 27.351225, -41.244622, -131.515709, -6.958192, -152.611468, 0.0)
+            return_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['approach'])
             if return_result is False:
                 print("[ERROR] Failed to return to approach position")
                 return False
@@ -195,7 +196,7 @@ def place_slush(**params) -> bool:
         elif dispenser == '2':
             print("📍 Step 1/8: Using dispenser 2 return sequence...")
             print("⬆️ Returning to intermediate position...")
-            return_intermediate_result = run_skill("gotoJ_deg", 16.886827, -53.178346, -90.576631, -35.737992, -163.024408, 0.0)
+            return_intermediate_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
             if return_intermediate_result is False:
                 print("[ERROR] Failed to return to intermediate position")
                 return False
@@ -212,7 +213,7 @@ def place_slush(**params) -> bool:
         if stage == '1':
             print("🎯 Executing stage 1 positioning...")
             print("   📍 Moving to stage 1 position...")
-            stage1_result = run_skill("gotoJ_deg", -111.215927, -19.601524, -91.144157, -68.881447, -114.195343, 0.046140)
+            stage1_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['staging']['stage_1'])
             if stage1_result is False:
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
@@ -221,7 +222,7 @@ def place_slush(**params) -> bool:
         elif stage == '2':
             print("🎯 Executing stage 2 positioning...")
             print("   📍 Moving to stage 2 position...")
-            stage2_result = run_skill("gotoJ_deg", -121.922080, -29.170114, -76.511387, -73.910323, -124.911454, 0.116947)
+            stage2_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['staging']['stage_2'])
             if stage2_result is False:
                 print("[ERROR] Failed to move to stage 2 position")
                 return False

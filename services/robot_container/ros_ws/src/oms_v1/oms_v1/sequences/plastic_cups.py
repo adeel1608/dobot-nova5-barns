@@ -11,6 +11,7 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
+from oms_v1.params import PLASTIC_CUPS_PARAMS
 
 
 
@@ -82,7 +83,7 @@ def grab_plastic_cup(**params) -> bool:
         
         # Step 3: Move to plastic cup dispenser area
         print("📍 Step 3/7: Moving to plastic cup dispenser area...")
-        dispenser_result = run_skill("gotoJ_deg", 137.406860, 3.501065, -134.504471, -48.814426, -42.387501, -0.108438)
+        dispenser_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['dispenser']['area'])
         if dispenser_result is False:
             print("[ERROR] Failed to move to plastic cup dispenser area")
             return False
@@ -118,7 +119,7 @@ def grab_plastic_cup(**params) -> bool:
         
         # Step 7: Return to safe position with plastic cup
         print("📍 Step 7/7: Moving to safe position with plastic cup...")
-        safe_position_result = run_skill("gotoJ_deg", 137.406860, 3.501065, -134.504471, -48.814426, -42.387501, -0.108438)
+        safe_position_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['dispenser']['area'])
         
         if safe_position_result is False:
             print("[ERROR] Failed to move to safe position with plastic cup")
@@ -189,7 +190,7 @@ def place_plastic_cup(**params) -> bool:
             
             # Step 1: Move to stage 1 placement position
             print("📍 Step 1/7: Moving to stage 1 position...")
-            stage1_result = run_skill("gotoJ_deg", -111.215927, -19.601524, -91.144157, -68.881447, -114.195343, 0.046140)
+            stage1_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['stage_1'])
             if stage1_result is False:
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
@@ -243,7 +244,7 @@ def place_plastic_cup(**params) -> bool:
             
             # Step 1: Move to stage 2 placement position
             print("📍 Step 1/7: Moving to stage 2 position...")
-            stage2_result = run_skill("gotoJ_deg", -121.922080, -29.170114, -76.511387, -73.910323, -124.911454, 0.116947)
+            stage2_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['stage_2'])
             if stage2_result is False:
                 print("[ERROR] Failed to move to stage 2 position")
                 return False

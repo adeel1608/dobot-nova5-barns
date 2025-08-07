@@ -9,11 +9,14 @@ workflow including portafilter handling, grinding, tamping, mounting, and milk o
 import time
 from typing import Dict, Any, Optional, Tuple
 from oms_v1.manipulate_node import run_skill
-from oms_v1.params import PULL_ESPRESSO_PARAMS
-
-# Predefined home positions for espresso operations
-Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
-Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+from oms_v1.params import (
+    PULL_ESPRESSO_PARAMS, 
+    ESPRESSO_HOME, 
+    ESPRESSO_GRINDER_HOME,
+    ESPRESSO_GRINDER_PARAMS,
+    ESPRESSO_PITCHER_PARAMS,
+    ESPRESSO_HOT_WATER_PARAMS
+)
 
 # Global variables to store captured positions during unmount sequence
 below_espresso_port: Optional[Tuple[float, ...]] = None
@@ -244,14 +247,14 @@ def unmount(**params) -> bool:
         # Step 15: Special handling for ports 2 and 3 (additional navigation)
         if port in ('port_2', 'port_3'):
             print("🔄 Executing special navigation for port 2/3...")
-            nav1_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            nav1_result = run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])
             
             if nav1_result is False:
                 print("[ERROR] Failed special navigation step 1")
                 return False
             print("   ✅ Special navigation step 1 completed")
             
-            nav2_result = run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            nav2_result = run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav2'])
             
             if nav2_result is False:
                 print("[ERROR] Failed special navigation step 2")
@@ -312,7 +315,7 @@ def grinder(**params) -> bool:
         # Step 1: Conditional move to grinder home for port_1
         if port == 'port_1':
             print("🏠 Step 1/7: Moving to grinder home position...")
-            home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+            home_result = run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
             if home_result is False:
                 print("[ERROR] Failed to move to grinder home")
                 return False
@@ -519,7 +522,7 @@ def tamper(**params) -> bool:
 
         # Step 6: Return to grinder home
         print("🏠 Step 6/6: Returning to grinder home...")
-        final_home_result = run_skill("gotoJ_deg", *Espresso_grinder_home)
+        final_home_result = run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
         if final_home_result is False:
             print("[ERROR] Failed to return to grinder home")
             return False
@@ -587,7 +590,7 @@ def mount(**params) -> bool:
         # Step 1: Special handling for ports 2 and 3 (reverse navigation)
         if port in ('port_2', 'port_3'):
             print("🔄 Step 1/10: Executing special navigation for port 2/3...")
-            nav1_result = run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+            nav1_result = run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])
             
             if nav1_result is False:
                 print("[ERROR] Failed special navigation step 1")
@@ -815,7 +818,7 @@ def pick_espresso_pitcher(**params) -> bool:
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/5: Moving to espresso home...")
-        home_result = run_skill("gotoJ_deg", *Espresso_home)
+        home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
         if home_result is False:
             print("[ERROR] Failed to move to espresso home")
             return False
@@ -957,7 +960,7 @@ def pick_espresso_pitcher(**params) -> bool:
         
         # Step 4: Move to final position
         print("📍 Step 4/5: Moving to final holding position...")
-        final_result = run_skill("gotoJ_deg", 31.076585, -40.253154, -136.313679, -3.210446, -58.931112, -0.206957)
+        final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
         if final_result is False:
             print("[ERROR] Failed to move to final position")
             return False
@@ -1031,7 +1034,7 @@ def pour_espresso_pitcher(**params) -> bool:
             
             # Step 2: Approach stage 1 position
             print("📍 Step 2/7: Positioning for stage 1 pouring...")
-            pos1_result = run_skill("gotoJ_deg", 138.578024, -22.115324, -126.765855, -38.694157, -57.964712, 3.173887)
+            pos1_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos1'])
             
             if pos1_result is False:
                 print("[ERROR] Failed to approach stage 1 position")
@@ -1040,7 +1043,7 @@ def pour_espresso_pitcher(**params) -> bool:
             
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
-            pour_result = run_skill("gotoJ_deg", 142.020347, -26.797349, -119.286076, -47.654450, -56.933253, -102.391535)
+            pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])
             
             if pour_result is False:
                 print("[ERROR] Failed to tilt espresso pitcher for pouring")
@@ -1058,19 +1061,19 @@ def pour_espresso_pitcher(**params) -> bool:
 
             # Step 4: Return to neutral position
             print("⬆️ Step 4/7: Returning to neutral position...")
-            neutral_result = run_skill("gotoJ_deg", 138.578024, -22.115324, -126.765855, -38.694157, -57.964712, 3.173887)
+            neutral_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral1'])
             
             if neutral_result is False:
                 print("[ERROR] Failed to return to neutral position")
                 return False
             print("   ✅ Successfully returned to neutral position")
-            
-        else:  # stage_2
+
+        elif stage == 'stage_2':
             print("🎯 Stage 2 pouring sequence...")
             
             # Step 2: Approach stage 2 position
             print("📍 Step 2/7: Positioning for stage 2 pouring...")
-            pos2_result = run_skill("gotoJ_deg", 145.885393, -26.409357, -118.242817, -43.978546, -58.850444, -0.109599)
+            pos2_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos2'])
             
             if pos2_result is False:
                 print("[ERROR] Failed to approach stage 2 position")
@@ -1079,7 +1082,85 @@ def pour_espresso_pitcher(**params) -> bool:
             
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
-            pour_result = run_skill("gotoJ_deg", 145.462132, -32.355488, -108.068238, -53.572020, -58.845487, -105.385536)
+            pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])
+            
+            if pour_result is False:
+                print("[ERROR] Failed to tilt espresso pitcher for pouring")
+                return False
+            print("   ✅ Pouring motion completed")
+            
+            sync_result = run_skill("sync")
+            if sync_result is False:
+                print("[WARNING] Sync operation failed - continuing...")
+            
+            # Reset speed factor
+            speed_result = run_skill("set_speed_factor", 100)
+            if speed_result is False:
+                print("[WARNING] Failed to reset speed factor")
+
+            # Step 4: Return to neutral position
+            print("⬆️ Step 4/7: Returning to neutral position...")
+            neutral_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral2'])
+            
+            if neutral_result is False:
+                print("[ERROR] Failed to return to neutral position")
+                return False
+            print("   ✅ Successfully returned to neutral position")
+
+        elif stage == 'stage_3':
+            print("🎯 Stage 3 pouring sequence...")
+            
+            # Step 2: Approach stage 3 position
+            print("📍 Step 2/7: Positioning for stage 3 pouring...")
+            pos3_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos3'])
+            
+            if pos3_result is False:
+                print("[ERROR] Failed to approach stage 3 position")
+                return False
+            print("   ✅ Successfully positioned for stage 3")
+            
+            # Step 3: Tilt espresso pitcher to pour
+            print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
+            pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])
+            
+            if pour_result is False:
+                print("[ERROR] Failed to tilt espresso pitcher for pouring")
+                return False
+            print("   ✅ Pouring motion completed")
+            
+            sync_result = run_skill("sync")
+            if sync_result is False:
+                print("[WARNING] Sync operation failed - continuing...")
+            
+            # Reset speed factor
+            speed_result = run_skill("set_speed_factor", 100)
+            if speed_result is False:
+                print("[WARNING] Failed to reset speed factor")
+
+            # Step 4: Return to neutral position
+            print("⬆️ Step 4/7: Returning to neutral position...")
+            neutral_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral3'])
+            
+            if neutral_result is False:
+                print("[ERROR] Failed to return to neutral position")
+                return False
+            print("   ✅ Successfully returned to neutral position")
+
+        else:  # stage_4
+            print("🎯 Stage 4 pouring sequence...")
+            
+            # Step 4: Approach stage 4 position
+            print("📍 Step 4/7: Positioning for stage 4 pouring...")
+            pos4_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos4'])
+            
+            if pos4_result is False:
+                print("[ERROR] Failed to approach stage 4 position")
+                return False
+            print("   ✅ Successfully positioned for stage 4")
+            
+            # Step 3: Tilt espresso pitcher to pour
+            print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
+            pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])
             
             if pour_result is False:
                 print("[ERROR] Failed to tilt espresso pitcher for pouring")
@@ -1097,7 +1178,7 @@ def pour_espresso_pitcher(**params) -> bool:
             
             # Step 4: Return to neutral position
             print("⬆️ Step 4/7: Returning to neutral position...")
-            neutral_result = run_skill("gotoJ_deg", 145.885393, -26.409357, -118.242817, -43.978546, -58.850444, -0.109599)
+            neutral_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral4'])
             
             if neutral_result is False:
                 print("[ERROR] Failed to return to neutral position")
@@ -1106,7 +1187,7 @@ def pour_espresso_pitcher(**params) -> bool:
         
         # Step 5: Move to intermediate position
         print("📍 Step 5/7: Moving to intermediate position...")
-        inter_result = run_skill("gotoJ_deg", 121.236795, -29.537004, -136.110522, -14.093591, -58.933034, -0.146524)
+        inter_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])
         
         if inter_result is False:
             print("[ERROR] Failed to move to intermediate position")
@@ -1133,7 +1214,7 @@ def pour_espresso_pitcher(**params) -> bool:
 
         # Step 7: Return to holding position
         print("🏠 Returning to holding position...")
-        final_result = run_skill("gotoJ_deg", 31.076585, -40.253154, -136.313679, -3.210446, -58.931112, -0.206957)
+        final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
         
         run_skill("sync")
         
@@ -1186,7 +1267,7 @@ def get_hot_water(**params) -> bool:
         
         # Step 1: Move to hot water dispenser approach position
         print("🎯 Step 1/2: Approaching hot water dispenser...")
-        approach_result = run_skill("gotoJ_deg", 67.341492, -49.798077, -99.061142, -30.809935, -22.613216, -0.457894)
+        approach_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['approach'])
         if approach_result is False:
             print("[ERROR] Failed to approach hot water dispenser")
             return False
@@ -1194,7 +1275,7 @@ def get_hot_water(**params) -> bool:
         
         # Step 2: Position espresso pitcher under hot water outlet
         print("📍 Step 2/2: Positioning espresso pitcher under hot water outlet...")
-        position_result = run_skill("gotoJ_deg", 61.759601, -52.680407, -91.236745, -35.814578, -28.197699, -0.388979)
+        position_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['position'])
         if position_result is False:
             print("[ERROR] Failed to position espresso pitcher under hot water outlet")
             return False
@@ -1243,7 +1324,7 @@ def with_hot_water(**params) -> bool:
         
         # Step 1: Move away from hot water outlet
         print("⬆️ Step 1/2: Moving away from hot water outlet...")
-        retreat_result = run_skill("gotoJ_deg", 67.341492, -49.798077, -99.061142, -30.809935, -22.613216, -0.457894)
+        retreat_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['retreat'])
         if retreat_result is False:
             print("[ERROR] Failed to move away from hot water outlet")
             return False
@@ -1251,7 +1332,7 @@ def with_hot_water(**params) -> bool:
         
         # Step 2: Return to holding position
         print("🏠 Step 2/2: Returning to holding position...")
-        final_result = run_skill("gotoJ_deg", 31.076585, -40.253154, -136.313679, -3.210446, -58.931112, -0.206957)
+        final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
         if final_result is False:
             print("[ERROR] Failed to return to holding position")
             return False
@@ -1420,7 +1501,7 @@ def return_espresso_pitcher(**params) -> bool:
         
         # Step 3: Return to espresso home
         print("🏠 Step 3/4: Returning to espresso home...")
-        home_result = run_skill("gotoJ_deg", *Espresso_home)
+        home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
         
         if home_result is False:
             print("[ERROR] Failed to return to espresso home")
