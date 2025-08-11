@@ -25,10 +25,10 @@
   --barns-gray-800: #1f2937;       /* Text primary */
   --barns-gray-900: #111827;       /* Text dark */
   --barns-white: #ffffff;          /* Pure white */
-
+  --barns-bg-color: #EEF1F2;
   color-scheme: light;
   color: var(--barns-gray-800);
-  background-color: var(--barns-gray-50);
+  background-color: var(--barns-bg-color);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -45,7 +45,7 @@ html, body, #root {
 }
 
 body {
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+
   color: var(--barns-gray-800);
   font-weight: 500;
   overflow-x: hidden;

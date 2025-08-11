@@ -1,6 +1,7 @@
 import React from 'react';
 import useStore from '../../../store';
 import stop from '../../../assets/stop.png';
+import coffee from '../../../assets/coffee.png';
 export default function OrderDetails() {
   const { orders } = useStore();
 
@@ -11,9 +12,9 @@ export default function OrderDetails() {
 
   if (!processingOrder) {
     return (
-      <div className="bg-white rounded-lg shadow-md flex flex-col h-full ">
+      <div className=" rounded-lg border border-gray-200 flex flex-col h-full ">
         {/* Header - Responsive */}
-        <div className="p-2 md:p-3 border-b border-gray-200 flex-shrink-0 flex  justify-between">
+        <div className="p-2 md:p-3  flex-shrink-0 flex  justify-between  p-4">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
             <button className="flex text-red bg-red-300 hover:bg-red-600 text-white" style={{ padding: '0.3rem', outline: 'none', }}>
               {/* Stop */}
@@ -24,9 +25,7 @@ export default function OrderDetails() {
         {/* No Processing Order - Responsive */}
         <div className="flex-1 flex items-center justify-center text-gray-500 p-3 md:p-4">
           <div className="text-center">
-            <svg className="w-8 md:w-12 h-8 md:h-12 text-gray-300 mx-auto mb-2 md:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
+            <img src={coffee} alt="Coffee" className="w-20 h-20 mx-auto mb-2 md:mb-3" />
             <p className="text-sm font-medium">No Order Processing</p>
             <p className="text-xs text-gray-400 mt-1">System is idle</p>
           </div>

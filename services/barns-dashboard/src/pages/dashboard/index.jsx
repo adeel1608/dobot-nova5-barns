@@ -17,7 +17,7 @@ export default function Dashboard() {
   const isWebSocketConnected = connectionStatus?.websocket === 'connected';
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen ">
 
 
       {/* Main Dashboard Grid - Responsive layout */}
@@ -31,13 +31,13 @@ export default function Dashboard() {
             </div>
 
             {/* Middle Column */}
-            <div className="lg:col-span-4 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-3 lg:order-2">
+            <div className="bg-white rounded-lg lg:col-span-5 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-3 lg:order-2">
               <div className="flex-shrink-0">
                  <OrderStatusPanel />
               </div>
                 
               {/* OrderDetails fills remaining space */}
-              <div className="flex-1 min-h-0 overflow-hidden shadow-xl">
+              <div className="flex-1 min-h-0 overflow-hidden   p-2">
                 <OrderDetails />
               </div>
 
@@ -47,7 +47,7 @@ export default function Dashboard() {
 
 
             {/* Right Column */}
-            <div className="lg:col-span-4 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-2 lg:order-3">
+            <div className="lg:col-span-3 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-2 lg:order-3">
               <div className="flex-1 min-h-0">
                 <AlertsPanel />
               </div>

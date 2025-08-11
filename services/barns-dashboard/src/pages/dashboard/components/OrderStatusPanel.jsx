@@ -16,40 +16,35 @@ export default function OrderStatusPanel() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-4 space-y-4 ">
-      <h2 className="text-lg font-semibold text-gray-800  border-b border-gray-200">Orders Overview</h2>
+    <div className="rounded-lg p-4 space-y-4">
+      {/* <h2 className="text-lg font-semibold text-gray-800 ">Orders Overview</h2> */}
 
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-        <div className="bg-blue-50 p-2 md:p-3 rounded-lg text-center border-b-4   border-blue-500">
-          <div className="text-xl md:text-2xl font-bold text-blue-600">{orderStats.total}</div>
-          <div className="text-xs text-blue-600">Total Orders</div>
+      {/* Order Stats Cards - Horizontal Layout */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* Total Orders Card */}
+        <div className="bg-[#E6F1ED] p-4 rounded-lg flex flex-col justify-center items-center flex-1">
+          <div className="text-3xl font-bold text-gray-700">{orderStats.total}</div>
+          <div className="text-sm font-semibold text-gray-600">Total Orders</div>
         </div>
-        <div className="bg-yellow-50 p-2 md:p-3 rounded-lg text-center border-b-4 border-yellow-500">
-          <div className="text-xl md:text-2xl font-bold text-yellow-600">{orderStats.processing}</div>
-          <div className="text-xs text-yellow-600">Processing</div>
+
+        {/* Processing Card */}
+        <div className="bg-[#E6F1ED] p-4 rounded-lg flex flex-col justify-center items-center flex-1">
+          <div className="text-3xl font-bold text-gray-700">{orderStats.processing}</div>
+          <div className="text-sm font-semibold text-gray-600">Processing</div>
         </div>
-        <div className="bg-gray-50 p-2 md:p-3 rounded-lg text-center border-b-4 border-gray-500">
-          <div className="text-xl md:text-2xl font-bold text-gray-600">{orderStats.queued}</div>
-          <div className="text-xs text-gray-600">In Queue</div>
+
+        {/* In Queue Card */}
+        <div className="bg-[#E6F1ED] p-4 rounded-lg flex flex-col justify-center items-center flex-1">
+          <div className="text-3xl font-bold text-gray-700">{orderStats.queued}</div>
+          <div className="text-sm font-semibold text-gray-600">In Queue</div>
         </div>
-        <div className="bg-green-50 p-2 md:p-3 rounded-lg text-center border-b-4 border-green-500">
-          <div className="text-xl md:text-2xl font-bold text-green-600">{orderStats.completed}</div>
-          <div className="text-xs text-green-600">Completed</div>
+
+        {/* Completed Card */}
+        <div className="bg-[#E6F1ED] p-4 rounded-lg flex flex-col justify-center items-center flex-1">
+          <div className="text-3xl font-bold text-gray-700">{orderStats.completed}</div>
+          <div className="text-sm font-semibold text-gray-600">Completed</div>
         </div>
       </div>
-
-      {/* Extended Order Info */}
-      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-3">
-        <div className="flex justify-between items-center px-3 py-2 rounded bg-red-50 border border-red-100">
-          <span className="text-sm text-red-600">Errors</span>
-          <span className="text-lg font-semibold text-red-600">{orderStats.errors}</span>
-        </div>
-        <div className="flex justify-between items-center px-3 py-2 rounded bg-orange-50 border border-orange-100">
-          <span className="text-sm text-orange-600">Manual Steps Required</span>
-          <span className="text-lg font-semibold text-orange-600">{orderStats.manualRequired}</span>
-        </div>
-      </div> */}
     </div>
   );
 }

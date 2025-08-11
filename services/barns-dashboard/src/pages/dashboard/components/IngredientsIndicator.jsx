@@ -151,55 +151,53 @@ const IngredientsIndicator = () => {
       <div className="flex items-center justify-between mb-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           Inventory
-          
         </h3>
         <span
-            className={`w-3 h-3 rounded-full ${isSocketConnected ? 'bg-green-500' : 'bg-red-500'}`}
-            title={isSocketConnected ? 'Connected' : 'Disconnected'}
-          ></span>
+          className={`w-3 h-3 rounded-full ${isSocketConnected ? 'bg-green-500' : 'bg-red-500'}`}
+          title={isSocketConnected ? 'Connected' : 'Disconnected'}
+        ></span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Inventory Items with Progress Bars - Vertical List */}
+      <div className="space-y-4">
         {categories.map(({ key, title, data }) => {
           const level = data?.status || 'unknown';
           const numeric = data?.percentage || 0;
           const percentage = Math.max(0, Math.min(100, numeric));
-          const badgeClass = getStatusBadge(level);
-          // console.log("special",data)
+          
+          // Get progress bar color based on stock level
+          const getProgressBarColor = (level, numeric) => {
+            if (level === 'low' || numeric < 20) return 'bg-red-500';
+            if (level === 'medium' || numeric < 60) return 'bg-yellow-500';
+            return 'bg-green-800';
+          };
+
           return (
-            <button
+            <div
               key={key}
+              className="cursor-pointer"
               onClick={handleNavigate}
-              className="group flex flex-col items-center p-3 rounded-lg border border-gray-200 barns-bg-hover transition-all duration-200"
             >
-              <img
-                src={iconMap[key] || defaultImg}
-                alt={title}
-                className="w-8 h-8 mb-2"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = defaultImg;
-                }}
-              />
-
-              {/* Lowest Subtype (e.g., almond, arabica) */}
-              <span className="text-sm text-gray-700 text-center leading-tight font-semibold">
-                {data?.lowest_subtype
-                  ? data.lowest_subtype.charAt(0).toUpperCase() + data.lowest_subtype.slice(1)
-                  : '—'}
-              </span>
-
-              <div className="mt-1 flex flex-col items-center">
-                <span
-                  className={`inline-flex items-center px-4 py-0.5 rounded text-xs font-medium ${badgeClass} font-semibold`}
-                >
-                  {level === 'unknown' ? 'Unknown' : level.charAt(0).toUpperCase() + level.slice(1)}
+              {/* Item Row with Percentage */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700">
+                  {data?.lowest_subtype
+                    ? data.lowest_subtype.charAt(0).toUpperCase() + data.lowest_subtype.slice(1)
+                    : title}
                 </span>
-                <span className={`text-xs font-bold mt-1 ${getProgressColor(level, numeric)}`}>
+                <span className="text-sm font-semibold text-gray-700">
                   {percentage}%
                 </span>
               </div>
-            </button>
+              
+              {/* Progress Bar Below Item */}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(level, numeric)}`}
+                  style={{ width: `${percentage}%` }}
+                ></div>
+              </div>
+            </div>
           );
         })}
       </div>

@@ -242,7 +242,7 @@ export default function AlertsPanel() {
             <h2
               onClick={retryFetchAlerts}
               disabled={isLoading}
-              className="text-xs px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded-lg transition-colors disabled:opacity-50"
+              className="text-xs px-2 py-2 mx-1 border border-red-200 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors disabled:opacity-10"
             >
               Retry
             </h2>
