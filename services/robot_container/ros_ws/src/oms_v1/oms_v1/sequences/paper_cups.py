@@ -9,8 +9,8 @@ and staging area management.
 
 import time
 from typing import Dict, Any, Optional
-from ..params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
-from ..manipulate_node import run_skill
+from oms_v1.params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
+from oms_v1.manipulate_node import run_skill
 
 # Predefined home positions for paper cup operations
 Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)

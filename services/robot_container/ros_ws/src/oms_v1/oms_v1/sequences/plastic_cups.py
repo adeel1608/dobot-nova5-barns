@@ -53,6 +53,7 @@ def grab_plastic_cup(**params) -> bool:
         cup_size = params.get("cup_size")
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
+            print("[INFO] Please provide cup_size parameter: '7oz', '9oz', '12oz', or '16oz'")
             return False
         
         # Validate cup size parameter

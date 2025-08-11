@@ -50,6 +50,7 @@ def clean(**params) -> bool:
         port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
+            print("[INFO] Please provide port parameter: 'port_1', 'port_2', or 'port_3'")
             return False
         
         # Validate port parameter
@@ -178,14 +179,14 @@ def clean(**params) -> bool:
             return False
         print("   ✅ Successfully returned to cleaning station home")
         
-        # Step 6: Mount the portafilter back to espresso group
-        print(f"📥 Step 6/6: Remounting portafilter to {port}...")
-        mount_result = mount(port=port)
-        if mount_result is False:
-            print(f"[ERROR] Failed to remount portafilter to {port}")
-            print("[INFO] Cleaning completed but remount failed - manual intervention may be required")
-            return False
-        print("   ✅ Portafilter successfully remounted")
+        # # Step 6: Mount the portafilter back to espresso group
+        # print(f"📥 Step 6/6: Remounting portafilter to {port}...")
+        # mount_result = mount(port=port)
+        # if mount_result is False:
+        #     print(f"[ERROR] Failed to remount portafilter to {port}")
+        #     print("[INFO] Cleaning completed but remount failed - manual intervention may be required")
+        #     return False
+        # print("   ✅ Portafilter successfully remounted")
             
         # Final success summary
         print("=" * 60)

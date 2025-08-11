@@ -54,12 +54,14 @@ def test(**params) -> bool:
         port = params.get("port")
         if not port:
             print("[ERROR] No port specified. Please provide 'port' parameter.")
+            print("[INFO] Valid ports: 'port_1', 'port_2', 'port_3'")
             return False
             
         port_params = PULL_ESPRESSO_PARAMS.get(str(port))
         
         if not port_params:
-            print(f"[ERROR] Unknown port number: {port!r}, available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
+            print(f"[ERROR] Unknown port number: {port!r}")
+            print(f"[INFO] Available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
             return False
         
         print(f"📤 Starting portafilter unmount sequence for {port}")

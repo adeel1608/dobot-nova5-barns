@@ -622,6 +622,7 @@ def mount(**params) -> bool:
         if below_espresso_port is None:
             print("[ERROR] below_espresso_port not captured")
             print("[INFO] Run unmount first to capture required positions")
+            print("[INFO] The mount function requires position data from the unmount function")
             return False
         
         # Validate the captured position data
@@ -642,6 +643,7 @@ def mount(**params) -> bool:
         if mount_espresso_port is None:
             print("[ERROR] mount_espresso_port not captured")
             print("[INFO] Run unmount first to capture required positions")
+            print("[INFO] The mount function requires position data from the unmount function")
             return False
         
         # Validate the captured position data
@@ -1012,9 +1014,9 @@ def pour_espresso_pitcher(**params) -> bool:
             print("[ERROR] No stage parameter provided")
             return False
         
-        if stage not in ('stage_1', 'stage_2'):
+        if stage not in ('stage_1', 'stage_2', 'stage_3', 'stage_4'):
             print(f"[ERROR] Unknown stage: {stage!r}")
-            print("[INFO] Available stages: stage_1, stage_2")
+            print("[INFO] Available stages: stage_1, stage_2, stage_3, stage_4")
             return False
         
         print(f"🥛 Starting milk pouring sequence for {stage}")

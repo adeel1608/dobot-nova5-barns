@@ -43,6 +43,7 @@ def home(**params) -> bool:
         position = params.get("position", "north")  # Default to north
         if not position:
             print("[ERROR] No position parameter provided")
+            print("[INFO] Please provide position parameter from available home positions")
             return False
             
         angles = HOME_ANGLES.get(str(position))

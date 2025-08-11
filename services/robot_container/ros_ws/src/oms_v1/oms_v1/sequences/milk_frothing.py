@@ -596,9 +596,9 @@ def pour_milk(**params) -> bool:
             return False
         
         # Validate stage parameter
-        if stage not in ('1', '2'):
+        if stage not in ('1', '2', '3', '4'):
             print(f"[ERROR] Unknown stage: {stage!r}")
-            print("[INFO] Valid stages: '1', '2'")
+            print("[INFO] Valid stages: '1', '2', '3', '4'")
             return False
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
@@ -655,19 +655,18 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed to restore normal speed")
             print("   ✅ Stage 1 milk pouring completed")
             
-        # Step 4: Stage-specific pouring sequence
-        if stage == '2':
-            print("🎯 Step 4/5: Executing stage 1 milk pouring...")
+        elif stage == '2':
+            print("🎯 Step 4/5: Executing stage 2 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
             speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
-            print("   📍 Moving to stage 1 pouring position...")
-            stage1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['position'])
-            if stage1_result is False:
-                print("[ERROR] Failed to move to stage 1 position")
+            print("   📍 Moving to stage 2 pouring position...")
+            stage2_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['position'])
+            if stage2_result is False:
+                print("[ERROR] Failed to move to stage 2 position")
                 return False
             
             print("   📍 Adjusting pour angle...")
@@ -695,30 +694,29 @@ def pour_milk(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            print("   📍 Returning to stage 1 position...")
+            print("   📍 Returning to stage 2 position...")
             return_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['position'])
             if return_result is False:
-                print("[WARNING] Failed to return to stage 1 position")
+                print("[WARNING] Failed to return to stage 2 position")
             
             print("   ⚙️ Restoring normal speed...")
             restore_speed_result = run_skill("set_speed_factor", 100)
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
-            print("   ✅ Stage 1 milk pouring completed")
+            print("   ✅ Stage 2 milk pouring completed")
 
-        # Step 4: Stage-specific pouring sequence
-        if stage == '3':
-            print("🎯 Step 4/5: Executing stage 1 milk pouring...")
+        elif stage == '3':
+            print("🎯 Step 4/5: Executing stage 3 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
             speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
-            print("   📍 Moving to stage 1 pouring position...")
-            stage1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['position'])
-            if stage1_result is False:
-                print("[ERROR] Failed to move to stage 1 position")
+            print("   📍 Moving to stage 3 pouring position...")
+            stage3_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['position'])
+            if stage3_result is False:
+                print("[ERROR] Failed to move to stage 3 position")
                 return False
             
             print("   📍 Adjusting pour angle...")
@@ -746,30 +744,29 @@ def pour_milk(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            print("   📍 Returning to stage 1 position...")
+            print("   📍 Returning to stage 3 position...")
             return_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['position'])
             if return_result is False:
-                print("[WARNING] Failed to return to stage 1 position")
+                print("[WARNING] Failed to return to stage 3 position")
             
             print("   ⚙️ Restoring normal speed...")
             restore_speed_result = run_skill("set_speed_factor", 100)
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
-            print("   ✅ Stage 1 milk pouring completed")
+            print("   ✅ Stage 3 milk pouring completed")
 
-        # Step 4: Stage-specific pouring sequence
-        else:
-            print("🎯 Step 4/5: Executing stage 1 milk pouring...")
+        else:  # stage == '4'
+            print("🎯 Step 4/5: Executing stage 4 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
             speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
-            print("   📍 Moving to stage 1 pouring position...")
-            stage1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['position'])
-            if stage1_result is False:
-                print("[ERROR] Failed to move to stage 1 position")
+            print("   📍 Moving to stage 4 pouring position...")
+            stage4_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['position'])
+            if stage4_result is False:
+                print("[ERROR] Failed to move to stage 4 position")
                 return False
             
             print("   📍 Adjusting pour angle...")
@@ -797,16 +794,16 @@ def pour_milk(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            print("   📍 Returning to stage 1 position...")
+            print("   📍 Returning to stage 4 position...")
             return_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['position'])
             if return_result is False:
-                print("[WARNING] Failed to return to stage 1 position")
+                print("[WARNING] Failed to return to stage 4 position")
             
             print("   ⚙️ Restoring normal speed...")
             restore_speed_result = run_skill("set_speed_factor", 100)
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
-            print("   ✅ Stage 1 milk pouring completed")
+            print("   ✅ Stage 4 milk pouring completed")
         
         # Step 5: Completion
         print("🏁 Step 5/5: Finalizing milk pouring...")

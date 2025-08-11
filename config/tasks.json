@@ -279,10 +279,40 @@
     "steps": [
       {
         "type": "automation",
-        "function": "coffee_machine",
+        "function": "grinding_machine",
         "params": {
-          "coffee_t": 1,
-          "slot_number": 1
+          "shots_number": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "unmount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+          "tampering": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
         }
       },
       {
@@ -294,59 +324,274 @@
         }
       },
       {
+        "type": "robot",
+        "function": "grab_paper_cup",
+        "params": {
+          "size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+          "tampering": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
         "type": "automation",
         "function": "coffee_machine",
         "params": {
           "coffee_t": 1,
-          "slot_number": 3
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 2,
-          "slot_number": 1
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 2,
           "slot_number": 2
         }
       },
       {
-        "type": "automation",
-        "function": "coffee_machine",
+        "type": "robot",
+        "function": "grab_paper_cup",
         "params": {
-          "coffee_t": 2,
-          "slot_number": 3
+          "size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2"
+        }
+      },  
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+          "tampering": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
         }
       },
       {
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 3,
-          "slot_number": 1
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 3,
+          "coffee_t": 1,
           "slot_number": 2
         }
       },
       {
+        "type": "robot",
+        "function": "grab_paper_cup",
+        "params": {
+          "size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_3"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_3"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2"
+        }
+      },  
+      {
+        "type": "robot",
+        "function": "grinder",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+          "tampering": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "tamper",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 3,
-          "slot_number": 3
+          "coffee_t": 1,
+          "slot_number": 2
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grab_paper_cup",
+        "params": {
+          "size": "7oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_4"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher",
+        "params": {
+          "stage": "stage_4"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "clean",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
         }
       }      
     ]

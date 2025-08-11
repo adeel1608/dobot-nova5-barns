@@ -53,6 +53,10 @@ from control_msgs.action import FollowJointTrajectory
 from pymoveit2 import MoveIt2, MoveIt2State
 from tf_transformations import euler_matrix, quaternion_from_matrix
 
+# Global motion node for sequence execution
+_global_motion_node = None
+_motion_node_lock = threading.Lock()
+
 # Helper functions
 def get_transform_list(tf_stamped):
     """
@@ -3262,18 +3266,16 @@ class robot_motion(Node):
 
         return True
 
-# Global motion node for sequence execution
-_global_motion_node = None
-
 def init_motion_node():
     """Initialize the global motion node for sequence execution."""
     global _global_motion_node
-    if _global_motion_node is None:
-        import rclpy
-        if not rclpy.ok():
-            rclpy.init()
-        _global_motion_node = robot_motion()
-    return _global_motion_node
+    with _motion_node_lock:
+        if _global_motion_node is None:
+            import rclpy
+            if not rclpy.ok():
+                rclpy.init()
+            _global_motion_node = robot_motion()
+        return _global_motion_node
 
 def cleanup_motion_node():
     """Cleanup the global motion node."""
@@ -3389,18 +3391,23 @@ def execute_sequence(sequence_func, **params):
     Returns:
         bool: True if sequence completed successfully, False otherwise
     """
+    motion_node = None
     try:
         motion_node = init_motion_node()
         result = sequence_func(**params)
         return result
     except Exception as e:
-        if _global_motion_node:
-            _global_motion_node.get_logger().error(f"Sequence execution failed: {e}")
+        if motion_node:
+            motion_node.get_logger().error(f"Sequence execution failed: {e}")
         return False
     finally:
-        # Note: Don't cleanup here - let the calling code decide when to cleanup
-        # This allows for multiple sequences to run with the same motion node
-        pass
+        # Cleanup motion node after sequence execution
+        if motion_node:
+            try:
+                motion_node.destroy_node()
+            except Exception as cleanup_error:
+                if motion_node:
+                    motion_node.get_logger().warning(f"Cleanup error: {cleanup_error}")
          
 # def main():
 #     try:
