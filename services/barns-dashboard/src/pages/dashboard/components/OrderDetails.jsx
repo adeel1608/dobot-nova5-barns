@@ -1,7 +1,7 @@
 import React from 'react';
 import useStore from '../../../store';
 import stop from '../../../assets/stop.png';
-import coffee from '../../../assets/coffee.png';
+import coffee from '../../../assets/Coffee.png';
 export default function OrderDetails() {
   const { orders } = useStore();
 

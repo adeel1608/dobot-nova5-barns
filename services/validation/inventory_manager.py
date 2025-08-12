@@ -434,7 +434,63 @@ class InventoryManager:
         
         print(f"Inventory stock level stats: {stats}")
         return stats
+    
+    # Add this method after get_inventory_stock_level_stats (around line 437)
 
+    # Update the method in inventory_manager.py (around line 470)
+
+    def get_inventory_by_stock_level(self, target_level: str) -> dict:
+        """
+        Get ingredients filtered by specific stock level
+        Returns list of ingredients matching the target level in format: subtype(category):quantity
+        """
+        try:
+            result = []
+            
+            valid_levels = ["high", "medium", "low", "empty"]
+            if target_level not in valid_levels:
+                return {"error": f"Invalid stock level. Must be one of: {', '.join(valid_levels)}"}
+            
+            for ingredient_type, subtypes in self.inventory_cache.items():
+                for subtype, data in subtypes.items():
+                    current_amount = data["current_amount"]
+                    max_capacity = data["max_capacity"]
+                    
+                    # Calculate percentage
+                    percentage = int((current_amount / max_capacity) * 100) if max_capacity > 0 else 0
+                    
+                    # Determine status
+                    if percentage >= 66:
+                        status = "high"
+                    elif percentage >= 33:
+                        status = "medium"
+                    elif percentage >= 0:
+                        status = "low"
+                    else:
+                        status = "empty"
+                    
+                    # If status matches target level, add formatted item to result
+                    if status == target_level:
+                        # Format: subtype(category):quantity
+                        formatted_item = f"{subtype}({ingredient_type}):{current_amount}"
+                        result.append(formatted_item)
+            
+            # Sort for consistent ordering
+            result.sort()
+            
+            self.logger.info(f"Found {len(result)} ingredients with {target_level} stock level")
+            
+            return {
+                "stock_level": target_level,
+                "count": len(result),
+                "ingredients": result
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error getting inventory by stock level: {e}")
+            return {"error": f"Error processing request: {str(e)}"}
+
+    
     def update_inventory_from_detection(self, cv_percentage: float):  
         # get the low threshold
         low_threshold = self.inventory_cache["coffee_beans"]["regular"]["low_threshold"]

@@ -95,6 +95,7 @@ class ValidationServiceApp:
         self.rabbitmq_client.register_handler("stock_level", self.handle_inventory_stock_level)
         self.rabbitmq_client.register_handler("category_count", self.handle_category_count)
         self.rabbitmq_client.register_handler("category_info", self.handle_category_info)
+        self.rabbitmq_client.register_handler("inventory_by_stock_level", self.handle_inventory_by_stock_level)
         
         # Computer vision handlers (placeholders)
         self.rabbitmq_client.register_handler("check_cup_picked", self.handle_check_cup_picked)
@@ -245,7 +246,38 @@ class ValidationServiceApp:
                 "error": f"Category info failed: {str(e)}"
             }
     
-
+    async def handle_inventory_by_stock_level(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle inventory by stock level requests"""
+        try:
+            stock_level = data.get("payload", {}).get("stock_level")
+            
+            if not stock_level:
+                return {
+                    "request_id": data.get("request_id"),
+                    "passed": False,
+                    "error": "Stock level parameter is required"
+                }
+            
+            request_data = {
+                "request_id": data.get("request_id", f"async-{datetime.now().timestamp()}"),
+                "client_type": "api_bridge",
+                "function_name": "inventory_by_stock_level",
+                "payload": {
+                    "stock_level": stock_level
+                }
+            }
+            
+            result = self.main_validation.process_inventory_by_stock_level_request(request_data)
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error in inventory_by_stock_level: {e}")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Inventory by stock level failed: {str(e)}"
+            }
+    
     async def handle_refill_inventory(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle inventory refill requests - refill inventory to maximum levels"""
         try:

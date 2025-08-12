@@ -724,7 +724,47 @@ async def get_inventory_category_count():
     except Exception as e:
         logger.error(f"Error getting inventory category count: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/inventory/by-stock-level/{stock_level}")
+async def get_inventory_by_stock_level(stock_level: str):
+    """Get inventory items filtered by stock level (high, medium, low, empty)"""
+    try:
+        # Validate stock level parameter
+        valid_levels = ["high", "medium", "low", "empty"]
+        if stock_level not in valid_levels:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid stock level. Must be one of: {', '.join(valid_levels)}"
+            )
+        
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="inventory_by_stock_level",
+            data={
+                "stock_level": stock_level
+            },
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
+            return {
+                "success": True,
+                "stock_level": stock_level,
+                "ingredients": response.get("details", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=response.get("error", f"Failed to get {stock_level} stock ingredients")
+            )
             
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        logger.error(f"Error getting {stock_level} stock ingredients: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")           
 
 # Alert Management Endpoints
 @app.get("/api/alerts/active")
