@@ -111,13 +111,13 @@ def clean(**params) -> bool:
 
         # First cleaning motion
         print("   🧽 Executing first cleaning motion...")
-        clean_motion1 = run_skill("moveEE", 0, 0, -5, 0, 0, 0)
+        clean_motion1 = run_skill("moveEE", 1.745675, -6.326488, 31.263496, 7.742872, 0.059984, 0.826083) 
         if clean_motion1 is False:
             print("[WARNING] First cleaning motion may not have completed fully")
 
         # Second cleaning motion for thorough cleaning
         print("   🧽 Executing second cleaning motion...")
-        clean_motion2 = run_skill("moveEE", 0, 0, -5, 0, 0, 0)
+        clean_motion2 = run_skill("moveEE", 0, 0, -2.75, 0, 0, 0)
         if clean_motion2 is False:
             print("[WARNING] Second cleaning motion may not have completed fully")
             
@@ -151,13 +151,13 @@ def clean(**params) -> bool:
 
         # First soft cleaning motion
         print("   🪶 Executing first gentle cleaning motion...")
-        soft_clean1 = run_skill("moveEE", 0, 0, -5, 0, 0, 0)
+        soft_clean1 = run_skill("moveEE", 1.745675, -6.326488, 31.263496, 7.742872, 0.059984, 0.826083) 
         if soft_clean1 is False:
             print("[WARNING] First soft cleaning motion may not have completed fully")
 
         # Second soft cleaning motion for thorough cleaning
         print("   🪶 Executing second gentle cleaning motion...")
-        soft_clean2 = run_skill("moveEE", 0, 0, -5, 0, 0, 0)
+        soft_clean2 = run_skill("moveEE", 0, 0, -2.75, 0, 0, 0)
         if soft_clean2 is False:
             print("[WARNING] Second soft cleaning motion may not have completed fully")
             
