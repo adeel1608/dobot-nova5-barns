@@ -266,14 +266,24 @@ class SchedulerService:
             return {"success": False, "error": str(e)}
     
     async def handle_health(self, data: Dict) -> Dict:
-        """Handle health check requests."""
-        return {
-            "status": "healthy",
-            "service": "scheduler",
-            "timestamp": datetime.now().isoformat(),
-            "loaded_recipes": len(recipes),
-            "status_subscribers": len(self.status_subscribers)
-        }
+        """Handle health check requests"""
+        try:
+            # Get RabbitMQ client health status
+            rabbitmq_health = {}
+            if self.rabbitmq_client:
+                rabbitmq_health = self.rabbitmq_client.get_health_status()
+            
+            return {
+                "status": "healthy",
+                "service": "scheduler",
+                "timestamp": datetime.now().isoformat(),
+                "rabbitmq_health": rabbitmq_health,
+                "event_listener_connected": self.event_listener is not None,
+                "recipes_loaded": len(recipes) if recipes else 0
+            }
+        except Exception as e:
+            logger.error(f"Error in health check: {e}")
+            return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):
         """Handle task completion events from routine service."""

@@ -200,6 +200,7 @@ def register_event_handlers():
         
     event_listener.register_event_handler("scheduler.order_completed", handle_order_completed_event)
     event_listener.register_event_handler("scheduler.order_failed", handle_order_failed_event)
+    event_listener.register_event_handler("scheduler.order_heartbeat", handle_order_heartbeat_event)
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
@@ -682,6 +683,32 @@ async def handle_order_failed_event(data: Dict):
         logger.info(f"❌ [OMS] Successfully processed order failure for order {order_id}")
     else:
         logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
+
+async def handle_order_heartbeat_event(data: Dict):
+    """Handle order heartbeat events from scheduler"""
+    order_id = data.get("order_id")
+    status = data.get("status")
+    logger.info(f"💓 [OMS] Received order_heartbeat event from scheduler for order {order_id}, status: {status}")
+    
+    if order_id:
+        order = db.get_order(order_id)
+        if order:
+            # Update order status if it's not already completed or failed
+            if order.get("status") not in [ORDER_STATUS['COMPLETED'], ORDER_STATUS['ERROR']]:
+                db.update_order_status(order_id, status)
+                logger.info(f"✅ [OMS] Updated order {order_id} status to {status} in database")
+                broadcast({
+                    "event": "order_heartbeat",
+                    "order": order_id,
+                    "status": status,
+                    "timestamp": "now"
+                })
+            else:
+                logger.warning(f"⚠️ [OMS] Order {order_id} is already in final state ({order['status']}). Ignoring heartbeat.")
+        else:
+            logger.warning(f"⚠️ [OMS] Order {order_id} not found in database. Ignoring heartbeat.")
+    else:
+        logger.error(f"❌ [OMS] Received order_heartbeat event but no order_id provided: {data}")
 
 async def handle_threshold_warning_event(data: Dict):
     """Handle threshold warning events from validation service"""
@@ -1187,12 +1214,39 @@ def get_system_status():
                 system_status = "running"
                 break
         
+        # Get RabbitMQ client health status
+        rabbitmq_health = {}
+        if rabbitmq_client:
+            rabbitmq_health = rabbitmq_client.get_health_status()
+        
         return {
             "status": system_status,
-            "timestamp": "now"
+            "timestamp": "now",
+            "rabbitmq_health": rabbitmq_health,
+            "event_listener_connected": event_listener is not None
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get system status: {str(e)}")
+
+@app.get("/system/rabbitmq-health")
+def get_rabbitmq_health():
+    """Get detailed RabbitMQ client health status."""
+    try:
+        if not rabbitmq_client:
+            return {
+                "status": "error",
+                "message": "RabbitMQ client not initialized",
+                "timestamp": "now"
+            }
+        
+        health_status = rabbitmq_client.get_health_status()
+        return {
+            "status": "success",
+            "health": health_status,
+            "timestamp": "now"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get RabbitMQ health: {str(e)}")
 
 @app.get("/queue/sync")
 def sync_queue():

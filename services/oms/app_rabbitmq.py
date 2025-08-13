@@ -122,6 +122,7 @@ class OMSService:
         """Register event handlers"""
         self.event_listener.register_event_handler("scheduler.order_completed", self.handle_order_completed_event)
         self.event_listener.register_event_handler("scheduler.order_failed", self.handle_order_failed_event)
+        self.event_listener.register_event_handler("scheduler.order_heartbeat", self.handle_order_heartbeat_event)
         self.event_listener.register_event_handler("validation.threshold_warning", self.handle_threshold_warning_event)
         self.event_listener.register_event_handler("system.shutdown", self.handle_shutdown_event)
     
@@ -783,6 +784,28 @@ class OMSService:
         error = data.get("error", "Unknown error")
         if order_id:
             await self.handle_fail_order({"order_id": order_id, "reason": error})
+    
+    async def handle_order_heartbeat_event(self, data: Dict):
+        """Handle order heartbeat events from scheduler"""
+        order_id = data.get("order_id")
+        status = data.get("status", "processing")
+        progress = data.get("progress", {})
+        
+        if order_id:
+            # Log heartbeat for monitoring
+            logger.info(f"💓 [OMS] Received heartbeat for order {order_id}: {status}")
+            if progress:
+                completion_pct = progress.get("completion_percentage", 0)
+                logger.info(f"📊 [OMS] Order {order_id} progress: {completion_pct:.1f}% complete")
+            
+            # Broadcast heartbeat to dashboard subscribers
+            await self._broadcast_to_dashboard({
+                "event": "order_heartbeat",
+                "order": order_id,
+                "status": status,
+                "progress": progress,
+                "timestamp": datetime.now().isoformat()
+            })
     
     async def handle_threshold_warning_event(self, data: Dict):
         """Handle threshold warning events from validation service"""

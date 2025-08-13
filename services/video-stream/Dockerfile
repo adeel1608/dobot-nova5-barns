@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
@@ -31,4 +31,4 @@ COPY services/video-stream /app/services/video-stream
 ENV PYTHONPATH=/app
 
 # Run the application
-CMD ["uvicorn", "services.video-stream.app:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "app:app", "--app-dir", "/app/services/video-stream", "--host", "0.0.0.0", "--port", "8000"]
