@@ -609,6 +609,43 @@ class MainValidation:
             # self._response_event.set()
             return error_result
         
+    
+    
+    def process_inventory_by_stock_level_request(self, payload):
+        """Process inventory by stock level request"""
+        try:
+            stock_level = payload.get("payload", {}).get("stock_level")
+            
+            if not stock_level:
+                return {
+                    "passed": False,
+                    "request_id": payload["request_id"],
+                    "client_type": payload["client_type"],
+                    "details": {"error": "Stock level parameter is required"}
+                }
+            
+            # Get filtered inventory from inventory manager
+            filtered_inventory = self._inventory_client.get_inventory_by_stock_level(stock_level)
+            
+            final_result = {
+                "passed": True,
+                "request_id": payload["request_id"],
+                "client_type": payload["client_type"],
+                "details": filtered_inventory
+            }
+            
+            return final_result
+            
+        except Exception as e:
+            logging.error(f"Error processing inventory by stock level request: {e}")
+            error_result = {
+                "passed": False,
+                "request_id": payload["request_id"],
+                "client_type": payload["client_type"],
+                "details": {"error": f"Error processing request: {str(e)}"}
+            }
+            return error_result
+        
 
             
     
