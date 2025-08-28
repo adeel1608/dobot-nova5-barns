@@ -467,6 +467,14 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
     # Start worker threads
     await update_status(f"Starting to process order {order_id}")
     
+    # Start heartbeat monitoring for this order
+    heartbeat_task = None
+    try:
+        heartbeat_task = await start_order_heartbeat(order_id)
+        logger.info(f"💓 [SCHEDULER] Started heartbeat monitoring for order {order_id}")
+    except Exception as e:
+        logger.warning(f"⚠️ [SCHEDULER] Failed to start heartbeat for order {order_id}: {e}")
+    
     try:
         # Create and start arm workers
         arm1 = asyncio.create_task(arm_worker("Arm1"))
@@ -541,6 +549,15 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         current_status.update({"status": "error", "step": str(e)})
         await update_status(f"Order {order_id} failed: {e}")
         return False
+    finally:
+        # Clean up heartbeat task
+        if heartbeat_task and not heartbeat_task.done():
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
+            logger.info(f"💓 [SCHEDULER] Stopped heartbeat monitoring for order {order_id}")
 
 def get_current_status():
     """Get the current processing status."""
@@ -762,34 +779,113 @@ async def notify_oms_completion(order_id: int, success: bool, reason: Optional[s
                 "order_id": order_id,
                 "timestamp": time.time()
             }
+            
+            # Use the enhanced send_event method with retry logic
             try:
-                await asyncio.wait_for(
-                    client.send_event("scheduler.order_completed", event_data),
-                    timeout=10.0
-                )
+                await client.send_event("scheduler.order_completed", event_data)
                 logger.info(f"✅ [SCHEDULER] Order {order_id} completion sent to OMS")
-            except asyncio.TimeoutError:
-                logger.error(f"⏰ [SCHEDULER] Timeout sending completion event for order {order_id}")
             except Exception as send_error:
                 logger.error(f"❌ [SCHEDULER] Error sending completion event for order {order_id}: {send_error}")
+                # Try alternative notification method
+                await _send_alternative_notification(order_id, True, reason, client)
         else:
             event_data = {
                 "order_id": order_id, 
                 "error": reason or "Processing failed",
                 "timestamp": time.time()
             }
+            
+            # Use the enhanced send_event method with retry logic
             try:
-                await asyncio.wait_for(
-                    client.send_event("scheduler.order_failed", event_data),
-                    timeout=10.0
-                )
+                await client.send_event("scheduler.order_failed", event_data)
                 logger.error(f"❌ [SCHEDULER] Order {order_id} failure sent to OMS: {reason}")
-            except asyncio.TimeoutError:
-                logger.error(f"⏰ [SCHEDULER] Timeout sending failure event for order {order_id}")
             except Exception as send_error:
                 logger.error(f"❌ [SCHEDULER] Error sending failure event for order {order_id}: {send_error}")
+                # Try alternative notification method
+                await _send_alternative_notification(order_id, False, reason, client)
         
     except Exception as e:
         logger.error(f"⚠️ [SCHEDULER] Failed to notify OMS for order {order_id}: {e}")
         import traceback
         logger.error(f"⚠️ [SCHEDULER] Traceback: {traceback.format_exc()}")
+
+async def _send_alternative_notification(order_id: int, success: bool, reason: Optional[str], client):
+    """Send alternative notification if primary method fails"""
+    try:
+        # Try using send_event_with_ack for critical notifications
+        event_type = "scheduler.order_completed" if success else "scheduler.order_failed"
+        event_data = {
+            "order_id": order_id,
+            "error": reason or "Processing failed" if not success else None,
+            "timestamp": time.time(),
+            "notification_method": "alternative"
+        }
+        
+        result = await client.send_event_with_ack(event_type, event_data, timeout=15.0)
+        if result.get("success"):
+            logger.info(f"✅ [SCHEDULER] Alternative notification successful for order {order_id}")
+        else:
+            logger.error(f"❌ [SCHEDULER] Alternative notification failed for order {order_id}: {result.get('error')}")
+            
+    except Exception as alt_error:
+        logger.error(f"❌ [SCHEDULER] Alternative notification also failed for order {order_id}: {alt_error}")
+
+async def send_order_heartbeat(order_id: int, status: str, progress: Dict[str, Any] = None):
+    """Send periodic heartbeat updates for long-running orders"""
+    global _global_rabbitmq_client
+    
+    try:
+        client = _global_rabbitmq_client
+        if not client:
+            return
+            
+        heartbeat_data = {
+            "order_id": order_id,
+            "status": status,
+            "timestamp": time.time(),
+            "progress": progress or {}
+        }
+        
+        # Use fire-and-forget event for heartbeats (less critical)
+        await client.send_event("scheduler.order_heartbeat", heartbeat_data)
+        logger.debug(f"💓 [SCHEDULER] Heartbeat sent for order {order_id}: {status}")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ [SCHEDULER] Failed to send heartbeat for order {order_id}: {e}")
+
+async def start_order_heartbeat(order_id: int):
+    """Start periodic heartbeat for an order"""
+    global current_status
+    
+    async def heartbeat_loop():
+        while True:
+            try:
+                with lock:
+                    if current_status.get("order_id") != order_id:
+                        # Order changed, stop heartbeat
+                        break
+                    
+                    # Calculate progress
+                    total_tasks = tasks_total
+                    completed_tasks = completed_count
+                    failed_tasks = failed_count
+                    
+                    progress = {
+                        "total_tasks": total_tasks,
+                        "completed_tasks": completed_tasks,
+                        "failed_tasks": failed_tasks,
+                        "completion_percentage": (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                    }
+                
+                await send_order_heartbeat(order_id, "processing", progress)
+                await asyncio.sleep(30)  # Send heartbeat every 30 seconds
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"⚠️ [SCHEDULER] Heartbeat loop error for order {order_id}: {e}")
+                await asyncio.sleep(30)
+    
+    # Start heartbeat task
+    heartbeat_task = asyncio.create_task(heartbeat_loop())
+    return heartbeat_task
