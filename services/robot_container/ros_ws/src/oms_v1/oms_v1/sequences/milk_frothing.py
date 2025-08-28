@@ -270,9 +270,26 @@ def pick_frother(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        grab_result = run_skill("grab_tool", active_frother, 100, 100,-5,-10.5)
+        grab_result = run_skill("grab_tool", active_frother, 100, 100,-6,-11)
         if grab_result is False:
             print(f"[ERROR] Failed to grab {active_frother}")
+            return False
+        
+        sync_result = run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
+
+        # Step 7: Secure the frother with full grip
+        print("   🤏 Securing frother with full grip...")
+        secure_result = run_skill("set_gripper_position", 255, 255)
+        if secure_result is False:
+            print("[ERROR] Failed to secure frother")
+            return False
+        print("   ✅ Milk frother secured successfully")
+
+        move_ee_result = run_skill("moveEE_movJ", 0, 0, 15, 0, 0, 0)
+        if move_ee_result is False:
+            print("[ERROR] Failed to move end effector")
             return False
         
         sync_result = run_skill("sync")
@@ -287,14 +304,6 @@ def pick_frother(**params) -> bool:
         else:
             print("[WARNING] Failed to record grab angles - continuing without position memory")
             grab_angles = None
-
-        # Step 7: Secure the frother with full grip
-        print("   🤏 Securing frother with full grip...")
-        secure_result = run_skill("set_gripper_position", 255, 255)
-        if secure_result is False:
-            print("[ERROR] Failed to secure frother")
-            return False
-        print("   ✅ Milk frother secured successfully")
         
         # Final success summary
         print("=" * 50)
@@ -562,6 +571,54 @@ def swirl_milk(**params) -> bool:
         print("[INFO] Milk swirling process terminated due to error")
         return False
 
+def approach_cup_staging(**params) -> bool:
+    """
+    Move the robot through the cup staging waypoints using joint targets.
+
+    This simple sequence:
+    1) Goes to the 'approach cup staging' joint pose
+    2) Then goes to the 'standby cup staging' joint pose
+
+    Returns:
+        bool: True if both moves succeed, False otherwise.
+    """
+    try:
+        print("☕ Starting cup staging approach sequence...")
+        print("=" * 50)
+
+        # Joint targets (deg) from provided GetAngle responses
+        approach_pose = (0.028578, -63.395081, -106.105522, -14.982790, -66.178017, 0.128368)
+        standby_pose  = (-135.713974, -20.404715, -105.978821, -54.914112, -114.889000, -0.034476)
+
+        # (Optional) set a reasonable speed factor for safe jogging
+        speed_result = run_skill("set_speed_factor", 60)
+        if speed_result is False:
+            print("[WARNING] Failed to set speed factor - continuing with controller default...")
+
+        # 1) Approach cup staging
+        print("📍 Moving to approach cup staging pose...")
+        r1 = run_skill("gotoJ_deg", *approach_pose)
+        if r1 is False:
+            print("[ERROR] Failed to move to approach cup staging pose")
+            return False
+        run_skill("sync")
+
+        # 2) Standby cup staging
+        print("📍 Moving to standby cup staging pose...")
+        r2 = run_skill("gotoJ_deg", *standby_pose)
+        if r2 is False:
+            print("[ERROR] Failed to move to standby cup staging pose")
+            return False
+        run_skill("sync")
+
+        print("=" * 50)
+        print("✅ CUP STAGING APPROACH COMPLETED")
+        return True
+
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during cup staging approach: {e}")
+        return False
+
 def pour_milk(**params) -> bool:
     """
     Pour frothed milk into cup at specified stage.
@@ -579,14 +636,6 @@ def pour_milk(**params) -> bool:
         
     Returns:
         bool: True if milk pouring completed successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during pouring process
-        
-    Example:
-        success = pour_milk(stage='1')
-        if success:
-            print("Milk poured successfully")
     """
     try:
         # Extract and validate stage parameter
@@ -595,7 +644,6 @@ def pour_milk(**params) -> bool:
             print("[ERROR] No stage parameter provided")
             return False
         
-        # Validate stage parameter
         if stage not in ('1', '2', '3', '4'):
             print(f"[ERROR] Unknown stage: {stage!r}")
             print("[INFO] Valid stages: '1', '2', '3', '4'")
@@ -604,7 +652,6 @@ def pour_milk(**params) -> bool:
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
         print("=" * 50)
         
-        # Step 4: Stage-specific pouring sequence
         if stage == '1':
             print("🎯 Step 4/5: Executing stage 1 milk pouring...")
             
@@ -618,7 +665,7 @@ def pour_milk(**params) -> bool:
             if stage1_result is False:
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
-            
+
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['adjust1'])
             if adjust1_result is False:
@@ -863,13 +910,13 @@ def return_frother(**params) -> bool:
             return False
         print("   ✅ Successfully moved to intermediate position")
         
-        # # Step 2: Move to return preparation position
-        # print("📍 Step 2/7: Moving to return preparation position...")
-        # prep_result = run_skill("gotoJ_deg", 22.402670, -79.481049, -59.269863, -39.324520, -81.417374, 11.115391)
-        # if prep_result is False:
-        #     print("[ERROR] Failed to move to return preparation position")
-        #     return False
-        # print("   ✅ Successfully moved to return preparation position")
+        # Step 2: Move to return preparation position
+        print("📍 Step 2/7: Moving to return preparation position...")
+        prep_result = run_skill("gotoJ_deg", 0.028578,-63.395081,-106.105522,-14.982790,-66.178017,0.128368)
+        if prep_result is False:
+            print("[ERROR] Failed to move to return preparation position")
+            return False
+        print("   ✅ Successfully moved to return preparation position")
         
         # Step 3: Use stored grab position if available
         print("📍 Step 3/7: Moving to stored grab position...")
@@ -1049,4 +1096,6 @@ SEQUENCES = {
     'return_frother': return_frother,
     'mount_frother': mount_frother,
     'clean_steam_wand': clean_steam_wand,
+    'approach_cup_staging': approach_cup_staging,
 }
+
