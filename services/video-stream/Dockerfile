@@ -12,10 +12,10 @@ RUN apt-get update && apt-get install -y \
     libgstreamer1.0-0 \
     libgstreamer-plugins-base1.0-0 \
     libgtk-3-0 \
-    libavcodec59 \
-    libavformat59 \
-    libswscale6 \
-    libavutil57 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libavutil-dev \
     v4l-utils \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*

@@ -1,4 +1,28 @@
 {
+  "Americano": [
+    {
+      "action": "Espresso_9oz",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Espresso_pouring",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_9oz"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso_9oz"]
+    }
+  ],
+  "Ice Espresso": [
+    {
+      "action": "Espresso_with_ice",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
   "Espresso": [
     {
       "action": "Espresso",
@@ -18,22 +42,22 @@
   ],
   "Latte": [
     {
-      "action": "Espresso",
+      "action": "Espresso_9oz",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
       "action": "Espresso_pouring",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Espresso_9oz"]
     },
     {
       "action": "Cleaning",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring", "Espresso"]
+      "depends_on": ["Espresso_pouring", "Espresso_9oz"]
     },
     {
-      "action": "Milk_Dispensing_Frothing",
+      "action": "Milk_Dispensing_Frothing_Latte",
       "assigned_arm": "Arm2",
       "depends_on": [
       ]
@@ -41,7 +65,7 @@
     {
       "action": "Milk_Pouring",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
+      "depends_on": ["Milk_Dispensing_Frothing_Latte", "Espresso_9oz"]
     }
   ],
   "Cortado": [
@@ -61,7 +85,7 @@
       "depends_on": ["Espresso_pouring", "Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frothing",
+      "action": "Milk_Dispensing_Frothing_cortado",
       "assigned_arm": "Arm2",
       "depends_on": [
       ]
@@ -69,7 +93,63 @@
     {
       "action": "Milk_Pouring",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing", "Espresso"]
+      "depends_on": ["Milk_Dispensing_Frothing_cortado", "Espresso"]
+    }
+  ],
+  "Macchiato": [
+    {
+      "action": "Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Espresso_pouring",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso"]
+    },
+    {
+      "action": "Milk_Dispensing_Frothing_macchiato",
+      "assigned_arm": "Arm2",
+      "depends_on": [
+      ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing_macchiato", "Espresso"]
+    }
+  ],
+  "Flat_White": [
+    {
+      "action": "Espresso_9oz",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Espresso_pouring",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_9oz"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso_9oz"]
+    },
+    {
+      "action": "Milk_Dispensing_Frothing_Flat_White",
+      "assigned_arm": "Arm2",
+      "depends_on": [
+      ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing_Flat_White", "Espresso_9oz"]
     }
   ],
   "Calibrate": [
@@ -89,13 +169,6 @@
   "Cleaning": [
     {
       "action": "Cleaning",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    }
-  ],
-  "Extra": [
-    {
-      "action": "Extra",
       "assigned_arm": "Arm1",
       "depends_on": []
     }
