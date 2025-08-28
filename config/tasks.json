@@ -362,6 +362,11 @@
       },
       {
         "type": "robot",
+        "function": "approach_cup_staging",
+        "params": {}
+      },
+      {
+        "type": "robot",
         "function": "swirl_milk",
         "params": {}
       }
@@ -399,6 +404,11 @@
         "params": {
           "duration": 5
         }
+      },
+      {
+        "type": "robot",
+        "function": "approach_cup_staging",
+        "params": {}
       },
       {
         "type": "robot",
@@ -442,6 +452,11 @@
       },
       {
         "type": "robot",
+        "function": "approach_cup_staging",
+        "params": {}
+      },
+      {
+        "type": "robot",
         "function": "swirl_milk",
         "params": {}
       }
@@ -478,6 +493,11 @@
           "params": {
             "duration": 5
           }
+        },
+        {
+          "type": "robot",
+          "function": "approach_cup_staging",
+          "params": {}
         },
         {
           "type": "robot",
@@ -518,6 +538,11 @@
           "params": {
             "duration": 5
           }
+        },
+        {
+          "type": "robot",
+          "function": "approach_cup_staging",
+          "params": {}
         },
         {
           "type": "robot",
