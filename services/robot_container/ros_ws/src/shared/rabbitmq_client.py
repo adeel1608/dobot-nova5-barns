@@ -8,11 +8,18 @@ import aio_pika
 from aio_pika import Message, DeliveryMode, ExchangeType
 from aio_pika.abc import AbstractIncomingMessage
 import os
+import time
+from enum import Enum
 
 import sys
 sys.tracebacklimit = 0
 
 # logger = logging.getLogger(__name__)
+
+class CircuitState(Enum):
+    CLOSED = "closed"      # Normal operation
+    OPEN = "open"          # Circuit breaker open, reject requests
+    HALF_OPEN = "half_open"  # Testing if service is back
 
 class RabbitMQClient:
     def __init__(self, service_name: str):
@@ -24,6 +31,20 @@ class RabbitMQClient:
         self.pending_requests = {}
         self.message_handlers = {}
         self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        
+        # Circuit breaker configuration
+        self.circuit_state = CircuitState.CLOSED
+        self.failure_count = 0
+        self.last_failure_time = 0
+        self.circuit_open_time = 30  # seconds to keep circuit open
+        self.failure_threshold = 5   # failures before opening circuit
+        self.success_threshold = 3   # successes to close circuit
+        self.success_count = 0
+        
+        # Retry configuration
+        self.max_retries = 3
+        self.retry_delay = 1.0  # seconds
+        self.retry_backoff = 2.0  # exponential backoff multiplier
 
         # Setup logging
         logging.basicConfig(
@@ -39,6 +60,69 @@ class RabbitMQClient:
         logging.getLogger('aio_pika').setLevel(logging.WARNING)
         logging.getLogger('aiormq').setLevel(logging.WARNING)
         logging.getLogger('aiormq.connection').setLevel(logging.WARNING)
+    
+    def _should_allow_request(self) -> bool:
+        """Check if circuit breaker allows the request"""
+        if self.circuit_state == CircuitState.CLOSED:
+            return True
+        
+        if self.circuit_state == CircuitState.OPEN:
+            # Check if enough time has passed to try half-open
+            if time.time() - self.last_failure_time > self.circuit_open_time:
+                self.circuit_state = CircuitState.HALF_OPEN
+                self.logger.info(f"🔄 {self.service_name} circuit breaker transitioning to HALF_OPEN")
+                return True
+            return False
+        
+        # HALF_OPEN state - allow limited requests
+        return True
+    
+    def _record_success(self):
+        """Record a successful operation"""
+        self.failure_count = 0
+        if self.circuit_state == CircuitState.HALF_OPEN:
+            self.success_count += 1
+            if self.success_count >= self.success_threshold:
+                self.circuit_state = CircuitState.CLOSED
+                self.success_count = 0
+                self.logger.info(f"✅ {self.service_name} circuit breaker CLOSED - service recovered")
+    
+    def _record_failure(self):
+        """Record a failed operation"""
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        self.success_count = 0
+        
+        if self.failure_count >= self.failure_threshold and self.circuit_state == CircuitState.CLOSED:
+            self.circuit_state = CircuitState.OPEN
+            self.logger.warning(f"🚨 {self.service_name} circuit breaker OPEN - too many failures")
+        
+    async def _retry_operation(self, operation, *args, **kwargs):
+        """Retry an operation with exponential backoff"""
+        last_exception = None
+        delay = self.retry_delay
+        
+        for attempt in range(self.max_retries + 1):
+            try:
+                if not self._should_allow_request():
+                    raise Exception(f"Circuit breaker is {self.circuit_state.value}")
+                
+                result = await operation(*args, **kwargs)
+                self._record_success()
+                return result
+                
+            except Exception as e:
+                last_exception = e
+                self._record_failure()
+                
+                if attempt < self.max_retries:
+                    self.logger.warning(f"⚠️ {self.service_name} operation failed (attempt {attempt + 1}/{self.max_retries + 1}): {e}")
+                    await asyncio.sleep(delay)
+                    delay *= self.retry_backoff
+                else:
+                    self.logger.error(f"❌ {self.service_name} operation failed after {self.max_retries + 1} attempts: {e}")
+        
+        raise last_exception
         
     async def connect(self):
         """Establish connection to RabbitMQ"""
@@ -82,75 +166,139 @@ class RabbitMQClient:
         self.logger.info(f"Registered handler for action: {action}")
     
     async def send_request(self, target_service: str, action: str, data: Dict[Any, Any], timeout: int = 30) -> Dict[Any, Any]:
-        """Send a request to another service and wait for response"""
-        correlation_id = str(uuid.uuid4())
-        routing_key = f"{target_service}.{action}"
+        """Send a request to another service and wait for response with retry logic"""
         
-        message_body = {
-            "action": action,
-            "data": data,
-            "timestamp": datetime.now().isoformat(),
-            "source_service": self.service_name,
-        }
-
-        #val added this block to handle the validation service
-        if target_service == "validation":
+        async def _send_request_operation():
+            correlation_id = str(uuid.uuid4())
+            routing_key = f"{target_service}.{action}"
+            
             message_body = {
-            "function_name": action,
-            "payload": data,
-            "timestamp": datetime.now().isoformat(),
-            "client_type": self.service_name,
-            "request_id": correlation_id,
+                "action": action,
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+                "source_service": self.service_name,
             }
-        
-        message = Message(
-            json.dumps(message_body).encode(),
-            correlation_id=correlation_id,
-            reply_to=self.response_queue.name,
-            delivery_mode=DeliveryMode.PERSISTENT
-        )
-        
-        # Store pending request
-        future = asyncio.Future()
-        self.pending_requests[correlation_id] = future
-        
-        try:
-            self.logger.info(f"🚀 {self.service_name} sending request to {routing_key} with correlation_id: {correlation_id}")
-            await self.exchange.publish(message, routing_key=routing_key)
-            self.logger.info(f"📤 {self.service_name} published message to {routing_key}, waiting for response...")
+
+            #val added this block to handle the validation service
+            if target_service == "validation":
+                message_body = {
+                "function_name": action,
+                "payload": data,
+                "timestamp": datetime.now().isoformat(),
+                "client_type": self.service_name,
+                "request_id": correlation_id,
+                }
             
-            # Wait for response with timeout
-            response = await asyncio.wait_for(future, timeout=timeout)
-            self.logger.info(f"✅ {self.service_name} received response for {routing_key}: {response}")
-            return response
+            message = Message(
+                json.dumps(message_body).encode(),
+                correlation_id=correlation_id,
+                reply_to=self.response_queue.name,
+                delivery_mode=DeliveryMode.PERSISTENT
+            )
             
-        except asyncio.TimeoutError:
-            self.logger.error(f"⏰ {self.service_name} request timeout for {routing_key} after {timeout}s")
-            return {"error": "Request timeout", "success": False}
-        except Exception as e:
-            self.logger.error(f"💥 {self.service_name} failed to send request to {routing_key}: {e}")
-            return {"error": str(e), "success": False}
-        finally:
-            # Clean up pending request
-            self.pending_requests.pop(correlation_id, None)
+            # Store pending request
+            future = asyncio.Future()
+            self.pending_requests[correlation_id] = future
+            
+            try:
+                self.logger.info(f"🚀 {self.service_name} sending request to {routing_key} with correlation_id: {correlation_id}")
+                await self.exchange.publish(message, routing_key=routing_key)
+                self.logger.info(f"📤 {self.service_name} published message to {routing_key}, waiting for response...")
+                
+                # Wait for response with timeout
+                response = await asyncio.wait_for(future, timeout=timeout)
+                self.logger.info(f"✅ {self.service_name} received response for {routing_key}: {response}")
+                return response
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"⏰ {self.service_name} request timeout for {routing_key} after {timeout}s")
+                return {"error": "Request timeout", "success": False}
+            except Exception as e:
+                self.logger.error(f"💥 {self.service_name} failed to send request to {routing_key}: {e}")
+                return {"error": str(e), "success": False}
+            finally:
+                # Clean up pending request
+                self.pending_requests.pop(correlation_id, None)
+        
+        return await self._retry_operation(_send_request_operation)
     
     async def send_event(self, event_type: str, data: Dict[Any, Any]):
-        """Send an event (fire-and-forget)"""
-        routing_key = f"events.{event_type}"
+        """Send an event (fire-and-forget) with retry logic"""
         
-        message_body = {
-            "event_type": event_type,
-            "data": data,
-            "timestamp": datetime.now().isoformat(),
-            "source_service": self.service_name
+        async def _send_event_operation():
+            routing_key = f"events.{event_type}"
+            
+            message_body = {
+                "event_type": event_type,
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+                "source_service": self.service_name
+            }
+            
+            message = Message(
+                json.dumps(message_body).encode(),
+                delivery_mode=DeliveryMode.PERSISTENT
+            )
+            
+            await self.exchange.publish(message, routing_key=routing_key)
+            self.logger.info(f"📡 {self.service_name} sent event: {event_type}")
+        
+        return await self._retry_operation(_send_event_operation)
+    
+    async def send_event_with_ack(self, event_type: str, data: Dict[Any, Any], timeout: float = 10.0):
+        """Send an event and wait for acknowledgment (for critical events)"""
+        
+        async def _send_event_with_ack_operation():
+            routing_key = f"events.{event_type}"
+            correlation_id = str(uuid.uuid4())
+            
+            message_body = {
+                "event_type": event_type,
+                "data": data,
+                "timestamp": datetime.now().isoformat(),
+                "source_service": self.service_name,
+                "correlation_id": correlation_id
+            }
+            
+            message = Message(
+                json.dumps(message_body).encode(),
+                correlation_id=correlation_id,
+                reply_to=self.response_queue.name,
+                delivery_mode=DeliveryMode.PERSISTENT
+            )
+            
+            # Store pending acknowledgment
+            future = asyncio.Future()
+            self.pending_requests[correlation_id] = future
+            
+            try:
+                await self.exchange.publish(message, routing_key=routing_key)
+                self.logger.info(f"📡 {self.service_name} sent critical event: {event_type}")
+                
+                # Wait for acknowledgment
+                ack = await asyncio.wait_for(future, timeout=timeout)
+                self.logger.info(f"✅ {self.service_name} received ack for event: {event_type}")
+                return ack
+                
+            except asyncio.TimeoutError:
+                self.logger.error(f"⏰ {self.service_name} event ack timeout for {event_type}")
+                return {"error": "Event acknowledgment timeout", "success": False}
+            finally:
+                self.pending_requests.pop(correlation_id, None)
+        
+        return await self._retry_operation(_send_event_with_ack_operation)
+    
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get the health status of the RabbitMQ client"""
+        return {
+            "service_name": self.service_name,
+            "connected": self.connection is not None and not self.connection.is_closed,
+            "circuit_state": self.circuit_state.value,
+            "failure_count": self.failure_count,
+            "success_count": self.success_count,
+            "pending_requests": len(self.pending_requests),
+            "last_failure_time": self.last_failure_time
         }
-        
-        message = Message(
-            json.dumps(message_body).encode(),
-            delivery_mode=DeliveryMode.PERSISTENT
-        )
-        
-        await self.exchange.publish(message, routing_key=routing_key)
     
     async def _handle_request(self, message: AbstractIncomingMessage):
         """Handle incoming requests"""
