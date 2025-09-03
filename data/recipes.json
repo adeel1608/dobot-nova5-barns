@@ -192,5 +192,26 @@
       "assigned_arm": "Arm1",
       "depends_on": []
     }
+  ],
+  "Grinding": [
+    {
+      "action": "grinding_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Tampering": [
+    {
+      "action": "tampering_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Slush Machine": [
+    {
+      "action": "slush_machine",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
   ]
 }
