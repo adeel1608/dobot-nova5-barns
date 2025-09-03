@@ -5,7 +5,10 @@
       {
         "type": "automation",
         "function": "dispense_milk",
-        "params": {}
+        "params": {
+          "milk_type": "whole",
+          "amount": 200
+        }
       }
     ]
   },

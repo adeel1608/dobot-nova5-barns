@@ -152,6 +152,19 @@
       "depends_on": ["Milk_Dispensing_Frothing_Flat_White", "Espresso_9oz","Espresso_pouring"]
     }
   ],
+  "Milk Processing": [
+    {
+      "action": "Milk_Dispensing_Frothing",
+      "assigned_arm": "Arm2",
+      "depends_on": [
+      ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing"]
+    }
+  ],
   "Calibrate": [
     {
       "action": "Calibrate",
@@ -169,6 +182,13 @@
   "Cleaning": [
     {
       "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "Purge Milk": [
+    {
+      "action": "dispense_milk",
       "assigned_arm": "Arm1",
       "depends_on": []
     }
