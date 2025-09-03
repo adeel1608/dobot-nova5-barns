@@ -68,6 +68,34 @@
       "depends_on": ["Milk_Dispensing_Frothing_Latte", "Espresso_9oz","Espresso_pouring"]
     }
   ],
+  "Latte_7oz": [
+    {
+      "action": "Espresso_9oz",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Espresso_pouring",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_9oz"]
+    },
+    {
+      "action": "Cleaning",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso_pouring", "Espresso_9oz"]
+    },
+    {
+      "action": "Milk_Dispensing_Frothing_Latte",
+      "assigned_arm": "Arm2",
+      "depends_on": [
+      ]
+    },
+    {
+      "action": "Milk_Pouring",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frothing_Latte", "Espresso_9oz","Espresso_pouring"]
+    }
+  ],
   "Cortado": [
     {
       "action": "Espresso",

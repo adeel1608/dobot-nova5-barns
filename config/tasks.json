@@ -271,20 +271,6 @@
       },
       {
         "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "9oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_1"
-        }
-      },
-      {
-        "type": "robot",
         "function": "unmount",
         "params": {
           "port": "port_1"
@@ -318,8 +304,22 @@
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 3,
+          "coffee_t": 6,
           "slot_number": 1
+        }
+      },
+      {
+        "type": "robot",
+        "function": "grab_paper_cup",
+        "params": {
+          "size": "9oz"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup",
+        "params": {
+          "stage": "stage_1"
         }
       },
       {
