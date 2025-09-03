@@ -109,18 +109,19 @@ def clean(**params) -> bool:
             return False
         print("   ✅ Successfully mounted to hard brush")
 
+        
         # First cleaning motion
         print("   🧽 Executing first cleaning motion...")
-        clean_motion1 = run_skill("moveEE", 1.745675, -6.326488, 31.263496, 7.742872, 0.059984, 0.826083) 
+        clean_motion1 = run_skill("moveEE", 1.745675, -5.326488, 29.063496, 7.742872, 0.059984, 0.826083) 
         if clean_motion1 is False:
             print("[WARNING] First cleaning motion may not have completed fully")
-
+        
         # Second cleaning motion for thorough cleaning
         print("   🧽 Executing second cleaning motion...")
-        clean_motion2 = run_skill("moveEE", 0, 0, -2.75, 0, 0, 0)
+        clean_motion2 = run_skill("moveEE", 0, 0, -5.25, 0, 0, 0)
         if clean_motion2 is False:
             print("[WARNING] Second cleaning motion may not have completed fully")
-            
+        
         # Move up after hard brush cleaning
         print("   ⬆️ Retracting from hard brush...")
         up_result = run_skill("moveEE", 0, 0, 100, 0, 0, 0)
@@ -149,18 +150,19 @@ def clean(**params) -> bool:
             return False
         print("   ✅ Successfully mounted to soft brush")
 
+        
         # First soft cleaning motion
         print("   🪶 Executing first gentle cleaning motion...")
-        soft_clean1 = run_skill("moveEE", 1.745675, -6.326488, 31.263496, 7.742872, 0.059984, 0.826083) 
+        soft_clean1 = run_skill("moveEE", 1.745675, -5.326488, 29.063496, 7.742872, 0.059984, 0.826083) 
         if soft_clean1 is False:
             print("[WARNING] First soft cleaning motion may not have completed fully")
-
+        
         # Second soft cleaning motion for thorough cleaning
         print("   🪶 Executing second gentle cleaning motion...")
-        soft_clean2 = run_skill("moveEE", 0, 0, -2.75, 0, 0, 0)
+        soft_clean2 = run_skill("moveEE", 0, 0, -5.25, 0, 0, 0)
         if soft_clean2 is False:
             print("[WARNING] Second soft cleaning motion may not have completed fully")
-            
+          
         # Move up after soft brush cleaning
         print("   ⬆️ Retracting from soft brush...")
         soft_up_result = run_skill("moveEE", 0, 0, 150, 0, 0, 0)
@@ -179,14 +181,14 @@ def clean(**params) -> bool:
             return False
         print("   ✅ Successfully returned to cleaning station home")
         
-        # Step 6: Mount the portafilter back to espresso group
-        print(f"📥 Step 6/6: Remounting portafilter to {port}...")
-        mount_result = mount(port=port)
-        if mount_result is False:
-            print(f"[ERROR] Failed to remount portafilter to {port}")
-            print("[INFO] Cleaning completed but remount failed - manual intervention may be required")
-            return False
-        print("   ✅ Portafilter successfully remounted")
+        # # Step 6: Mount the portafilter back to espresso group
+        # print(f"📥 Step 6/6: Remounting portafilter to {port}...")
+        # mount_result = mount(port=port)
+        # if mount_result is False:
+        #     print(f"[ERROR] Failed to remount portafilter to {port}")
+        #     print("[INFO] Cleaning completed but remount failed - manual intervention may be required")
+        #     return False
+        # print("   ✅ Portafilter successfully remounted")
             
         # Final success summary
         print("=" * 60)
