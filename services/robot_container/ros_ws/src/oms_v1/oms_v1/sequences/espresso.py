@@ -362,7 +362,7 @@ def grinder(**params) -> bool:
         
         # Allow positioning time
         print("   ⏰ Allowing positioning time...")
-        time.sleep(2)
+        time.sleep(3)
 
         # Step 5: Mount to grinder again for consistency
         print("⚙️ Step 5/7: Re-mounting to grinder...")
