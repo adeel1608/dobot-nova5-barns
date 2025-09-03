@@ -152,7 +152,7 @@ def get_machine_position(**params) -> bool:
             print("[ERROR] Failed to position for grinder calibration (step 1)")
             return False
         
-        grinder_prep2_result = run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+        grinder_prep2_result = run_skill("gotoJ_deg", -44.767990,-16.740473,-125.801704,-51.932587,-94.604942,-0.214288)
         if grinder_prep2_result is False:
             print("[ERROR] Failed to position for grinder calibration (step 2)")
             return False
