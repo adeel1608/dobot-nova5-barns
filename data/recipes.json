@@ -241,5 +241,12 @@
       "assigned_arm": "Arm1",
       "depends_on": []
     }
+  ],
+  "steam_wand_cleaning": [
+    {
+      "action": "steam_wand_cleaning",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    }
   ]
 }

@@ -566,7 +566,7 @@
         "type": "robot",
         "function": "clean_steam_wand",
         "params": {
-          "duration": 5
+          "duration": 18
         }
       }
     ]
@@ -632,6 +632,17 @@
             "stage": "1"
           }
         }
+    ]
+  },
+  "steam_wand_cleaning": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "clean_steam_wand",
+        "params": {
+          "duration": 18
+        }
+      }
     ]
   }
 }
