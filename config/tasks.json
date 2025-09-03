@@ -142,7 +142,7 @@
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 6,
+          "coffee_t": 2,
           "slot_number": 1
         }
       },
@@ -213,7 +213,7 @@
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 3,
+          "coffee_t": 2,
           "slot_number": 1
         }
       },
@@ -304,7 +304,7 @@
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 6,
+          "coffee_t": 2,
           "slot_number": 1
         }
       },
