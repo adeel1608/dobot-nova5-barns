@@ -11,6 +11,7 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
+from oms_v1.sequences.plastic_cups import grab_plastic_cup, place_plastic_cup
 from oms_v1.params import (
     SLUSH_PARAMS, VALID_STAGES, VALID_CUP_SIZES, VALID_DISPENSERS,
     validate_stage, validate_cup_size, log_step, log_success, log_error, log_info,
@@ -29,26 +30,26 @@ def get_slush(**params) -> bool:
     4. Positions cup under dispenser for slush dispensing
     
     Args:
-        stage (str): Target stage ('1', '2', '3', or '4')
-        cup_size (str): Cup size ('16oz' - currently only 16oz supported)
-        dispenser (str): Dispenser number ('1' or '2')
+        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        dispenser (str): Dispenser number ('1' or '2') - required parameter
         
     Returns:
         bool: True if slush dispensing completed successfully, False otherwise
         
     Example:
-        success = get_slush(stage='1', cup_size='16oz', dispenser='1')
+        success = get_slush(dispenser='1')  # Uses defaults for stage and cup_size
         if success:
             print("Slush dispensed successfully")
     """
     try:
-        # Extract and validate parameters
-        stage = params.get("stage")
-        cup_size = params.get("cup_size")
+        # Extract and validate parameters with defaults
+        stage = params.get("stage", "1")  # Default to stage 1
+        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
-        if not all([stage, cup_size, dispenser]):
-            print("[ERROR] Missing required parameters: stage, cup_size, dispenser")
+        if not dispenser:
+            print("[ERROR] Missing required parameter: dispenser")
             return False
         
         # Validate parameters
@@ -140,26 +141,26 @@ def place_slush(**params) -> bool:
     4. Places cup at designated staging area
     
     Args:
-        stage (str): Target stage ('1', '2', '3', or '4')
-        cup_size (str): Cup size ('16oz' - currently only 16oz supported)
-        dispenser (str): Dispenser number used ('1' or '2')
+        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        dispenser (str): Dispenser number used ('1' or '2') - required parameter
         
     Returns:
         bool: True if slush placement completed successfully, False otherwise
         
     Example:
-        success = place_slush(stage='1', cup_size='16oz', dispenser='1')
+        success = place_slush(dispenser='1', stage='2')  # Uses default cup_size
         if success:
             print("Slush cup placed successfully")
     """
     try:
-        # Extract and validate parameters
-        stage = params.get("stage")
-        cup_size = params.get("cup_size")
+        # Extract and validate parameters with defaults
+        stage = params.get("stage", "1")  # Default to stage 1
+        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
-        if not all([stage, cup_size, dispenser]):
-            print("[ERROR] Missing required parameters: stage, cup_size, dispenser")
+        if not dispenser:
+            print("[ERROR] Missing required parameter: dispenser")
             return False
         
         # Validate parameters
