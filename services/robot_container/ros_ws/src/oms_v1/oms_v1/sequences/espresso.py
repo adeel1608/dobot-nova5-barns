@@ -291,6 +291,7 @@ def grinder(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        positioning_time (float): Time in seconds to allow for positioning, defaults to 3.0
         
     Returns:
         bool: True if grinding and tamping completed successfully, False otherwise
@@ -299,13 +300,14 @@ def grinder(**params) -> bool:
         Exception: If unexpected error occurs during grinding process
         
     Example:
-        success = grinder(port='port_1')
+        success = grinder(port='port_1', positioning_time=2.5)
         if success:
             print("Coffee grinding and tamping completed")
     """
     try:
-        # Extract and validate port parameter
+        # Extract and validate parameters
         port = params.get("port", "port_2")  # Default to port_2
+        positioning_time = params.get("positioning_time", 3.0)  # Default to 3.0 seconds
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -361,8 +363,8 @@ def grinder(**params) -> bool:
         print("   ✅ Successfully approached tamper")
         
         # Allow positioning time
-        print("   ⏰ Allowing positioning time...")
-        time.sleep(3)
+        print(f"   ⏰ Allowing positioning time ({positioning_time}s)...")
+        time.sleep(positioning_time)
 
         # Step 5: Mount to grinder again for consistency
         print("⚙️ Step 5/7: Re-mounting to grinder...")

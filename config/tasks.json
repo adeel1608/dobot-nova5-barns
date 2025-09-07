@@ -225,22 +225,10 @@
         }
       },
       {
-        "type": "robot",
-        "function": "go_to_ice",
-        "params": {
-        }
-      },
-      {
         "type": "automation",
         "function": "dispense_ice",
         "params": {
           "ice" : 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "go_home_ice",
-        "params": {
         }
       },
       {
