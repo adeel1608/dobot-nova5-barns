@@ -309,7 +309,7 @@ def grinder(**params) -> bool:
         # Extract and validate parameters
         port = params.get("port", "port_2")  # Default to port_2
         positioning_time = params.get("positioning_time", 3.0)  # Default to 3.0 seconds
-        portafilter_tool = params.get("portafilter_tool", "single_portafilter")  # Default to single_portafilter
+        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -317,7 +317,7 @@ def grinder(**params) -> bool:
         # Validate portafilter tool parameter
         if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
             print(f"[ERROR] Invalid portafilter_tool: {portafilter_tool!r}")
-            print("[INFO] Available tools: single_portafilter, double_portafilter")
+            print("[INFO] Available options: single_portafilter, double_portafilter")
             return False
             
         print(f"☕ Starting grinding and tamping sequence for {port}")
@@ -414,7 +414,7 @@ def grinder(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
 
-        # Step 8: Approach portafilter tool with fallback
+        # Step 8: Approach specified portafilter tool with fallback
         print(f"🎯 Step 8/8: Approaching {portafilter_tool}...")
         approach_tool_result = run_skill("approach_tool", portafilter_tool)
         if approach_tool_result is False:
@@ -473,7 +473,7 @@ def tamper(**params) -> bool:
     """
     try:
         # Extract and validate parameters
-        portafilter_tool = params.get("portafilter_tool", "single_portafilter")  # Default to single_portafilter
+        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
         
         # Validate portafilter tool parameter
         if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
