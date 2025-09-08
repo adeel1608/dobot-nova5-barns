@@ -697,7 +697,9 @@
       {
         "type": "automation",
         "function": "coffee_machine",
-        "params": {}
+        "params": {
+          "coffee_t": 6,
+          "slot_number": 1}
       }
     ]
   },
@@ -739,19 +741,13 @@
       }
     ]
   },
-  "test1": {
+  "software_test": {
     "steps": [
       {
-        "type": "validation",
-        "function": "validate_test1",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "test_1",
+        "type": "automation",
+        "function": "automation_test",
         "params": {}
       }
-
     ]
   },
   "test2": {

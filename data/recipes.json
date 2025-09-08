@@ -32,6 +32,7 @@
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso_pouring_double_shot", "Espresso_double_shot"]
     }
+
   ],
   "Macchiato_single_shot": [
     {
