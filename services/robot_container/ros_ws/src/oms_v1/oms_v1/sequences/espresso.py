@@ -291,6 +291,8 @@ def grinder(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        positioning_time (float): Time in seconds to allow for positioning, defaults to 3.0
+        portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
         
     Returns:
         bool: True if grinding and tamping completed successfully, False otherwise
@@ -299,15 +301,23 @@ def grinder(**params) -> bool:
         Exception: If unexpected error occurs during grinding process
         
     Example:
-        success = grinder(port='port_1')
+        success = grinder(port='port_1', positioning_time=2.5, portafilter_tool='double_portafilter')
         if success:
             print("Coffee grinding and tamping completed")
     """
     try:
-        # Extract and validate port parameter
+        # Extract and validate parameters
         port = params.get("port", "port_2")  # Default to port_2
+        positioning_time = params.get("positioning_time", 3.0)  # Default to 3.0 seconds
+        portafilter_tool = params.get("portafilter_tool", "single_portafilter")  # Default to single_portafilter
         if not port:
             print("[ERROR] No port parameter provided")
+            return False
+            
+        # Validate portafilter tool parameter
+        if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
+            print(f"[ERROR] Invalid portafilter_tool: {portafilter_tool!r}")
+            print("[INFO] Available tools: single_portafilter, double_portafilter")
             return False
             
         print(f"☕ Starting grinding and tamping sequence for {port}")
@@ -361,8 +371,8 @@ def grinder(**params) -> bool:
         print("   ✅ Successfully approached tamper")
         
         # Allow positioning time
-        print("   ⏰ Allowing positioning time...")
-        time.sleep(3)
+        print(f"   ⏰ Allowing positioning time ({positioning_time}s)...")
+        time.sleep(positioning_time)
 
         # Step 5: Mount to grinder again for consistency
         print("⚙️ Step 5/7: Re-mounting to grinder...")
@@ -404,12 +414,21 @@ def grinder(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
 
-        # Step 8: Approach double portafilter tool
-        print("🎯 Step 8/8: Approaching double portafilter tool...")
-        approach_tool_result = run_skill("approach_tool", "single_portafilter")
+        # Step 8: Approach portafilter tool with fallback
+        print(f"🎯 Step 8/8: Approaching {portafilter_tool}...")
+        approach_tool_result = run_skill("approach_tool", portafilter_tool)
         if approach_tool_result is False:
-            print("[WARNING] Failed to approach double portafilter tool")
-        print("   ✅ Successfully approached tool")
+            # Try the other tool as fallback
+            fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+            print(f"[WARNING] Failed to approach {portafilter_tool}, trying {fallback_tool} as fallback...")
+            approach_tool_result = run_skill("approach_tool", fallback_tool)
+            if approach_tool_result is False:
+                print(f"[WARNING] Failed to approach both {portafilter_tool} and {fallback_tool}")
+            else:
+                print(f"   ✅ Successfully approached {fallback_tool} (fallback)")
+                portafilter_tool = fallback_tool  # Update for logging
+        else:
+            print(f"   ✅ Successfully approached {portafilter_tool}")
         
         # Final success summary
         print("=" * 50)
@@ -428,10 +447,10 @@ def grinder(**params) -> bool:
 
 def tamper(**params) -> bool:
     """
-    Tamp coffee at the tamper station using double portafilter tool.
+    Tamp coffee at the tamper station using portafilter tool.
     
     This function performs the complete tamping sequence:
-    1. Approaches and grabs the double portafilter tool
+    1. Approaches and grabs the portafilter tool
     2. Closes gripper to secure tool
     3. Lifts tool slightly for positioning
     4. Mounts to grinder for proper alignment
@@ -439,7 +458,7 @@ def tamper(**params) -> bool:
     6. Returns to grinder home position
     
     Args:
-        **params: Additional parameters (currently unused but reserved for future expansion)
+        portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
         
     Returns:
         bool: True if tamping completed successfully, False otherwise
@@ -448,38 +467,55 @@ def tamper(**params) -> bool:
         Exception: If unexpected error occurs during tamping process
         
     Example:
-        success = tamper()
+        success = tamper(portafilter_tool='double_portafilter')
         if success:
             print("Coffee tamping completed successfully")
     """
     try:
+        # Extract and validate parameters
+        portafilter_tool = params.get("portafilter_tool", "single_portafilter")  # Default to single_portafilter
+        
+        # Validate portafilter tool parameter
+        if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
+            print(f"[ERROR] Invalid portafilter_tool: {portafilter_tool!r}")
+            print("[INFO] Available tools: single_portafilter, double_portafilter")
+            return False
+            
         print("🔨 Starting coffee tamping sequence")
         print("=" * 50)
         
-        # Step 1: Approach and grab double portafilter tool
-        print("🎯 Step 1/6: Approaching double portafilter tool...")
+        # Step 1: Approach and grab portafilter tool with fallback
+        print(f"🎯 Step 1/6: Approaching {portafilter_tool}...")
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        approach_tool_result = run_skill("approach_tool", "single_portafilter")
+        approach_tool_result = run_skill("approach_tool", portafilter_tool)
         if approach_tool_result is False:
-            print("[ERROR] Failed to approach double portafilter tool")
-            return False
+            # Try the other tool as fallback
+            fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+            print(f"[WARNING] Failed to approach {portafilter_tool}, trying {fallback_tool} as fallback...")
+            approach_tool_result = run_skill("approach_tool", fallback_tool)
+            if approach_tool_result is False:
+                print(f"[ERROR] Failed to approach both {portafilter_tool} and {fallback_tool}")
+                return False
+            else:
+                print(f"   ✅ Successfully approached {fallback_tool} (fallback)")
+                portafilter_tool = fallback_tool  # Update for subsequent operations
         
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        grab_tool_result = run_skill("grab_tool", "single_portafilter")
+        grab_tool_result = run_skill("grab_tool", portafilter_tool)
         if grab_tool_result is False:
-            print("[ERROR] Failed to grab double portafilter tool")
+            print(f"[ERROR] Failed to grab {portafilter_tool}")
             return False
         
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
-        print("   ✅ Successfully approached and grabbed tool")
+        print(f"   ✅ Successfully approached and grabbed {portafilter_tool}")
         
         # Step 2: Close gripper to secure tool
         print("🤏 Step 2/6: Securing tool with gripper...")
@@ -532,7 +568,7 @@ def tamper(**params) -> bool:
         # Final success summary
         print("=" * 50)
         print("✅ COFFEE TAMPING COMPLETED SUCCESSFULLY")
-        print("   ✓ Double portafilter tool used")
+        print(f"   ✓ {portafilter_tool.replace('_', ' ').title()} tool used")
         print("   ✓ Proper tamping pressure applied")
         print("   ✓ Robot returned to home position")
         print("=" * 50)

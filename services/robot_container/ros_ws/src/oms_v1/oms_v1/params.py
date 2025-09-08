@@ -1,4 +1,88 @@
 # params.py
+# ─── ROBOT CONSTANTS ──────────────────────────────────────────────────────────
+# Common constants used across all robot sequences
+SPEED_PRECISE = 10      # For precise operations
+SPEED_CAREFUL = 25      # For careful handling  
+SPEED_NORMAL = 50       # Normal operation speed
+SPEED_FAST = 100        # Fast movements
+
+GRIPPER_OPEN = 0        # Fully open gripper
+GRIPPER_LIGHT = 100     # Light grip
+GRIPPER_MEDIUM = 150    # Medium grip
+GRIPPER_FIRM = 200      # Firm grip
+GRIPPER_FULL = 255      # Maximum grip
+
+# Common delays (in seconds)
+DELAY_SHORT = 0.5       # Short delay between operations
+DELAY_MEDIUM = 1.0      # Medium delay
+DELAY_LONG = 2.0        # Long delay for settling
+
+# Valid parameter values
+VALID_PORTS = ('port_1', 'port_2', 'port_3')
+VALID_STAGES = ('1', '2', '3', '4')
+VALID_STAGE_NAMES = ('stage_1', 'stage_2', 'stage_3', 'stage_4')
+VALID_CUP_SIZES = ('7oz', '9oz', '12oz', '16oz')
+VALID_DISPENSERS = ('1', '2')
+VALID_HOME_POSITIONS = ('north', 'north_east', 'east', 'south_east', 
+                       'south', 'south_west', 'west', 'north_west')
+
+# Parameter defaults
+DEFAULT_PORT = 'port_2'
+DEFAULT_STAGE = '1'
+DEFAULT_CUP_SIZE = '12oz'
+DEFAULT_DISPENSER = '1'
+DEFAULT_HOME = 'north'
+
+# ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
+def validate_port(port):
+    """Validate port parameter"""
+    if port not in VALID_PORTS:
+        print(f"[ERROR] Invalid port: {port!r}. Valid ports: {', '.join(VALID_PORTS)}")
+        return False
+    return True
+
+def validate_stage(stage):
+    """Validate stage parameter"""
+    if stage not in VALID_STAGES:
+        print(f"[ERROR] Invalid stage: {stage!r}. Valid stages: {', '.join(VALID_STAGES)}")
+        return False
+    return True
+
+def validate_cup_size(cup_size):
+    """Validate cup size parameter"""
+    if cup_size not in VALID_CUP_SIZES:
+        print(f"[ERROR] Invalid cup size: {cup_size!r}. Valid sizes: {', '.join(VALID_CUP_SIZES)}")
+        return False
+    return True
+
+def get_param_with_default(params, key, default):
+    """Get parameter with default value"""
+    return params.get(key, default) if params.get(key) is not None else default
+
+def log_step(step_num, total_steps, description):
+    """Log a formatted step"""
+    print(f"📍 Step {step_num}/{total_steps}: {description}...")
+
+def log_success(message, indent=0):
+    """Log success message"""
+    prefix = "   " * indent
+    print(f"{prefix}✅ {message}")
+
+def log_error(message, indent=0):
+    """Log error message"""
+    prefix = "   " * indent
+    print(f"{prefix}❌ {message}")
+
+def log_warning(message, indent=0):
+    """Log warning message"""
+    prefix = "   " * indent
+    print(f"{prefix}⚠️  {message}")
+
+def log_info(message, indent=0):
+    """Log info message"""
+    prefix = "   " * indent
+    print(f"{prefix}ℹ️  {message}")
+
 # ─── "HOME" POSE ANGLES ───────────────────────────────────────────────────────────
 # Main-home is straight ahead; the compass points are ±45° increments
 HOME_ANGLES = {
@@ -128,10 +212,30 @@ SLUSH_PARAMS = {
 PLASTIC_CUPS_PARAMS = {
     'dispenser': {
         'area':         (137.406860, 3.501065, -134.504471, -48.814426, -42.387501, -0.108438),
+        '7oz_area':     (128.029709, 2.940671, -132.852890, -49.843658, -45.068768, -0.150343),
+        '16oz_area':    (143.127869, -11.225266, -134.261658, -34.211472, -40.098595, -0.230271),
     },
     'staging': {
-        'stage_1':      (-111.215927, -19.601524, -91.144157, -68.881447, -114.195343, 0.046140),
-        'stage_2':      (-121.922080, -29.170114, -76.511387, -73.910323, -124.911454, 0.116947),
+        'stage_1':      (-80.221687, -43.867016, -125.338081, -18.518541, -84.856163, 0.006812),
+        'stage_2':      (-100.830803, -45.966148, -116.024010, -26.002304, -105.266800, -2.802466),
+        'stage_3':      (-117.226875, -50.948524, -99.833191, -38.283516, -121.485474, -5.440053),
+        'stage_4':      (-129.165802, -59.506020, -76.980766, -54.155602, -133.259628, -8.007045),
+    },
+    'ice_positions': {
+        'approach':     (-34.285637, -96.143585, -85.111305, -52.668182, -77.955963, 40.874359),
+        'dispense':     (-40.901531, -124.078323, -25.869335, -68.229462, -77.965225, 40.874393),
+    },
+    'gripper_settings': {
+        '7oz': 145,
+        '9oz': 145, 
+        '12oz': 145,
+        '16oz': 118,
+    },
+    'extraction_distances': {
+        '7oz': -210,
+        '9oz': -210,
+        '12oz': -210,
+        '16oz': -280,
     },
 }
 
@@ -198,4 +302,22 @@ PLACE_PAPER_CUP_PARAMS = {
         'above_serve':  (114.123176, -17.424376, -139.079935, -23.095763,  -65.826354,  -0.154358),
         'serve':        (114.103052, -48.360801, -140.051323,   8.823533,  -65.854705,  -0.182434),
     },
+}
+
+# ─── CLEANING PARAMETERS ──────────────────────────────────────────────────────────
+CLEANING_PARAMS = {
+    'hard_brush_adjust': (-79.324684, 3.729006, -124.690453, -58.130096, -80.298050, -130.331278),
+    'cleaning_motion_1': (-2.745675, -5.326488, 29.063496, 7.742872, 0.059984, 0.826083),
+    'cleaning_motion_2': (-2, 0, -5.25, 0, 0, 0),
+    'retreat_hard': (0, 0, 100, 0, 0, 0),
+    'retreat_soft': (0, 0, 150, 0, 0, 0),
+}
+
+# ─── TEST PARAMETERS ──────────────────────────────────────────────────────────────
+TEST_PARAMS = {
+    'espresso_test_position': (42.159162, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214),
+    'test_cycles': 5,
+    'cycle_delay': 0.5,
+    'settling_delay': 0.25,
+    'operational_delay': 0.6,
 }

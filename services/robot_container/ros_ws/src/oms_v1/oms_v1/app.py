@@ -25,7 +25,7 @@ try:
     from oms_v1.sequences.plastic_cups import SEQUENCES as PLASTIC_SEQ
     from oms_v1.sequences.slush import SEQUENCES as SLUSH_SEQ
     from oms_v1.sequences.milk_frothing import SEQUENCES as MILK_SEQ
-    from oms_v1.sequences.get_ice import SEQUENCES as ICE_SEQ
+
 
 except ImportError as e:
     print(f"[ERROR] Could not import sequences: {e}")
@@ -41,7 +41,6 @@ SEQUENCES.update(PAPER_SEQ)
 SEQUENCES.update(PLASTIC_SEQ)
 SEQUENCES.update(SLUSH_SEQ)
 SEQUENCES.update(MILK_SEQ)
-SEQUENCES.update(ICE_SEQ)
 # Map action names to actual callables
 ACTION_MAP = {}
 for name, fn in SEQUENCES.items():
