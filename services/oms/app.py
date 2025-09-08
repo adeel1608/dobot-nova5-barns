@@ -268,6 +268,16 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         
         logger.info(f"🚀 OMS received start_order request for order {order_id}")
         
+        # Concurrency guard: allow only one processing order at a time
+        try:
+            processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        except Exception as e:
+            processing = []
+            logger.error(f"Error checking processing orders: {e}")
+        if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+            logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is already processing")
+            return {"success": False, "error": "Another order is currently processing. Please wait."}
+        
         order = db.get_order(order_id)
         if not order:
             return {"success": False, "error": f"Order {order_id} not found"}
@@ -351,6 +361,21 @@ async def handle_delete_order_mq(data: Dict) -> Dict:
         order = db.get_order(order_id)
         if not order:
             return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # If the order is in progress, request cancellation in scheduler and routine first
+        if order.get("status") == ORDER_STATUS['PROCESSING']:
+            try:
+                if rabbitmq_client:
+                    # Ask scheduler to cancel the order (which also instructs routine)
+                    cancel_resp = await rabbitmq_client.send_request(
+                        target_service="scheduler",
+                        action="cancel_order",
+                        data={"order_id": order_id},
+                        timeout=15
+                    )
+                    logger.info(f"OMS cancel request response (scheduler): {cancel_resp}")
+            except Exception as e:
+                logger.error(f"OMS failed to request scheduler cancel for order {order_id}: {e}")
         
         # Remove from queue if still queued
         if order.get("status") == ORDER_STATUS['QUEUED']:
@@ -869,6 +894,15 @@ def bulk_reorder_queue(order_data: dict):
 @app.patch("/orders/{order_id}/start")
 def start_order(order_id: int, background_tasks: BackgroundTasks):
     """Mark order as processing and send it to Scheduler."""
+    # Concurrency guard: allow only one processing order at a time
+    try:
+        processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+    except Exception as e:
+        processing = []
+        logger.error(f"Error checking processing orders: {e}")
+    if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+        raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
+
     order = db.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
@@ -1007,6 +1041,19 @@ def delete_order(order_id: int = Path(..., title="The ID of the order to delete"
     order = db.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+    
+    # If processing, best-effort cancel in scheduler/routine first (fire-and-forget)
+    if order.get("status") == ORDER_STATUS['PROCESSING']:
+        try:
+            if rabbitmq_client:
+                asyncio.create_task(rabbitmq_client.send_request(
+                    target_service="scheduler",
+                    action="cancel_order",
+                    data={"order_id": order_id},
+                    timeout=10
+                ))
+        except Exception as e:
+            logger.error(f"Error requesting cancel before delete for order {order_id}: {e}")
     
     # Remove from queue if it's still queued
     if order.get("status") == ORDER_STATUS['QUEUED']:

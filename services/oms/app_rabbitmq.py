@@ -206,6 +206,16 @@ class OMSService:
             if not order_id:
                 return {"success": False, "error": "Missing order_id"}
             
+            # Concurrency guard: allow only one processing order at a time
+            try:
+                processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            except Exception as e:
+                processing = []
+                logger.error(f"Error checking processing orders: {e}")
+            if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+                logger.warning(f"🔒 OMS (MQ) rejecting start_order for {order_id}: another order is already processing")
+                return {"success": False, "error": "Another order is currently processing. Please wait."}
+
             order = db.get_order(order_id)
             if not order:
                 return {"success": False, "error": f"Order {order_id} not found"}

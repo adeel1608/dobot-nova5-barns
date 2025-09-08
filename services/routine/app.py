@@ -74,6 +74,7 @@ class RoutineService:
         self.rabbitmq_client.register_handler("health", self.handle_health)
         self.rabbitmq_client.register_handler("get_queue_status", self.handle_get_queue_status)
         self.rabbitmq_client.register_handler("clear_queue", self.handle_clear_queue)
+        self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
         
         # Subscribe to events
         await self.event_listener.subscribe_to_events(["system.*", "scheduler.*"])
@@ -330,6 +331,57 @@ class RoutineService:
         except Exception as e:
             logger.error(f"Error clearing queue: {e}")
             return {"error": str(e), "success": False}
+    
+    async def handle_cancel_order(self, data: Dict) -> Dict:
+        """Cancel queued tasks for a given order_id (or specific cup_ids)."""
+        try:
+            order_id = data.get("order_id")
+            cup_ids = set(data.get("cup_ids", []) or [])
+            if not order_id and not cup_ids:
+                return {"success": False, "error": "Missing order_id or cup_ids"}
+            
+            removed: Dict[int, int] = {}
+            for arm_id, queue in task_queues.items():
+                kept_items = []
+                removed_count = 0
+                while not queue.empty():
+                    try:
+                        item = queue.get_nowait()
+                        cup_id = (item or {}).get("item", {}).get("cup_id")
+                        match = False
+                        if order_id and isinstance(cup_id, str) and cup_id.startswith(f"{order_id}-"):
+                            match = True
+                        if not match and cup_ids and cup_id in cup_ids:
+                            match = True
+                        
+                        # Mark the dequeued item as done (to balance unfinished_tasks)
+                        queue.task_done()
+                        
+                        if match:
+                            removed_count += 1
+                        else:
+                            kept_items.append(item)
+                    except asyncio.QueueEmpty:
+                        break
+                
+                for item in kept_items:
+                    await queue.put(item)
+                removed[arm_id] = removed_count
+            
+            try:
+                await self.rabbitmq_client.send_event("routine.order_cancelled", {
+                    "order_id": order_id,
+                    "cup_ids": list(cup_ids) if cup_ids else None,
+                    "removed": removed,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                logger.error(f"Error sending routine.order_cancelled event: {e}")
+            
+            return {"success": True, "removed": removed}
+        except Exception as e:
+            logger.error(f"Error cancelling order in routine: {e}")
+            return {"success": False, "error": str(e)}
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""

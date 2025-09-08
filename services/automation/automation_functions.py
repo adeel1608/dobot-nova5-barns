@@ -693,6 +693,17 @@ async def tampering_machine(params: dict):
             "details": mqtt_response
         }
 
+async def automation_test(params: dict):
+    """Automation test using MQTT communication."""
+    # example params: {"automation_test": 1}
+    logger.info("Starting automation test function")
+    time.sleep(100)
+    logger.info("Ending automation test function")
+    return {
+        "success": True,
+        "message": "Successfully completed automation test",
+        "details": "Automation test completed"
+    }
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
@@ -704,5 +715,6 @@ AUTOMATION_FUNCTIONS = {
     "grinding_machine": grinding_machine,
     "tampering_machine" : tampering_machine,
     "dispense_ice": dispense_ice,
+    "automation_test": automation_test,
     # Add more automation functions as needed
 }
