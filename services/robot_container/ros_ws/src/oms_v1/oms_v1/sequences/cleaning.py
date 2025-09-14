@@ -171,8 +171,9 @@ def _perform_brush_cleaning(brush_type: str) -> bool:
     # Retract from brush
     log_info(f"Retracting from {brush_name}...", indent=1)
     retreat_key = 'retreat_hard' if brush_type == "hard_brush" else 'retreat_soft'
+    run_skill("sync")
     up_result = run_skill("moveEE", *CLEANING_PARAMS[retreat_key])
-    
+    run_skill("sync")
     if up_result is False:
         log_error(f"Failed to move up after {brush_name}")
         return False
