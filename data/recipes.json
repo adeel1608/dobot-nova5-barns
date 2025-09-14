@@ -329,5 +329,12 @@
       "assigned_arm": "Arm2",
       "depends_on": []
     }
+  ],
+  "Software Test": [
+    {
+      "action": "software_test",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
   ]
 }
