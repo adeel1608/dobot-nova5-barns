@@ -290,7 +290,7 @@
   ],
   "Cleaning": [
     {
-      "action": "Cleaning",
+      "action": "Cleaning_single_shot",
       "assigned_arm": "Arm1",
       "depends_on": []
     }
