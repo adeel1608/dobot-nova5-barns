@@ -1,0 +1,25 @@
+{
+    "snapshot_url": "http://qltyss:QSS2030QSS@192.168.200.88/cgi-bin/snapshot.cgi",
+    "frame_width": 1920,
+    "frame_height": 1080,
+    "frames_to_sample": 5,
+    "coffee_threshold": 5.0,
+    "timeout": 1.0,
+    "connect_timeout": 0.5,
+    "read_timeout": 1.0,
+    "target_fps": 5.0,
+    "enable_debug": true,
+    "debug_frame_dir": "./debug_frames_coffee",
+    "max_retries": 3,
+    "retry_backoff": 0.1,
+    "roi_points": [
+      [121, 481],
+      [953, 411],
+      [1873, 420],
+      [1867, 712],
+      [1825, 998],
+      [1009, 1064],
+      [188, 992],
+      [152, 742]
+    ]
+  }
