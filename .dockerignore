@@ -1,0 +1,37 @@
+# Exclude large ROS workspace files
+services/robot_container/ros_ws/install/
+services/robot_container/ros_ws/build/
+services/robot_container/ros_ws/log/
+services/robot_container/ros_ws/Log/
+
+# Exclude other large files
+*.log
+*.txt.log
+Log/
+log/
+logs/
+
+# Exclude git and IDE files
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Exclude Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+
+# Exclude Node modules
+node_modules/
+npm-debug.log*
+
+# Exclude temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db 

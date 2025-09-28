@@ -1,12 +1,14 @@
+version: '3.8'
+
 services:
-  # RabbitMQ Message Broker (accessible to external robot processes)
+  # RabbitMQ Message Broker
   rabbitmq:
     image: rabbitmq:3.12-management
     container_name: barns-rabbitmq
     ports:
-      - "5672:5672"    # AMQP port (accessible to external robots)
+      - "5672:5672"    # AMQP port
       - "15672:15672"  # Management UI
-      - "1884:1883"    # MQTT port (using 1884 to avoid conflict with system Mosquitto)      
+      - "1883:1883"    # MQTT port      
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin123
@@ -48,17 +50,16 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_admin
+      POSTGRES_DB: barns_oms
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database_init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
-      - ./services/validation/validation_schema.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
+      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     networks:
       - barns-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_oms"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -71,28 +72,10 @@ services:
     container_name: barns-validation
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
-      # database config 
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: barns_validation
-      POSTGRES_USER: validation_user
-      POSTGRES_PASSWORD: validation_pass
-      # detection config
-      DETECTION_INTERVAL_SECONDS: 600  # 10minutes = 60 seconds * 10
-      ENABLE_PERIODIC_DETECTION: "true"
-      DETECTION_TIMEOUT_SECONDS: 30
-      MAX_DETECTION_WORKERS: 3
-      # python path
       PYTHONPATH: /app
     depends_on:
       rabbitmq:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
-    volumes:
-      # Mount debug directories so you can access debug frames on host
-      - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
-      - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
     networks:
       - barns-network
     restart: unless-stopped
@@ -147,7 +130,7 @@ services:
       test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3
       start_period: 45s
 
   # Robot Arm Service (Software Control)
@@ -190,7 +173,7 @@ services:
       routine-service:
         condition: service_healthy
     volumes:
-      - ./data:/app/data
+      - ./services/scheduler/data:/app/services/scheduler/data
     networks:
       - barns-network
     restart: unless-stopped
@@ -198,7 +181,7 @@ services:
       test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
       interval: 30s
       timeout: 10s
-      retries: 5
+      retries: 3
       start_period: 50s
 
   # OMS Service
@@ -310,17 +293,140 @@ services:
       start_period: 40s
 
   # ============================================================================
-  # ROBOT ARM SERVICES - MOVED TO EXTERNAL PROCESSES
+  # ROBOT ARM SERVICES
   # ============================================================================
-  # Robot arms now run as external processes on host machines
-  # Robot 1: Separate PC (also runs Docker services)
-  # Robot 2: Same PC as Docker services
-  #
-  # See robot installation and startup scripts:
-  # - install-robot-dependencies.sh
-  # - robot1-startup.sh (for separate PC)
-  # - robot2-startup.sh (for Docker host PC)
-  # ============================================================================
+  
+  # Robot Arm 1 (Dobot Nova5)
+  robot1:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_1:dev
+    container_name: oms_robot_1
+    
+    # Robot arms use both host and bridge networking 
+    # - Host networking for Fast-DDS multicast communication with hardware
+    # - Bridge networking via networks section for RabbitMQ service communication
+    network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
+    ipc: host
+    privileged: true
+    shm_size: "1g"   # second interface (depth/IR)
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.200.249  # Robot 1 IP address
+      - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
+      - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128            # host usbfs buffer hint
+      - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000F6
+      - CAM_NAME=cam0
+      - DEVICE_ID=1
+
+    volumes:
+      - /dev/shm:/dev/shm               # share host shm tmpfs
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    #user: "${UID}:${GID}"  # Restore user permissions
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5901:5901"  # VNC access for robot 1
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    
+    restart: unless-stopped
+
+  # Robot Arm 2 (Dobot Nova5)
+  robot2:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_2:dev
+    container_name: oms_robot_2
+    
+    # Robot arms use host networking for Fast-DDS multicast communication
+    network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.200.248  # Robot 2 IP address
+      - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
+      - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128
+      - ORBBEC_CONNECTION_DELAY=12000
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
+      - CAM_NAME=cam1
+      - DEVICE_ID=2
+
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    #user: "${UID}:${GID}"  # Restore user permissions
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5902:5901"  # VNC access for robot 2
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      robot1:
+        condition: service_started
+    
+    restart: unless-stopped
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:
