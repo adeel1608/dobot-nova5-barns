@@ -233,6 +233,31 @@ void callback(char* topic, byte* payload, unsigned int len) {
   String payloadStr = String((char*)payload);
   String topicStr = String(topic);
 
+  // Per-motor lag tuning over MQTT
+  if (topicStr == "automation_dispensing_lag") {
+    // Expect JSON: {"motor":"sauce9","speed":1,"lag":12.5}
+    int mStart = payloadStr.indexOf("\"motor\":\"") + 9;
+    int mEnd = payloadStr.indexOf("\"", mStart);
+    int sStart = payloadStr.indexOf("\"speed\":") + 8;
+    int sEnd = payloadStr.indexOf(",", sStart);
+    if (sEnd == -1) sEnd = payloadStr.indexOf("}", sStart);
+    int lStart = payloadStr.indexOf("\"lag\":") + 7;
+    int lEnd = payloadStr.indexOf(",", lStart);
+    if (lEnd == -1) lEnd = payloadStr.indexOf("}", lStart);
+
+    if (mStart > 8 && mEnd > mStart && sStart > 7 && sEnd > sStart && lStart > 6 && lEnd > lStart) {
+      String motor = payloadStr.substring(mStart, mEnd);
+      int speed = payloadStr.substring(sStart, sEnd).toInt();
+      float lag = payloadStr.substring(lStart, lEnd).toFloat();
+      motor.toLowerCase();
+      Serial.print("Apply LAGM via MQTT: "); Serial.print(motor); Serial.print(" "); Serial.print(speed); Serial.print(" "); Serial.println(lag, 1);
+      Serial1.print("LAGM "); Serial1.print(motor); Serial1.print(" "); Serial1.print(speed); Serial1.print(" "); Serial1.println(lag, 1);
+    } else {
+      Serial.println("Invalid payload for automation_dispensing_lag. Expected {\"motor\":\"sauce9\",\"speed\":0|1,\"lag\":<g>} ");
+    }
+    return;
+  }
+
   // Special: raw CAN control channel for simple tests (no UART forwarding)
   if (topicStr == "automation_dispensing_can") {
     // Heartbeat trigger: send 0x10F with FF FF 00 00 00 00 00 00

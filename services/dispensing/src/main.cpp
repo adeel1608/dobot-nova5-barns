@@ -133,6 +133,36 @@ const MotorMap MOTOR_MAP[] = {
 };
 const uint8_t NUM_MOTOR_MAP = sizeof(MOTOR_MAP) / sizeof(MOTOR_MAP[0]);
 
+// Per-motor lag overrides (runtime tunable)
+static float motorLagOverrideSpeed0[NUM_MOTOR_MAP];
+static float motorLagOverrideSpeed1[NUM_MOTOR_MAP];
+
+static int getMotorIndexByName(const char* motor_name) {
+  for (uint8_t i = 0; i < NUM_MOTOR_MAP; i++) {
+    if (strcmp(MOTOR_MAP[i].name, motor_name) == 0) {
+      return (int)i;
+    }
+  }
+  return -1;
+}
+
+static void initLagOverrides() {
+  for (uint8_t i = 0; i < NUM_MOTOR_MAP; i++) {
+    motorLagOverrideSpeed0[i] = -1.0f;
+    motorLagOverrideSpeed1[i] = -1.0f;
+  }
+}
+
+static float getEffectiveLag(const char* liquid_name, const char* motor_name, bool speed_enabled) {
+  int idx = getMotorIndexByName(motor_name);
+  if (idx >= 0) {
+    float v = speed_enabled ? motorLagOverrideSpeed1[idx] : motorLagOverrideSpeed0[idx];
+    if (v >= 0.0f) return v;
+  }
+  // Fallback to liquid-based lag if no per-motor override exists
+  return getLiquidLag(liquid_name, speed_enabled);
+}
+
 // Dispensing state
 enum DispenseState {
   IDLE,
@@ -166,12 +196,22 @@ struct LiquidLag {
 };
 
 const LiquidLag LIQUID_LAGS[] = {
-  {"water",   18.0, 11.0},  // Water: high flow lag
-  {"milk",    15.0, 9.0},   // Milk: medium flow lag  
-  {"sauce",   12.0, 7.0},   // Sauce: medium flow lag
-  {"caramel", 1.0,  1.0},   // Caramel: low flow lag (thick)
-  {"syrup",   4.0,  2.5},   // Syrup: low flow lag
-  {"honey",   2.0,  1.5},   // Honey: very low flow lag
+  {"normal_water",   18.0, 11.0},  
+  {"whole_fat_milk",   25.0, 15.0},  
+  {"low_fat_milk",   25.0, 15.0},  
+  {"oat_milk",   25.0, 15.0},  
+  {"soy_milk",   25.0, 15.0},  
+  {"almond_milk",   25.0, 15.0},  
+  {"lactose_free_milk",   25.0, 15.0},  
+  {"white_chocolate_sauce",   1.0, 1.0},  
+  {"caramel_sauce",   25.0, 15.0},  
+  {"condense_milk_sauce",    15.0, 9.0},   
+  {"hazelnut_syrup",   12.0, 7.0},   
+  {"vanilla_syrup", 1.0,  1.0},   
+  {"caramel_syrup",   15.0, 8.0},   
+  {"peached_iced_syrup",   2.0,  1.5},   
+  {"passion_fruit_iced_syrup",   2.0,  1.5},
+  {"ice_tea_syrup",   2.0,  1.5},
 };
 const uint8_t NUM_LIQUID_LAGS = sizeof(LIQUID_LAGS) / sizeof(LIQUID_LAGS[0]);
 
@@ -408,7 +448,7 @@ bool startDispenseJob(const char* cup_name, const char* motor_name, float target
     else liquid_for_lag = "sauce"; // Default
   }
   
-  float motor_lag = getLiquidLag(liquid_for_lag, global_speed_enabled);
+  float motor_lag = getEffectiveLag(liquid_for_lag, motor_name, global_speed_enabled);
   
   // Initialize job
   current_job.state = DISPENSING;
@@ -538,6 +578,9 @@ void setup() {
   
   // Initialize leak detection system
   initLeakDetectors();
+
+  // Initialize lag overrides
+  initLagOverrides();
 
   Serial.begin(115200);
   delay(200);
@@ -687,6 +730,29 @@ void processSerialCommands() {
       float current_weight = (current_job.scale_addr == SLV_A) ? regW_A / 10.0 : regW_B / 10.0;
       float net_weight = current_weight - current_job.tare_offset;
       Serial.print(net_weight, 1); Serial.println(F("g"));
+    }
+  }
+  else if (cmd.startsWith("LAGM ")) {
+    // LAGM <motor_name> <speed> <lag>
+    int s1 = cmd.indexOf(' ');
+    int s2 = cmd.indexOf(' ', s1 + 1);
+    int s3 = cmd.indexOf(' ', s2 + 1);
+    if (s1 > 0 && s2 > 0 && s3 > 0) {
+      String motor = cmd.substring(s1 + 1, s2);
+      int speed = cmd.substring(s2 + 1, s3).toInt();
+      float lag = cmd.substring(s3 + 1).toFloat();
+      motor.toLowerCase();
+      int idx = getMotorIndexByName(motor.c_str());
+      if (idx >= 0) {
+        if (speed == 0) motorLagOverrideSpeed0[idx] = lag; else motorLagOverrideSpeed1[idx] = lag;
+        Serial.print(F("Per-motor lag set: ")); Serial.print(motor);
+        Serial.print(F(" speed ")); Serial.print(speed);
+        Serial.print(F(" -> ")); Serial.println(lag, 1);
+      } else {
+        Serial.print(F("Unknown motor: ")); Serial.println(motor);
+      }
+    } else {
+      Serial.println(F("Usage: LAGM <motor> <0|1> <lag_g>"));
     }
   }
   else if (cmd.startsWith("LAG ")) {
