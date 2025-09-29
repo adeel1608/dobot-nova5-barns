@@ -68,12 +68,16 @@ int idx = 0;
 
 // CAN message structure for dispensing
 struct CanDispenseCmd {
-  uint8_t cmd;           // 0x01=dispense, 0x02=stop, 0x03=tare
+  uint8_t cmd;           // 0x01=dispense, 0x02=stop, 0x03=set_lag
   uint8_t motor_id;      // Motor number (1-24)
-  uint16_t weight_dg;    // Target weight in decigrams
-  uint8_t liquid_type;   // Liquid type for lag compensation
-  uint8_t reserved[3];   // Reserved bytes
+  uint16_t weight_dg;    // Target weight in decigrams (or lag in dg for SET_LAG)
+  uint8_t liquid_type;   // Liquid type for lag compensation (unused for SET_LAG)
+  uint8_t reserved[3];   // Reserved bytes (for SET_LAG: reserved[0] used as speed 0|1)
 };
+
+static const uint8_t CMD_DISPENSE = 0x01;
+static const uint8_t CMD_STOP     = 0x02;
+static const uint8_t CMD_SET_LAG  = 0x03;
 
 uint8_t getLiquidTypeId(const char* liquid_name) {
   if (strstr(liquid_name, "water")) return LIQUID_WATER;
@@ -98,13 +102,27 @@ uint8_t getMotorIdFromName(const char* motor_name) {
   return 9; // Default to sauce1
 }
 
+static const char* getMotorNameById(uint8_t motor_id) {
+  static char buf[12];
+  if (motor_id >= 1 && motor_id <= 8) {
+    sprintf(buf, "milk%u", (unsigned)motor_id);
+    return buf;
+  }
+  if (motor_id >= 9 && motor_id <= 23) {
+    sprintf(buf, "sauce%u", (unsigned)(motor_id - 8));
+    return buf;
+  }
+  if (motor_id == 24) return "rinser";
+  return nullptr;
+}
+
 void sendCANDispenseCommand(uint8_t motor_id, float weight, uint8_t liquid_type) {
   struct can_frame canMsg;
   canMsg.can_id = CAN_ID_DISPENSING_CMD;
   canMsg.can_dlc = 8;
   
   CanDispenseCmd cmd;
-  cmd.cmd = 0x01;  // Dispense command
+  cmd.cmd = CMD_DISPENSE;  // Dispense command
   cmd.motor_id = motor_id;
   cmd.weight_dg = (uint16_t)(weight * 10);  // Convert to decigrams
   cmd.liquid_type = liquid_type;
@@ -130,13 +148,42 @@ void sendCANDispenseCommand(uint8_t motor_id, float weight, uint8_t liquid_type)
   Serial.println(liquid_type);
 }
 
+static void sendCANSetLag(uint8_t motor_id, float lag_g, uint8_t speed01) {
+  struct can_frame canMsg;
+  canMsg.can_id = CAN_ID_DISPENSING_CMD;
+  canMsg.can_dlc = 8;
+
+  CanDispenseCmd cmd;
+  cmd.cmd = CMD_SET_LAG;   // Set per-motor lag override
+  cmd.motor_id = motor_id;
+  cmd.weight_dg = (uint16_t)(lag_g * 10); // reuse as lag in decigrams
+  cmd.liquid_type = 0; // unused
+  cmd.reserved[0] = speed01 ? 1 : 0; // speed profile (0 or 1)
+  cmd.reserved[1] = 0;
+  cmd.reserved[2] = 0;
+
+  memcpy(canMsg.data, &cmd, sizeof(cmd));
+
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&canMsg);
+    if (txres != MCP2515::ERROR_OK) {
+      Serial.print("CAN TX SET_LAG error: "); Serial.println((int)txres);
+      if (++can_error_count >= 3) { can_reinit_normal(); }
+    } else {
+      Serial.print("CAN TX SET_LAG: motor="); Serial.print(motor_id);
+      Serial.print(" lag="); Serial.print(lag_g, 1);
+      Serial.print("g speed="); Serial.println(speed01 ? 1 : 0);
+    }
+  }
+}
+
 void sendCANStopCommand() {
   struct can_frame canMsg;
   canMsg.can_id = CAN_ID_DISPENSING_CMD;
   canMsg.can_dlc = 8;
   
   CanDispenseCmd cmd;
-  cmd.cmd = 0x02;  // Stop command
+  cmd.cmd = CMD_STOP;  // Stop command
   cmd.motor_id = 0;
   cmd.weight_dg = 0;
   cmd.liquid_type = 0;
@@ -156,19 +203,35 @@ void processCAN() {
       CanDispenseCmd cmd;
       memcpy(&cmd, canMsg.data, sizeof(cmd));
 
-      // Forward to Mega via UART as bridge command
-      // Format expected by Mega: "CAN:motor_id,weight_dg,liquid_type"
-      uint16_t weight_dg = cmd.weight_dg; // already in decigrams
-      Serial1.print("CAN:");
-      Serial1.print((int)cmd.motor_id);
-      Serial1.print(",");
-      Serial1.print((int)weight_dg);
-      Serial1.print(",");
-      Serial1.println((int)cmd.liquid_type);
+      if (cmd.cmd == CMD_DISPENSE) {
+        // Forward to Mega via UART as bridge command
+        // Format expected by Mega: "CAN:motor_id,weight_dg,liquid_type"
+        uint16_t weight_dg = cmd.weight_dg; // already in decigrams
+        Serial1.print("CAN:");
+        Serial1.print((int)cmd.motor_id);
+        Serial1.print(",");
+        Serial1.print((int)weight_dg);
+        Serial1.print(",");
+        Serial1.println((int)cmd.liquid_type);
 
-      Serial.print("CAN RX CMD -> UART: motor="); Serial.print(cmd.motor_id);
-      Serial.print(" weight_dg="); Serial.print(weight_dg);
-      Serial.print(" type="); Serial.println(cmd.liquid_type);
+        Serial.print("CAN RX CMD -> UART: motor="); Serial.print(cmd.motor_id);
+        Serial.print(" weight_dg="); Serial.print(weight_dg);
+        Serial.print(" type="); Serial.println(cmd.liquid_type);
+      }
+      else if (cmd.cmd == CMD_SET_LAG) {
+        // Apply per-motor lag override on Mega via UART
+        const char* motor_name = getMotorNameById(cmd.motor_id);
+        float lag_g = ((float)cmd.weight_dg) / 10.0f;
+        uint8_t speed01 = cmd.reserved[0] ? 1 : 0;
+        if (motor_name) {
+          Serial.print("CAN RX SET_LAG -> UART: ");
+          Serial.print(motor_name); Serial.print(" speed "); Serial.print(speed01);
+          Serial.print(" lag "); Serial.println(lag_g, 1);
+          Serial1.print("LAGM "); Serial1.print(motor_name); Serial1.print(" "); Serial1.print((int)speed01); Serial1.print(" "); Serial1.println(lag_g, 1);
+        } else {
+          Serial.println("CAN RX SET_LAG: invalid motor_id");
+        }
+      }
 
       // Send ACK on CAN to confirm receipt
       struct can_frame ackMsg;
@@ -191,6 +254,7 @@ void processCAN() {
           Serial.println("CAN TX ACK: 0x111 [01 00 00 00 00 00 00 00]");
         }
       }
+      continue;
     }
     else if (canMsg.can_id == CAN_ID_DISPENSING_ACK) {
       Serial.print("CAN RX ACK: ");
@@ -252,6 +316,10 @@ void callback(char* topic, byte* payload, unsigned int len) {
       motor.toLowerCase();
       Serial.print("Apply LAGM via MQTT: "); Serial.print(motor); Serial.print(" "); Serial.print(speed); Serial.print(" "); Serial.println(lag, 1);
       Serial1.print("LAGM "); Serial1.print(motor); Serial1.print(" "); Serial1.print(speed); Serial1.print(" "); Serial1.println(lag, 1);
+
+      // Also broadcast over CAN so other nodes can observe and to allow CAN-only configs
+      uint8_t motor_id = getMotorIdFromName(motor.c_str());
+      sendCANSetLag(motor_id, lag, (uint8_t)(speed ? 1 : 0));
     } else {
       Serial.println("Invalid payload for automation_dispensing_lag. Expected {\"motor\":\"sauce9\",\"speed\":0|1,\"lag\":<g>} ");
     }
