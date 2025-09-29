@@ -255,8 +255,8 @@ async def dispense_milk(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Connect to external MQTT broker for dispensing (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
     logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
     client.connect(mqtt_host, 1883, 60)
     
@@ -693,114 +693,15 @@ async def tampering_machine(params: dict):
             "details": mqtt_response
         }
 
-async def automation_test(params: dict):
-    """Automation test using MQTT communication."""
-    # example params: {"automation_test": 1}
-    logger.info("Starting automation test function")
-    time.sleep(100)
-    logger.info("Ending automation test function")
-    return {
-        "success": True,
-        "message": "Successfully completed automation test",
-        "details": "Automation test completed"
-    }
-
-async def dispense_ingredient(params: dict):
-    """Dispense ingredient using MQTT communication."""
-    ingredient = params.get("ingredient", "sauce")
-    weight = params.get("weight", 10)
-    motor = params.get("motor", "sauce1")
-    
-    logger.info("Calling dispense_ingredient function")
-    response = {"data": None}
-
-    def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
-        client.subscribe("automation/response", qos=1)
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
-            response["data"] = payload
-        except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
-
-    # Format command for dispensing system: ingredient_weight
-    command = f"{ingredient}_{weight}"
-    payload = json.dumps({
-        "ingredient": ingredient, 
-        "weight": weight, 
-        "motor": motor,
-        "command": command
-    })
-    
-    logger.info("Calling MQTT")
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.username_pw_set(
-        params.get("username", "admin"), 
-        params.get("password", "admin123")
-    )
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    # Connect to external MQTT broker for dispensing (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
-    client.connect(mqtt_host, 1883, 60)
-    
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
-        return {
-            "success": False,
-            "error": "Failed to connect to MQTT broker",
-            "message": "Failed to connect to MQTT broker"
-        }
-    
-    # Give a moment for subscription to be processed
-    time.sleep(0.5)
-    
-    # Now send the message to dispensing topic
-    client.publish("automation_dispensing", payload, qos=1)
-    logger.info(f"Sent: {payload}")
-
-    # Give a moment for the message to be sent
-    await asyncio.sleep(0.5)
-    
-    client.loop_stop()
-    client.disconnect()
-
-    logger.info(f"✅ Dispensed {weight}g of {ingredient}")
-    return {
-        "success": True,
-        "message": f"Dispensed {weight}g of {ingredient} via {motor}",
-        "details": {
-            "ingredient": ingredient,
-            "weight": weight,
-            "motor": motor,
-            "command": command
-        }
-    }
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
     "heat_water": heat_water,
     "dispense_syrup": dispense_syrup,
     "dispense_milk": dispense_milk,
-    "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,
     "coffee_machine": coffee_machine,
     "grinding_machine": grinding_machine,
-    "tampering_machine" : tampering_machine,
-    "dispense_ice": dispense_ice,
-    "automation_test": automation_test,
+    "tampering_machine" : tampering_machine  # Placeholder for grinding machine function 
     # Add more automation functions as needed
 }

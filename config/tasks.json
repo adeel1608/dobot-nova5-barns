@@ -842,5 +842,18 @@
         }
       }
     ]
+  },
+  "dispense_test": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_ingredient",
+        "params": {
+          "ingredient": "caramel",
+          "weight": 10,
+          "motor": "sauce1"
+        }
+      }
+    ]
   }
 }

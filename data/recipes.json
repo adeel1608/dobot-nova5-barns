@@ -336,5 +336,12 @@
       "assigned_arm": "Arm1",
       "depends_on": []
     }
+  ],
+  "Dispensing_Test": [
+    {
+      "action": "dispense_test",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    }
   ]
 }
