@@ -2,9 +2,9 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements and install dependencies (service-local)
+COPY services/api-bridge/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
 
 # Copy shared modules
 COPY shared/ /app/shared/

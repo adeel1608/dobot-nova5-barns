@@ -11,11 +11,13 @@ import json
 import logging
 import os
 import sys
+from dataclasses import asdict
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.rabbitmq_client import RabbitMQClient, EventListener
+from .pos_core import parse_transaction, load_reference_data_from_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -94,6 +96,17 @@ async def lifespan(app: FastAPI):
     
     db.connect()        # Connect to PostgreSQL
     queue.connect()     # Connect to Redis
+    
+    # Initialize POS reference data
+    try:
+        pos_db_path = os.environ.get("POS_DB_PATH", "pos_reference.db")
+        success = load_reference_data_from_db(pos_db_path)
+        if not success:
+            logger.warning("Could not load POS reference data. Running with empty references.")
+        else:
+            logger.info("POS reference data loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load POS reference data: {e}")
     
     # Mark any processing orders as failed due to container restart
     print("Marking processing orders as failed due to container restart...")
@@ -1294,6 +1307,45 @@ def get_rabbitmq_health():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get RabbitMQ health: {str(e)}")
+
+# POS Integration Endpoint
+@app.post("/pos/process-order")
+def process_pos_order(order_data: dict):
+    """Process POS order and return parsed transaction as JSON, printing the dataclass object."""
+    try:
+        # Validate required fields
+        required_fields = [
+            "transaction_id", "date", "time", "store_number", "pos_reg_id", "items"
+        ]
+        for field in required_fields:
+            if field not in order_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        if not isinstance(order_data.get("items"), list) or len(order_data["items"]) == 0:
+            raise HTTPException(status_code=400, detail="Items must be a non-empty list")
+
+        # Process the order via core
+        parsed_order = parse_transaction(order_data)
+
+        # Print the dataclass object (as requested)
+        print(parsed_order)
+
+        # Optional: persist for inspection (best-effort)
+        try:
+            from pathlib import Path
+            tmp_dir = Path(__file__).parent / "temp_outputs"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            out_path = tmp_dir / f"parsed_{parsed_order.transaction_id}.json"
+            with open(out_path, "w", encoding="utf-8") as fp:
+                json.dump(asdict(parsed_order), fp, ensure_ascii=False, indent=2)
+        except Exception as write_err:
+            logger.warning(f"Failed to write temp parsed order JSON: {write_err}")
+
+        return {"success": True, "parsed_order": asdict(parsed_order)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing order: {str(e)}")
 
 @app.get("/queue/sync")
 def sync_queue():

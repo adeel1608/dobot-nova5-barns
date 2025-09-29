@@ -11,6 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from . import db, queue, models
+from .pos_core import load_reference_data_from_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +48,17 @@ class OMSService:
         # Initialize database and queue connections
         db.connect()
         queue.connect()
+        
+        # Initialize POS reference data
+        try:
+            pos_db_path = os.environ.get("POS_DB_PATH", "pos_reference.db")
+            success = load_reference_data_from_db(pos_db_path)
+            if not success:
+                logger.warning("Could not load POS reference data. Running with empty references.")
+            else:
+                logger.info("POS reference data loaded successfully (MQ service)")
+        except Exception as e:
+            logger.error(f"Failed to load POS reference data (MQ service): {e}")
         
         # Sync queue with database on startup
         logger.info("Syncing queue with database on startup...")

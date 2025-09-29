@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy requirements (service-local)
+COPY services/oms/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
 
 # Copy shared modules
 COPY shared/ /app/shared/

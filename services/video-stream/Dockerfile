@@ -20,9 +20,9 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies (service-local)
+COPY services/video-stream/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
 
 # Copy the application
 COPY services/video-stream /app/services/video-stream

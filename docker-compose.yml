@@ -231,6 +231,8 @@ services:
         condition: service_healthy
     networks:
       - barns-network
+    ports:
+      - "8002:8000"
     restart: unless-stopped
 
   # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
