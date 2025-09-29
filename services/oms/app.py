@@ -1327,20 +1327,18 @@ def process_pos_order(order_data: dict):
         parsed_order = parse_transaction(order_data)
 
         # Print the dataclass object (as requested)
-        print(parsed_order)
+        results = []
 
-        # Optional: persist for inspection (best-effort)
-        try:
-            from pathlib import Path
-            tmp_dir = Path(__file__).parent / "temp_outputs"
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            out_path = tmp_dir / f"parsed_{parsed_order.transaction_id}.json"
-            with open(out_path, "w", encoding="utf-8") as fp:
-                json.dump(asdict(parsed_order), fp, ensure_ascii=False, indent=2)
-        except Exception as write_err:
-            logger.warning(f"Failed to write temp parsed order JSON: {write_err}")
-
-        return {"success": True, "parsed_order": asdict(parsed_order)}
+        for item in parsed_order.get("items", []):
+            grouped = {}
+            for ing in item.ingredients:
+                cat = ing.category
+                if cat not in grouped:
+                    grouped[cat] = {}
+                grouped[cat][ing.type] = ing.total_amount
+            results.append(grouped)
+        # Result of results for 2 drinks (sample) = [{'espresso': {'regular': 1.0}, 'cups': {'H7': 1.0}, 'milk': {'almond': 70.0}}, {'espresso': {'regular': 2.0}, 'milk': {'almond': 260.0}, 'cups': {'H12': 1.0}}]
+        return {"success": True}
 
     except HTTPException:
         raise

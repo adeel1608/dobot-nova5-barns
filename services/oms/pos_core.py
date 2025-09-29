@@ -189,10 +189,6 @@ def load_reference_data_from_db(db_file_path: str = "pos_reference.db") -> bool:
         finally:
             connection.close()
 
-        print(
-            f"Loaded {len(MENU_ITEMS)} menu items, {len(INGREDIENTS)} ingredients, "
-            f"and {len(INGREDIENT_DETAILS)} ingredient details from DB"
-        )
         return True
     except Exception as e:
         print(f"Error loading reference data from DB: {e}")
@@ -260,7 +256,6 @@ def _apply_ingredient_modifications(
     # Deep copy to avoid modifying original
     final_ingredients = deepcopy(base_ingredients)
 
-    print(f"modifications: {json.dumps(modifications, indent=4)}")
 
     # Apply replacements (modifications where isAddon=False, isModified=True)
     for mod in modifications:
@@ -410,7 +405,7 @@ def parse_transaction(tx: Dict[str, Any]) -> ParsedOrder:
     for idx, item in enumerate(tx.get("items", []), start=1):
         item_id = item["item_id"]
         menu_entry = MENU_ITEMS.get(item_id, {})
-        print(MENU_ITEMS.get(item_id, {}))
+        # print(MENU_ITEMS.get(item_id, {}))
 
         if not menu_entry:
             # Include unknown items with manual automation instead of skipping
@@ -470,14 +465,13 @@ def parse_transaction(tx: Dict[str, Any]) -> ParsedOrder:
 
         parsed_items.append(parsed_item)
 
-    return ParsedOrder(
-        transaction_id=tx["transaction_id"],
-        date=tx["date"],
-        time=tx["time"],
-        store_number=tx["store_number"],
-        pos_reg_id=tx["pos_reg_id"],
-        customer_id=tx.get("customer_id"),
-        items=parsed_items,
-    )
+    return {
+        "transaction_id":tx["transaction_id"],
+        "date":tx["date"],
+        "time":tx["time"],
+        "store_number":tx["store_number"],
+        "pos_reg_id":tx["pos_reg_id"],
+        "customer_id":tx.get("customer_id"),
+        "items":parsed_items}
 
 
