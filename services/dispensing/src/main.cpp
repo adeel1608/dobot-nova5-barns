@@ -92,13 +92,26 @@ static bool leak_emergency_triggered = false;
 #define CAN_ID_DISPENSING_ACK   0x111   // ACK from dispensing system  
 #define CAN_ID_DISPENSING_DATA  0x112   // Scale data from dispensing system
 
-// Liquid type mapping (matches Micro)
-#define LIQUID_WATER    1
-#define LIQUID_MILK     2
-#define LIQUID_SAUCE    3
-#define LIQUID_CARAMEL  4
-#define LIQUID_SYRUP    5
-#define LIQUID_HONEY    6
+// Liquid type mapping (detailed; matches LIQUID_LAGS names)
+// These numeric IDs are carried over CAN from the Micro bridge
+enum LiquidTypeId {
+  LIQ_NORMAL_WATER = 1,
+  LIQ_WHOLE_FAT_MILK = 2,
+  LIQ_LOW_FAT_MILK = 3,
+  LIQ_OAT_MILK = 4,
+  LIQ_SOY_MILK = 5,
+  LIQ_ALMOND_MILK = 6,
+  LIQ_LACTOSE_FREE_MILK = 7,
+  LIQ_WHITE_CHOCOLATE_SAUCE = 8,
+  LIQ_CARAMEL_SAUCE = 9,
+  LIQ_CONDENSE_MILK_SAUCE = 10,
+  LIQ_HAZELNUT_SYRUP = 11,
+  LIQ_VANILLA_SYRUP = 12,
+  LIQ_CARAMEL_SYRUP = 13,
+  LIQ_PEACHED_ICED_SYRUP = 14,
+  LIQ_PASSION_FRUIT_ICED_SYRUP = 15,
+  LIQ_ICE_TEA_SYRUP = 16
+};
 
 // Motor control state (no Modbus registers needed)
 volatile uint16_t motorStatus = 0;                // Motor status bits
@@ -132,6 +145,9 @@ const MotorMap MOTOR_MAP[] = {
   {"sauce13", 43}, {"sauce14", 45}, {"sauce15", 47}
 };
 const uint8_t NUM_MOTOR_MAP = sizeof(MOTOR_MAP) / sizeof(MOTOR_MAP[0]);
+
+// Forward declaration (defined later)
+static float getLiquidLag(const char* liquid_name, bool speed_enabled);
 
 // Per-motor lag overrides (runtime tunable)
 static float motorLagOverrideSpeed0[NUM_MOTOR_MAP];
@@ -402,12 +418,22 @@ const char* getMotorNameById(uint8_t motor_id) {
 
 const char* getLiquidNameById(uint8_t liquid_type) {
   switch (liquid_type) {
-    case LIQUID_WATER: return "water";
-    case LIQUID_MILK: return "milk";
-    case LIQUID_SAUCE: return "sauce";
-    case LIQUID_CARAMEL: return "caramel";
-    case LIQUID_SYRUP: return "syrup";
-    case LIQUID_HONEY: return "honey";
+    case LIQ_NORMAL_WATER: return "normal_water";
+    case LIQ_WHOLE_FAT_MILK: return "whole_fat_milk";
+    case LIQ_LOW_FAT_MILK: return "low_fat_milk";
+    case LIQ_OAT_MILK: return "oat_milk";
+    case LIQ_SOY_MILK: return "soy_milk";
+    case LIQ_ALMOND_MILK: return "almond_milk";
+    case LIQ_LACTOSE_FREE_MILK: return "lactose_free_milk";
+    case LIQ_WHITE_CHOCOLATE_SAUCE: return "white_chocolate_sauce";
+    case LIQ_CARAMEL_SAUCE: return "caramel_sauce";
+    case LIQ_CONDENSE_MILK_SAUCE: return "condense_milk_sauce";
+    case LIQ_HAZELNUT_SYRUP: return "hazelnut_syrup";
+    case LIQ_VANILLA_SYRUP: return "vanilla_syrup";
+    case LIQ_CARAMEL_SYRUP: return "caramel_syrup";
+    case LIQ_PEACHED_ICED_SYRUP: return "peached_iced_syrup";
+    case LIQ_PASSION_FRUIT_ICED_SYRUP: return "passion_fruit_iced_syrup";
+    case LIQ_ICE_TEA_SYRUP: return "ice_tea_syrup";
     default: return "sauce";
   }
 }

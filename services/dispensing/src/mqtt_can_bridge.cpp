@@ -31,18 +31,29 @@ IPAddress sub(255, 255, 255, 0);
 #define CAN_ID_DISPENSING_DATA  0x112   // Scale data from dispensing system
 
 // Liquid type mapping
-#define LIQUID_WATER    1
-#define LIQUID_MILK     2
-#define LIQUID_SAUCE    3
-#define LIQUID_CARAMEL  4
-#define LIQUID_SYRUP    5
-#define LIQUID_HONEY    6
+#define LIQ_NORMAL_WATER                 1
+#define LIQ_WHOLE_FAT_MILK               2
+#define LIQ_LOW_FAT_MILK                 3
+#define LIQ_OAT_MILK                     4
+#define LIQ_SOY_MILK                     5
+#define LIQ_ALMOND_MILK                  6
+#define LIQ_LACTOSE_FREE_MILK            7
+#define LIQ_WHITE_CHOCOLATE_SAUCE        8
+#define LIQ_CARAMEL_SAUCE                9
+#define LIQ_CONDENSE_MILK_SAUCE          10
+#define LIQ_HAZELNUT_SYRUP               11
+#define LIQ_VANILLA_SYRUP                12
+#define LIQ_CARAMEL_SYRUP                13
+#define LIQ_PEACHED_ICED_SYRUP           14
+#define LIQ_PASSION_FRUIT_ICED_SYRUP     15
+#define LIQ_ICE_TEA_SYRUP                16
 
 EthernetClient ethClient;
 PubSubClient mqtt(ethClient);
 MCP2515 mcp2515(CAN_CS_PIN);
 
 static uint8_t can_error_count = 0;
+static bool pending_dispense_ack = false;
 
 static void can_reinit_normal() {
   SPI.begin();
@@ -50,20 +61,9 @@ static void can_reinit_normal() {
   mcp2515.setBitrate(CAN_SPEED, MCP_CLOCK);
   mcp2515.setNormalMode();
   can_error_count = 0;
-  Serial.println("CAN reinitialized to Normal mode");
 }
 
-static void can_set_loopback(bool enable) {
-  if (enable) {
-    mcp2515.setLoopbackMode();
-    Serial.println("CAN set to Loopback mode");
-  } else {
-    mcp2515.setNormalMode();
-    Serial.println("CAN set to Normal mode");
-  }
-}
-
-char buf[128];
+char buf[96];
 int idx = 0;
 
 // CAN message structure for dispensing
@@ -80,12 +80,23 @@ static const uint8_t CMD_STOP     = 0x02;
 static const uint8_t CMD_SET_LAG  = 0x03;
 
 uint8_t getLiquidTypeId(const char* liquid_name) {
-  if (strstr(liquid_name, "water")) return LIQUID_WATER;
-  if (strstr(liquid_name, "milk")) return LIQUID_MILK;
-  if (strstr(liquid_name, "caramel")) return LIQUID_CARAMEL;
-  if (strstr(liquid_name, "syrup")) return LIQUID_SYRUP;
-  if (strstr(liquid_name, "honey")) return LIQUID_HONEY;
-  return LIQUID_SAUCE; // Default
+  if (strstr(liquid_name, "normal_water")) return LIQ_NORMAL_WATER;
+  if (strstr(liquid_name, "whole_fat_milk")) return LIQ_WHOLE_FAT_MILK;
+  if (strstr(liquid_name, "low_fat_milk")) return LIQ_LOW_FAT_MILK;
+  if (strstr(liquid_name, "oat_milk")) return LIQ_OAT_MILK;
+  if (strstr(liquid_name, "soy_milk")) return LIQ_SOY_MILK;
+  if (strstr(liquid_name, "almond_milk")) return LIQ_ALMOND_MILK;
+  if (strstr(liquid_name, "lactose_free_milk")) return LIQ_LACTOSE_FREE_MILK;
+  if (strstr(liquid_name, "white_chocolate_sauce")) return LIQ_WHITE_CHOCOLATE_SAUCE;
+  if (strstr(liquid_name, "caramel_sauce")) return LIQ_CARAMEL_SAUCE;
+  if (strstr(liquid_name, "condense_milk_sauce")) return LIQ_CONDENSE_MILK_SAUCE;
+  if (strstr(liquid_name, "hazelnut_syrup")) return LIQ_HAZELNUT_SYRUP;
+  if (strstr(liquid_name, "vanilla_syrup")) return LIQ_VANILLA_SYRUP;
+  if (strstr(liquid_name, "caramel_syrup")) return LIQ_CARAMEL_SYRUP;
+  if (strstr(liquid_name, "peached_iced_syrup")) return LIQ_PEACHED_ICED_SYRUP;
+  if (strstr(liquid_name, "passion_fruit_iced_syrup")) return LIQ_PASSION_FRUIT_ICED_SYRUP;
+  if (strstr(liquid_name, "ice_tea_syrup")) return LIQ_ICE_TEA_SYRUP;
+  return LIQ_CARAMEL_SAUCE; // sensible default
 }
 
 uint8_t getMotorIdFromName(const char* motor_name) {
@@ -135,17 +146,9 @@ void sendCANDispenseCommand(uint8_t motor_id, float weight, uint8_t liquid_type)
   {
     MCP2515::ERROR txres = mcp2515.sendMessage(&canMsg);
     if (txres != MCP2515::ERROR_OK) {
-      Serial.print("CAN TX error: "); Serial.println((int)txres);
       if (++can_error_count >= 3) { can_reinit_normal(); }
     }
   }
-  
-  Serial.print("CAN TX: Motor=");
-  Serial.print(motor_id);
-  Serial.print(" Weight=");
-  Serial.print(weight, 1);
-  Serial.print("g Type=");
-  Serial.println(liquid_type);
 }
 
 static void sendCANSetLag(uint8_t motor_id, float lag_g, uint8_t speed01) {
@@ -167,12 +170,7 @@ static void sendCANSetLag(uint8_t motor_id, float lag_g, uint8_t speed01) {
   {
     MCP2515::ERROR txres = mcp2515.sendMessage(&canMsg);
     if (txres != MCP2515::ERROR_OK) {
-      Serial.print("CAN TX SET_LAG error: "); Serial.println((int)txres);
       if (++can_error_count >= 3) { can_reinit_normal(); }
-    } else {
-      Serial.print("CAN TX SET_LAG: motor="); Serial.print(motor_id);
-      Serial.print(" lag="); Serial.print(lag_g, 1);
-      Serial.print("g speed="); Serial.println(speed01 ? 1 : 0);
     }
   }
 }
@@ -213,10 +211,8 @@ void processCAN() {
         Serial1.print((int)weight_dg);
         Serial1.print(",");
         Serial1.println((int)cmd.liquid_type);
-
-        Serial.print("CAN RX CMD -> UART: motor="); Serial.print(cmd.motor_id);
-        Serial.print(" weight_dg="); Serial.print(weight_dg);
-        Serial.print(" type="); Serial.println(cmd.liquid_type);
+        // Defer ACK on CAN until job completes
+        pending_dispense_ack = true;
       }
       else if (cmd.cmd == CMD_SET_LAG) {
         // Apply per-motor lag override on Mega via UART
@@ -224,74 +220,29 @@ void processCAN() {
         float lag_g = ((float)cmd.weight_dg) / 10.0f;
         uint8_t speed01 = cmd.reserved[0] ? 1 : 0;
         if (motor_name) {
-          Serial.print("CAN RX SET_LAG -> UART: ");
-          Serial.print(motor_name); Serial.print(" speed "); Serial.print(speed01);
-          Serial.print(" lag "); Serial.println(lag_g, 1);
           Serial1.print("LAGM "); Serial1.print(motor_name); Serial1.print(" "); Serial1.print((int)speed01); Serial1.print(" "); Serial1.println(lag_g, 1);
-        } else {
-          Serial.println("CAN RX SET_LAG: invalid motor_id");
         }
-      }
-
-      // Send ACK on CAN to confirm receipt
-      struct can_frame ackMsg;
-      ackMsg.can_id  = CAN_ID_DISPENSING_ACK;
-      ackMsg.can_dlc = 8;
-      ackMsg.data[0] = 0x01; // ACK indicator
-      ackMsg.data[1] = 0x00;
-      ackMsg.data[2] = 0x00;
-      ackMsg.data[3] = 0x00;
-      ackMsg.data[4] = 0x00;
-      ackMsg.data[5] = 0x00;
-      ackMsg.data[6] = 0x00;
-      ackMsg.data[7] = 0x00;
-      {
-        MCP2515::ERROR txres = mcp2515.sendMessage(&ackMsg);
-        if (txres != MCP2515::ERROR_OK) {
-          Serial.print("CAN TX ACK error: "); Serial.println((int)txres);
-          if (++can_error_count >= 3) { can_reinit_normal(); }
-        } else {
-          Serial.println("CAN TX ACK: 0x111 [01 00 00 00 00 00 00 00]");
+        // Immediate ACK for SET_LAG
+        struct can_frame ackLag;
+        ackLag.can_id  = CAN_ID_DISPENSING_ACK;
+        ackLag.can_dlc = 8;
+        ackLag.data[0] = 0x01; ackLag.data[1] = 0; ackLag.data[2] = 0; ackLag.data[3] = 0;
+        ackLag.data[4] = 0;    ackLag.data[5] = 0; ackLag.data[6] = 0; ackLag.data[7] = 0;
+        {
+          MCP2515::ERROR txres = mcp2515.sendMessage(&ackLag);
+          if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
         }
       }
       continue;
     }
-    else if (canMsg.can_id == CAN_ID_DISPENSING_ACK) {
-      Serial.print("CAN RX ACK: ");
-      Serial.println(canMsg.data[0] == 0x01 ? "SUCCESS" : "ERROR");
-    }
     else if (canMsg.can_id == CAN_ID_DISPENSING_DATA) {
-      // Scale data from Mega
-      int16_t scale_a = (canMsg.data[1] << 8) | canMsg.data[0];
-      int16_t scale_b = (canMsg.data[3] << 8) | canMsg.data[2];
-      uint8_t status = canMsg.data[4];
-      uint8_t job_state = canMsg.data[5];
-      uint8_t leak_status = canMsg.data[6];
-      
-      Serial.print("CAN RX Data: A=");
-      Serial.print(scale_a / 10.0, 1);
-      Serial.print("g B=");
-      Serial.print(scale_b / 10.0, 1);
-      Serial.print("g State=");
-      Serial.print(job_state);
-      if (leak_status) Serial.print(" LEAK!");
-      Serial.println();
-    }
-    else {
-      // Log any other frames for diagnostics
-      Serial.print("CAN RX id=0x"); Serial.print(canMsg.can_id, HEX);
-      Serial.print(" dlc="); Serial.print(canMsg.can_dlc);
-      Serial.print(" data=");
-      for (uint8_t i=0;i<canMsg.can_dlc;i++){ if (canMsg.data[i]<16) Serial.print('0'); Serial.print(canMsg.data[i], HEX); Serial.print(' ');} 
-      Serial.println();
+      // (optional) ignore or handle scale data
     }
   }
 }
 
 void callback(char* topic, byte* payload, unsigned int len) {
   payload[len] = 0;
-  Serial.print("MQTT RX: ");
-  Serial.println((char*)payload);
   
   // Parse JSON and handle different command types
   String payloadStr = String((char*)payload);
@@ -314,45 +265,18 @@ void callback(char* topic, byte* payload, unsigned int len) {
       int speed = payloadStr.substring(sStart, sEnd).toInt();
       float lag = payloadStr.substring(lStart, lEnd).toFloat();
       motor.toLowerCase();
-      Serial.print("Apply LAGM via MQTT: "); Serial.print(motor); Serial.print(" "); Serial.print(speed); Serial.print(" "); Serial.println(lag, 1);
       Serial1.print("LAGM "); Serial1.print(motor); Serial1.print(" "); Serial1.print(speed); Serial1.print(" "); Serial1.println(lag, 1);
-
-      // Also broadcast over CAN so other nodes can observe and to allow CAN-only configs
+      
+      // Also broadcast over CAN for visibility and CAN-only usage
       uint8_t motor_id = getMotorIdFromName(motor.c_str());
       sendCANSetLag(motor_id, lag, (uint8_t)(speed ? 1 : 0));
-    } else {
-      Serial.println("Invalid payload for automation_dispensing_lag. Expected {\"motor\":\"sauce9\",\"speed\":0|1,\"lag\":<g>} ");
     }
     return;
-  }
-
-  // Special: raw CAN control channel for simple tests (no UART forwarding)
-  if (topicStr == "automation_dispensing_can") {
-    // Heartbeat trigger: send 0x10F with FF FF 00 00 00 00 00 00
-    if (payloadStr == "heartbeat" || payloadStr.indexOf("\"heartbeat\"") >= 0) {
-      struct can_frame hb;
-      hb.can_id  = 0x10F;
-      hb.can_dlc = 8;
-      hb.data[0] = 0xFF; hb.data[1] = 0xFF; hb.data[2] = 0x00; hb.data[3] = 0x00;
-      hb.data[4] = 0x00; hb.data[5] = 0x00; hb.data[6] = 0x00; hb.data[7] = 0x00;
-      {
-        MCP2515::ERROR txres = mcp2515.sendMessage(&hb);
-        if (txres != MCP2515::ERROR_OK) {
-          Serial.print("CAN TX HB error: "); Serial.println((int)txres);
-          if (++can_error_count >= 3) { can_reinit_normal(); }
-        } else {
-          Serial.println("CAN TX HB: 0x10F [FF FF 00 00 00 00 00 00]");
-        }
-      }
-      return;
-    }
-    if (payloadStr == "loopback_on") { can_set_loopback(true); return; }
-    if (payloadStr == "loopback_off") { can_set_loopback(false); return; }
   }
   
   // Handle dispensing commands via CAN (also forwarded to Mega)
   if (strstr(topic, "automation_dispensing")) {
-    // Parse JSON: {"ingredient":"caramel","weight":10,"motor":"sauce1","command":"caramel_10"}
+    // Parse JSON: {"ingredient":"caramel","weight":10,"motor":"sauce1"}
     int ingredientStart = payloadStr.indexOf("\"ingredient\":\"") + 14;
     int ingredientEnd = payloadStr.indexOf("\"", ingredientStart);
     String ingredient = payloadStr.substring(ingredientStart, ingredientEnd);
@@ -372,17 +296,7 @@ void callback(char* topic, byte* payload, unsigned int len) {
     
     sendCANDispenseCommand(motor_id, weight, liquid_type);
     
-    Serial.print("Converted to CAN: ");
-    Serial.print(ingredient);
-    Serial.print("_");
-    Serial.print(weight, 1);
-    Serial.print(" -> Motor=");
-    Serial.print(motor_id);
-    Serial.print(" Type=");
-    Serial.println(liquid_type);
-
-    // ALSO forward to Mega over UART so it works without a CAN responder
-    // Format expected by Mega: "CAN:motor_id,weight_dg,liquid_type"
+    // Also forward to Mega over UART
     uint16_t weight_dg = (uint16_t)(weight * 10.0f);
     Serial1.print("CAN:");
     Serial1.print((int)motor_id);
@@ -391,96 +305,68 @@ void callback(char* topic, byte* payload, unsigned int len) {
     Serial1.print(",");
     Serial1.println((int)liquid_type);
   }
-  // Handle other automation commands via UART (existing)
-  else {
-    // Extract command for Mega (existing logic)
-    int commandStart = payloadStr.indexOf("\"command\":\"") + 11;
-    int commandEnd = payloadStr.indexOf("\"", commandStart);
-    
-    if (commandStart > 10 && commandEnd > commandStart) {
-      String command = payloadStr.substring(commandStart, commandEnd);
-      Serial.print("UART to Mega: ");
-      Serial.println(command);
-      
-      // Forward command to Mega via UART
-      Serial1.println(command);
-    }
-  }
 }
 
 void setup() {
   Serial.begin(115200);
   Serial1.begin(115200);
-  delay(2000);
+  delay(300);
   
-  Serial.println("=== Enhanced MQTT+CAN Bridge Starting ===");
-  
-  // Setup W5500 Ethernet (existing)
+  // Setup W5500 Ethernet
   pinMode(W5500_CS_PIN, OUTPUT);
   pinMode(W5500_RST_PIN, OUTPUT);
   digitalWrite(W5500_RST_PIN, LOW);
   delay(10);
   digitalWrite(W5500_RST_PIN, HIGH);
-  delay(200);
-  
-  // Initialize Ethernet
-  Serial.println("Initializing W5500...");
+  delay(80);
   Ethernet.begin(mac, ip, gw, gw, sub);
-  Serial.print("IP: ");
-  Serial.println(Ethernet.localIP());
   
-  // Setup MCP2515 CAN (new)
-  Serial.println("Initializing MCP2515...");
+  // Setup MCP2515 CAN
   SPI.begin();
   mcp2515.reset();
   mcp2515.setBitrate(CAN_SPEED, MCP_CLOCK);
   mcp2515.setNormalMode();
-  Serial.println("CAN bus initialized");
   
   // Setup MQTT
   mqtt.setServer("192.168.200.233", 1883);
   mqtt.setCallback(callback);
-  
-  Serial.println("=== Enhanced MQTT+CAN Bridge Ready! ===");
 }
 
 void loop() {
-  // MQTT connection
   if (!mqtt.connected()) {
-    Serial.println("Connecting to MQTT...");
-    if (mqtt.connect("enhanced_bridge01", "admin", "admin123")) {
+    if (mqtt.connect("bridge01", "admin", "admin123")) {
       mqtt.subscribe("automation_dispensing");
-      mqtt.subscribe("automation_dispensing_can");  // New CAN topic
-      mqtt.subscribe("automation_milk");
-      mqtt.subscribe("automation_grinding");
-      mqtt.subscribe("automation_tampering");
-      mqtt.subscribe("automation_slush");
-      mqtt.subscribe("automation_ice");
-      Serial.println("MQTT Connected!");
-    } else {
-      Serial.print("MQTT Failed: ");
-      Serial.println(mqtt.state());
+      mqtt.subscribe("automation_dispensing_lag");
     }
   }
   mqtt.loop();
-  
-  // Process CAN messages
   processCAN();
   
-  // UART data processing (existing)
+  // UART bridge of status from Mega → MQTT
   while (Serial1.available()) {
     char c = Serial1.read();
     if (c == '\n') {
       buf[idx] = 0;
-      if (strstr(buf, "Scales A=") || strstr(buf, "LEAK_EMERGENCY")) {
-        // Forward important data to MQTT
+      if (strstr(buf, "Scales ") || strstr(buf, "LEAK")) {
         mqtt.publish("dispenser/status", buf);
       }
+      // When Mega reports completion, send deferred CAN ACK
+      if (pending_dispense_ack && strstr(buf, "State=COMPLETED")) {
+        struct can_frame ackMsg;
+        ackMsg.can_id  = CAN_ID_DISPENSING_ACK;
+        ackMsg.can_dlc = 8;
+        ackMsg.data[0] = 0x01; ackMsg.data[1] = 0; ackMsg.data[2] = 0; ackMsg.data[3] = 0;
+        ackMsg.data[4] = 0;    ackMsg.data[5] = 0; ackMsg.data[6] = 0; ackMsg.data[7] = 0;
+        {
+          MCP2515::ERROR txres = mcp2515.sendMessage(&ackMsg);
+          if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+        }
+        pending_dispense_ack = false;
+      }
       idx = 0;
-    } else if (idx < 127) {
+    } else if (idx < (int)sizeof(buf) - 1) {
       buf[idx++] = c;
     }
   }
-  
-  delay(10);
+  delay(5);
 } 
