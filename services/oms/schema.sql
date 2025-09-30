@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS order_items (
   drink_type      TEXT NOT NULL,                 -- e.g. 'latte','espresso'
   cup_size        TEXT NOT NULL,                 -- e.g. 'small','medium','large'
   addons          JSONB DEFAULT '[]'::JSONB,     -- e.g. ["extra_shot","vanilla"]
+  ingredients     JSONB DEFAULT '{}'::JSONB,     -- structured ingredients dict
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

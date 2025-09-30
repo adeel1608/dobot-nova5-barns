@@ -235,6 +235,7 @@ services:
       - "8002:8000"
     restart: unless-stopped
 
+
   # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
   api-bridge:
     build:

@@ -176,6 +176,45 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
+  "cortado": [
+    {
+      "action": "dispense_milk",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    }
+  ],
+  "cappuccino_12oz": [
+    {
+      "action": "Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Pour_Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Espresso"]
+    },
+    {
+      "action": "Clean_Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour_Espresso"]
+    },
+    {
+      "action": "Milk_Dispensing_Frother",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    },
+    {
+      "action": "Froth_Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Milk_Dispensing_Frother"]
+    },
+    {
+      "action": "Pour_Frothed_Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+    }
+  ],
   "Caramel Macchiato (Hot)": [
     {
       "action": "Dispense_Paper_Cup",

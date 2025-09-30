@@ -1558,7 +1558,8 @@ async def send_to_scheduler(order_data: dict):
         cups.append({
             "type": cup.get("drink_type"),  # Map drink_type to type
             "size": cup.get("cup_size"),    # Map cup_size to size
-            "addons": cup.get("addons", [])
+            "addons": cup.get("addons", []),
+            "ingredients": cup.get("ingredients", {})
         })
     
     scheduler_payload = {

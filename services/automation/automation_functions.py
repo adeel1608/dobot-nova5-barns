@@ -227,9 +227,9 @@ async def dispense_ice(params: dict):
 async def dispense_milk(params: dict):
     """Dispense milk using MQTT communication."""
     # example params: {"milk_type": "whole", "amount": 150, "timeout": 300}
+    logger.info(f"Calling dispense_milk function with params:{params}")
     milk_type = params.get("milk_type", "whole")
     amount = params.get("amount", 150)
-    logger.info("Calling dispense_milk function")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):

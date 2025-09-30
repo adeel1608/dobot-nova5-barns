@@ -365,7 +365,7 @@ class SchedulerService:
     async def _process_order_async(self, order_id: int, drinks: List[Dict]):
         """Background coroutine to process each drink using the scheduler."""
         logger.info(f"🔄 [SCHEDULER] Background processing started for order {order_id} with {len(drinks)} drinks")
-        print(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING STARTED FOR ORDER {order_id} 🔥🔥🔥")
+        
         
         try:
             # Send processing started event
@@ -387,8 +387,7 @@ class SchedulerService:
                 await self.notify_status(f"Failed to process order {order_id}")
                 
         except Exception as e:
-            logger.error(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e} 🔥🔥🔥")
-            print(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e} 🔥🔥🔥")
+            logger.error(f"SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e}")
             
             # Send error event
             await self.rabbitmq_client.send_event("scheduler.order_error", {

@@ -25,6 +25,8 @@ completed_count = 0  # Counter for tasks completed successfully
 failed_count = 0     # Counter for tasks failed
 lock = threading.Lock()  # Lock to synchronize access to shared data
 current_status = {"order_id": None, "cup_index": None, "step": None, "status": "idle"}
+# Map cup_id -> full cup data (ingredients, addons, size, etc.)
+cup_data_by_cup: Dict[str, Dict[str, Any]] = {}
 status_callback = None  # Callback function to notify about status updates
 order_completion_notified = False  # Flag to prevent duplicate completion notifications
 
@@ -196,13 +198,23 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
         client = RabbitMQClient(f"scheduler_task_submitter_{uuid.uuid4().hex[:8]}")
         await client.connect()
         
+        # Read cup data (ingredients/addons/size) captured during setup
+        with lock:
+            cup_data = cup_data_by_cup.get(cup_id, {})
+        ingredients = cup_data.get("ingredients", {})
+        addons = cup_data.get("addons", [])
+        size = cup_data.get("size")
+
         # Create the payload for the routine service
         payload = {
             "arm_id": int(arm_id.replace("Arm", "")),  # Convert "Arm1" to 1
             "function": function,
             "item": {
                 "cup_id": cup_id,
-                "addons": []  # No addons for now, could be made configurable
+                "drink_type": drink_type,
+                "size": size,
+                "addons": addons,
+                "ingredients": ingredients
             }
         }
         
@@ -394,6 +406,9 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
     # Reset per-arm cup priority scheduling data structures
     per_arm_current_cups = {"Arm1": None, "Arm2": None}
     cup_completion_status = {}
+    # Reset per-order cup mapping
+    global cup_data_by_cup
+    cup_data_by_cup = {}
     
     # Update current status with new order info
     current_status.update({
@@ -409,6 +424,8 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
         drink_type = cup.get("type")
         cup_id = f"{order_id}-{idx}"  # Create a unique cup ID
         orders.append((drink_type, cup_id))
+        # Keep the full cup dict for downstream payloads (ingredients, addons, size, etc.)
+        cup_data_by_cup[cup_id] = cup
         
         # Check if recipe exists for this drink
         if drink_type not in recipes:
