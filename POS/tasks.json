@@ -87,7 +87,6 @@
       }
     ]
   },
-
   "Calibrate": {
     "steps": [
       {
@@ -262,6 +261,22 @@
         "type": "robot",
         "function": "pick_frother",
         "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_frother_milk_station",
+        "params": {
+        }
+      },
+      {
+        "type": "automation",
+        "function": "dispense_milk",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pick_frother_milk_station",
+        "params": {}
       }
     ]
   },
@@ -289,6 +304,11 @@
         "params": {
           "stage": "1"
         }
+      },
+      {
+        "type": "robot",
+        "function": "clean_frother",
+        "params": {}
       },
       {
         "type": "robot",
@@ -472,7 +492,7 @@
       },
       {
         "type": "automation",
-        "function": "coffee_machine_wait",
+        "function": "coffee_machine",
         "params": {
         "coffee_t": 2,
         "slot_number": 3
@@ -494,260 +514,11 @@
       }
     ]
   },
-  "Place_Cup_With_Ice": {
+  "Go_Home_With_Ice": {
     "steps": [
       {
         "type": "robot",
         "function": "place_plastic_cup_with_ice",
-        "params": {}
-      }
-    ]
-  },
-
-  "unmount": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "unmount",
-        "params": {
-          "port": "port_2"
-        }
-      }
-    ]
-  },
-  "mount": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      }
-    ]
-  },
-  "grinder": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "grinder",
-        "params": {
-          "portafilter_tool": "single_portafilter"
-        }
-      }
-    ]
-  },
-  "tamper": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "tamper",
-        "params": {
-          "portafilter_tool": "single_portafilter"
-        }
-      }
-    ]
-  },
-  "pick_espresso_pitcher": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      }
-    ]
-  },
-  "pour_espresso_pitcher": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher",
-        "params": {
-          "stage": "stage_1"
-        }
-      }
-    ]
-  },
-  "return_espresso_pitcher": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      }
-    ]
-  },
-  "get_hot_water": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_hot_water",
-        "params": {}
-      }
-    ]
-  },
-  "with_hot_water": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "with_hot_water",
-        "params": {}
-      }
-    ]
-  },
-  "home": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "home",
-        "params": {}
-      }
-    ]
-  },
-  "get_machine_position": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_machine_position",
-        "params": {}
-      }
-    ]
-  },
-  "get_frother_position": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_frother_position",
-        "params": {}
-      }
-    ]
-  },
-  "pick_frother": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pick_frother",
-        "params": {}
-      }
-    ]
-  },
-  "mount_frother": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "mount_frother",
-        "params": {}
-      }
-    ]
-  },
-  "froth_milk": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "froth_milk",
-        "params": {}
-      }
-    ]
-  },
-  "pour_milk": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pour_milk",
-        "params": {}
-      }
-    ]
-  },
-  "return_frother": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "return_frother",
-        "params": {}
-      }
-    ]
-  },
-  "swirl_milk": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "swirl_milk",
-        "params": {}
-      }
-    ]
-  },
-  "grab_paper_cup": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {}
-      }
-    ]
-  },
-  "place_paper_cup": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {}
-      }
-    ]
-  },
-  "serve_paper_cup": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "serve_paper_cup",
-        "params": {}
-      }
-    ]
-  },
-  "grab_plastic_cup": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "grab_plastic_cup",
-        "params": {}
-      }
-    ]
-  },
-  "place_plastic_cup": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_plastic_cup",
-        "params": {}
-      }
-    ]
-  },
-  "pick_plastic_cup_for_ice": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pick_plastic_cup_for_ice",
-        "params": {}
-      }
-    ]
-  },
-  "get_slush": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_slush",
-        "params": {}
-      }
-    ]
-  },
-  "place_slush": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_slush",
         "params": {}
       }
     ]
