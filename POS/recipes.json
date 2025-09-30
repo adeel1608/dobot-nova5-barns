@@ -55,14 +55,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso_Only"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     }
   ],
   "Macchiato (Hot)": [
@@ -72,14 +72,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frother",
@@ -89,7 +89,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother", "Espresso_pouring"]
+      "depends_on": ["Milk_Dispensing_Frother", "Pour_Espresso"]
     }
   ],
   "Cortado (Hot)": [
@@ -99,14 +99,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -116,7 +116,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing_cortado", "Espresso_pouring"]
+      "depends_on": ["Milk_Dispensing_Frothing_cortado", "Pour_Espresso"]
     }
   ],
   "Cappuccino (Hot)": [
@@ -126,14 +126,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -144,7 +144,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing","Espresso_pouring"]
+      "depends_on": ["Milk_Dispensing_Frothing","Pour_Espresso"]
     }
   ],
   "Caramel Macchiato (Hot)": [
@@ -189,14 +189,14 @@
       "depends_on": ["Pick_Cup_Sauces"]
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Place_Cup_Station"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -206,7 +206,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Espresso_pouring","Milk_Dispensing_Frothing"]
+      "depends_on": ["Pour_Espresso","Milk_Dispensing_Frothing"]
     }
   ],
   "Flat White (Hot)": [
@@ -216,14 +216,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -233,7 +233,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing","Espresso_pouring"]
+      "depends_on": ["Milk_Dispensing_Frothing","Pour_Espresso"]
     }
   ],
   "Latte (Hot)": [
@@ -243,14 +243,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -261,7 +261,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frothing","Espresso_pouring"]
+      "depends_on": ["Milk_Dispensing_Frothing","Pour_Espresso"]
     }
   ],
   "Latte (Cold)": [
@@ -311,14 +311,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso_Only","Place_Cup_With_Ice"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     }
   ],  
   "Passion Fruit Ice Tea (Cold)": [
@@ -497,14 +497,14 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso_Only","Place_Cup_With_Ice"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     }
   ],
   "Spanish Late (Hot)": [
@@ -540,14 +540,14 @@
       "depends_on": ["Pick_Cup_Sauces"]
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Place_Cup_Station"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Milk_Dispensing_Frothing",
@@ -557,7 +557,7 @@
     {
       "action": "Pour_Frothed_Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Espresso_pouring","Milk_Dispensing_Frothing"]
+      "depends_on": ["Pour_Espresso","Milk_Dispensing_Frothing"]
     }
   ],
   "White Mocha (Hot)": [
@@ -567,19 +567,19 @@
       "depends_on": []
     },
     {
-      "action": "Espresso_pouring",
+      "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
       "depends_on": ["Espresso"]
     },
     {
-      "action": "Cleaning",
+      "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Pick_Cup_Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Espresso_pouring"]
+      "depends_on": ["Pour_Espresso"]
     },
     {
       "action": "Place_Cup_Sauces",

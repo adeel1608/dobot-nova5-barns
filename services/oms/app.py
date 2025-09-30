@@ -221,6 +221,7 @@ def register_event_handlers():
 
 # RabbitMQ Message Handlers
 async def handle_create_order_mq(data: Dict) -> Dict:
+    logger.info(data, type(data))
     """Handle create order requests via RabbitMQ"""
     try:
         order_data = data.get("order", {})
@@ -1310,7 +1311,7 @@ def get_rabbitmq_health():
 
 # POS Integration Endpoint
 @app.post("/pos/process-order")
-def process_pos_order(order_data: dict):
+async def process_pos_order(order_data: dict):
     """Process POS order and return parsed transaction as JSON, printing the dataclass object."""
     try:
         # Validate required fields
@@ -1327,7 +1328,7 @@ def process_pos_order(order_data: dict):
         parsed_order = parse_transaction(order_data)
 
         # Print the dataclass object (as requested)
-        results = []
+        results = {}
 
         for item in parsed_order.get("items", []):
             grouped = {}
@@ -1336,9 +1337,32 @@ def process_pos_order(order_data: dict):
                 if cat not in grouped:
                     grouped[cat] = {}
                 grouped[cat][ing.type] = ing.total_amount
-            results.append(grouped)
+
+            # key the result by recipe_id
+            results[item.recipe_id] = grouped
+        order = {"order": {"cups": []}}
+
+        for recipe_id, ingredients in results.items():
+            # Extract size from 'cups' category (if available)
+            size = None
+            if "cups" in ingredients:
+                # take first key under cups (e.g., "H7", "H12")
+                size = next(iter(ingredients["cups"].keys()))
+
+            # Build cup entry
+            cup_entry = {
+                "type": recipe_id,
+                "size": size,
+                "addons": [],
+                "ingredients": ingredients
+            }
+
+            order["order"]["cups"].append(cup_entry)
+        print(order, type(order))
+
+        result = await handle_create_order_mq(order)
         # Result of results for 2 drinks (sample) = [{'espresso': {'regular': 1.0}, 'cups': {'H7': 1.0}, 'milk': {'almond': 70.0}}, {'espresso': {'regular': 2.0}, 'milk': {'almond': 260.0}, 'cups': {'H12': 1.0}}]
-        return {"success": True}
+        return result
 
     except HTTPException:
         raise
