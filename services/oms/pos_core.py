@@ -451,7 +451,7 @@ def parse_transaction(tx: Dict[str, Any]) -> ParsedOrder:
         # Build parsed item
         parsed_item = ParsedItem(
             line=idx,
-            recipe_id=item_id,
+            recipe_id=menu_entry.get("name", f"Unknown Item {item_id}"),
             recipe_name=menu_entry.get("name", f"Unknown Item {item_id}"),
             recipe=menu_entry.get("recipe", "Unknown"),
             category=menu_entry.get("category", "unknown"),
