@@ -1,5 +1,19 @@
-httpx==0.28.1
-pydantic==2.11.4
 fastapi==0.115.12
-psycopg2-binary==2.9.10
-flask==3.0.0 
+pydantic==2.11.4      # for validation_client
+grpcio==1.60.0            # for robot_client
+protobuf==6.32.1      # for gRPC codegen
+pika==1.3.2         
+uvicorn==0.24.0
+httpx==0.25.2
+aio-pika==9.3.1
+asyncio-mqtt==0.13.0
+redis==5.0.1
+psycopg2-binary==2.9.9
+numpy==1.24.3
+python-multipart==0.0.6
+websockets==12.0
+python-json-logger==2.0.7
+python-socketio==5.13.0
+requests==2.31.0
+urllib3==2.0.0
+psutil==5.9.0

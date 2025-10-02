@@ -139,7 +139,7 @@ def unmount(**params) -> bool:
         if port == 'port_1':
             # Step 7: Rotate portafilter to unlock (-45 degrees)
             print("🔄 Step 7/13: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_movL", -45.0)
+            rotate_result = run_skill("move_portafilter_arc_tool", -45.0)
             
             if rotate_result is False:
                 print("[ERROR] Failed to rotate portafilter")
@@ -189,6 +189,7 @@ def unmount(**params) -> bool:
         print("   ✅ Tension released after rotation")
             
         time.sleep(0.2)  # Allow settling time
+        # run_skill("sync")
         
         # Step 9: Capture mount position for later use
         print("📸 Step 9/13: Capturing mount position...")
@@ -196,7 +197,7 @@ def unmount(**params) -> bool:
         if mount_espresso_port is None:
             print("[ERROR] Failed to capture mount position")
             return False
-        
+        # run_skill("sync")
         # Validate captured position data
         if not isinstance(mount_espresso_port, (tuple, list)) or len(mount_espresso_port) != 6:
             print(f"[ERROR] Invalid mount position data: {mount_espresso_port} (expected 6 joint angles)")
@@ -212,14 +213,14 @@ def unmount(**params) -> bool:
             print("[ERROR] Failed to move down to clear portafilter")
             return False
         print("   ✅ Successfully moved down to clear portafilter")
-            
+        # run_skill("sync")    
         # Step 11: Capture below position for later use
         print("📸 Step 11/13: Capturing below position...")
         below_espresso_port = run_skill("current_angles")
         if below_espresso_port is None:
             print("[ERROR] Failed to capture below position")
             return False
-        
+        # run_skill("sync")
         # Validate captured position data
         if not isinstance(below_espresso_port, (tuple, list)) or len(below_espresso_port) != 6:
             print(f"[ERROR] Invalid below position data: {below_espresso_port} (expected 6 joint angles)")
@@ -290,6 +291,8 @@ def grinder(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        positioning_time (float): Time in seconds to allow for positioning, defaults to 3.0
+        portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
         
     Returns:
         bool: True if grinding and tamping completed successfully, False otherwise
@@ -298,15 +301,23 @@ def grinder(**params) -> bool:
         Exception: If unexpected error occurs during grinding process
         
     Example:
-        success = grinder(port='port_1')
+        success = grinder(port='port_1', positioning_time=2.5, portafilter_tool='double_portafilter')
         if success:
             print("Coffee grinding and tamping completed")
     """
     try:
-        # Extract and validate port parameter
+        # Extract and validate parameters
         port = params.get("port", "port_2")  # Default to port_2
+        positioning_time = params.get("positioning_time", 3.0)  # Default to 3.0 seconds
+        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
         if not port:
             print("[ERROR] No port parameter provided")
+            return False
+            
+        # Validate portafilter tool parameter
+        if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
+            print(f"[ERROR] Invalid portafilter_tool: {portafilter_tool!r}")
+            print("[INFO] Available options: single_portafilter, double_portafilter")
             return False
             
         print(f"☕ Starting grinding and tamping sequence for {port}")
@@ -360,8 +371,8 @@ def grinder(**params) -> bool:
         print("   ✅ Successfully approached tamper")
         
         # Allow positioning time
-        print("   ⏰ Allowing positioning time...")
-        time.sleep(2.5)
+        print(f"   ⏰ Allowing positioning time ({positioning_time}s)...")
+        time.sleep(positioning_time)
 
         # Step 5: Mount to grinder again for consistency
         print("⚙️ Step 5/7: Re-mounting to grinder...")
@@ -403,12 +414,21 @@ def grinder(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
 
-        # Step 8: Approach double portafilter tool
-        print("🎯 Step 8/8: Approaching double portafilter tool...")
-        approach_tool_result = run_skill("approach_tool", "double_portafilter")
+        # Step 8: Approach specified portafilter tool with fallback
+        print(f"🎯 Step 8/8: Approaching {portafilter_tool}...")
+        approach_tool_result = run_skill("approach_tool", portafilter_tool)
         if approach_tool_result is False:
-            print("[WARNING] Failed to approach double portafilter tool")
-        print("   ✅ Successfully approached tool")
+            # Try the other tool as fallback
+            fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+            print(f"[WARNING] Failed to approach {portafilter_tool}, trying {fallback_tool} as fallback...")
+            approach_tool_result = run_skill("approach_tool", fallback_tool)
+            if approach_tool_result is False:
+                print(f"[WARNING] Failed to approach both {portafilter_tool} and {fallback_tool}")
+            else:
+                print(f"   ✅ Successfully approached {fallback_tool} (fallback)")
+                portafilter_tool = fallback_tool  # Update for logging
+        else:
+            print(f"   ✅ Successfully approached {portafilter_tool}")
         
         # Final success summary
         print("=" * 50)
@@ -427,10 +447,10 @@ def grinder(**params) -> bool:
 
 def tamper(**params) -> bool:
     """
-    Tamp coffee at the tamper station using double portafilter tool.
+    Tamp coffee at the tamper station using portafilter tool.
     
     This function performs the complete tamping sequence:
-    1. Approaches and grabs the double portafilter tool
+    1. Approaches and grabs the portafilter tool
     2. Closes gripper to secure tool
     3. Lifts tool slightly for positioning
     4. Mounts to grinder for proper alignment
@@ -438,7 +458,7 @@ def tamper(**params) -> bool:
     6. Returns to grinder home position
     
     Args:
-        **params: Additional parameters (currently unused but reserved for future expansion)
+        portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
         
     Returns:
         bool: True if tamping completed successfully, False otherwise
@@ -447,38 +467,55 @@ def tamper(**params) -> bool:
         Exception: If unexpected error occurs during tamping process
         
     Example:
-        success = tamper()
+        success = tamper(portafilter_tool='double_portafilter')
         if success:
             print("Coffee tamping completed successfully")
     """
     try:
+        # Extract and validate parameters
+        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
+        
+        # Validate portafilter tool parameter
+        if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
+            print(f"[ERROR] Invalid portafilter_tool: {portafilter_tool!r}")
+            print("[INFO] Available tools: single_portafilter, double_portafilter")
+            return False
+            
         print("🔨 Starting coffee tamping sequence")
         print("=" * 50)
         
-        # Step 1: Approach and grab double portafilter tool
-        print("🎯 Step 1/6: Approaching double portafilter tool...")
+        # Step 1: Approach and grab portafilter tool with fallback
+        print(f"🎯 Step 1/6: Approaching {portafilter_tool}...")
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        approach_tool_result = run_skill("approach_tool", "double_portafilter")
+        approach_tool_result = run_skill("approach_tool", portafilter_tool)
         if approach_tool_result is False:
-            print("[ERROR] Failed to approach double portafilter tool")
-            return False
+            # Try the other tool as fallback
+            fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+            print(f"[WARNING] Failed to approach {portafilter_tool}, trying {fallback_tool} as fallback...")
+            approach_tool_result = run_skill("approach_tool", fallback_tool)
+            if approach_tool_result is False:
+                print(f"[ERROR] Failed to approach both {portafilter_tool} and {fallback_tool}")
+                return False
+            else:
+                print(f"   ✅ Successfully approached {fallback_tool} (fallback)")
+                portafilter_tool = fallback_tool  # Update for subsequent operations
         
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        grab_tool_result = run_skill("grab_tool", "double_portafilter")
+        grab_tool_result = run_skill("grab_tool", portafilter_tool)
         if grab_tool_result is False:
-            print("[ERROR] Failed to grab double portafilter tool")
+            print(f"[ERROR] Failed to grab {portafilter_tool}")
             return False
         
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
-        print("   ✅ Successfully approached and grabbed tool")
+        print(f"   ✅ Successfully approached and grabbed {portafilter_tool}")
         
         # Step 2: Close gripper to secure tool
         print("🤏 Step 2/6: Securing tool with gripper...")
@@ -531,7 +568,7 @@ def tamper(**params) -> bool:
         # Final success summary
         print("=" * 50)
         print("✅ COFFEE TAMPING COMPLETED SUCCESSFULLY")
-        print("   ✓ Double portafilter tool used")
+        print(f"   ✓ {portafilter_tool.replace('_', ' ').title()} tool used")
         print("   ✓ Proper tamping pressure applied")
         print("   ✓ Robot returned to home position")
         print("=" * 50)
@@ -666,7 +703,7 @@ def mount(**params) -> bool:
         # Step 5.1: Move end effector up to fix portafilter
         print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
         print(f"   📍 Executing: moveEE(0, 0, 10, 0, 0, 0)")
-        clear_result = run_skill("moveEE_movJ", 0, 0, 1, 0, 0, 0)
+        clear_result = run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0)
         
         if clear_result is False:
             print("[ERROR] Failed to move up to fix portafilter")
@@ -692,7 +729,7 @@ def mount(**params) -> bool:
         if port == 'port_1':
             # Step 7: Rotate portafilter to unlock (45 degrees)
             print("🔄 Step 7/10: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_movL", 47.0)
+            rotate_result = run_skill("move_portafilter_arc_tool", 47.0)
             
             if rotate_result is False:
                 print("[ERROR] Failed to rotate portafilter")
@@ -753,6 +790,10 @@ def mount(**params) -> bool:
                 print("[ERROR] Failed to move back from portafilter")
                 return False
             print("   ✅ Successfully moved back from portafilter")
+
+            if port == 'port_1':
+                run_skill("sync")
+                run_skill("moveEE", -10, 0, -10, 0, 0, 0)
         else:
             print("   ⏭️ Skipping retreat step for port_2")
         
@@ -1024,7 +1065,7 @@ def pour_espresso_pitcher(**params) -> bool:
         
         # Step 1: Initial positioning
         print("📍 Step 1/7: Moving to initial pouring position...")
-        init_result = run_skill("moveJ_deg", 90.160210, 10.716150, 0.203157, -10.883145, -0.001922, 0.060433)
+        init_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])
         
         if init_result is False:
             print("[ERROR] Failed to move to initial pouring position")
@@ -1042,7 +1083,8 @@ def pour_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to approach stage 1 position")
                 return False
             print("   ✅ Successfully positioned for stage 1")
-            
+            run_skill("sync")
+            run_skill("set_speed_factor", 10)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])
@@ -1081,7 +1123,8 @@ def pour_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to approach stage 2 position")
                 return False
             print("   ✅ Successfully positioned for stage 2")
-            
+            run_skill("sync")
+            run_skill("set_speed_factor", 10)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])
@@ -1120,7 +1163,8 @@ def pour_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to approach stage 3 position")
                 return False
             print("   ✅ Successfully positioned for stage 3")
-            
+            run_skill("sync")
+            run_skill("set_speed_factor", 10)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])
@@ -1159,7 +1203,8 @@ def pour_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to approach stage 4 position")
                 return False
             print("   ✅ Successfully positioned for stage 4")
-            
+            run_skill("sync")
+            run_skill("set_speed_factor", 10)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])
@@ -1196,23 +1241,23 @@ def pour_espresso_pitcher(**params) -> bool:
             return False
         print("   ✅ Successfully moved to intermediate position")
         
-        # Step 6: Rotate back (first rotation)
-        print("🔄 Step 6/7: Rotating back to original orientation (first rotation)...")
-        rotate_result = run_skill("moveJ_deg", -45, 0, -15, -30, 0, 0)
+        # # Step 6: Rotate back (first rotation)
+        # print("🔄 Step 6/7: Rotating back to original orientation (first rotation)...")
+        # rotate_result = run_skill("moveJ_deg", -45, 0, -15, -30, 0, 0)
         
-        if rotate_result is False:
-            print("[ERROR] Failed to rotate back")
-            return False
-        print("   ✅ Successfully rotated back")
+        # if rotate_result is False:
+        #     print("[ERROR] Failed to rotate back")
+        #     return False
+        # print("   ✅ Successfully rotated back")
         
-        # Step 7: Rotate back (second rotation)
-        print("🔄 Step 7/7: Rotating back to original orientation (second rotation)...")
-        rotate_result = run_skill("moveJ_deg", -15, 0, 15, 30, 0, 0)
+        # # Step 7: Rotate back (second rotation)
+        # print("🔄 Step 7/7: Rotating back to original orientation (second rotation)...")
+        # rotate_result = run_skill("moveJ_deg", -15, 0, 15, 30, 0, 0)
         
-        if rotate_result is False:
-            print("[ERROR] Failed to rotate back")
-            return False
-        print("   ✅ Successfully rotated back")
+        # if rotate_result is False:
+        #     print("[ERROR] Failed to rotate back")
+        #     return False
+        # print("   ✅ Successfully rotated back")
 
         # Step 7: Return to holding position
         print("🏠 Returning to holding position...")

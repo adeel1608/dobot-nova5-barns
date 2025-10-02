@@ -1,0 +1,73 @@
+{
+      "date": "2024-06-12",
+      "time": "10:30:00",
+      "transaction_id": "AJDX01-000168-1749705835892",
+      "store_number": "AJDX01",
+      "pos_reg_id": "000168",
+      "customer_id": "ALC004",
+      "items": [
+          {
+              "item_id": "cortado",
+              "quantity": 1,
+              "kitchen_notes": [
+                  {
+                      "type" : "Drink Foam",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  },
+                  {
+                      "type" : "Drink Ice",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  },
+                  {
+                      "type" : "Drink Temprature",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  }
+              ],
+              "item_ingredients": [
+                  {
+                      "itemId": "213419",
+                      "qty": 1,
+                      "isAddon": false,
+                      "modifierGroupId": "milk",
+                      "isModified": "true",
+                      "initialItemId": "213411"
+                  }
+              ] 
+          },
+          {
+              "item_id": "cappuccino_12oz",
+              "quantity": 1,
+              "kitchen_notes": [
+                  {
+                      "type" : "Drink Foam",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  },
+                  {
+                      "type" : "Drink Ice",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  },
+                  {
+                      "type" : "Drink Temprature",
+                      "qty" : 0,
+                      "detail" : "Normal"
+                  }
+              ],
+              "item_ingredients": [
+                  {
+                      "itemId": "213419",
+                      "qty": 1,
+                      "isAddon": false,
+                      "modifierGroupId": "milk",
+                      "isModified": "true",
+                      "initialItemId": "213411"
+                  }
+              ] 
+          }
+      ]
+  }
+      

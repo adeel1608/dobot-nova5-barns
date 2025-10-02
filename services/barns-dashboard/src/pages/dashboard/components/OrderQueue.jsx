@@ -11,7 +11,7 @@ import { CSS } from '@dnd-kit/utilities';
 import useStore from '../../../store';
 import backarrow from '../../../assets/backarrow.png';
 
-function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, isStarting, isDeleting, getStatusBadge }) {
+function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isDeleting, isReordering, getStatusBadge }) {
   // Debug: Log that this component is rendering
   console.log(`📦 SortableItem rendering for order ${order.id} with status: ${order.status}`);
   
@@ -129,26 +129,78 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
             Details
           </button>
 
-          {/* Delete Button */}
-          <button 
-            onClick={() => onDeleteOrder(order.id)}
-            disabled={isDisabled || isDeleting}
-            className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
-              isDisabled 
-                ? 'border-gray-300 text-gray-500 cursor-not-allowed'
-                : isDeleting
-                  ? 'border-red-300 text-red-500 cursor-not-allowed'
-                  : 'border-red-600 text-red-600 hover:bg-red-50'
-            }`}
-            style={{
-              borderWidth: '2px',
-              borderStyle: 'solid',
-              borderColor: isDisabled ? '#d1d5db' : isDeleting ? '#fca5a5' : '#dc2626'
-            }}
-            title={isDisabled ? "Action not available" : "Delete order"}
-          >
-            {isDeleting ? "Deleting..." : "Delete"}
-          </button>
+            {/* Reorder Button - always available */}
+            <button 
+              onClick={() => onReorderOrder(order)}
+              disabled={isReordering === order.id}
+              className={`text-xs px-2 py-1 rounded flex items-center ${
+                isReordering === order.id 
+                  ? 'bg-green-300 text-white cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+              title={isReordering === order.id ? 'Reordering...' : 'Reorder this order'}
+              style={{height:'2rem'}}
+            >
+              {isReordering === order.id ? (
+                <>
+                  <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Reordering...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2m-15.356-2H9" />
+                  </svg>
+                  Reorder
+                </>
+              )}
+            </button>
+
+            {/* Delete Button - Now available for all order types */}
+            <button 
+              onClick={() => {
+                console.log('🗑️ Delete button clicked for order:', order.id);
+                onDeleteOrder && onDeleteOrder(order.id);
+              }}
+              disabled={isDeleting}
+              className={`text-xs px-2 py-1 rounded flex items-center ${
+                isDeleting 
+                  ? 'bg-red-300 text-white cursor-not-allowed' 
+                  : order.status === 'PROCESSING'
+                    ? 'bg-red-600 hover:bg-red-700 text-white border-2 border-yellow-400'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+              title={isDeleting ? "Deleting..." : order.status === 'PROCESSING' ? "⚠️ Force delete processing order (DANGER)" : "Delete order"}
+               style={{height:'2rem'}}
+            >
+              {isDeleting ? (
+                <>
+                  <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  {order.status === 'PROCESSING' && (
+                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  {order.status !== 'PROCESSING' && (
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  )}
+                  Delete
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -176,6 +228,7 @@ export default function OrderQueue({ connectionStatus }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [startingOrderId, setStartingOrderId] = useState(null);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
+  const [reorderingOrderId, setReorderingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [orderData, setOrderData] = useState({
@@ -281,6 +334,62 @@ export default function OrderQueue({ connectionStatus }) {
     }
   };
 
+  const handleReorderOrder = async (order) => {
+    try {
+      const cups = (order.cups || []).map(cup => ({
+        type: cup.type || cup.drink_type || '',
+        size: cup.size || cup.cup_size || 'regular',
+        addons: Array.isArray(cup.addons) ? cup.addons : []
+      })).filter(c => c.type && c.type.trim() !== '');
+
+      if (cups.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Cannot Reorder',
+          text: 'Original order has no valid cups to reorder.',
+          timer: 2500,
+          timerProgressBar: true,
+          showConfirmButton: false,
+        });
+        return;
+      }
+
+      setReorderingOrderId(order.id);
+      const success = await createOrder({ cups });
+
+      if (success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Reordered!',
+          text: `A new order has been created from #${order.id}.`,
+          timer: 2500,
+          timerProgressBar: true,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Failed to Reorder',
+          text: 'Could not create a new order from this one.',
+          timer: 2500,
+          timerProgressBar: true,
+          showConfirmButton: false,
+        });
+      }
+    } catch (e) {
+      console.error('Error in handleReorderOrder:', e);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'An unexpected error occurred while reordering.',
+        timer: 2500,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    } finally {
+      setReorderingOrderId(null);
+    }
+  };
 
 const handleDeleteOrder = async (orderId) => {
   console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
@@ -762,149 +871,350 @@ const handleDeleteOrder = async (orderId) => {
                       </div>
                     </div>
                   ))}
+
+
                 </form>
               </div>
             </div>
           ) : (
-            /* Order Details View or Orders List */
+            /* Orders List */
             <>
-              {selectedOrder && showOrderDetails ? (
-                /* Order Details View */
-                <div className="space-y-6">
-                  {/* Header with Back Button */}
-                  <div className="flex items-center space-x-4 mb-6">
-                                          <button
-                        onClick={closeOrderDetails}
-                        className="border-0 outline-none bg-transparent p-0 m-0 no-outline-shadow no-outline-shadow"
-                      >
-                      <img src={backarrow} alt="Back" className="w-10 h-10" />
-                    </button>
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">Orders Details</h2>
-                      <p className="text-sm text-gray-600">
-                        ID: {selectedOrder.id} - Created {selectedOrder.createdAt}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Order Items List */}
-                  <div className="space-y-4">
-                    {selectedOrder.cups && selectedOrder.cups.map((cup, index) => {
-                      // Determine status and styling based on order status
-                      let statusInfo = {
-                        icon: null,
-                        bgColor: '',
-                        textColor: '',
-                        status: ''
-                      };
-
-                      if (selectedOrder.status === 'COMPLETED') {
-                        statusInfo = {
-                          icon: (
-                            <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
-                              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          ),
-                          bgColor: 'bg-green-50',
-                          textColor: 'text-green-800',
-                          status: `Completed ${selectedOrder.completedAt || 'N/A'}`
-                        };
-                      } else if (selectedOrder.status === 'PROCESSING') {
-                        statusInfo = {
-                          icon: (
-                            <div className="w-8 h-8 bg-orange-400 rounded-full flex items-center justify-center">
-                              <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                              </svg>
-                            </div>
-                          ),
-                          bgColor: 'bg-orange-50',
-                          textColor: 'text-orange-800',
-                          status: 'Still Processing'
-                        };
-                      } else {
-                        statusInfo = {
-                          icon: (
-                            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </div>
-                          ),
-                          bgColor: 'bg-gray-100',
-                          textColor: 'text-gray-600',
-                          status: 'Uncompleted'
-                        };
-                      }
-
-                      return (
-                        <div key={index} className={`${statusInfo.bgColor} rounded-lg p-4 shadow-sm border border-gray-200`}>
-                          <div className="flex items-center space-x-4">
-                            {statusInfo.icon}
-                            <div className="flex-1">
-                              <h3 className="font-medium text-gray-900 text-lg">
-                                {cup.drink_type || cup.type || 'Unknown Item'}
-                              </h3>
-                              <p className={`text-sm ${statusInfo.textColor}`}>
-                                {statusInfo.status}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              {isLoading ? (
+                <div className="flex justify-center items-center p-8">
+                  <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              ) : filteredOrders.length === 0 ? (
+                <div className="text-center p-8 text-gray-500">
+                  {searchTerm || filterStatus !== 'ALL' ? (
+                    <p>No orders match your filters.</p>
+                  ) : errors.orders ? (
+                    <p>Unable to load orders. Please check the connection.</p>
+                  ) : (
+                    <p>No orders in the queue.</p>
+                  )}
                 </div>
               ) : (
-                /* Orders List */
-                <>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center p-8">
-                      <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
+                <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={filteredOrders.map(o => o.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {filteredOrders.map((order, idx) => (
+                        <SortableItem 
+                          key={order.id} 
+                          order={order} 
+                          index={idx} 
+                          onStartOrder={handleStartOrder}
+                          onResumeOrder={handleResumeOrder}
+                          onDeleteOrder={handleDeleteOrder}
+                          onViewDetails={viewOrderDetails}
+                          isStarting={startingOrderId === order.id}
+                          isDeleting={deletingOrderId === order.id}
+                          getStatusBadge={getStatusBadge}
+                        />
+                      ))}
                     </div>
-                  ) : filteredOrders.length === 0 ? (
-                    <div className="text-center p-8 text-gray-500">
-                      {searchTerm || filterStatus !== 'ALL' ? (
-                        <p>No orders match your filters.</p>
-                      ) : errors.orders ? (
-                        <p>Unable to load orders. Please check the connection.</p>
-                      ) : (
-                        <p>No orders in the queue.</p>
-                      )}
-                    </div>
-                  ) : (
-                    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                      <SortableContext items={filteredOrders.map(o => o.id)} strategy={verticalListSortingStrategy}>
-                        <div className="space-y-2">
-                          {filteredOrders.map((order, idx) => (
-                            <SortableItem 
-                              key={order.id} 
-                              order={order} 
-                              index={idx} 
-                              onStartOrder={handleStartOrder}
-                              onResumeOrder={handleResumeOrder}
-                              onDeleteOrder={handleDeleteOrder}
-                              onViewDetails={viewOrderDetails}
-                              isStarting={startingOrderId === order.id}
-                              isDeleting={deletingOrderId === order.id}
-                              getStatusBadge={getStatusBadge}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  )}
-                </>
+                  </SortableContext>
+                </DndContext>
               )}
             </>
           )}
         </div>
       </div>
+
+      {/* Order Details Modal */}
+      {selectedOrder && (
+
+
+
+
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex items-center space-x-4">
+                <div className="p-2 bg-blue-500 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Order #{selectedOrder.id}</h2>
+                  <p className="text-gray-600">{selectedOrder.itemName}</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                {getStatusBadge(selectedOrder.status)}
+                <button
+                  onClick={closeOrderDetails}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Body */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Basic Information */}
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Order Information
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Order ID:</span>
+                        <span className="font-mono text-gray-900">#{selectedOrder.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Status:</span>
+                        {getStatusBadge(selectedOrder.status)}
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Item:</span>
+                        <span className="text-gray-900 font-medium">{selectedOrder.itemName}</span>
+                      </div>
+                      {/* {selectedOrder.manualRequired && ( */}
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Manual Required:</span>
+                          <span className="text-red-600 font-medium flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            {selectedOrder.manualRequired  ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      {/* )} */}
+                    </div>
+                  </div>
+                  
+                  {/* Timestamps */}
+                  {/* <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Timeline
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Created:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.createdAt}</span>
+                      </div>
+                      {selectedOrder.startedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Started:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.startedAt}</span>
+                        </div>
+                      )}
+                      {selectedOrder.completedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Completed:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.completedAt}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Last Updated:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
+                      </div>
+                    </div>
+                  </div> */}
+                  <div>
+                   {selectedOrder.cups && selectedOrder.cups.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Order Details
+                      </h3>
+                      <div className="space-y-4">
+                        {selectedOrder.cups.map((cup, index) => (
+                          <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-semibold text-gray-900">Cup #{index + 1}</h4>
+                              <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
+                                {cup.cup_size || cup.size || 'Standard'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-gray-600 font-medium">Drink:</span>
+                                <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || 'Unknown'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 font-medium">Size:</span>
+                                <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || 'Standard'}</p>
+                              </div>
+                            </div>
+                            
+                            {cup.addons && cup.addons.length > 0 && (
+                              <div className="mt-3">
+                                <span className="text-gray-600 font-medium text-sm">Add-ons:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {cup.addons.map((addon, addonIndex) => (
+                                    <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                      {addon}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </div>
+                </div>
+                
+                {/* Order Details */}
+                <div className="space-y-6">
+                  {/* Cup Details */}
+                  {/* {selectedOrder.cups && selectedOrder.cups.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        Order Details
+                      </h3>
+                      <div className="space-y-4">
+                        {selectedOrder.cups.map((cup, index) => (
+                          <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="font-semibold text-gray-900">Cup #{index + 1}</h4>
+                              <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
+                                {cup.cup_size || cup.size || 'Standard'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-gray-600 font-medium">Drink:</span>
+                                <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || 'Unknown'}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600 font-medium">Size:</span>
+                                <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || 'Standard'}</p>
+                              </div>
+                            </div>
+                            
+                            {cup.addons && cup.addons.length > 0 && (
+                              <div className="mt-3">
+                                <span className="text-gray-600 font-medium text-sm">Add-ons:</span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {cup.addons.map((addon, addonIndex) => (
+                                    <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                      {addon}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )} */}
+                  
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Timeline
+                    </h3>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Created:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.createdAt}</span>
+                      </div>
+                      {selectedOrder.startedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Started:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.startedAt}</span>
+                        </div>
+                      )}
+                      {selectedOrder.completedAt !== 'N/A' && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600 font-medium">Completed:</span>
+                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.completedAt}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">Last Updated:</span>
+                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={closeOrderDetails}
+                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
+              >
+                Close
+              </button>
+              
+              {/* Action buttons based on order status */}
+              {!['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(selectedOrder.status) && (
+                <>
+                  {selectedOrder.status === 'QUEUED' && (
+                    <button 
+                      onClick={() => {
+                        handleStartOrder(selectedOrder.id);
+                        closeOrderDetails();
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Start Order
+                    </button>
+                  )}
+                  
+                  {selectedOrder.status === 'HALTED' && (
+                    <button 
+                      onClick={() => {
+                        handleResumeOrder(selectedOrder.id);
+                        closeOrderDetails();
+                      }}
+                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Resume Order
+                    </button>
+                  )}
+                  
+                  {selectedOrder.status === 'ERROR' && (
+                    <button 
+                      onClick={() => {
+                        handleStartOrder(selectedOrder.id);
+                        closeOrderDetails();
+                      }}
+                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Retry Order
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

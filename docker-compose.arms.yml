@@ -6,7 +6,7 @@ services:
     ports:
       - "5672:5672"    # AMQP port (accessible to external robots)
       - "15672:15672"  # Management UI
-      - "1883:1883"    # MQTT port      
+      - "1884:1883"    # MQTT port (using 1884 to avoid conflict with system Mosquitto)      
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin123
@@ -89,6 +89,10 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      # Mount debug directories so you can access debug frames on host
+      - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
+      - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
     networks:
       - barns-network
     restart: unless-stopped

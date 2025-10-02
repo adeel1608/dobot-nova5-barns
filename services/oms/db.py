@@ -82,18 +82,20 @@ def save_order(order) -> int:
                     addons_json = json.dumps(cup.addons) if cup.addons else '[]'
                     drink_type = cup.type
                     cup_size = cup.size
+                    ingredients_json = json.dumps(getattr(cup, 'ingredients', {}))
                 else:
                     # Dictionary format
-                    addons_json = json.dumps(cup.get('addons', cup.get('ingredients', [])))
+                    addons_json = json.dumps(cup.get('addons', []))
+                    ingredients_json = json.dumps(cup.get('ingredients', {}))
                     drink_type = cup.get('type', 'unknown')
                     cup_size = cup.get('size', 'medium')
                 
                 cur.execute(
                     """
-                    INSERT INTO order_items (order_id, cup_id, sequence_index, drink_type, cup_size, addons)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO order_items (order_id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (order_id, f"cup_{order_id}_{idx+1}", idx, drink_type, cup_size, addons_json)
+                    (order_id, f"cup_{order_id}_{idx+1}", idx, drink_type, cup_size, addons_json, ingredients_json)
                 )
             
             conn.commit()
@@ -148,7 +150,7 @@ def get_orders(status: Optional[str] = None) -> List[Dict[str, Any]]:
                 # Get order items
                 cur.execute(
                     """
-                    SELECT id, cup_id, sequence_index, drink_type, cup_size, addons
+                    SELECT id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients
                     FROM order_items
                     WHERE order_id = %s
                     ORDER BY sequence_index
@@ -197,7 +199,7 @@ def get_order(order_id: int) -> Dict[str, Any]:
             # Get order items
             cur.execute(
                 """
-                SELECT id, cup_id, sequence_index, drink_type, cup_size, addons
+                SELECT id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients
                 FROM order_items
                 WHERE order_id = %s
                 ORDER BY sequence_index

@@ -11,6 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from . import db, queue, models
+from .pos_core import load_reference_data_from_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -47,6 +48,17 @@ class OMSService:
         # Initialize database and queue connections
         db.connect()
         queue.connect()
+        
+        # Initialize POS reference data
+        try:
+            pos_db_path = os.environ.get("POS_DB_PATH", "pos_reference.db")
+            success = load_reference_data_from_db(pos_db_path)
+            if not success:
+                logger.warning("Could not load POS reference data. Running with empty references.")
+            else:
+                logger.info("POS reference data loaded successfully (MQ service)")
+        except Exception as e:
+            logger.error(f"Failed to load POS reference data (MQ service): {e}")
         
         # Sync queue with database on startup
         logger.info("Syncing queue with database on startup...")
@@ -122,6 +134,7 @@ class OMSService:
         """Register event handlers"""
         self.event_listener.register_event_handler("scheduler.order_completed", self.handle_order_completed_event)
         self.event_listener.register_event_handler("scheduler.order_failed", self.handle_order_failed_event)
+        self.event_listener.register_event_handler("scheduler.order_heartbeat", self.handle_order_heartbeat_event)
         self.event_listener.register_event_handler("validation.threshold_warning", self.handle_threshold_warning_event)
         self.event_listener.register_event_handler("system.shutdown", self.handle_shutdown_event)
     
@@ -205,6 +218,16 @@ class OMSService:
             if not order_id:
                 return {"success": False, "error": "Missing order_id"}
             
+            # Concurrency guard: allow only one processing order at a time
+            try:
+                processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            except Exception as e:
+                processing = []
+                logger.error(f"Error checking processing orders: {e}")
+            if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+                logger.warning(f"🔒 OMS (MQ) rejecting start_order for {order_id}: another order is already processing")
+                return {"success": False, "error": "Another order is currently processing. Please wait."}
+
             order = db.get_order(order_id)
             if not order:
                 return {"success": False, "error": f"Order {order_id} not found"}
@@ -783,6 +806,28 @@ class OMSService:
         error = data.get("error", "Unknown error")
         if order_id:
             await self.handle_fail_order({"order_id": order_id, "reason": error})
+    
+    async def handle_order_heartbeat_event(self, data: Dict):
+        """Handle order heartbeat events from scheduler"""
+        order_id = data.get("order_id")
+        status = data.get("status", "processing")
+        progress = data.get("progress", {})
+        
+        if order_id:
+            # Log heartbeat for monitoring
+            logger.info(f"💓 [OMS] Received heartbeat for order {order_id}: {status}")
+            if progress:
+                completion_pct = progress.get("completion_percentage", 0)
+                logger.info(f"📊 [OMS] Order {order_id} progress: {completion_pct:.1f}% complete")
+            
+            # Broadcast heartbeat to dashboard subscribers
+            await self._broadcast_to_dashboard({
+                "event": "order_heartbeat",
+                "order": order_id,
+                "status": status,
+                "progress": progress,
+                "timestamp": datetime.now().isoformat()
+            })
     
     async def handle_threshold_warning_event(self, data: Dict):
         """Handle threshold warning events from validation service"""

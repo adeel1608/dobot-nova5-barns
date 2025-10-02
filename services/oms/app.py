@@ -11,11 +11,13 @@ import json
 import logging
 import os
 import sys
+from dataclasses import asdict
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.rabbitmq_client import RabbitMQClient, EventListener
+from .pos_core import parse_transaction, load_reference_data_from_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -94,6 +96,17 @@ async def lifespan(app: FastAPI):
     
     db.connect()        # Connect to PostgreSQL
     queue.connect()     # Connect to Redis
+    
+    # Initialize POS reference data
+    try:
+        pos_db_path = os.environ.get("POS_DB_PATH", "pos_reference.db")
+        success = load_reference_data_from_db(pos_db_path)
+        if not success:
+            logger.warning("Could not load POS reference data. Running with empty references.")
+        else:
+            logger.info("POS reference data loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load POS reference data: {e}")
     
     # Mark any processing orders as failed due to container restart
     print("Marking processing orders as failed due to container restart...")
@@ -200,6 +213,7 @@ def register_event_handlers():
         
     event_listener.register_event_handler("scheduler.order_completed", handle_order_completed_event)
     event_listener.register_event_handler("scheduler.order_failed", handle_order_failed_event)
+    event_listener.register_event_handler("scheduler.order_heartbeat", handle_order_heartbeat_event)
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
@@ -207,6 +221,7 @@ def register_event_handlers():
 
 # RabbitMQ Message Handlers
 async def handle_create_order_mq(data: Dict) -> Dict:
+    logger.info(data, type(data))
     """Handle create order requests via RabbitMQ"""
     try:
         order_data = data.get("order", {})
@@ -266,6 +281,16 @@ async def handle_start_order_mq(data: Dict) -> Dict:
             return {"success": False, "error": "Missing order_id"}
         
         logger.info(f"🚀 OMS received start_order request for order {order_id}")
+        
+        # Concurrency guard: allow only one processing order at a time
+        try:
+            processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        except Exception as e:
+            processing = []
+            logger.error(f"Error checking processing orders: {e}")
+        if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+            logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is already processing")
+            return {"success": False, "error": "Another order is currently processing. Please wait."}
         
         order = db.get_order(order_id)
         if not order:
@@ -350,6 +375,21 @@ async def handle_delete_order_mq(data: Dict) -> Dict:
         order = db.get_order(order_id)
         if not order:
             return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # If the order is in progress, request cancellation in scheduler and routine first
+        if order.get("status") == ORDER_STATUS['PROCESSING']:
+            try:
+                if rabbitmq_client:
+                    # Ask scheduler to cancel the order (which also instructs routine)
+                    cancel_resp = await rabbitmq_client.send_request(
+                        target_service="scheduler",
+                        action="cancel_order",
+                        data={"order_id": order_id},
+                        timeout=15
+                    )
+                    logger.info(f"OMS cancel request response (scheduler): {cancel_resp}")
+            except Exception as e:
+                logger.error(f"OMS failed to request scheduler cancel for order {order_id}: {e}")
         
         # Remove from queue if still queued
         if order.get("status") == ORDER_STATUS['QUEUED']:
@@ -683,6 +723,32 @@ async def handle_order_failed_event(data: Dict):
     else:
         logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
 
+async def handle_order_heartbeat_event(data: Dict):
+    """Handle order heartbeat events from scheduler"""
+    order_id = data.get("order_id")
+    status = data.get("status")
+    logger.info(f"💓 [OMS] Received order_heartbeat event from scheduler for order {order_id}, status: {status}")
+    
+    if order_id:
+        order = db.get_order(order_id)
+        if order:
+            # Update order status if it's not already completed or failed
+            if order.get("status") not in [ORDER_STATUS['COMPLETED'], ORDER_STATUS['ERROR']]:
+                db.update_order_status(order_id, status)
+                logger.info(f"✅ [OMS] Updated order {order_id} status to {status} in database")
+                broadcast({
+                    "event": "order_heartbeat",
+                    "order": order_id,
+                    "status": status,
+                    "timestamp": "now"
+                })
+            else:
+                logger.warning(f"⚠️ [OMS] Order {order_id} is already in final state ({order['status']}). Ignoring heartbeat.")
+        else:
+            logger.warning(f"⚠️ [OMS] Order {order_id} not found in database. Ignoring heartbeat.")
+    else:
+        logger.error(f"❌ [OMS] Received order_heartbeat event but no order_id provided: {data}")
+
 async def handle_threshold_warning_event(data: Dict):
     """Handle threshold warning events from validation service"""
     ingredient = data.get("ingredient")
@@ -842,6 +908,15 @@ def bulk_reorder_queue(order_data: dict):
 @app.patch("/orders/{order_id}/start")
 def start_order(order_id: int, background_tasks: BackgroundTasks):
     """Mark order as processing and send it to Scheduler."""
+    # Concurrency guard: allow only one processing order at a time
+    try:
+        processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+    except Exception as e:
+        processing = []
+        logger.error(f"Error checking processing orders: {e}")
+    if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+        raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
+
     order = db.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
@@ -980,6 +1055,19 @@ def delete_order(order_id: int = Path(..., title="The ID of the order to delete"
     order = db.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+    
+    # If processing, best-effort cancel in scheduler/routine first (fire-and-forget)
+    if order.get("status") == ORDER_STATUS['PROCESSING']:
+        try:
+            if rabbitmq_client:
+                asyncio.create_task(rabbitmq_client.send_request(
+                    target_service="scheduler",
+                    action="cancel_order",
+                    data={"order_id": order_id},
+                    timeout=10
+                ))
+        except Exception as e:
+            logger.error(f"Error requesting cancel before delete for order {order_id}: {e}")
     
     # Remove from queue if it's still queued
     if order.get("status") == ORDER_STATUS['QUEUED']:
@@ -1187,12 +1275,99 @@ def get_system_status():
                 system_status = "running"
                 break
         
+        # Get RabbitMQ client health status
+        rabbitmq_health = {}
+        if rabbitmq_client:
+            rabbitmq_health = rabbitmq_client.get_health_status()
+        
         return {
             "status": system_status,
-            "timestamp": "now"
+            "timestamp": "now",
+            "rabbitmq_health": rabbitmq_health,
+            "event_listener_connected": event_listener is not None
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get system status: {str(e)}")
+
+@app.get("/system/rabbitmq-health")
+def get_rabbitmq_health():
+    """Get detailed RabbitMQ client health status."""
+    try:
+        if not rabbitmq_client:
+            return {
+                "status": "error",
+                "message": "RabbitMQ client not initialized",
+                "timestamp": "now"
+            }
+        
+        health_status = rabbitmq_client.get_health_status()
+        return {
+            "status": "success",
+            "health": health_status,
+            "timestamp": "now"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get RabbitMQ health: {str(e)}")
+
+# POS Integration Endpoint
+@app.post("/pos/process-order")
+async def process_pos_order(order_data: dict):
+    """Process POS order and return parsed transaction as JSON, printing the dataclass object."""
+    try:
+        # Validate required fields
+        required_fields = [
+            "transaction_id", "date", "time", "store_number", "pos_reg_id", "items"
+        ]
+        for field in required_fields:
+            if field not in order_data:
+                raise HTTPException(status_code=400, detail=f"Missing required field: {field}")
+        if not isinstance(order_data.get("items"), list) or len(order_data["items"]) == 0:
+            raise HTTPException(status_code=400, detail="Items must be a non-empty list")
+
+        # Process the order via core
+        parsed_order = parse_transaction(order_data)
+
+        # Print the dataclass object (as requested)
+        results = {}
+
+        for item in parsed_order.get("items", []):
+            grouped = {}
+            for ing in item.ingredients:
+                cat = ing.category
+                if cat not in grouped:
+                    grouped[cat] = {}
+                grouped[cat][ing.type] = ing.total_amount
+
+            # key the result by recipe_id
+            results[item.recipe_id] = grouped
+        order = {"order": {"cups": []}}
+
+        for recipe_id, ingredients in results.items():
+            # Extract size from 'cups' category (if available)
+            size = None
+            if "cups" in ingredients:
+                # take first key under cups (e.g., "H7", "H12")
+                size = next(iter(ingredients["cups"].keys()))
+
+            # Build cup entry
+            cup_entry = {
+                "type": recipe_id,
+                "size": size,
+                "addons": [],
+                "ingredients": ingredients
+            }
+
+            order["order"]["cups"].append(cup_entry)
+        print(order, type(order))
+
+        result = await handle_create_order_mq(order)
+        # Result of results for 2 drinks (sample) = [{'espresso': {'regular': 1.0}, 'cups': {'H7': 1.0}, 'milk': {'almond': 70.0}}, {'espresso': {'regular': 2.0}, 'milk': {'almond': 260.0}, 'cups': {'H12': 1.0}}]
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing order: {str(e)}")
 
 @app.get("/queue/sync")
 def sync_queue():
@@ -1383,7 +1558,8 @@ async def send_to_scheduler(order_data: dict):
         cups.append({
             "type": cup.get("drink_type"),  # Map drink_type to type
             "size": cup.get("cup_size"),    # Map cup_size to size
-            "addons": cup.get("addons", [])
+            "addons": cup.get("addons", []),
+            "ingredients": cup.get("ingredients", {})
         })
     
     scheduler_payload = {

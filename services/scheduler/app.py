@@ -70,6 +70,7 @@ class SchedulerService:
         self.rabbitmq_client.register_handler("get_status", self.handle_get_status)
         self.rabbitmq_client.register_handler("subscribe_status", self.handle_subscribe_status)
         self.rabbitmq_client.register_handler("health", self.handle_health)
+        self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
         logger.info("✅ [SCHEDULER] All RabbitMQ message handlers registered successfully")
         
         # Register event handlers for the event listener
@@ -266,14 +267,76 @@ class SchedulerService:
             return {"success": False, "error": str(e)}
     
     async def handle_health(self, data: Dict) -> Dict:
-        """Handle health check requests."""
-        return {
-            "status": "healthy",
-            "service": "scheduler",
-            "timestamp": datetime.now().isoformat(),
-            "loaded_recipes": len(recipes),
-            "status_subscribers": len(self.status_subscribers)
-        }
+        """Handle health check requests"""
+        try:
+            # Get RabbitMQ client health status
+            rabbitmq_health = {}
+            if self.rabbitmq_client:
+                rabbitmq_health = self.rabbitmq_client.get_health_status()
+            
+            return {
+                "status": "healthy",
+                "service": "scheduler",
+                "timestamp": datetime.now().isoformat(),
+                "rabbitmq_health": rabbitmq_health,
+                "event_listener_connected": self.event_listener is not None,
+                "recipes_loaded": len(recipes) if recipes else 0
+            }
+        except Exception as e:
+            logger.error(f"Error in health check: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_cancel_order(self, data: Dict) -> Dict:
+        """Cancel current order processing: mark remaining tasks cancelled and instruct routine to drop queued items."""
+        try:
+            order_id = data.get("order_id")
+            if not order_id:
+                return {"success": False, "error": "Missing order_id"}
+            
+            # Mark remaining tasks as cancelled in scheduler state
+            from . import scheduler as core
+            cancelled = 0
+            with core.lock:
+                if core.current_status.get("order_id") != order_id:
+                    # If different order is running, nothing to do
+                    pass
+                for task in core.tasks:
+                    if task["status"] not in ["done", "failed", "cancelled"]:
+                        task["status"] = "cancelled"
+                        cancelled += 1
+                # Allow workers to exit naturally based on status counts
+            
+            # Build cup_ids to cancel in routine queues
+            cup_ids = []
+            with core.lock:
+                cup_ids = list(core.tasks_by_cup.keys())
+            
+            # Tell routine to drop any queued tasks for these cups
+            try:
+                resp = await self.rabbitmq_client.send_request(
+                    target_service="routine",
+                    action="cancel_order",
+                    data={"order_id": order_id, "cup_ids": cup_ids},
+                    timeout=10
+                )
+                logger.info(f"[SCHEDULER] Routine cancel response: {resp}")
+            except Exception as e:
+                logger.error(f"[SCHEDULER] Error requesting routine cancel: {e}")
+            
+            # Stop heartbeat by changing current_status order_id
+            with core.lock:
+                core.current_status.update({"status": "cancelled", "step": None})
+            
+            # Notify OMS with failure/cancel info
+            try:
+                await core.notify_oms_completion(order_id, False, "Order cancelled by user", self.rabbitmq_client)
+            except Exception as e:
+                logger.error(f"[SCHEDULER] Error notifying OMS of cancellation: {e}")
+            
+            return {"success": True, "cancelled_tasks": cancelled}
+        except Exception as e:
+            logger.error(f"[SCHEDULER] cancel_order handler error: {e}")
+            return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):
         """Handle task completion events from routine service."""
@@ -302,7 +365,7 @@ class SchedulerService:
     async def _process_order_async(self, order_id: int, drinks: List[Dict]):
         """Background coroutine to process each drink using the scheduler."""
         logger.info(f"🔄 [SCHEDULER] Background processing started for order {order_id} with {len(drinks)} drinks")
-        print(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING STARTED FOR ORDER {order_id} 🔥🔥🔥")
+        
         
         try:
             # Send processing started event
@@ -324,8 +387,7 @@ class SchedulerService:
                 await self.notify_status(f"Failed to process order {order_id}")
                 
         except Exception as e:
-            logger.error(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e} 🔥🔥🔥")
-            print(f"🔥🔥🔥 SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e} 🔥🔥🔥")
+            logger.error(f"SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e}")
             
             # Send error event
             await self.rabbitmq_client.send_event("scheduler.order_error", {

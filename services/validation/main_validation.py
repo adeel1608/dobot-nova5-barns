@@ -15,8 +15,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from .inventory_manager import InventoryManager
 from .db_client import DatabaseClient
-from .coffee_beans_detector import CoffeeBeansDetector
+# Replace dummy detector with production detector
+from .coffee_detection.camera_worker_production import ProductionCoffeeDetector, load_config
 from .config import get_db_connection_string, config
+from .cup_detection.cup_detector import CupDetector
 
 class MainValidation:
     def __init__(self):
@@ -30,8 +32,63 @@ class MainValidation:
         # self._db_client = DatabaseClient(connection_string)
 
         # the inventory manager
+                # the inventory manager
         self._inventory_client = InventoryManager(self._db_client)
-        self._coffee_beans_detector = CoffeeBeansDetector()
+        # initialize the logging
+        logging.basicConfig(level=getattr(logging, config.log_level))
+        self.logger = logging.getLogger(self.__class__.__name__)
+        
+        # Initialize production coffee detector with config
+        try:
+            # Load config from coffee_detection directory
+            config_path = os.path.join(os.path.dirname(__file__), 'coffee_detection', 'detection_config.json')
+            detection_config = load_config(config_path)
+            
+            # Fix debug directory path to be absolute
+            debug_dir = os.path.join(os.path.dirname(__file__), 'coffee_detection', 'debug_frames_coffee')
+            detection_config.debug_frame_dir = debug_dir
+            
+            self._coffee_beans_detector = ProductionCoffeeDetector(detection_config)
+            logging.info(f"Production coffee detector initialized successfully. Debug frames will be saved to: {debug_dir}")
+        except Exception as e:
+            logging.error(f"Failed to initialize production coffee detector: {e}")
+            # Fallback to dummy detector if production detector fails
+            from .coffee_beans_detector import CoffeeBeansDetector
+            self._coffee_beans_detector = CoffeeBeansDetector()
+            logging.warning("Falling back to dummy coffee detector")
+
+        # Initialize cup detector - ADD THIS BLOCK
+        try:
+            cup_detector_config_path = os.path.join(os.path.dirname(__file__), "cup_detection", "config.py")
+            self._cup_detector = CupDetector(cup_detector_config_path)
+            
+            # Fix debug directory path to be absolute (same as coffee detection)
+            debug_dir = os.path.join(os.path.dirname(__file__), 'cup_detection', 'debug_frames_cup')
+            self._cup_detector.config.debug_folder = debug_dir
+            
+            # Create debug directory if it doesn't exist
+            if self._cup_detector.config.debug_mode or self._cup_detector.config.save_frames:
+                os.makedirs(debug_dir, exist_ok=True)
+            
+            logging.info(f"Cup detector initialized successfully. Debug frames will be saved to: {debug_dir}")
+            
+            # TEST CUP DETECTION - COMMENT OUT LATER
+            try:
+                self.logger.debug("🔍 Testing cup detection on initialization...")
+                test_result = self._cup_detector.detect()
+                self.logger.debug(f"Cup detection test result: {test_result}")
+                if "error" not in test_result:
+                    detected_count = sum(1 for present in test_result.values() if present)
+                    self.logger.debug(f"✅ Cup detection working! Detected {detected_count} cups")
+                else:
+                    self.logger.debug(f"❌ Cup detection error: {test_result['error']}")
+            except Exception as test_e:
+                self.logger.debug(f"❌ Cup detection test failed: {test_e}")
+            # END TEST CODE
+            
+        except Exception as e:
+            logging.error(f"Failed to initialize cup detector: {e}")
+            self._cup_detector = None
 
         # # Queues to receive requests and process responses
         # self._request_queue = Queue()
@@ -50,10 +107,6 @@ class MainValidation:
         # Detection task control
         self._detection_task = None
         self._detection_running = False
-
-        # initialize the logging
-        logging.basicConfig(level=getattr(logging, config.log_level))
-        self.logger = logging.getLogger(self.__class__.__name__)
 
 
     # def post_request(self, request):
@@ -609,6 +662,43 @@ class MainValidation:
             # self._response_event.set()
             return error_result
         
+    
+    
+    def process_inventory_by_stock_level_request(self, payload):
+        """Process inventory by stock level request"""
+        try:
+            stock_level = payload.get("payload", {}).get("stock_level")
+            
+            if not stock_level:
+                return {
+                    "passed": False,
+                    "request_id": payload["request_id"],
+                    "client_type": payload["client_type"],
+                    "details": {"error": "Stock level parameter is required"}
+                }
+            
+            # Get filtered inventory from inventory manager
+            filtered_inventory = self._inventory_client.get_inventory_by_stock_level(stock_level)
+            
+            final_result = {
+                "passed": True,
+                "request_id": payload["request_id"],
+                "client_type": payload["client_type"],
+                "details": filtered_inventory
+            }
+            
+            return final_result
+            
+        except Exception as e:
+            logging.error(f"Error processing inventory by stock level request: {e}")
+            error_result = {
+                "passed": False,
+                "request_id": payload["request_id"],
+                "client_type": payload["client_type"],
+                "details": {"error": f"Error processing request: {str(e)}"}
+            }
+            return error_result
+        
 
             
     
@@ -702,49 +792,66 @@ class MainValidation:
     def _run_coffee_beans_detection(self, function_name: str = "periodic_detection"):
         """Wrapper method to run detection in thread pool (this runs in a separate thread)"""
         try:
-            # This is the blocking operation that runs in the thread pool
-            cv_result = self._coffee_beans_detector.detect_coffee_beans()
-            print(f"cv_result: {cv_result}")
+            # Use the production detector's detect_coffee method
+            cv_result = self._coffee_beans_detector.detect_coffee()
+            print(f"cv_result: {cv_result}") # convert to logger
+            self.logger.info(f"cv_result: {cv_result}")
+            
+            # Check if there was an error in detection
+            if cv_result.get("error"):
+                # Detection failed - return error without raising exception
+                return {
+                    "success": False,
+                    "updated": False,
+                    "percentage": 0,
+                    "timestamp": datetime.datetime.now().isoformat(),
+                    "message": f"Detection failed: {cv_result['error']}",
+                    "alert_type": "camera_reconnect"
+                }
+            
+            # Detection successful - use the percentage directly
+            percentage = cv_result.get("percentage", 0)
+            
             if function_name == "periodic_detection":
                 # Case 1: Periodic detection every 10 minutes
-                if cv_result.get("percentage", -1) > 0:
+                if percentage > 0:
                     # Update inventory based on detected percentage
-                    success = self._inventory_client.update_inventory_from_detection(cv_result["percentage"])
+                    success = self._inventory_client.update_inventory_from_detection(percentage)
                     return {
                         "success": True,
                         "updated": True,
-                        "percentage": cv_result["percentage"],
+                        "percentage": percentage,
                         "timestamp": datetime.datetime.now().isoformat(),
-                        "message": f"Periodic detection successful, inventory updated with {cv_result['percentage']}% detected"
+                        "message": f"Periodic detection successful, inventory updated with {percentage}% detected"
                     }
                 else:
                     # Percentage <= 0, don't update inventory
                     return {
                         "success": True,
                         "updated": False,
-                        "percentage": cv_result.get("percentage", 0),
+                        "percentage": percentage,
                         "timestamp": datetime.datetime.now().isoformat(),
                         "message": "Periodic detection completed, no inventory update (percentage <= 0)"
                     }
                     
             if function_name == "inventory_refill":
                 # Case 4: Refill operation
-                if cv_result.get("percentage", -1) > 0:
+                if percentage > 0:
                     # Update inventory based on detected percentage
-                    success = self._inventory_client.update_inventory_from_detection(cv_result["percentage"])
+                    success = self._inventory_client.update_inventory_from_detection(percentage)
                     return {
                         "success": True,
                         "updated": True,
-                        "percentage": cv_result["percentage"],
+                        "percentage": percentage,
                         "timestamp": datetime.datetime.now().isoformat(),
-                        "message": f"Refill detection successful, inventory updated with {cv_result['percentage']}% detected"
+                        "message": f"Refill detection successful, inventory updated with {percentage}% detected"
                     }
                 else:
                     # Percentage <= 0, send alert about visibility issue
                     return {
                         "success": True,
                         "updated": False,
-                        "percentage": cv_result.get("percentage", 0),
+                        "percentage": percentage,
                         "timestamp": datetime.datetime.now().isoformat(),
                         "message": "Refill detection failed - coffee beans should be above the unseen area",
                         "alert_type": "visibility_issue"
@@ -753,33 +860,35 @@ class MainValidation:
                 # Default case - just return detection result
                 return {
                     "success": True,
-                    "result": cv_result,
+                    "result": {"percentage": percentage},
                     "timestamp": datetime.datetime.now().isoformat(),
                     "message": "Coffee beans detection completed successfully"
                 }
                 
         except Exception as e:
-            self.logger.error(f"Coffee beans detection failed: {e}")
+            # Unexpected exception during detection call
+            self.logger.error(f"Unexpected error in coffee beans detection: {e}")
             
             if function_name == "inventory_refill":
-                # Case 4: Detection failed during refill - alert to reconnect camera
+                # Case 4: Unexpected error during refill - alert to reconnect camera
                 return {
                     "success": False,
                     "updated": False,
                     "error": str(e),
                     "timestamp": datetime.datetime.now().isoformat(),
-                    "message": "Detection failed during refill operation",
+                    "message": "Unexpected error during refill detection",
                     "alert_type": "camera_reconnect"
                 }
             else:
-                # Case 1: Detection failed during periodic - keep current amount
+                # Case 1: Unexpected error during periodic - keep current amount
                 return {
                     "success": False,
                     "updated": False,
                     "error": str(e),
                     "timestamp": datetime.datetime.now().isoformat(),
-                    "message": "Detection failed, keeping current inventory amount"
+                    "message": "Unexpected error in detection, keeping current inventory amount"
                 }
+            
 
     async def cleanup(self):
         """Cleanup resources when shutting down"""
@@ -788,3 +897,46 @@ class MainValidation:
         # Shutdown the thread pool
         self._thread_pool.shutdown(wait=True)
         self.logger.info("MainValidation cleanup completed")
+
+    def process_cup_detection_request(self, payload):
+        """Process cup detection requests"""
+        try:
+            result = {"passed": False, "details": {}}
+            # Add request metadata to result
+            result["request_id"] = payload.get("request_id")
+            result["client_type"] = payload.get("client_type")
+
+            if not self._cup_detector:
+                result["error"] = "Cup detector not initialized"
+                return result
+
+            # Run cup detection
+            detection_result = self._cup_detector.detect()
+            self.logger.debug(f"detection_result: {detection_result}")
+            if "error" in detection_result:
+                result["error"] = detection_result["error"]
+                return result
+            
+            # Check if any cups are detected
+            cups_detected = detection_result  # {0: bool, 1: bool, 2: bool, 3: bool}
+            total_cups = len(cups_detected)
+            detected_count = sum(1 for present in cups_detected.values() if present)
+            
+            result["passed"] = True
+            result["details"] = {
+                "cups_detected": cups_detected,
+                "total_positions": total_cups,
+                "detected_count": detected_count,
+                "message": f"Detected {detected_count} out of {total_cups} cup positions"
+            }
+            
+            return result
+            
+        except Exception as e:
+            logging.error(f"Error in cup detection: {e}")
+            return {
+                "request_id": payload.get("request_id"),
+                "client_type": payload.get("client_type"),
+                "passed": False,
+                "error": f"Cup detection failed: {str(e)}"
+            }

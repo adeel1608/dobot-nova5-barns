@@ -11,111 +11,117 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.params import SLUSH_PARAMS
+from oms_v1.sequences.plastic_cups import grab_plastic_cup, place_plastic_cup
+from oms_v1.params import (
+    SLUSH_PARAMS, VALID_STAGES, VALID_CUP_SIZES, VALID_DISPENSERS,
+    validate_stage, validate_cup_size, log_step, log_success, log_error, log_info,
+    SPEED_NORMAL
+)
 
 
 def get_slush(**params) -> bool:
     """
-    Dispense slush from one of two available dispensers.
+    Get slush from specified dispenser and prepare for serving.
     
-    This function controls the robot to operate slush dispensers for cold drinks:
-    1. Validates dispenser parameter
-    2. Moves to approach position for selected dispenser
-    3. Executes dispenser-specific positioning sequence
-    4. Activates dispenser through precise positioning
-    5. Maintains position for optimal dispensing
-    
-    The robot supports two different slush dispensers with distinct positioning:
-    - Dispenser 1: Standard positioning sequence with direct approach
-    - Dispenser 2: Extended reach positioning sequence with intermediate steps
+    This function handles slush dispensing for different stages, cup sizes, and dispensers:
+    1. Grabs plastic cup of specified size
+    2. Moves to intermediate positioning
+    3. Navigates to appropriate slush dispenser
+    4. Positions cup under dispenser for slush dispensing
     
     Args:
-        dispenser (str): Dispenser selection ('1' or '2')
+        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        dispenser (str): Dispenser number ('1' or '2') - required parameter
         
     Returns:
         bool: True if slush dispensing completed successfully, False otherwise
         
-    Raises:
-        Exception: If unexpected error occurs during slush dispensing process
-        
     Example:
-        success = get_slush(dispenser='1')
+        success = get_slush(dispenser='1')  # Uses defaults for stage and cup_size
         if success:
-            print("Slush dispensed successfully from dispenser 1")
+            print("Slush dispensed successfully")
     """
     try:
-        # Extract and validate dispenser parameter
+        # Extract and validate parameters with defaults
+        stage = params.get("stage", "1")  # Default to stage 1
+        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
+        
         if not dispenser:
-            print("[ERROR] No dispenser parameter provided")
+            print("[ERROR] Missing required parameter: dispenser")
             return False
         
-        # Validate dispenser parameter
-        valid_dispensers = ('1', '2')
+        # Validate parameters
+        valid_stages = ("1", "2", "3", "4")
+        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_dispensers = ("1", "2")
+        
+        if stage not in valid_stages:
+            print(f"[ERROR] Invalid stage: {stage!r}")
+            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
+            return False
+            
+        if cup_size not in valid_cup_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid cup sizes: {', '.join(valid_cup_sizes)}")
+            return False
+            
         if dispenser not in valid_dispensers:
-            print(f"[ERROR] Unknown dispenser: {dispenser!r}")
+            print(f"[ERROR] Invalid dispenser: {dispenser!r}")
             print(f"[INFO] Valid dispensers: {', '.join(valid_dispensers)}")
             return False
         
-        print(f"🧊 Starting slush dispensing sequence for dispenser {dispenser}")
+        print(f"🥤 Starting slush dispensing: Stage {stage}, {cup_size}, Dispenser {dispenser}")
         print("=" * 50)
         
-        if dispenser == '1':
-            print("📍 Using dispenser 1 positioning sequence...")
-            
-            # Step 1: Move to approach position for dispenser 1
-            print("🎯 Step 1/2: Moving to dispenser 1 approach position...")
-            approach_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['approach'])
-            if approach_result is False:
-                print("[ERROR] Failed to move to dispenser 1 approach position")
+        # Step 1: Grab plastic cup
+        log_step(1, 4, f"Grabbing {cup_size} plastic cup")
+        if not grab_plastic_cup(cup_size=cup_size):
+            log_error(f"Failed to grab {cup_size} plastic cup")
+            return False
+        log_success("Cup grabbed successfully", indent=1)
+        
+        # Step 2: Move to intermediate positioning
+        print("📍 Step 2/4: Moving to intermediate positioning...")
+        pos1_result = run_skill("gotoJ_deg", 106.212090, -43.618443, -136.693954, 1.223362, -23.919476, -0.124173)
+        if not pos1_result:
+            print("[ERROR] Failed to move to intermediate position")
+            return False
+        print("   ✅ Successfully moved to intermediate position")
+        
+        # Step 3: Move to slush area
+        print("🧊 Step 3/4: Moving to slush dispensing area...")
+        pos2_result = run_skill("gotoJ_deg", 45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864)
+        if not pos2_result:
+            print("[ERROR] Failed to move to slush area")
+            return False
+        print("   ✅ Successfully positioned in slush area")
+        
+        # Step 4: Position at specific dispenser
+        print(f"🎯 Step 4/4: Positioning at dispenser {dispenser}...")
+        if dispenser == "1":
+            print("   📍 Moving to dispenser 1...")
+            dispenser_result = run_skill("gotoJ_deg", 53.272518, -67.612831, -88.370926, -23.156694, -119.473190, -0.214796)
+        else:  # dispenser == "2"
+            print("   📍 Moving to dispenser 2...")
+            pos3_result = run_skill("gotoJ_deg", 22.607571, -74.011971, -51.206032, -51.210812, -148.363144, 0.484628)
+            if not pos3_result:
+                print("[ERROR] Failed to move to dispenser 2 intermediate position")
                 return False
-            print("   ✅ Successfully approached dispenser 1")
-            
-            # Step 2: Move to dispensing position
-            print("⬇️ Step 2/2: Moving to dispensing position...")
-            print("   📍 Positioning for optimal slush flow...")
-            dispense_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
-            if dispense_result is False:
-                print("[ERROR] Failed to move to dispensing position")
-                return False
-            print("   ✅ Successfully positioned for dispensing")
-            
-        elif dispenser == '2':
-            print("📍 Using dispenser 2 positioning sequence...")
-            
-            # Step 1: Move to approach position for dispenser 2
-            print("🎯 Step 1/3: Moving to dispenser 2 approach position...")
-            approach_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['approach'])
-            if approach_result is False:
-                print("[ERROR] Failed to move to dispenser 2 approach position")
-                return False
-            print("   ✅ Successfully approached dispenser 2")
-            
-            # Step 2: Move to intermediate position
-            print("📍 Step 2/3: Moving to intermediate position...")
-            print("   📍 Navigating to extended reach position...")
-            intermediate_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
-            if intermediate_result is False:
-                print("[ERROR] Failed to move to intermediate position")
-                return False
-            print("   ✅ Successfully reached intermediate position")
-            
-            # Step 3: Move to dispensing position (extended reach)
-            print("⬇️ Step 3/3: Moving to extended dispensing position...")
-            print("   📍 Positioning for optimal slush flow with extended reach...")
-            dispense_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
-            if dispense_result is False:
-                print("[ERROR] Failed to move to extended dispensing position")
-                return False
-            print("   ✅ Successfully positioned for extended dispensing")
+            dispenser_result = run_skill("gotoJ_deg", 39.953514, -80.013031, -46.382458, -53.143692, -129.994720, -0.156480)
+        
+        if not dispenser_result:
+            print(f"[ERROR] Failed to position at dispenser {dispenser}")
+            return False
+        print(f"   ✅ Successfully positioned at dispenser {dispenser}")
         
         # Final success summary
         print("=" * 50)
-        print(f"✅ SLUSH DISPENSING COMPLETED SUCCESSFULLY FROM DISPENSER {dispenser}")
-        print("   ✓ Optimal positioning achieved")
-        print("   ✓ Slush dispenser activated")
-        print("   ✓ Ready for slush collection and placement")
-        print("   🧊 Frozen beverage dispensing complete!")
+        print(f"✅ SLUSH DISPENSING COMPLETED SUCCESSFULLY")
+        print(f"   ✓ Stage: {stage}, Cup: {cup_size}, Dispenser: {dispenser}")
+        print("   ✓ Cup positioned for slush dispensing")
+        print("   ✓ Ready for slush dispensing operation")
         print("=" * 50)
         return True
         
@@ -124,166 +130,104 @@ def get_slush(**params) -> bool:
         print("[INFO] Slush dispensing process terminated due to error")
         return False
 
-
 def place_slush(**params) -> bool:
     """
-    Place slush in the specified staging area.
+    Place slush-filled cup at specified staging area after dispensing.
     
-    This function places a previously dispensed slush at a designated staging area:
-    1. Validates dispenser and stage parameters
-    2. Returns from dispensing position based on dispenser type
-    3. Moves to target staging position
-    4. Lowers slush to placement level with controlled speed
-    5. Releases slush with precise gripper control
-    6. Allows settling time for stable placement
-    7. Retracts safely and returns to home position
+    This function handles the placement of slush-filled cups:
+    1. Sets appropriate speed for careful handling
+    2. Moves away from dispenser safely
+    3. Navigates to home position
+    4. Places cup at designated staging area
     
     Args:
-        dispenser (str): Dispenser that was used ('1' or '2')
-        stage (str): Target stage for slush placement ('1' or '2')
+        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        dispenser (str): Dispenser number used ('1' or '2') - required parameter
         
     Returns:
         bool: True if slush placement completed successfully, False otherwise
         
-    Raises:
-        Exception: If unexpected error occurs during slush placement process
-        
     Example:
-        success = place_slush(dispenser='1', stage='1')
+        success = place_slush(dispenser='1', stage='2')  # Uses default cup_size
         if success:
-            print("Slush placed successfully at stage 1")
+            print("Slush cup placed successfully")
     """
     try:
-        # Extract and validate parameters
+        # Extract and validate parameters with defaults
+        stage = params.get("stage", "1")  # Default to stage 1
+        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
-        stage = params.get("stage")
         
         if not dispenser:
-            print("[ERROR] No dispenser parameter provided")
-            return False
-            
-        if not stage:
-            print("[ERROR] No stage parameter provided")
+            print("[ERROR] Missing required parameter: dispenser")
             return False
         
         # Validate parameters
-        valid_dispensers = ('1', '2')
-        valid_stages = ('1', '2')
+        valid_stages = ("1", "2", "3", "4")
+        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_dispensers = ("1", "2")
         
-        if dispenser not in valid_dispensers:
-            print(f"[ERROR] Unknown dispenser: {dispenser!r}")
-            print(f"[INFO] Valid dispensers: {', '.join(valid_dispensers)}")
-            return False
-            
         if stage not in valid_stages:
-            print(f"[ERROR] Unknown stage: {stage!r}")
+            print(f"[ERROR] Invalid stage: {stage!r}")
             print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
             return False
+            
+        if cup_size not in valid_cup_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid cup sizes: {', '.join(valid_cup_sizes)}")
+            return False
+            
+        if dispenser not in valid_dispensers:
+            print(f"[ERROR] Invalid dispenser: {dispenser!r}")
+            print(f"[INFO] Valid dispensers: {', '.join(valid_dispensers)}")
+            return False
         
-        print(f"🧊 Starting slush placement sequence for dispenser {dispenser}, stage {stage}")
+        print(f"🧊 Starting slush placement: Stage {stage}, {cup_size}, from Dispenser {dispenser}")
         print("=" * 50)
         
-        # Step 1: Return from dispensing position based on dispenser
-        if dispenser == '1':
-            print("📍 Step 1/8: Using dispenser 1 return sequence...")
-            print("⬆️ Returning to approach position...")
-            return_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['approach'])
-            if return_result is False:
-                print("[ERROR] Failed to return to approach position")
-                return False
-            print("   ✅ Successfully returned from dispenser 1")
-                
-        elif dispenser == '2':
-            print("📍 Step 1/8: Using dispenser 2 return sequence...")
-            print("⬆️ Returning to intermediate position...")
-            return_intermediate_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
-            if return_intermediate_result is False:
-                print("[ERROR] Failed to return to intermediate position")
-                return False
-            print("   ✅ Successfully returned from dispenser 2")
+        # Step 1: Set careful handling speed
+        print("⚙️ Step 1/4: Setting careful handling speed...")
+        speed_result = run_skill("set_speed_factor", 50)
+        if not speed_result:
+            print("[WARNING] Failed to set speed factor - continuing with default")
+        else:
+            print("   ✅ Speed factor set for careful handling")
         
-        # Step 2: Allow settling time
-        print("⏰ Step 2/8: Allowing settling time...")
-        time.sleep(0.2)
-        print("   ✅ Settling time completed")
+        # Step 2: Move away from dispenser safely
+        print(f"⬅️ Step 2/4: Moving away from dispenser {dispenser}...")
+        if dispenser == "1":
+            print("   📍 Moving away from dispenser 1...")
+            retreat_result = run_skill("gotoJ_deg", 45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864)
+        else:  # dispenser == "2"
+            print("   📍 Moving away from dispenser 2...")
+            retreat_result = run_skill("gotoJ_deg", 22.607571, -74.011971, -51.206032, -51.210812, -148.363144, 0.484628)
         
-        # Step 3: Move to staging position based on stage
-        print(f"📍 Step 3/8: Moving to stage {stage} position...")
-        
-        if stage == '1':
-            print("🎯 Executing stage 1 positioning...")
-            print("   📍 Moving to stage 1 position...")
-            stage1_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['staging']['stage_1'])
-            if stage1_result is False:
-                print("[ERROR] Failed to move to stage 1 position")
-                return False
-            print("   ✅ Successfully positioned at stage 1")
-                
-        elif stage == '2':
-            print("🎯 Executing stage 2 positioning...")
-            print("   📍 Moving to stage 2 position...")
-            stage2_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['staging']['stage_2'])
-            if stage2_result is False:
-                print("[ERROR] Failed to move to stage 2 position")
-                return False
-            print("   ✅ Successfully positioned at stage 2")
-        
-        # Step 4: Set slower speed for careful placement
-        print("⚙️ Step 4/8: Setting careful placement speed...")
-        run_skill("set_speed_factor", 20)
-        print("   ✅ Speed adjusted for careful handling")
-        
-        # Step 5: Lower slush to placement level
-        print("⬇️ Step 5/8: Lowering slush to placement level...")
-        print("   📍 Descending 315mm to placement level...")
-        lower_result = run_skill("moveEE", 0, 0, -315, 0, 0, 0)
-        if lower_result is False:
-            print("[ERROR] Failed to lower slush to placement level")
+        if not retreat_result:
+            print(f"[ERROR] Failed to move away from dispenser {dispenser}")
             return False
-        print("   ✅ Successfully lowered to placement level")
+        print(f"   ✅ Successfully moved away from dispenser {dispenser}")
         
-        # Step 6: Release slush
-        print("🤏 Step 6/8: Releasing slush...")
-        print("   📏 Setting gripper to release position...")
-        release_result = run_skill("set_gripper_position", 60, 0)
-        if release_result is False:
-            print("[ERROR] Failed to release slush")
+        # Step 3: Navigate to home position
+        print("🏠 Step 3/4: Navigating to home position...")
+        if not home(position="north"):
+            print("[ERROR] Failed to move to north home position")
             return False
-        print("   ✅ Slush released successfully")
+        print("   ✅ Successfully moved to home position")
         
-        # Step 7: Allow settling time
-        print("⏰ Step 7/8: Allowing settling time...")
-        time.sleep(0.5)
-        print("   ✅ Settling time completed")
-        
-        # Step 8: Raise after placement
-        print("⬆️ Step 8/8: Moving up after placement...")
-        print("   📍 Ascending 315mm to clear slush...")
-        raise_result = run_skill("moveEE", 0, 0, 315, 0, 0, 0)
-        if raise_result is False:
-            print("[ERROR] Failed to move up after placement")
+        # Step 4: Place slush cup at designated stage
+        print(f"📍 Step 4/4: Placing slush cup at stage {stage}...")
+        if not place_plastic_cup(stage=stage):
+            print(f"[ERROR] Failed to place slush cup at stage {stage}")
             return False
-        print("   ✅ Successfully moved up after placement")
-        
-        # Step 9: Reset speed and return to home position
-        print("🏠 Step 9/8: Returning to east home position...")
-        print("   ⚙️ Resetting speed factor...")
-        run_skill("set_speed_factor", 10)
-        print("   🏠 Moving to east home...")
-        home_result = home(position="east")
-        if home_result is False:
-            print("[ERROR] Failed to return to east home position")
-            return False
-        print("   ✅ Successfully returned to east home")
+        print(f"   ✅ Successfully placed slush cup at stage {stage}")
         
         # Final success summary
         print("=" * 50)
-        print(f"✅ SLUSH PLACEMENT COMPLETED SUCCESSFULLY FOR STAGE {stage}")
-        print(f"   ✓ Slush from dispenser {dispenser} placed optimally")
-        print("   ✓ Stable placement achieved")
-        print("   ✓ Speed control utilized for careful handling")
-        print("   ✓ Robot returned to home position")
-        print("   🧊 Frozen beverage ready for service!")
+        print(f"✅ SLUSH PLACEMENT COMPLETED SUCCESSFULLY")
+        print(f"   ✓ Stage: {stage}, Cup: {cup_size}, from Dispenser: {dispenser}")
+        print("   ✓ Slush cup safely transported and placed")
+        print("   ✓ Ready for customer service")
         print("=" * 50)
         return True
         

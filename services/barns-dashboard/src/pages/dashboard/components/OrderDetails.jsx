@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useStore from '../../../store';
 import stop from '../../../assets/stop.png';
+import coffee from '../../../assets/Coffee.png';
 import coffee from '../../../assets/coffee.png';
 import lighting from '../../../assets/lighting.png';
 import dots from '../../../assets/dots.png';

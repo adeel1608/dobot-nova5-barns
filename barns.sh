@@ -29,9 +29,11 @@ start_barns() {
     docker compose -f docker-compose.arms.yml down
 
     log "Starting BARNS services..."
-    # Start all services normally - Docker Compose will use the cached robot image
-    # and build other services as needed
-    docker compose -f docker-compose.arms.yml up -d --build
+    # Try to start with existing images first, only build if needed
+    docker compose -f docker-compose.arms.yml up -d --no-build || {
+        warn "Some services need to be built. Building now..."
+        docker compose -f docker-compose.arms.yml up -d --build
+    }
 
     log "BARNS services started successfully!"
     echo ""

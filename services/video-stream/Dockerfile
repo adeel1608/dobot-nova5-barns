@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
@@ -12,17 +12,17 @@ RUN apt-get update && apt-get install -y \
     libgstreamer1.0-0 \
     libgstreamer-plugins-base1.0-0 \
     libgtk-3-0 \
-    libavcodec59 \
-    libavformat59 \
-    libswscale6 \
-    libavutil57 \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libavutil-dev \
     v4l-utils \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies (service-local)
+COPY services/video-stream/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
 
 # Copy the application
 COPY services/video-stream /app/services/video-stream
@@ -31,4 +31,4 @@ COPY services/video-stream /app/services/video-stream
 ENV PYTHONPATH=/app
 
 # Run the application
-CMD ["uvicorn", "services.video-stream.app:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["uvicorn", "app:app", "--app-dir", "/app/services/video-stream", "--host", "0.0.0.0", "--port", "8000"]

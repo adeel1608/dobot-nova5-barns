@@ -95,10 +95,10 @@ class ValidationServiceApp:
         self.rabbitmq_client.register_handler("stock_level", self.handle_inventory_stock_level)
         self.rabbitmq_client.register_handler("category_count", self.handle_category_count)
         self.rabbitmq_client.register_handler("category_info", self.handle_category_info)
+        self.rabbitmq_client.register_handler("inventory_by_stock_level", self.handle_inventory_by_stock_level)
         
-        # Computer vision handlers (placeholders)
-        self.rabbitmq_client.register_handler("check_cup_picked", self.handle_check_cup_picked)
-        self.rabbitmq_client.register_handler("check_cup_placed", self.handle_check_cup_placed)
+        # Computer vision handlers - CHANGE THIS LINE
+        self.rabbitmq_client.register_handler("cup_detection", self.handle_cup_detection)
         self.rabbitmq_client.register_handler("check_coffee_beans", self.handle_check_coffee_beans)
         
         # System handlers
@@ -245,7 +245,38 @@ class ValidationServiceApp:
                 "error": f"Category info failed: {str(e)}"
             }
     
-
+    async def handle_inventory_by_stock_level(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle inventory by stock level requests"""
+        try:
+            stock_level = data.get("payload", {}).get("stock_level")
+            
+            if not stock_level:
+                return {
+                    "request_id": data.get("request_id"),
+                    "passed": False,
+                    "error": "Stock level parameter is required"
+                }
+            
+            request_data = {
+                "request_id": data.get("request_id", f"async-{datetime.now().timestamp()}"),
+                "client_type": "api_bridge",
+                "function_name": "inventory_by_stock_level",
+                "payload": {
+                    "stock_level": stock_level
+                }
+            }
+            
+            result = self.main_validation.process_inventory_by_stock_level_request(request_data)
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Error in inventory_by_stock_level: {e}")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Inventory by stock level failed: {str(e)}"
+            }
+    
     async def handle_refill_inventory(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle inventory refill requests - refill inventory to maximum levels"""
         try:
@@ -354,55 +385,30 @@ class ValidationServiceApp:
 
 
     # =============================================================================
-    # COMPUTER VISION HANDLERS (Placeholders)
+    # COMPUTER VISION HANDLERS
     # =============================================================================
     
-    async def handle_check_cup_picked(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle cup pick validation requests"""
+    async def handle_cup_detection(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle cup detection requests"""
         try:
-            self.logger.info(f"Processing check_cup_picked request: {data.get('request_id', 'no-id')}")
-            cv_response = await self.rabbitmq_client.send_request(
-                target_service="video-stream",
-                action="check_cup_picked",
-                data=data
-            )
-
-            if cv_response.get("success"):
-                detection_result = cv_response.get("detected", False)
-
-                if detection_result:
-                    result = {
-                        "request_id": data.get("request_id"),
-                        "passed": True,
-                    }
-                else:
-                    result = {
-                        "request_id": data.get("request_id"),
-                        "passed": False,
-                    }
-
-                return result
+            self.logger.info(f"Processing cup_detection request: {data.get('request_id', 'no-id')}")
             
-            else:
-                return {
-                    "request_id": data.get("request_id"),
-                    "passed": False,
-                }
+            # Run detection in thread to avoid blocking async loop
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, 
+                self.main_validation.process_cup_detection_request, 
+                data  # Pass data directly - no conversion needed!
+            )
+            
+            return result
             
         except Exception as e:
-            self.logger.error(f"Error in check_cup_picked: {e}")
+            self.logger.error(f"Error in cup_detection: {e}")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
+                "error": f"Cup detection failed: {str(e)}"
             }
-    
-    async def handle_check_cup_placed(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle cup placement validation requests"""
-        return {
-            "request_id": data.get("request_id"),
-            "passed": True,
-            "details": {"message": "Cup placement validation passed (placeholder)"}
-        }
     
     async def handle_check_coffee_beans(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle coffee beans validation requests"""
@@ -423,8 +429,8 @@ class ValidationServiceApp:
             "service": "validation",
             "timestamp": datetime.now().isoformat(),
             "capabilities": [
-                "pre_check", "update_inventory", "ingredient_status", "refill_inventory",
-                "check_cup_picked", "check_cup_placed", "check_coffee_beans"
+                "pre_check", "update_inventory", "inventory_status", "inventory_refill",
+                "cup_detection", "check_coffee_beans"  # CHANGE THIS LINE
             ]
         }
     
@@ -672,8 +678,8 @@ async def main():
 if __name__ == "__main__":
     print("🚀 Starting Validation Service with Async RabbitMQ")
     print("📋 Available actions:")
-    print("  Inventory: pre_check, update_inventory, ingredient_status, refill_inventory")
-    print("  Computer Vision: check_cup_picked, check_cup_placed, check_coffee_beans")
+    print("  Inventory: pre_check, update_inventory, inventory_status, inventory_refill")
+    print("  Computer Vision: cup_detection, check_coffee_beans")  # CHANGE THIS LINE
     print("  System: health")
     print("🔧 Simple request-response pattern with live inventory updates")
     

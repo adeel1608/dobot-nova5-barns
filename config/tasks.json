@@ -1,4 +1,3 @@
-
 {
   "dispense_milk": {
     "steps": [
@@ -9,177 +8,231 @@
       }
     ]
   },
-  "coffee_machine": {
+  "dispense_sauce": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_sauce",
+        "params": {}
+      }
+    ]
+  },
+  "dispense_slush": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "slush_machine",
+        "params": {}
+      }
+    ]
+  },
+  "dispnse_coffee": {
     "steps": [
       {
         "type": "automation",
         "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
+        "params": {}
       }
     ]
   },
-  "tampering_machine": {
+  "dispense_ice": {
     "steps": [
+      {
+        "type": "robot",
+        "function": "go_to_ice",
+        "params": {}
+      },
       {
         "type": "automation",
-        "function": "tampering_machine",
-        "params": {}
-      }
-    ]
-  },
-  "test": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "test",
-        "params": {}
-      }
-    ]
-  },
-  "test1": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "validate_test1",
-        "params": {}
+        "function": "dispense_ice",
+        "params": {
+          "cup_size": "7oz"
+        }
       },
       {
         "type": "robot",
-        "function": "test_1",
+        "function": "return_to_home",
         "params": {}
       }
-
     ]
   },
-  "test2": {
-    "steps": [
-      {
-        "type": "validation",
-        "function": "validate_test2",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "test",
-        "params": {}
-      }
-
-    ]
-  },
-  "Espresso": {
+  "grind_coffee": {
     "steps": [
       {
         "type": "automation",
         "function": "grinding_machine",
         "params": {
-          "shots_number": 2
+          "shots_number": 1
         }
-      },
-      {
-        "type": "robot",
-        "function": "unmount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grinder",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "tamper",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_1"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      }      
+      }
     ]
   },
-  "Milk_Dispensing_Frothing": {
+  "clean_steam_wand": {
     "steps": [
       {
         "type": "robot",
-        "function": "get_frother_position",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "dispense_milk",
+        "function": "clean_steam_wand",
         "params": {
-          "milk_type": "whole",
-          "amount": 80
+          "duration": 18
         }
-      },
-      {
-        "type": "robot",
-        "function": "pick_frother",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount_frother",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "froth_milk",
-        "params": {
-          "duration": 5
-        }
-      },
-      {
-        "type": "robot",
-        "function": "swirl_milk",
-        "params": {}
-      }   
+      }
     ]
   },
-  "Espresso_pouring": {
+  "tamper_coffee": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {}
+      }
+    ]
+  },
+  "Calibrate": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_machine_position",
+        "params": {}
+      }
+    ]
+  },
+  "Espresso": {
+      "steps": [
+      {
+          "type": "automation",
+          "function": "grinding_machine",
+          "params": {
+          "shots_number": 2
+          }
+      },
+      {
+          "type": "robot",
+          "function": "unmount",
+          "params": {
+          "port": "port_3"
+          }
+      },
+      {
+          "type": "robot",
+          "function": "grinder",
+          "params": {
+          "portafilter_tool": "double_portafilter"
+          }
+      },
+      {
+          "type": "automation",
+          "function": "tampering_machine",
+          "params": {
+          "tampering": 1
+          }
+      },
+      {
+          "type": "robot",
+          "function": "tamper",
+          "params": {
+          "portafilter_tool": "double_portafilter"
+          }
+      },
+      {
+          "type": "robot",
+          "function": "mount",
+          "params": {
+          "port": "port_3"
+          }
+      },
+      {
+          "type": "automation",
+          "function": "coffee_machine",
+          "params": {
+          "coffee_t": 2,
+          "slot_number": 3
+          }
+      },
+      {
+          "type": "robot",
+          "function": "grab_paper_cup",
+          "params": {
+          "size": "7oz"
+          }
+      },
+      {
+          "type": "robot",
+          "function": "place_paper_cup",
+          "params": {
+          "stage": "stage_1"
+          }
+      },
+      {
+          "type": "robot",
+          "function": "pick_espresso_pitcher",
+          "params": {
+            "port": "port_3"
+          }
+      }
+      ]
+  },
+  "Espresso_Only": {
+    "steps": [
+    {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
+        }
+    },
+    {
+        "type": "robot",
+        "function": "unmount",
+        "params": {
+        "port": "port_3"
+        }
+    },
+    {
+        "type": "robot",
+        "function": "grinder",
+        "params": {
+        "portafilter_tool": "double_portafilter"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "tampering_machine",
+        "params": {
+        "tampering": 1
+        }
+    },
+    {
+        "type": "robot",
+        "function": "tamper",
+        "params": {
+        "portafilter_tool": "double_portafilter"
+        }
+    },
+    {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+        "port": "port_3"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "coffee_machine_wait",
+        "params": {
+        "coffee_t": 2,
+        "slot_number": 3
+        }
+    },
+    {
+        "type": "robot",
+        "function": "pick_espresso_pitcher",
+        "params": {
+          "port": "port_3"
+        }
+    }
+    ]
+  },
+  "Pour_Espresso": {
     "steps":[
       {
       "type": "robot",
@@ -197,14 +250,65 @@
     }
     ]
   },
-  "Milk_Pouring": {
-    "steps": [ 
+  "Milk_Dispensing_Frother": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_frother_position",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pick_frother",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_frother_milk_station",
+        "params": {
+        }
+      },
+      {
+        "type": "automation",
+        "function": "dispense_milk",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pick_frother_milk_station",
+        "params": {}
+      }
+    ]
+  },
+  "Froth_Milk": {
+    "steps": [
+        {
+            "type": "robot",
+            "function": "mount_frother",
+            "params": {}
+          },
+          {
+            "type": "robot",
+            "function": "froth_milk",
+            "params": {
+              "duration": 5
+            }
+          }
+    ]
+  },
+  "Pour_Frothed_Milk": {
+    "steps": [
       {
         "type": "robot",
         "function": "pour_milk",
         "params": {
           "stage": "1"
         }
+      },
+      {
+        "type": "robot",
+        "function": "clean_frother",
+        "params": {}
       },
       {
         "type": "robot",
@@ -220,41 +324,36 @@
       }
     ]
   },
-  "Calibrate": {
+  "Clean_Portafilter": {
     "steps": [
       {
         "type": "robot",
-        "function": "get_machine_position",
-        "params": {}
-      }
-    ]
-  },
-  "Cleaning": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "clean",
+        "function": "clean_portafilter",
         "params": {
           "port": "port_2"
         }
       }
     ]
   },
-
+  "Clean_Milk_Pitcher": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "clean_milk_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
   "Slushie": {
     "steps": [
       {
         "type": "robot",
-        "function": "grab_plastic_cup",
-        "params": {
-          "cup_size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
         "function": "get_slush",
         "params": {
-          "dispenser": "1"
+          "dispenser": "1",
+          "cup_size": "16oz"
         }
       },
       {
@@ -270,330 +369,158 @@
           "function": "place_slush",
           "params": {
             "dispenser": "1",
-            "stage": "1"
+            "stage": "1",
+            "cup_size": "16oz"
           }
         }
     ]
   },
-  "Extra": {
+  "Dispense_Paper_Cup": {
     "steps": [
       {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-          "shots_number": 1
-        }
-      },
-      {
         "type": "robot",
-        "function": "unmount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grinder",
+        "function": "dispense_paper_cup",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
+      }
+    ]
+  },
+  "Dispense_Plastic_Cup": {
+    "steps": [
       {
         "type": "robot",
-        "function": "tamper",
+        "function": "dispnese_plastic_cup",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Pick_Cup_Milk": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_plastic_cup_milk",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Place_Cup_Milk": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_milk",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick_Cup_Sauces": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_plastic_cup_sauces",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Place_Cup_Sauces": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_sauces",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick_Cup_Station": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_plastic_cup_station",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Place_Cup_Station": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_station",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick_Cup_Station_Arm1": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_plastic_cup_station_arm1",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Place_Cup_Station_Arm1": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_station_arm1",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Get_Hot_Water": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_hot_water",
         "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
       },
       {
         "type": "automation",
         "function": "coffee_machine",
         "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
+        "coffee_t": 2,
+        "slot_number": 3
+         }
       },
       {
         "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_1"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher",
-        "params": {
-          "stage": "stage_1"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "clean",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grinder",
+        "function": "with_hot_water",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
+      }
+    ]
+  },
+  "Go_to_Ice": {
+    "steps": [
       {
         "type": "robot",
-        "function": "tamper",
+        "function": "get_ice",
         "params": {}
-      },
+      }
+    ]
+  },
+  "Go_Home_With_Ice": {
+    "steps": [
       {
         "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher",
-        "params": {
-          "stage": "stage_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "clean",
-        "params": {
-          "port": "port_2"
-        }
-      },  
-      {
-        "type": "robot",
-        "function": "grinder",
+        "function": "place_plastic_cup_with_ice",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "tamper",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_3"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher",
-        "params": {
-          "stage": "stage_3"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "clean",
-        "params": {
-          "port": "port_2"
-        }
-      },  
-      {
-        "type": "robot",
-        "function": "grinder",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "tampering_machine",
-        "params": {
-          "tampering": 1
-        }
-      },
-      {
-        "type": "robot",
-        "function": "tamper",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-          "coffee_t": 1,
-          "slot_number": 2
-        }
-      },
-      {
-        "type": "robot",
-        "function": "grab_paper_cup",
-        "params": {
-          "size": "7oz"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "place_paper_cup",
-        "params": {
-          "stage": "stage_4"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pick_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher",
-        "params": {
-          "stage": "stage_4"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "clean",
-        "params": {
-          "port": "port_2"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "mount",
-        "params": {
-          "port": "port_2"
-        }
-      }      
+      }
     ]
   }
 }

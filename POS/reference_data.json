@@ -1,0 +1,4139 @@
+{
+    "menu_items": {
+        "espresso": {
+            "name": "espresso",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Espresso",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "unit_amount": 1,
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H7",
+                    "category": "cups",
+                    "type": "H7",
+                    "unit_amount": 1,
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "macchiato": {
+            "name": "macchiato",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Macchiato",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "unit_amount": 1,
+                    "quantity": 2,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H7",
+                    "category": "cups",
+                    "type": "H7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "unit_amount": 1,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "whole_fat_milk",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "unit_amount": 20,
+                    "quantity": 1,
+                    "base_units": "ml",
+                    "is_topping": false
+                }
+            ]
+        },
+        "cortado": {
+            "name": "cortado",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Cortado",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H7",
+                    "category": "cups",
+                    "type": "H7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 70,
+                    "base_units": "ml",
+                    "is_topping": false
+                }
+            ]
+        },
+        "flat_white": {
+            "name": "flat_white",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Flat_White",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 120,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "cappuccino_9oz": {
+            "name": "cappuccino_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Cappuccino",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "unit_amount": 1,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "cappuccino_12oz": {
+            "name": "cappuccino_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Cappuccino",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 260,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "latte_9oz": {
+            "name": "latte_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 160,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "latte_12oz": {
+            "name": "latte_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 280,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "new_mocha_9oz": {
+            "name": "new_mocha_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "New_Mocha",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "new_hot_chocolate_sachet",
+                    "category": "sachets",
+                    "type": "new_hot_chocolate",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "new_mocha_12oz": {
+            "name": "new_mocha_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "New_Mocha",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 260,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "new_hot_chocolate_sachet",
+                    "category": "sachets",
+                    "type": "new_hot_chocolate",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "white_mocha_9oz": {
+            "name": "white_mocha_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "White_Mocha",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "white_mocha_12oz": {
+            "name": "white_mocha_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "White_Mocha",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 260,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 3,
+                    "unit_amount": 15,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "caramel_macchiato_9oz": {
+            "name": "caramel_macchiato_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Caramel_Macchiato",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 5,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 8,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": true,
+                    "quantity": 1,
+                    "unit_amount": 5,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "caramel_macchiato_12oz": {
+            "name": "caramel_macchiato_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Caramel_Macchiato",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 260,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 5,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": true,
+                    "quantity": 1,
+                    "unit_amount": 5,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "americano_9oz": {
+            "name": "americano_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Americano",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 160,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "americano_12oz": {
+            "name": "americano_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Americano",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 280,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "hot_spanish_latte_9oz": {
+            "name": "hot_spanish_latte_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Hot_Spanish_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "condense_milk",
+                    "category": "sauces",
+                    "type": "condense_milk",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "hot_spanish_latte_12oz": {
+            "name": "hot_spanish_latte_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Hot_Spanish_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot_regular",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 260,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "condense_milk",
+                    "category": "sauces",
+                    "type": "condense_milk",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 4,
+                    "unit_amount": 15,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "hot_chocolate_9oz": {
+            "name": "hot_chocolate_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "semi",
+            "recipe": "Hot_Chocolate",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "new_hot_chocolate_sachet",
+                    "category": "sachets",
+                    "type": "new_hot_chocolate_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "sahlab": {
+            "name": "sahlab",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "semi",
+            "recipe": "Sahlab",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "sahlab_sachet",
+                    "category": "sachets",
+                    "type": "sahlab_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "karak_tea": {
+            "name": "karak_tea",
+            "category": "tea",
+            "size": "9oz",
+            "automation": "semi",
+            "recipe": "Karak_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "karak_tea_sachet",
+                    "category": "sachets",
+                    "type": "karak_tea_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "iced_matcha_latte_12oz": {
+            "name": "iced_matcha_latte_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "semi",
+            "recipe": "Iced_Matcha_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "matcha_mixture",
+                    "category": "premixes",
+                    "type": "matcha",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 9,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 8,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                }
+            ]
+        },
+        "iced_matcha_latte_16oz": {
+            "name": "iced_matcha_latte_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "semi",
+            "recipe": "Iced_Matcha_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "matcha_mixture",
+                    "category": "premixes",
+                    "type": "matcha",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 18,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 11,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                }
+            ]
+        },
+        "hot_tea": {
+            "name": "hot_tea",
+            "category": "tea",
+            "size": "12oz",
+            "automation": "semi",
+            "recipe": "Hot_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "tea_bag",
+                    "category": "tea",
+                    "type": "tea_bag",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "unit_amount": 1,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "unit_amount": 1,
+                    "quantity": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "hot_milk_tea": {
+            "name": "hot_milk_tea",
+            "category": "tea",
+            "size": "12oz",
+            "automation": "semi",
+            "recipe": "Hot_Milk_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 55,
+                    "base_units": "ml",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 55,
+                    "base_units": "ml",
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "tea_bag",
+                    "category": "tea",
+                    "type": "tea_bag",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                },
+                {
+                    "ingredient_id": "cup_H12",
+                    "category": "cups",
+                    "type": "H12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false,
+                    "is_topping": false
+                }
+            ]
+        },
+        "mocha_frappe_9oz": {
+            "name": "mocha_frappe_9oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Mocha_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "mocha_frappe_premix",
+                    "category": "premixes",
+                    "type": "mocha_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "mocha_frappe_12oz": {
+            "name": "mocha_frappe_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Mocha_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "mocha_frappe_premix",
+                    "category": "premixes",
+                    "type": "mocha_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "mocha_frappe_16oz": {
+            "name": "mocha_frappe_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Mocha_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "mocha_frappe_premix",
+                    "category": "premixes",
+                    "type": "mocha_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "chocolate_frappe_9oz": {
+            "name": "chocolate_frappe_12oz",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "full",
+            "recipe": "Chocolate_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "chocolate_frappe_premix",
+                    "category": "premixes",
+                    "type": "chocolate_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 110,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "chocolate_frappe_12oz": {
+            "name": "chocolate_frappe_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Chocolate_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "chocolate_frappe_premix",
+                    "category": "premixes",
+                    "type": "chocolate_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "chocolate_frappe_16oz": {
+            "name": "chocolate_frappe_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Chocolate_Frappe",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "chocolate_frappe_premix",
+                    "category": "premixes",
+                    "type": "chocolate_frappe",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "iced_americano_12oz": {
+            "name": "iced_americano_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Iced_Americano",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 100,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 6,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "iced_americano_16oz": {
+            "name": "iced_americano_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Iced_Americano",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "iced_spanish_latte_12oz": {
+            "name": "iced_spanish_latte_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Iced_Spanish_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 145,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "condense_milk",
+                    "category": "sauces",
+                    "type": "condense_milk",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 8,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "iced_spanish_latte_16oz": {
+            "name": "iced_spanish_latte_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Iced_Spanish_Latte",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "condense_milk",
+                    "category": "sauces",
+                    "type": "condense_milk",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "foam_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 11,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_7oz": {
+            "name": "long_shot_7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 65,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C7",
+                    "category": "cups",
+                    "type": "C7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_12oz": {
+            "name": "long_shot_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 16,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_16oz": {
+            "name": "long_shot_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 195,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 19,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_vanilla_7oz": {
+            "name": "long_shot_vanilla_7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 65,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C7",
+                    "category": "cups",
+                    "type": "C7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_vanilla_12oz": {
+            "name": "long_shot_vanilla_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 16,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_vanilla_16oz": {
+            "name": "long_shot_vanilla_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 195,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "vanilla_syrup",
+                    "category": "syrups",
+                    "type": "vanilla",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 19,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_caramel_7oz": {
+            "name": "long_shot_caramel_7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 65,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "caramel_syrup",
+                    "category": "syrups",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C7",
+                    "category": "cups",
+                    "type": "C7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_caramel_12oz": {
+            "name": "long_shot_caramel_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "caramel_syrup",
+                    "category": "syrups",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 16,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_caramel_16oz": {
+            "name": "long_shot_caramel_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 195,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "caramel_syrup",
+                    "category": "syrups",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 19,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_hazelnut_7oz": {
+            "name": "long_shot_hazelnut_7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 65,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "hazelnut_syrup",
+                    "category": "syrups",
+                    "type": "hazelnut",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C7",
+                    "category": "cups",
+                    "type": "C7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_hazelnut_12oz": {
+            "name": "long_shot_hazelnut_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "hazelnut_syrup",
+                    "category": "syrups",
+                    "type": "hazelnut",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 16,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_hazelnut_16oz": {
+            "name": "long_shot_hazelnut_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 195,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "hazelnut_syrup",
+                    "category": "syrups",
+                    "type": "hazelnut",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 19,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_white_chocolate_7oz": {
+            "name": "long_shot_white_chocolate_7oz",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 65,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C7",
+                    "category": "cups",
+                    "type": "C7",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 9,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_white_chocolate_12oz": {
+            "name": "long_shot_white_chocolate_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 16,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "long_shot_white_chocolate_16oz": {
+            "name": "long_shot_white_chocolate_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Long_Shot",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "espresso_shot",
+                    "category": "espresso",
+                    "type": "regular",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "shots",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 195,
+                    "base_units": "ml",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "white_chocolate_sauce",
+                    "category": "sauces",
+                    "type": "white_chocolate",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units",
+                    "foam_sensitive": false
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "is_topping": false,
+                    "quantity": 19,
+                    "unit_amount": 1,
+                    "base_units": "cubes",
+                    "foam_sensitive": false
+                }
+            ]
+        },
+        "peach_iced_tea_12oz": {
+            "name": "peach_iced_tea_12oz",
+            "category": "tea",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Peach_Iced_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "peach_iced_tea",
+                    "category": "syrups",
+                    "type": "peach_iced_tea",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 4,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 145,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 11,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "peach_iced_tea_16oz": {
+            "name": "peach_iced_tea_16oz",
+            "category": "tea",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Peach_Iced_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "peach_iced_tea",
+                    "category": "syrups",
+                    "type": "peach_iced_tea",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 5,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 14,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "passion_fruit_iced_tea_12oz": {
+            "name": "passion_fruit_iced_tea_12oz",
+            "category": "tea",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Passion_Fruit_Iced_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "passion_fruit_puree_syrup",
+                    "category": "syrups",
+                    "type": "passion_fruit_puree",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_tea_syrup",
+                    "category": "syrups",
+                    "type": "ice_tea",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 145,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 11,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "passion_fruit_iced_tea_16oz": {
+            "name": "passion_fruit_iced_tea_16oz",
+            "category": "tea",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Passion_Fruit_Iced_Tea",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "passion_fruit_puree_syrup",
+                    "category": "syrups",
+                    "type": "passion_fruit_puree",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_tea_syrup",
+                    "category": "syrups",
+                    "type": "ice_tea",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 8,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 14,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "saudi_coffee_b_box": {
+            "name": "saudi_coffee_b_box",
+            "category": "coffee",
+            "size": "box",
+            "automation": "manual",
+            "recipe": "Saudi_Coffee_b_box",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "golden_saudi_coffee_sachet",
+                    "category": "sachets",
+                    "type": "golden_saudi_coffee_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 6,
+                    "unit_amount": 90,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 6,
+                    "unit_amount": 210,
+                    "base_units": "ml"
+                }
+            ]
+        },
+        "ice_shaken_turkish_12oz": {
+            "name": "ice_shaken_turkish_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Ice_Shaken_Turkish",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "turkish_coffee_sachet",
+                    "category": "sachets",
+                    "type": "turkish_coffee_spoon",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 7,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "ice_shaken_turkish_16oz": {
+            "name": "ice_shaken_turkish_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Ice_Shaken_Turkish",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "turkish_coffee_sachet",
+                    "category": "sachets",
+                    "type": "turkish_coffee_spoon",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 4,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "caramel_sauce",
+                    "category": "sauces",
+                    "type": "caramel",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 2,
+                    "unit_amount": 15,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 8,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "ice_shaken_turkish_plain_12oz": {
+            "name": "ice_shaken_turkish_plain_12oz",
+            "category": "coffee",
+            "size": "12oz",
+            "automation": "full",
+            "recipe": "Ice_Shaken_Turkish_Plain",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 150,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "turkish_coffee_sachet",
+                    "category": "sachets",
+                    "type": "turkish_coffee_spoon",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 3,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 7,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C12",
+                    "category": "cups",
+                    "type": "C12",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "ice_shaken_turkish_plain_16oz": {
+            "name": "ice_shaken_turkish_plain_16oz",
+            "category": "coffee",
+            "size": "16oz",
+            "automation": "full",
+            "recipe": "Ice_Shaken_Turkish_Plain",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "half_and_half_premix",
+                    "category": "premixes",
+                    "type": "half_and_half",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 200,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "turkish_coffee_sachet",
+                    "category": "sachets",
+                    "type": "turkish_coffee_spoon",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 4,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "ice_cubes",
+                    "category": "ice",
+                    "type": "ice_cubes",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 8,
+                    "unit_amount": 1,
+                    "base_units": "cubes"
+                },
+                {
+                    "ingredient_id": "cup_C16",
+                    "category": "cups",
+                    "type": "C16",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "saudi_coffee": {
+            "name": "saudi_coffee",
+            "category": "coffee",
+            "size": "7oz",
+            "automation": "manual",
+            "recipe": "Saudi_Coffee",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "saudi_coffee_sachet",
+                    "category": "sachets",
+                    "type": "saudi_coffee_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "hot_water",
+                    "category": "water",
+                    "type": "hot",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 210,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_H7",
+                    "category": "cups",
+                    "type": "H7",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "umber_american_automatic_water": {
+            "name": "umber_american_automatic_water",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "manual",
+            "recipe": "Umber_American",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "umber_american_sachet",
+                    "category": "sachets",
+                    "type": "umber_american_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "umber_american_manual_water": {
+            "name": "umber_american_manual_water",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "manual",
+            "recipe": "Umber_American",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "umber_american_sachet",
+                    "category": "sachets",
+                    "type": "umber_american_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 800,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "turkish_coffee": {
+            "name": "turkish_coffee",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "manual",
+            "recipe": "Turkish_Coffee",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "turkish_coffee_sachet",
+                    "category": "sachets",
+                    "type": "turkish_coffee_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "turkish_coffee_with_milk": {
+            "name": "turkish_coffee_with_milk",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "semi",
+            "recipe": "Turkish_Coffee",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "turkish_coffee_sachet_9g",
+                    "category": "sachets",
+                    "type": "turkish_coffee_9g",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "213411",
+                    "category": "milk",
+                    "type": "whole_fat",
+                    "automated": "full",
+                    "temperature_sensitive": true,
+                    "foam_sensitive": true,
+                    "needs_validation": true,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "full",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        },
+        "french_coffee": {
+            "name": "french_coffee",
+            "category": "coffee",
+            "size": "9oz",
+            "automation": "manual",
+            "recipe": "French_Coffee",
+            "default_ingredients": [
+                {
+                    "ingredient_id": "french_coffee_sachet",
+                    "category": "sachets",
+                    "type": "french_coffee_sachet",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                },
+                {
+                    "ingredient_id": "normal_water",
+                    "category": "water",
+                    "type": "normal",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": false,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 130,
+                    "base_units": "ml"
+                },
+                {
+                    "ingredient_id": "cup_H9",
+                    "category": "cups",
+                    "type": "H9",
+                    "automated": "manual",
+                    "temperature_sensitive": false,
+                    "needs_validation": true,
+                    "foam_sensitive": false,
+                    "is_topping": false,
+                    "quantity": 1,
+                    "unit_amount": 1,
+                    "base_units": "units"
+                }
+            ]
+        }
+    },
+    "ingredients": {
+        "espresso_shot_regular": "espresso_shot_regular",
+        "espresso_shot_decaf": "espresso_shot_decaf",
+        "213411": "whole_fat_milk",
+        "213419": "low_fat_milk",
+        "213420": "oat_milk",
+        "213421": "soy_milk",
+        "213422": "almond_milk",
+        "213423": "lactose_free_milk",
+        "hot_water": "hot_water",
+        "normal_water": "normal_water",
+        "cup_H7": "H7_cup",
+        "cup_H9": "H9_cup",
+        "cup_H12": "H12_cup",
+        "cup_C7": "C7_cup",
+        "cup_C9": "C9_cup",
+        "cup_C12": "C12_cup",
+        "cup_C16": "C16_cup",
+        "white_chocolate_sauce": "white_chocolate_sauce",
+        "caramel_sauce": "caramel_sauce",
+        "condense_milk_sauce": "condense_milk_sauce",
+        "hazelnut_syrup": "hazelnut_syrup",
+        "vanilla_syrup": "vanilla_syrup",
+        "caramel_syrup": "caramel_syrup",
+        "peached_iced_syrup": "peached_iced_syrup",
+        "passion_fruit_iced_syrup": "passion_fruit_iced_syrup",
+        "ice_tea_syrup": "ice_tea_syrup",
+        "mocha_frappe_premix": "mocha_frappe_premix",
+        "chocolate_frappe_premix": "chocolate_frappe_premix",
+        "sahlab_sachet": "sahlab_sachet",
+        "karak_tea_sachet": "karak_tea_sachet",
+        "turkish_coffee_sachet": "turkish_coffee_sachet",
+        "french_coffee_sachet": "french_coffee_sachet",
+        "new_hot_chocolate_sachet": "new_hot_chocolate_sachet"
+    },
+    "ingredient_details": {
+        "espresso_shot_regular": {
+            "category": "espresso",
+            "type": "regular",
+            "base_units": "shots",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "espresso_shot_decaf": {
+            "category": "espresso",
+            "type": "regular",
+            "base_units": "shots",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "213411": {
+            "category": "milk",
+            "type": "whole_fat",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "foam_sensitive": true,
+            "default_amount": 150
+        },
+        "213419": {
+            "category": "milk",
+            "type": "almond",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "foam_sensitive": true,
+            "default_amount": 150
+        },
+        "213420": {
+            "category": "milk",
+            "type": "oat",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 150,
+            "foam_sensitive": true
+        },
+        "213421": {
+            "category": "milk",
+            "type": "soy",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 150,
+            "foam_sensitive": true
+        },
+        "213422": {
+            "category": "milk",
+            "type": "almond",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 150,
+            "foam_sensitive": true
+        },
+        "213423": {
+            "category": "milk",
+            "type": "lactose_free",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": true,
+            "default_amount": 150,
+            "foam_sensitive": true
+        },
+        "hot_water": {
+            "category": "water",
+            "type": "hot",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": true,
+            "needs_validation": false,
+            "default_amount": 100
+        },
+        "normal_water": {
+            "category": "water",
+            "type": "normal",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 100
+        },
+        "cup_H7": {
+            "category": "cups",
+            "type": "H7",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "cup_H9": {
+            "category": "cups",
+            "type": "H9",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "H12": {
+            "category": "cups",
+            "type": "H12",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "cup_C7": {
+            "category": "cups",
+            "type": "C7",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "cup_C9": {
+            "category": "cups",
+            "type": "C9",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "cup_C12": {
+            "category": "cups",
+            "type": "C12",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "cup_C16": {
+            "category": "cups",
+            "type": "C16",
+            "base_units": "units",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 1
+        },
+        "white_chocolate_sauce": {
+            "category": "sauces",
+            "type": "white_chocolate",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 15
+        },
+        "caramel_sauce": {
+            "category": "sauces",
+            "type": "caramel",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 15
+        },
+        "condense_milk_sauce": {
+            "category": "sauces",
+            "type": "condense_milk",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 15
+        },
+        "hazelnut_syrup": {
+            "category": "syrups",
+            "type": "hazelnut",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "vanilla_syrup": {
+            "category": "syrups",
+            "type": "vanilla",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "caramel_syrup": {
+            "category": "syrups",
+            "type": "caramel",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "peached_iced_syrup": {
+            "category": "syrups",
+            "type": "peach_iced_tea",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "passion_fruit_iced_syrup": {
+            "category": "syrups",
+            "type": "passion_fruit_puree",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "ice_tea_syrup": {
+            "category": "syrups",
+            "type": "ice_tea",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 8
+        },
+        "mocha_frappe_premix": {
+            "category": "premixes",
+            "type": "mocha_frappe",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 150
+        },
+        "chocolate_frappe_premix": {
+            "category": "premixes",
+            "type": "chocolate_frappe",
+            "base_units": "ml",
+            "automated": "full",
+            "temperature_sensitive": false,
+            "needs_validation": true,
+            "default_amount": 150
+        },
+        "sahlab_sachet": {
+            "category": "sachets",
+            "type": "sahlab_sachet",
+            "base_units": "units",
+            "automated": "manual",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 1
+        },
+        "karak_tea_sachet": {
+            "category": "sachets",
+            "type": "karak_tea_sachet",
+            "base_units": "units",
+            "automated": "manual",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 1
+        },
+        "turkish_coffee_sachet": {
+            "category": "sachets",
+            "type": "turkish_coffee_spoon",
+            "base_units": "units",
+            "automated": "manual",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 1
+        },
+        "french_coffee_sachet": {
+            "category": "sachets",
+            "type": "french_coffee_sachet",
+            "base_units": "units",
+            "automated": "manual",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 1
+        },
+        "new_hot_chocolate_sachet": {
+            "category": "sachets",
+            "type": "new_hot_chocolate",
+            "base_units": "units",
+            "automated": "manual",
+            "temperature_sensitive": false,
+            "needs_validation": false,
+            "default_amount": 1
+        }
+    }
+}

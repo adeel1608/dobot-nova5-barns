@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, Field
 
 class Cup(BaseModel):
@@ -6,6 +6,7 @@ class Cup(BaseModel):
     type: str  # e.g., "latte", "americano", etc.
     size: str = "regular"  # "small", "regular", "large"
     addons: List[str] = []  # e.g., ["extra_shot", "vanilla"]
+    ingredients: Any = []  # e.g., ["extra_shot", "vanilla"] or dict
 
 class Order(BaseModel):
     """Model representing a complete order with multiple cups."""

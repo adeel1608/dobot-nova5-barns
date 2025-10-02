@@ -1,0 +1,453 @@
+version: '3.8'
+
+services:
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: barns-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP port
+      - "15672:15672"  # Management UI
+      - "1883:1883"    # MQTT port      
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - barns-network
+    command: >
+      sh -c "
+        rabbitmq-plugins enable --offline rabbitmq_mqtt &&
+        rabbitmq-server
+      "
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Redis for OMS queue management
+  redis:
+    image: redis:7-alpine
+    container_name: barns-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - barns-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # PostgreSQL for OMS data persistence
+  postgres:
+    image: postgres:15-alpine
+    container_name: barns-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: barns_oms
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - barns-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barns_user -d barns_oms"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Validation Service
+  validation-service:
+    build:
+      context: .
+      dockerfile: services/validation/Dockerfile.rabbitmq
+    container_name: barns-validation
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Automation Service
+  automation-service:
+    build:
+      context: .
+      dockerfile: services/automation/Dockerfile.rabbitmq
+    container_name: barns-automation
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+
+  # Routine Service
+  routine-service:
+    build:
+      context: .
+      dockerfile: services/routine/Dockerfile.rabbitmq
+    container_name: barns-routine
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      ROUTINE_CONFIG_PATH: /app/config/tasks.json
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+      robot-arm-service:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # Robot Arm Service (Software Control)
+  robot-arm-service:
+    build:
+      context: .
+      dockerfile: services/robot_arm/Dockerfile.rabbitmq
+    container_name: barns-robot-arm
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      ROBOT_SIMULATION: "false"  # Hardware mode for arms deployment
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+
+  # Scheduler Service
+  scheduler-service:
+    build:
+      context: .
+      dockerfile: services/scheduler/Dockerfile.rabbitmq
+    container_name: barns-scheduler
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+      routine-service:
+        condition: service_healthy
+    volumes:
+      - ./services/scheduler/data:/app/services/scheduler/data
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 50s
+
+  # OMS Service
+  oms-service:
+    build:
+      context: .
+      dockerfile: services/oms/Dockerfile.rabbitmq
+    container_name: barns-oms
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: barns_oms
+      POSTGRES_USER: barns_user
+      POSTGRES_PASSWORD: barns_pass
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - barns-network
+    restart: unless-stopped
+
+  # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
+  api-bridge:
+    build:
+      context: .
+      dockerfile: services/api-bridge/Dockerfile
+    container_name: barns-api-bridge
+    ports:
+      - "8000:8000"
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      PYTHONPATH: /app
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      validation-service:
+        condition: service_healthy
+      routine-service:
+        condition: service_healthy
+      scheduler-service:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Video Stream Service (keeping HTTP for streaming)
+  video-stream-service:
+    build:
+      context: .
+      dockerfile: services/video-stream/Dockerfile
+    container_name: barns-video-stream
+    ports:
+      - "8001:8000"
+    environment:
+      PYTHONPATH: /app
+    devices:
+      - /dev/video0:/dev/video0  # Primary webcam
+      - /dev/video1:/dev/video1  # Secondary webcam (if available)
+    privileged: true  # Required for camera access
+    volumes:
+      - /dev:/dev  # Access to device files
+    networks:
+      - barns-network
+    restart: unless-stopped
+
+  # Dashboard (keeping HTTP for web interface)
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/barns-dashboard/Dockerfile.rabbitmq
+    container_name: barns-dashboard
+    ports:
+      - "3000:80"
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      VIDEO_STREAM_URL: http://video-stream-service:8000
+      API_BRIDGE_URL: http://api-bridge:8000
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api-bridge:
+        condition: service_healthy
+      oms-service:
+        condition: service_started
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:80/ > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ============================================================================
+  # ROBOT ARM SERVICES
+  # ============================================================================
+  
+  # Robot Arm 1 (Dobot Nova5)
+  robot1:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_1:dev
+    container_name: oms_robot_1
+    
+    # Robot arms use both host and bridge networking 
+    # - Host networking for Fast-DDS multicast communication with hardware
+    # - Bridge networking via networks section for RabbitMQ service communication
+    network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
+    ipc: host
+    privileged: true
+    shm_size: "1g"   # second interface (depth/IR)
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.200.249  # Robot 1 IP address
+      - ROS_DOMAIN_ID=0             # ROS 2 domain for robot 1
+      - ROBOT_ID=1                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128            # host usbfs buffer hint
+      - ORBBEC_CONNECTION_DELAY=3000   # ms delay before opening camera
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000F6
+      - CAM_NAME=cam0
+      - DEVICE_ID=1
+
+    volumes:
+      - /dev/shm:/dev/shm               # share host shm tmpfs
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    #user: "${UID}:${GID}"  # Restore user permissions
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5901:5901"  # VNC access for robot 1
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    
+    restart: unless-stopped
+
+  # Robot Arm 2 (Dobot Nova5)
+  robot2:
+    build:
+      context: services/robot_container
+      dockerfile: docker/dev.Dockerfile
+    image: oms_robot_2:dev
+    container_name: oms_robot_2
+    
+    # Robot arms use host networking for Fast-DDS multicast communication
+    network_mode: host
+    extra_hosts:
+      - "rabbitmq:127.0.0.1"
+    ipc: host
+    privileged: true
+    shm_size: "1g"
+    
+    # Additional capabilities for USB device access
+    cap_add:
+      - SYS_ADMIN
+      - SYS_RAWIO
+      - DAC_OVERRIDE
+
+    # Bind entire USB bus for camera access
+    devices:
+      - "/dev/bus/usb:/dev/bus/usb"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - DOBOT_TYPE=nova5
+      - IP_address=192.168.200.248  # Robot 2 IP address
+      - ROS_DOMAIN_ID=1             # ROS 2 domain for robot 2
+      - ROBOT_ID=2                  # Robot container ID for RabbitMQ service
+      - RABBITMQ_URL= amqp://admin:admin123@rabbitmq:5672/  # Use localhost via port forwarding
+      - USBFS_MEMORY_MB=128
+      - ORBBEC_CONNECTION_DELAY=12000
+      - PYTHONPATH=/app/shared:/root/ros_ws/src
+      - CAMERA_SERIAL_NUMBER=CP1Z842000YW
+      - CAM_NAME=cam1
+      - DEVICE_ID=2
+
+    volumes:
+      - /dev/shm:/dev/shm
+      - ./services/robot_container/ros_ws:/root/ros_ws:rw
+      - ./shared:/app/shared:ro
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+    #user: "${UID}:${GID}"  # Restore user permissions
+    entrypoint: ["/entrypoint.sh"]
+    command: ["bash", "-c", "/root/ros_ws/run_full_stack.sh"]
+    stdin_open: true
+    tty: true
+    
+    ports:
+      - "5902:5901"  # VNC access for robot 2
+    
+    depends_on:
+      routine-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      robot1:
+        condition: service_started
+    
+    restart: unless-stopped
+
+  # RabbitMQ Management Tools (optional)
+  rabbitmq-cli:
+    image: rabbitmq:3.12-management
+    container_name: barns-rabbitmq-cli
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - barns-network
+    profiles:
+      - tools
+    command: ["tail", "-f", "/dev/null"]  # Keep container running for CLI access
+
+volumes:
+  rabbitmq_data:
+  redis_data:
+  postgres_data:
+
+networks:
+  barns-network:
+    driver: bridge 

@@ -224,8 +224,8 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         for step in cfg["steps"]:
             step_type = step["type"]
             func_name = step["function"]
-            # Merge static params + any item-specific params (if needed)
-            params = {**step.get("params", {}), **task.get("item", {})}
+            # Use only item-specific params (e.g., ingredients) and avoid step params from tasks.json
+            params = dict((task.get("item", {})).get("ingredients", {}))
             
             logger.info(f"Executing step: {func_name} ({step_type}) for cup {cup_id}")
             

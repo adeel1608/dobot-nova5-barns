@@ -304,224 +304,46 @@ def place_paper_cup(**params) -> bool:
         return False
 
 
-def serve_paper_cup(**params) -> bool:
+# New combined function for grab + place
+
+def dispense_paper_cup(**params) -> bool:
     """
-    Serve a paper cup from staging area to customer delivery point.
-    
-    This function handles the final step of drink service:
-    1. Moves from espresso home to pickup position
-    2. Grabs the prepared paper cup from staging
-    3. Transports paper cup to customer delivery area
-    4. Places paper cup for customer pickup
-    5. Returns to espresso home position
-    
+    Dispense a paper cup by grabbing it from the dispenser and placing it at the requested stage.
+
+    This function composes the full workflow by invoking `grab_paper_cup` followed by
+    `place_paper_cup` using the provided parameters.
+
     Args:
-        stage (str): Source stage where paper cup is located ('stage_1', 'stage_2', etc.), defaults to 'stage_1'
-        
+        size (str): Paper cup size to grab ('7oz', '9oz', '12oz', etc.). Defaults to '7oz'.
+        stage (str): Target stage for placement ('stage_1', 'stage_2', etc.). Defaults to 'stage_1'.
+
     Returns:
-        bool: True if paper cup served successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during serving process
-        
-    Example:
-        success = serve_paper_cup(stage='stage_1')
-        if success:
-            print("Paper cup served successfully")
+        bool: True if both grab and place steps succeed, False otherwise.
     """
     try:
-        # Extract and validate stage parameter
-        stage = params.get("stage", "stage_1")  # Default to stage_1
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-            
-        stage_params = PLACE_PAPER_CUP_PARAMS.get(str(stage))
-        
-        # Validate stage parameter
-        if not stage_params:
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print(f"[INFO] Available stages: {list(PLACE_PAPER_CUP_PARAMS.keys())}")
-            return False
-        
-        print(f"🚚 Starting paper cup serving sequence from: {stage}")
+        size = params.get("size", "7oz")
+        stage = params.get("stage", "stage_1")
+
+        print("🥤🚚 Starting paper cup dispense sequence")
         print("=" * 50)
-        
-        # Step 1: Move to espresso home position
-        print("🏠 Step 1/15: Moving to espresso home...")
-        home_result = run_skill("gotoJ_deg", *Espresso_home)
-        if home_result is False:
-            print("[ERROR] Failed to move to espresso home")
+
+        grab_ok = grab_paper_cup(size=size)
+        if grab_ok is False:
+            print("[ERROR] Paper cup grab step failed; aborting dispense sequence")
             return False
-        print("   ✅ Successfully moved to espresso home")
-        
-        # Step 2: Navigate to pickup position
-        print("🔄 Step 2/15: Navigating to pickup area...")
-        if 'twist_serve' in stage_params:
-            print(f"   📍 Executing serving twist for {stage}")
-            twist_serve_result = run_skill("moveJ_deg", *stage_params['twist_serve'])
-            
-            if twist_serve_result is False:
-                print("[ERROR] Failed to execute serving twist")
-                return False
-            print("   ✅ Successfully navigated to pickup area")
-        else:
-            print("[ERROR] No serving twist defined for this stage")
+
+        place_ok = place_paper_cup(stage=stage)
+        if place_ok is False:
+            print("[ERROR] Paper cup placement step failed; aborting dispense sequence")
             return False
-        
-        # Step 3: Move to paper cup pickup position
-        print("📍 Step 3/15: Moving to paper cup pickup position...")
-        if 'pick' in stage_params:
-            print(f"   📍 Moving to pickup position for {stage}")
-            pick_result = run_skill("gotoJ_deg", *stage_params['pick'])
-            
-            if pick_result is False:
-                print("[ERROR] Failed to move to pickup position")
-                return False
-            print("   ✅ Successfully positioned for pickup")
-        else:
-            print("[ERROR] No pickup position defined for this stage")
-            return False
-        
-        # Step 4: Lower to paper cup level
-        print("⬇️ Step 4/15: Lowering to paper cup level...")
-        lower_result = run_skill("moveEE", 0, 0, -140, 0, 0, 0)
-        
-        if lower_result is False:
-            print("[ERROR] Failed to lower to paper cup level")
-            return False
-        print("   ✅ Successfully lowered to paper cup level")
-        
-        # Step 5: Grip the paper cup for serving
-        print("🤏 Step 5/15: Gripping paper cup for serving...")
-        run_skill("sync")
-        grip_result = run_skill("set_gripper_position", 55, 125)
-        
-        if grip_result is False:
-            print("[ERROR] Failed to grip paper cup for serving")
-            return False
-        print("   ✅ Paper cup secured for serving")
-        
-        # Step 6: Set slower servo timing for careful handling
-        print("⚙️ Step 6/15: Setting careful servo timing...")
-        timing_result = run_skill("set_speed_factor", 20)
-        
-        if timing_result is False:
-            print("[WARNING] Failed to set servo timing, continuing with default...")
-        else:
-            print("   ✅ Servo timing set for careful handling")
-        
-        # Step 7: Lift paper cup
-        print("⬆️ Step 7/15: Lifting paper cup...")
-        if 'pick' in stage_params:
-            print(f"   📍 Lifting to pickup position for {stage}")
-            lift_result = run_skill("gotoJ_deg", *stage_params['pick'])
-            
-            if lift_result is False:
-                print("[ERROR] Failed to lift paper cup")
-                return False
-            print("   ✅ Successfully lifted paper cup")
-        
-        # Step 8: Move above serving area
-        print("📍 Step 8/15: Moving above serving area...")
-        if 'above_serve' in stage_params:
-            print(f"   📍 Moving above serving area for {stage}")
-            above_serve_result = run_skill("gotoJ_deg", *stage_params['above_serve'])
-            
-            if above_serve_result is False:
-                print("[ERROR] Failed to move above serving area")
-                return False
-            print("   ✅ Successfully positioned above serving area")
-        else:
-            print("[ERROR] No above serving position defined for this stage")
-            return False
-        
-        # Step 9: Lower to serving position
-        print("⬇️ Step 9/15: Lowering to serving position...")
-        if 'serve' in stage_params:
-            print(f"   📍 Moving to serving position for {stage}")
-            serve_result = run_skill("gotoJ_deg", *stage_params['serve'])
-            
-            if serve_result is False:
-                print("[ERROR] Failed to move to serving position")
-                return False
-            print("   ✅ Successfully positioned for serving")
-        else:
-            print("[ERROR] No serving position defined for this stage")
-            return False
-        
-        # Step 10: Release paper cup for customer
-        print("🤏 Step 10/15: Releasing paper cup for customer...")
-        run_skill("sync")
-        release_result = run_skill("set_gripper_position", 55, 0)
-        
-        if release_result is False:
-            print("[ERROR] Failed to release paper cup")
-            return False
-        print("   ✅ Paper cup released for customer pickup")
-        
-        # Step 11: Reset servo timing
-        print("⚙️ Step 11/15: Resetting servo timing...")
-        reset_timing_result = run_skill("set_speed_factor", 10)
-        
-        if reset_timing_result is False:
-            print("[WARNING] Failed to reset servo timing, continuing...")
-        else:
-            print("   ✅ Servo timing reset to normal operation")
-        
-        # Allow settling time
-        print("   ⏰ Allowing cup settling time...")
-        time.sleep(1.0)
-        
-        # Step 12: Move up after placing
-        print("⬆️ Step 12/15: Moving up after serving...")
-        up_result = run_skill("moveEE", 0, 0, 140, 0, 0, 0)
-        
-        if up_result is False:
-            print("[ERROR] Failed to move up after serving")
-            return False
-        print("   ✅ Successfully moved up after serving")
-        
-        # Step 13: Return to staging home
-        print("🏠 Step 13/15: Moving to staging home...")
-        staging_home_result = run_skill("gotoJ_deg", 106.460129, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
-        
-        if staging_home_result is False:
-            print("[ERROR] Failed to move to staging home")
-            return False
-        print("   ✅ Successfully moved to staging home")
-        
-        # Step 14: Twist joint 1 to reach espresso home
-        print("🔄 Step 14/15: Twisting to reach espresso home...")
-        final_twist_result = run_skill("moveJ_deg", -64.032688, 0, 0, 0, 0, 0)
-        
-        if final_twist_result is False:
-            print("[ERROR] Failed to execute final twist")
-            return False
-        print("   ✅ Successfully executed final twist")
-        
-        # Step 15: Return to espresso home
-        print("🏠 Step 15/15: Returning to espresso home...")
-        final_home_result = run_skill("gotoJ_deg", *Espresso_home)
-        
-        if final_home_result is False:
-            print("[ERROR] Failed to return to espresso home")
-            return False
-        print("   ✅ Successfully returned to espresso home")
-        
-        # Final success summary
+
         print("=" * 50)
-        print(f"✅ PAPER CUP SERVING COMPLETED SUCCESSFULLY FROM {stage.upper()}")
-        print("   ✓ Paper cup safely transported to customer area")
-        print("   ✓ Careful handling with adjusted servo timing")
-        print("   ✓ Robot returned to home position")
-        print("   🎉 Customer service completed!")
+        print(f"✅ PAPER CUP DISPENSED SUCCESSFULLY (size={size}, stage={stage})")
         print("=" * 50)
         return True
-        
+
     except Exception as e:
-        print(f"[ERROR] Unexpected error during paper cup serving: {e}")
-        print("[INFO] Paper cup serving process terminated due to error")
+        print(f"[ERROR] Unexpected error during paper cup dispensing: {e}")
         return False
 
 
@@ -529,5 +351,5 @@ def serve_paper_cup(**params) -> bool:
 SEQUENCES = {
     'grab_paper_cup': grab_paper_cup,
     'place_paper_cup': place_paper_cup,
-    'serve_paper_cup': serve_paper_cup,
+    'dispense_paper_cup': dispense_paper_cup,
 }

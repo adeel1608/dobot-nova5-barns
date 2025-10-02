@@ -1,0 +1,78 @@
+{
+    "Milk Processing": [
+        {
+            "action": "Milk_Dispensing_Frothing",
+            "assigned_arm": "Arm2",
+            "depends_on": [
+            ]
+        },
+        {
+            "action": "Pour_Frothed_Milk",
+            "assigned_arm": "Arm2",
+            "depends_on": ["Milk_Dispensing_Frothing"]
+        }
+    ],
+    "Calibrate": [
+        {
+            "action": "Calibrate",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Brew_Coffee": [
+        {
+        "action": "coffee_machine",
+        "assigned_arm": "Arm1",
+        "depends_on": []
+        }
+    ],
+    "Cleaning": [
+        {
+            "action": "Cleaning",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Purge Milk": [
+        {
+            "action": "dispense_milk",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Grinding": [
+        {
+            "action": "grinding_machine",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Tampering": [
+        {
+            "action": "tampering_machine",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Slush Machine": [
+        {
+            "action": "slush_machine",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ],
+    "Clean Steam Wand": [
+        {
+            "action": "steam_wand_cleaning",
+            "assigned_arm": "Arm2",
+            "depends_on": []
+        }
+    ],
+    "Software Test": [
+        {
+            "action": "software_test",
+            "assigned_arm": "Arm1",
+            "depends_on": []
+        }
+    ]
+}
