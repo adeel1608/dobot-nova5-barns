@@ -23,6 +23,55 @@ below_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_port: Optional[Tuple[float, ...]] = None
 
 
+# -------------------------
+# Normalization helpers
+# -------------------------
+def _normalize_espresso_shot(value: Optional[float]) -> Optional[Dict[str, Any]]:
+    """
+    Map numeric espresso value to a consistent set of parameters.
+
+    Rules:
+      - <= 1.0  -> single shot → port_3, positioning_time=2.0, portafilter_tool=single_portafilter
+      - >  1.0  -> double shot → port_1, positioning_time=3.0, portafilter_tool=double_portafilter
+    """
+    try:
+        if value is None:
+            return None
+        shots = float(value)
+    except Exception:
+        return None
+
+    if shots <= 1.0:
+        return {
+            "port": "port_3",
+            "positioning_time": 2.0,
+            "portafilter_tool": "single_portafilter",
+        }
+    else:
+        return {
+            "port": "port_1",
+            "positioning_time": 3.0,
+            "portafilter_tool": "double_portafilter",
+        }
+
+
+def _normalize_stage_with_prefix(stage_value: Any) -> Optional[str]:
+    """Return stage key like 'stage_1'|'stage_2'|'stage_3'|'stage_4' from flexible input."""
+    if stage_value is None:
+        return None
+    # already correct
+    if isinstance(stage_value, str) and stage_value.startswith("stage_"):
+        return stage_value
+    # numeric or numeric string → stage_N
+    try:
+        n = int(float(stage_value))
+        if n in (1, 2, 3, 4):
+            return f"stage_{n}"
+    except Exception:
+        pass
+    return None
+
+
 def unmount(**params) -> bool:
     """
     Unmount portafilter from espresso group for cleaning or grinding.
@@ -51,8 +100,12 @@ def unmount(**params) -> bool:
     """
     global below_espresso_port, mount_espresso_port
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        espresso_value = params.get("espresso", params.get("shots"))
+        shot_cfg = _normalize_espresso_shot(espresso_value)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -306,10 +359,16 @@ def grinder(**params) -> bool:
             print("Coffee grinding and tamping completed")
     """
     try:
-        # Extract and validate parameters
-        port = params.get("port", "port_2")  # Default to port_2
-        positioning_time = params.get("positioning_time", 3.0)  # Default to 3.0 seconds
-        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
+        # Extract and normalize parameters
+        espresso_value = params.get("espresso", params.get("shots"))
+        shot_cfg = _normalize_espresso_shot(espresso_value)
+
+        # Allow explicit overrides, else derive from shot config, else fall back to legacy defaults
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+        positioning_time = params.get("positioning_time")
+        if positioning_time is None:
+            positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 3.0)
+        portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -608,8 +667,12 @@ def mount(**params) -> bool:
             print("Portafilter mounted successfully")
     """
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        espresso_value = params.get("espresso", params.get("shots"))
+        shot_cfg = _normalize_espresso_shot(espresso_value)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -1049,8 +1112,9 @@ def pour_espresso_pitcher(**params) -> bool:
             print("Milk poured successfully")
     """
     try:
-        # Extract and validate stage parameter
-        stage = params.get("stage", "stage_1")  # Default to stage_1
+        # Extract and validate stage parameter (accept numeric like 1/1.0 → 'stage_1')
+        raw_stage = params.get("stage", "stage_1")
+        stage = _normalize_stage_with_prefix(raw_stage) or "stage_1"
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
@@ -1568,8 +1632,6 @@ def return_espresso_pitcher(**params) -> bool:
         print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
         print("[INFO] Pitcher return process terminated due to error")
         return False
-
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

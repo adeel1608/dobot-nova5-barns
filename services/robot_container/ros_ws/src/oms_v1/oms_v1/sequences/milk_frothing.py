@@ -17,6 +17,29 @@ from oms_v1.params import MILK_FROTHING_PARAMS
 # These are used to remember positions between function calls for safe return operations
 approach_angles: Optional[Tuple[float, ...]] = None
 grab_angles: Optional[Tuple[float, ...]] = None
+# -------------------------
+# Normalization helpers
+# -------------------------
+def _normalize_stage(stage_value: Any) -> str:
+    """Return stage key as '1'|'2'|'3'|'4' from flexible input (accept 1/1.0/'stage_1' etc.)."""
+    if stage_value is None:
+        return '1'
+    # if provided like 'stage_1', 'stage_2', map to '1'..'4'
+    if isinstance(stage_value, str) and stage_value.startswith('stage_'):
+        try:
+            n = int(stage_value.split('_', 1)[1])
+            if n in (1, 2, 3, 4):
+                return str(n)
+        except Exception:
+            pass
+    try:
+        n = int(float(stage_value))
+        if n in (1, 2, 3, 4):
+            return str(n)
+    except Exception:
+        pass
+    return str(stage_value)
+
 
 
 def get_frother_position(**params) -> bool:
@@ -222,11 +245,11 @@ def pick_frother(**params) -> bool:
         active_frother = 'milk_frother_1'
         
         if not approach_result or elapsed_time >= 2.0:
-            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_1...")
-            active_frother = 'milk_frother_1'
-            approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
+            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_2...")
+            active_frother = 'milk_frother_2'
+            approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
             if not approach_result:
-                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_1")
+                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_2")
                 return False
         
         print(f"   ✅ Successfully approached {active_frother}")
@@ -310,6 +333,68 @@ def pick_frother(**params) -> bool:
         print("[INFO] Frother pickup process terminated due to error")
         return False
     
+#ADD NEW FUNCTION: place_frother_milk_station 
+def place_frother_milk_station(**params) -> bool:
+    """
+    Place the milk frother at the milk station safely.
+
+    Returns:
+        bool: True on successful placement, False otherwise.
+    """
+    try:
+        print("📍 Placing frother at milk station...")
+        if run_skill("moveEE_movJ", 0, 0, 150, 0, 0, 0) is False:
+            print("[ERROR] Failed to raise end effector before placement")
+            return False
+        if run_skill("gotoJ_deg", -6.988280,-50.951061,-132.741623,2.908280,-92.178726,8.730732) is False:
+            print("[ERROR] Failed to reach pre-place joint configuration 1")
+            return False
+        if run_skill("gotoJ_deg", -45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088) is False:
+            print("[ERROR] Failed to reach pre-place joint configuration 2")
+            return False
+        if run_skill("gotoJ_deg", -28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609) is False:
+            print("[ERROR] Failed to reach approach configuration")
+            return False
+        if run_skill("gotoJ_deg", -28.193760,-67.570763,-75.181091,-38.773808,-112.116196,8.775330) is False:
+            print("[ERROR] Failed to reach place configuration")
+            return False
+        if run_skill("set_gripper_position", 255, 200) is False:
+            print("[ERROR] Failed to loosen gripper to place frother")
+            return False
+        print("✅ Frother placed at milk station")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Unexpected error while placing frother at milk station: {e}")
+        return False
+
+#ADD NEW FUNCTION: pick_frother_milk_station 
+def pick_frother_milk_station(**params) -> bool:
+    """
+    Pick the milk frother up from the milk station safely.
+
+    Returns:
+        bool: True on successful pickup, False otherwise.
+    """
+    try:
+        print("📍 Picking frother from milk station...")
+        if run_skill("set_gripper_position", 255, 255) is False:
+            print("[ERROR] Failed to close gripper before pick")
+            return False
+        if run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0) is False:
+            print("[ERROR] Failed to lift frother from station")
+            return False
+        if run_skill("gotoJ_deg", -28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609) is False:
+            print("[ERROR] Failed to reach retreat configuration 1")
+            return False
+        if run_skill("gotoJ_deg", -45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088) is False:
+            print("[ERROR] Failed to reach retreat configuration 2")
+            return False
+        print("✅ Frother picked from milk station")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Unexpected error while picking frother from milk station: {e}")
+        return False
+
 
 def mount_frother(**params) -> bool:
     """
@@ -349,15 +434,6 @@ def mount_frother(**params) -> bool:
         else:
             print("   ✅ Servo timing set for precise movements")
         
-        # Step 2: Move to frothing preparation position
-        print("📍 Step 2/4: Moving to frothing preparation position...")
-        prep_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['mounting']['prep'])
-        if prep_result is False:
-            print("[ERROR] Failed to move to frothing preparation position")
-            return False
-        print("   ✅ Successfully positioned for frothing preparation")
-        
-        # Step 3: Approach steam wand (deep position)
         print("🎯 Step 3/4: Approaching steam wand (deep position)...")
         approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
         if approach_result is False:
@@ -562,6 +638,7 @@ def swirl_milk(**params) -> bool:
         print("[INFO] Milk swirling process terminated due to error")
         return False
 
+
 def pour_milk(**params) -> bool:
     """
     Pour frothed milk into cup at specified stage.
@@ -590,7 +667,7 @@ def pour_milk(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = params.get("stage", "1")  # Default to stage 1
+        stage = _normalize_stage(params.get("stage", "1"))  # Accept numeric and 'stage_N'
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
@@ -811,121 +888,84 @@ def pour_milk(**params) -> bool:
         print("[INFO] Milk pouring process terminated due to error")
         return False
 
+#ADD NEW FUNCTION: clean_frother
+def clean_frother(**params) -> bool:
+    """
+    Perform a cleaning motion for the frother tool.
+
+    Returns:
+        bool: True on successful cleaning movement sequence, False otherwise.
+    """
+    try:
+        print("🧽 Cleaning frother motion sequence...")
+        if run_skill("gotoJ_deg", -37.858528,-39.202564,-84.331383,-67.038254,-75.938263,-12.405199) is False:
+            print("[ERROR] Failed to reach clean pose 1")
+            return False
+        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
+            print("[ERROR] Failed to reach clean pose 2")
+            return False
+        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+            print("[ERROR] Failed to reach clean pose 3")
+            return False
+        if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
+            print("[ERROR] Failed to execute cleaning motion")
+            return False
+        print("✅ Frother cleaning movement completed")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during frother cleaning: {e}")
+        return False
+
 def return_frother(**params) -> bool:
     """
-    Return the milk frother to its storage position after use.
-    
-    This function returns the frother using stored position data:
-    1. Moves to intermediate return position
-    2. Moves to return preparation position
-    3. Uses stored grab position if available
-    4. Opens gripper to release frother
-    5. Uses stored approach position for safe withdrawal
-    6. Returns to home position
-    
-    Args:
-        **params: Additional parameters (currently unused but reserved for future expansion)
-    
+    Return the frother to its original location using recorded approach/grab angles.
+
     Returns:
-        bool: True if frother returned successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during return process
-        
-    Example:
-        success = return_frother()
-        if success:
-            print("Milk frother returned successfully")
+        bool: True on successful return, False otherwise.
     """
     try:
         global approach_angles, grab_angles
-        
-        print("🔄 Starting milk frother return sequence...")
-        print("=" * 50)
-        
-        # Step 1: Move to intermediate return position
-        print("📍 Step 1/7: Moving to intermediate return position...")
-        intermediate_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['intermediate'])
-        if intermediate_result is False:
-            print("[ERROR] Failed to move to intermediate return position")
-            return False
-        print("   ✅ Successfully moved to intermediate position")
-        
-        # # Step 2: Move to return preparation position
-        # print("📍 Step 2/7: Moving to return preparation position...")
-        # prep_result = run_skill("gotoJ_deg", 22.402670, -79.481049, -59.269863, -39.324520, -81.417374, 11.115391)
-        # if prep_result is False:
-        #     print("[ERROR] Failed to move to return preparation position")
-        #     return False
-        # print("   ✅ Successfully moved to return preparation position")
-        
-        # Step 3: Use stored grab position if available
-        print("📍 Step 3/7: Moving to stored grab position...")
-        if grab_angles is not None and len(grab_angles) >= 6:
-            print(f"   💾 Using stored grab position ({len(grab_angles)} joint values)...")
-            grab_pos_result = run_skill("gotoJ_deg", *grab_angles)
-            if grab_pos_result is False:
-                print("[ERROR] Failed to move to stored grab position")
-                return False
-            print("   ✅ Successfully moved to stored grab position")
-        else:
-            print("   ⚠️ No stored grab position available - using default positioning")
-        
-        # Step 4: Open gripper to release frother
-        print("🤏 Step 4/7: Opening gripper to release frother...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
-        release_result = run_skill("set_gripper_position", 255, 165)
-        if release_result is False:
-            print("[ERROR] Failed to open gripper")
-            return False
-        print("   ✅ Gripper opened, frother released")
-        
-        time.sleep(0.5)
+        print("↩️ Returning frother to original location...")
 
-        # Step 5: Use stored approach position if available
-        print("⬅️ Step 5/7: Moving to stored approach position...")
-        if approach_angles is not None and len(approach_angles) >= 6:
-            print(f"   💾 Using stored approach position ({len(approach_angles)} joint values)...")
-            approach_pos_result = run_skill("gotoJ_deg", *approach_angles)
-            if approach_pos_result is False:
-                print("[ERROR] Failed to move to stored approach position")
-                return False
-            print("   ✅ Successfully moved to stored approach position")
-        else:
-            print("   ⚠️ No stored approach position available - using default positioning")
-        
-        # Step 6: Return to home position
-        print("🏠 Step 6/7: Returning to home position...")
-        home_result = home(position="north")
-        if home_result is False:
-            print("[ERROR] Failed to return to home position")
+        if grab_angles is None or approach_angles is None:
+            print("[ERROR] Missing recorded angles for safe return. Ensure pick_frother() recorded positions.")
             return False
-        print("   ✅ Successfully returned to home position")
-        
-        # Step 7: Final gripper opening
-        print("🤏 Step 7/7: Final gripper opening...")
-        final_grip_result = run_skill("set_gripper_position", 255, 0)
-        if final_grip_result is False:
-            print("[WARNING] Failed final gripper opening - frother should still be properly released")
-        else:
-            print("   ✅ Final gripper opening completed")
-        
-        # Final success summary
-        print("=" * 50)
-        print("✅ MILK FROTHER RETURN COMPLETED SUCCESSFULLY")
-        print("   ✓ Frother safely returned to storage position")
-        print("   ✓ Stored position data utilized effectively")
-        print("   ✓ Robot returned to home position")
-        print("   ✓ Ready for next frothing operation")
-        print("=" * 50)
+
+        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+            print("[ERROR] Failed to reach pre-return pose 1")
+            return False
+        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
+            print("[ERROR] Failed to reach pre-return pose 2")
+            return False
+        if run_skill("gotoJ_deg", -43.779022,-38.657257,-102.554436,-39.930614,-124.977203,4.300227) is False:
+            print("[ERROR] Failed to reach pre-return pose 3")
+            return False
+        if run_skill("gotoJ_deg", -0.401337,-55.195671,-129.519867,1.974099,-89.559532,4.300207) is False:
+            print("[ERROR] Failed to reach pre-return pose 4")
+            return False
+        if run_skill("gotoJ_deg", *grab_angles) is False:
+            print("[ERROR] Failed to go to recorded grab angles")
+            return False
+        if run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0) is False:
+            print("[ERROR] Failed to execute final approach move")
+            return False
+        if run_skill("sync") is False:
+            print("[WARNING] Sync operation failed - continuing...")
+        if run_skill("set_gripper_position", 255, 165) is False:
+            print("[ERROR] Failed to release frother")
+            return False
+        time.sleep(0.5)
+        if run_skill("gotoJ_deg", *approach_angles) is False:
+            print("[ERROR] Failed to go to recorded approach angles")
+            return False
+        if home(position="north") is False:
+            print("[WARNING] Failed to go home after return")
+        if run_skill("set_gripper_position", 255, 0) is False:
+            print("[WARNING] Failed to fully open gripper after return")
+        print("✅ Frother returned successfully")
         return True
-        
     except Exception as e:
         print(f"[ERROR] Unexpected error during frother return: {e}")
-        print("[INFO] Frother return process terminated due to error")
         return False
 
 
@@ -1027,8 +1067,6 @@ def clean_steam_wand(**params) -> bool:
         return False
 
 
-
-
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_frother_position': get_frother_position,
@@ -1039,5 +1077,9 @@ SEQUENCES = {
     'return_frother': return_frother,
     'mount_frother': mount_frother,
     'clean_steam_wand': clean_steam_wand,
+    'clean_frother': clean_frother,
+    'return_frother': return_frother,
+    'place_frother_milk_station': place_frother_milk_station,
+    'pick_frother_milk_station': pick_frother_milk_station,
 }
 

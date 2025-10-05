@@ -11,10 +11,41 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
 from oms_v1.manipulate_node import run_skill
+from oms_v1.sequences.home import home
 
 # Predefined home positions for paper cup operations
 Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
 Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+
+
+# -------------------------
+# Normalization helpers
+# -------------------------
+def _normalize_cup_size(size: str) -> str:
+    """Map new codes H7/H9/H12 to existing paper cup sizes (7oz/9oz/12oz)."""
+    if not size:
+        return "7oz"
+    s = str(size).strip().lower()
+    mapping = {
+        "h7": "7oz",
+        "h9": "9oz",
+        "h12": "12oz",
+    }
+    return mapping.get(s, size)
+
+def _normalize_stage(stage_value: str) -> str:
+    """Return 'stage_1'..'stage_4' from flexible input like 1/1.0/'1'/stage_1."""
+    if stage_value is None:
+        return "stage_1"
+    if isinstance(stage_value, str) and stage_value.startswith("stage_"):
+        return stage_value
+    try:
+        n = int(float(stage_value))
+        if n in (1, 2, 3, 4):
+            return f"stage_{n}"
+    except Exception:
+        pass
+    return stage_value
 
 
 def grab_paper_cup(**params) -> bool:
@@ -44,7 +75,7 @@ def grab_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate size parameter
-        size = params.get("size", "7oz")  # Default to 7oz
+        size = _normalize_cup_size(params.get("size", "7oz"))  # Default to 7oz and map H7/H9/H12
         if not size:
             print("[ERROR] No size parameter provided")
             return False
@@ -189,7 +220,7 @@ def place_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = params.get("stage", "stage_1")  # Default to stage_1
+        stage = _normalize_stage(params.get("stage", "stage_1"))  # Accept numeric or prefixed
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
@@ -347,9 +378,244 @@ def dispense_paper_cup(**params) -> bool:
         return False
 
 
+# Station functions replicated from plastic cups, adapted for paper cup sizes (H7/H9/H12)
+
+def pick_paper_cup_station(**params) -> bool:
+    """
+    Pick up a paper cup from a specific stage.
+
+    Args:
+        stage (str|int|float): Target stage to pick cup from ('1', '2', '3', or '4', also accepts numeric 1.0, etc.)
+        cup_size (str): One of 'H7', 'H9', 'H12' (also accepts '7oz','9oz','12oz')
+    """
+    try:
+        # Extract and validate parameters
+        raw_stage = params.get("stage")
+        if raw_stage is None:
+            print("[ERROR] No stage parameter provided")
+            return False
+
+        # Normalize stage to '1'..'4'
+        stage = None
+        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
+            try:
+                stage = str(int(raw_stage.split("_", 1)[1]))
+            except Exception:
+                stage = raw_stage
+        else:
+            try:
+                stage = str(int(float(raw_stage)))
+            except Exception:
+                stage = str(raw_stage)
+
+        cup_size_input = params.get("cup_size")
+        if not cup_size_input:
+            print("[ERROR] No cup_size parameter provided")
+            return False
+
+        # Map H-codes to legacy sizes
+        size_mapped = _normalize_cup_size(cup_size_input)  # H7/H9/H12 -> 7oz/9oz/12oz
+
+        # Validate parameters
+        valid_stages = ('1', '2', '3', '4')
+        valid_sizes = ('7oz', '9oz', '12oz')
+
+        if stage not in valid_stages:
+            print(f"[ERROR] Invalid stage: {stage!r}")
+            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
+            return False
+
+        if size_mapped not in valid_sizes:
+            print(f"[ERROR] Invalid cup size for paper: {cup_size_input!r}")
+            print(f"[INFO] Valid sizes: H7/H9/H12 (or 7oz/9oz/12oz)")
+            return False
+
+        print(f"🥤 Starting paper cup pickup sequence - Stage: {stage}, Size: {size_mapped}")
+        print("=" * 50)
+
+        # Stage-specific positioning (replicated from plastic station)
+        stage_positions = {
+            "1": (-75.801956, -43.247288, -144.295563, -0.250561, -80.475777, 0.593474),
+            "2": (-104.642982, -42.934860, -132.064575, -13.168961, -109.036461, -3.372526),
+            "3": (-124.200401, -46.766388, -113.365036, -29.749237, -128.354553, -6.845194),
+            "4": (-136.622299, -54.745396, -89.557060, -47.935513, -140.554718, -10.175223)
+        }
+
+        # Paper cup gripper positions (align with 7/9/12oz used for paper)
+        gripper_positions = {
+            "7oz": 145,
+            "9oz": 145,
+            "12oz": 145,
+        }
+
+        # Step 1: Navigate to home positions
+        print("🏠 Step 1/6: Navigating to home positions...")
+        if not home(position="north_east"):
+            print("[ERROR] Failed to move to north_east home")
+            return False
+        if not home(position="east"):
+            print("[ERROR] Failed to move to east home")
+            return False
+        if stage in ("3", "4"):
+            if not home(position="south_east"):
+                print("[ERROR] Failed to move to south_east home")
+                return False
+        print("   ✅ Successfully navigated to home positions")
+
+        # Step 2: Move to stage-specific position
+        print(f"📍 Step 2/6: Moving to stage {stage} position...")
+        stage_result = run_skill("gotoJ_deg", *stage_positions[stage])
+        if not stage_result:
+            print(f"[ERROR] Failed to move to stage {stage} position")
+            return False
+        print(f"   ✅ Successfully positioned at stage {stage}")
+
+        # Step 3: Position for cup pickup
+        print("🎯 Step 3/6: Positioning for cup pickup...")
+        pickup_result = run_skill("moveEE", 0, -100, 0, 0, 0, 0)
+        if not pickup_result:
+            print("[ERROR] Failed to position for cup pickup")
+            return False
+        print("   ✅ Successfully positioned for pickup")
+
+        # Step 4: Grip the cup
+        print(f"🤏 Step 4/6: Gripping {size_mapped} paper cup...")
+        grip_result = run_skill("set_gripper_position", 255, gripper_positions[size_mapped])
+        if not grip_result:
+            print("[ERROR] Failed to grip cup")
+            return False
+        print("   ✅ Cup gripped successfully")
+
+        # Step 5: Return to safe position
+        print("🏠 Step 5/6: Returning to safe position...")
+        if not home(position="east"):
+            print("[ERROR] Failed to return to east home")
+            return False
+        print("   ✅ Successfully returned to safe position")
+
+        print("🏠 Step 5/6: Returning to safe position...")
+        if not home(position="north_east"):
+            print("[ERROR] Failed to return to east home")
+            return False
+        print("   ✅ Successfully returned to safe position")
+
+        # Final success summary
+        print("=" * 50)
+        print(f"✅ PAPER CUP PICKUP COMPLETED SUCCESSFULLY")
+        print(f"   ✓ Stage {stage} cup ({size_mapped}) picked up")
+        print("   ✓ Positioned for next operation")
+        print("=" * 50)
+        return True
+    
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during paper cup pickup: {e}")
+        print("[INFO] Cup pickup process terminated due to error")
+        return False
+
+
+def place_paper_cup_station(**params) -> bool:
+    """
+    Place a paper cup at specified staging area.
+
+    Args:
+        stage (str|int|float): Target staging area ('1','2','3','4', also accepts numeric 1.0 etc.)
+    """
+    try:
+        raw_stage = params.get("stage")
+        if raw_stage is None:
+            print("[ERROR] No stage parameter provided")
+            return False
+
+        # Normalize stage to '1'..'4'
+        stage = None
+        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
+            try:
+                stage = str(int(raw_stage.split("_", 1)[1]))
+            except Exception:
+                stage = raw_stage
+        else:
+            try:
+                stage = str(int(float(raw_stage)))
+            except Exception:
+                stage = str(raw_stage)
+
+        valid_stages = ('1', '2', '3', '4')
+        if stage not in valid_stages:
+            print(f"[ERROR] Unknown stage: {stage!r}")
+            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
+            return False
+
+        print(f"🥤 Starting paper cup placement sequence for stage {stage}")
+        print("=" * 50)
+
+        # Step 1: Move to north-east home
+        print("🏠 Step 1/5: Moving to north-east home...")
+        if not home(position="north_east"):
+            print("[ERROR] Failed to move to north-east home")
+            return False
+        print("   ✅ Successfully moved to north-east home")
+
+        # Step 2: Move to east home
+        print("🏠 Step 2/5: Moving to east home...")
+        if not home(position="east"):
+            print("[ERROR] Failed to move to east home")
+            return False
+        print("   ✅ Successfully moved to east home")
+
+        # Step 3: Move to stage-specific position (re-using plastic station positions)
+        print(f"🎯 Step 3/5: Moving to stage {stage} position...")
+        stage_positions = {
+            "1": (-80.221687,-43.867016,-125.338081,-18.518541,-84.856163,0.006812),
+            "2": (-100.830803,-45.966148,-116.024010,-26.002304,-105.266800,-2.802466),
+            "3": (-117.226875,-50.948524,-99.833191,-38.283516,-121.485474,-5.440053),
+            "4": (-129.165802,-59.506020,-76.980766,-54.155602,-133.259628,-8.007045),
+        }
+
+        stage_result = run_skill("gotoJ_deg", *stage_positions[stage])
+        if not stage_result:
+            print(f"[ERROR] Failed to move to stage {stage} position")
+            return False
+        print(f"   ✅ Successfully positioned at stage {stage}")
+
+        # Step 4: Release cup
+        print("🤏 Step 4/5: Releasing paper cup...")
+        release_result = run_skill("set_gripper_position", 50, 0)
+        if not release_result:
+            print("[ERROR] Failed to release paper cup")
+            return False
+        print("   ✅ Cup released successfully")
+
+        # Step 5: Move up and return to home
+        print("⬆️ Step 5/5: Moving up and returning to home...")
+        up_result = run_skill("moveEE", 0, 100, 0, 0, 0, 0)
+        if not up_result:
+            print("[ERROR] Failed to move up after placement")
+            return False
+        if not home(position="east"):
+            print("[ERROR] Failed to return to east home")
+            return False
+        print("   ✅ Successfully moved up and returned to home")
+
+        # Final success summary
+        print("=" * 50)
+        print(f"✅ PAPER CUP PLACEMENT COMPLETED FOR STAGE {stage}")
+        print("   ✓ Cup positioned at designated staging area")
+        print("   ✓ Safe release and clearance achieved")
+        print("   ✓ Robot returned to home position")
+        print("   🥤 Beverage station ready!")
+        print("=" * 50)
+        return True
+
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during paper cup placement: {e}")
+        print("[INFO] Cup placement process terminated due to error")
+        return False
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'grab_paper_cup': grab_paper_cup,
     'place_paper_cup': place_paper_cup,
     'dispense_paper_cup': dispense_paper_cup,
+    'pick_paper_cup_station': pick_paper_cup_station,
+    'place_paper_cup_station': place_paper_cup_station,
 }
