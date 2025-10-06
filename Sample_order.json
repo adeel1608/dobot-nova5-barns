@@ -1,0 +1,63 @@
+{
+    "date": "2024-06-12",
+    "time": "10:30:00",
+    "transaction_id": "AJDX01-000168-1749705835893",
+    "store_number": "AJDX01",
+    "pos_reg_id": "000168",
+    "customer_id": "ALC004",
+    "items": [
+        {
+            "item_id": "iced_spanish_latte_12oz",
+            "quantity": 1,
+             "kitchen_notes": [
+                    {
+                          "type" : "Drink Foam",
+                          "qty" : 0,
+                          "detail" : "Extra Foam"
+                    },
+                    {
+                          "type" : "Drink Ice",
+                          "qty" : 0,
+                          "detail" : "Normal"
+                    },
+                    {
+                          "type" : "Drink Temprature",
+                          "qty" : 0,
+                          "detail" : "Less Hot"
+                    },
+                    {
+                          "type" : "Sugar",
+                          "qty" : 1,
+                          "detail" : "Tropicana"
+                    },
+                    {
+                          "type" : "Sugar",
+                          "qty" : 2,
+                          "detail" : "Brown"
+                    }
+            ],
+             "item_ingredients": [
+                  {
+                        "itemId": "213419",
+                        "qty": 1,
+                        "isAddon": false,
+                        "modifierGroupId": "milk",
+                        "isModified": "true",
+                        "initialItemId": "213411"
+                  },
+                  {
+                        "itemId": "hazelnut_syrup",
+                        "qty": 1,
+                        "isAddon": true,
+                        "modifierGroupId": "AddOns"
+                  },
+                  {
+                        "itemId": "vanilla_syrup",
+                        "qty": 2,
+                        "isAddon": true,
+                        "modifierGroupId": "AddOns"
+                  }
+            ] 
+        }
+    ]
+}
