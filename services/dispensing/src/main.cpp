@@ -142,7 +142,8 @@ const MotorMap MOTOR_MAP[] = {
   {"sauce1", 10}, {"sauce2", 11}, {"sauce3", 12}, {"sauce4", 25},
   {"sauce5", 27}, {"sauce6", 29}, {"sauce7", 31}, {"sauce8", 33},
   {"sauce9", 35}, {"sauce10", 37}, {"sauce11", 39}, {"sauce12", 41},
-  {"sauce13", 43}, {"sauce14", 45}, {"sauce15", 47}
+  {"sauce13", 43}, {"sauce14", 45}, {"sauce15", 47},
+  {"rinser", 49}
 };
 const uint8_t NUM_MOTOR_MAP = sizeof(MOTOR_MAP) / sizeof(MOTOR_MAP[0]);
 
@@ -204,6 +205,13 @@ struct DispenseJob {
 
 DispenseJob current_job = {IDLE, 0, 0, 0, 0, 0.2, 0, 0, 0, 0, false, 60000, 0};
 bool global_speed_enabled = false;
+// Frother bridge state (Nano Every on Serial1)
+static bool frother_active = false;
+static char nanoBuf[96];
+static int nanoIdx = 0;
+// Rinser pulse control (Mega pin 49)
+static bool rinser_active = false;
+static uint32_t rinser_end_ms = 0;
 // Liquid-specific lag compensation
 struct LiquidLag {
   const char* name;
@@ -365,6 +373,8 @@ static void handleLeakEmergency() {
     
     // Send alert to MQTT bridge
     BRIDGE_SERIAL.println("LEAK_EMERGENCY_DETECTED");
+    // Also stop frother subsystem (Nano Every)
+    Serial1.println("FR_CMD:0,0"); // OFF immediately
     
     // Auto-reset leak emergency after 5 seconds if no active dispensing
     // This prevents permanent lockout from false triggers
@@ -439,6 +449,10 @@ const char* getLiquidNameById(uint8_t liquid_type) {
 }
 
 bool startDispenseJob(const char* cup_name, const char* motor_name, float target_weight, const char* liquid_type = NULL) {
+  if (frother_active) {
+    Serial.println(F("FROTHER ACTIVE - dispensing blocked"));
+    return false;
+  }
   if (current_job.state == DISPENSING) {
     Serial.println(F("Job already running! Use STOP first."));
     return false;
@@ -609,6 +623,7 @@ void setup() {
   initLagOverrides();
 
   Serial.begin(115200);
+  Serial1.begin(115200);
   delay(200);
   Serial.println(F("MEGA: Intelligent Dispensing System with MQTT Bridge"));
   Serial.println(F("UART2 (115200) to MQTT Bridge on pins 16/17"));
@@ -835,6 +850,12 @@ void processBridgeCommands() {
   cmd.trim();
   
   Serial.print("BRIDGE RX: "); Serial.println(cmd); // DEBUG
+
+  // Frother commands from Micro → forward to Nano Every on Serial1
+  if (cmd.startsWith("FR_CMD:")) {
+    Serial1.println(cmd); // pass-through to Nano
+    return;
+  }
   
   // Handle CAN commands (format: "CAN:motor_id,weight_dg,liquid_type")
   if (cmd.startsWith("CAN:")) {
@@ -855,6 +876,14 @@ void processBridgeCommands() {
       Serial.print(" Weight="); Serial.print(target_weight, 1);
       Serial.print("g Type="); Serial.println(liquid_type);
       
+      // Special handling: rinser (motor_id=24) → 5s pulse on D49, ignore scales
+      if (motor_id == 24) {
+        digitalWrite(49, HIGH);
+        rinser_active = true;
+        rinser_end_ms = millis() + 5000UL;
+        return;
+      }
+
       if (motor_name && liquid_name) {
         startDispenseJob("CAN", motor_name, target_weight, liquid_name);
         // Send ACK back to Micro via UART
@@ -901,10 +930,45 @@ void loop() {
   
   // Handle commands from MQTT bridge (UART2)
   processBridgeCommands();
+
+  // Pump frother events from Nano → Micro
+  while (Serial1.available()) {
+    char c = Serial1.read();
+    if (c == '\n') {
+      nanoBuf[nanoIdx] = 0;
+      String line = String(nanoBuf);
+      // Update frother_active based on events
+      if (line.startsWith("FR_EVT:STATE,")) {
+        int p1 = line.indexOf(',');
+        int p2 = line.indexOf(',', p1 + 1);
+        int p3 = line.indexOf(',', p2 + 1);
+        // mode = substring(p1+1,p2) not needed here
+        uint8_t busy = (uint8_t)line.substring(p2 + 1, p3).toInt();
+        frother_active = busy ? true : false;
+      } else if (line.startsWith("FR_EVT:DONE,") || line.startsWith("FR_EVT:ERROR,")) {
+        frother_active = false;
+      }
+      // Forward raw line to Micro over BRIDGE
+      BRIDGE_SERIAL.println(nanoBuf);
+      // Also echo to Mega USB Serial for direct monitoring
+      Serial.println(nanoBuf);
+      nanoIdx = 0;
+    } else if (nanoIdx < (int)sizeof(nanoBuf) - 1) {
+      nanoBuf[nanoIdx++] = c;
+    }
+  }
   
   // Process active dispensing job (only if no leak emergency)
-  if (!leak_emergency_triggered) {
+  if (!leak_emergency_triggered && !frother_active) {
     processDispenseJob();
+  }
+
+  // Rinser pulse completion handling and upstream notification
+  if (rinser_active && (int32_t)(millis() - rinser_end_ms) >= 0) {
+    digitalWrite(49, LOW);
+    rinser_active = false;
+    // Notify Micro (for CAN deferred ACK): include substring State=COMPLETED
+    BRIDGE_SERIAL.println("State=COMPLETED RINSER");
   }
   
   // Auto-recovery: Reset leak emergency if no current leaks detected for 5 seconds

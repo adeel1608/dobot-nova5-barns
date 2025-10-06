@@ -1,18 +1,25 @@
 #include <Arduino.h>
 #include <SPI.h>
+#define ENABLE_MQTT 0
+#if ENABLE_MQTT
 #include <Ethernet.h>
 #include <PubSubClient.h>
+#endif
 #include <mcp2515.h>
 
-// Network configuration
+// Network configuration (only if MQTT enabled)
+#if ENABLE_MQTT
 byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0x01};
 IPAddress ip(192, 168, 200, 211);
 IPAddress gw(192, 168, 200, 1);
 IPAddress sub(255, 255, 255, 0);
+#endif
 
 // W5500 pins (existing)
+#if ENABLE_MQTT
 #define W5500_CS_PIN   10
 #define W5500_RST_PIN  9
+#endif
 
 // MCP2515 pins (new)
 #define CAN_CS_PIN     4
@@ -29,6 +36,10 @@ IPAddress sub(255, 255, 255, 0);
 #define CAN_ID_DISPENSING_CMD   0x110   // Commands to dispensing system
 #define CAN_ID_DISPENSING_ACK   0x111   // ACK from dispensing system
 #define CAN_ID_DISPENSING_DATA  0x112   // Scale data from dispensing system
+
+// Frother CAN IDs
+#define CAN_ID_FROTHER_CMD      0x320   // Frother command
+#define CAN_ID_FROTHER_EVT      0x321   // Frother events/telemetry
 
 // Liquid type mapping
 #define LIQ_NORMAL_WATER                 1
@@ -48,12 +59,82 @@ IPAddress sub(255, 255, 255, 0);
 #define LIQ_PASSION_FRUIT_ICED_SYRUP     15
 #define LIQ_ICE_TEA_SYRUP                16
 
+#if ENABLE_MQTT
 EthernetClient ethClient;
 PubSubClient mqtt(ethClient);
+#endif
 MCP2515 mcp2515(CAN_CS_PIN);
 
 static uint8_t can_error_count = 0;
 static bool pending_dispense_ack = false;
+static bool frother_busy = false;
+static uint32_t last_heartbeat_ms = 0;
+
+// Forward declaration to satisfy helper calls
+static void can_reinit_normal();
+
+// ====================== Frother helpers (CAN <-> UART) ======================
+static inline void can_send_evt_ack(uint8_t cmd, uint8_t accepted, uint8_t busy) {
+  struct can_frame msg; msg.can_id = CAN_ID_FROTHER_EVT; msg.can_dlc = 8;
+  msg.data[0] = 0x00; // ACK
+  msg.data[1] = cmd;
+  msg.data[2] = accepted ? 1 : 0;
+  msg.data[3] = busy ? 1 : 0;
+  msg.data[4] = 0; msg.data[5] = 0; msg.data[6] = 0; msg.data[7] = 0;
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&msg);
+    if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+  }
+}
+
+static inline void can_send_evt_done(uint8_t cmd, uint8_t errMask) {
+  struct can_frame msg; msg.can_id = CAN_ID_FROTHER_EVT; msg.can_dlc = 8;
+  msg.data[0] = 0x01; // DONE
+  msg.data[1] = cmd;
+  msg.data[2] = errMask;
+  msg.data[3] = 0; msg.data[4] = 0; msg.data[5] = 0; msg.data[6] = 0; msg.data[7] = 0;
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&msg);
+    if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+  }
+}
+
+static inline void can_send_evt_error(uint8_t code) {
+  struct can_frame msg; msg.can_id = CAN_ID_FROTHER_EVT; msg.can_dlc = 8;
+  msg.data[0] = 0x02; // ERROR
+  msg.data[1] = code;
+  msg.data[2] = 0; msg.data[3] = 0; msg.data[4] = 0; msg.data[5] = 0; msg.data[6] = 0; msg.data[7] = 0;
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&msg);
+    if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+  }
+}
+
+static inline void can_send_evt_temp(uint16_t tempCx100, uint8_t valid) {
+  struct can_frame msg; msg.can_id = CAN_ID_FROTHER_EVT; msg.can_dlc = 8;
+  msg.data[0] = 0x03; // TEMP
+  msg.data[1] = (uint8_t)((tempCx100 >> 8) & 0xFF);
+  msg.data[2] = (uint8_t)(tempCx100 & 0xFF);
+  msg.data[3] = valid ? 1 : 0;
+  msg.data[4] = 0; msg.data[5] = 0; msg.data[6] = 0; msg.data[7] = 0;
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&msg);
+    if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+  }
+}
+
+static inline void can_send_evt_state(uint8_t mode, uint8_t busy, uint8_t errMask) {
+  struct can_frame msg; msg.can_id = CAN_ID_FROTHER_EVT; msg.can_dlc = 8;
+  msg.data[0] = 0x04; // STATE
+  msg.data[1] = mode;
+  msg.data[2] = busy ? 1 : 0;
+  msg.data[3] = errMask;
+  msg.data[4] = 0; msg.data[5] = 0; msg.data[6] = 0; msg.data[7] = 0;
+  {
+    MCP2515::ERROR txres = mcp2515.sendMessage(&msg);
+    if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+  }
+}
 
 static void can_reinit_normal() {
   SPI.begin();
@@ -197,6 +278,33 @@ void processCAN() {
   
   while (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK) {
     // Handle incoming command frames (Linux SocketCAN or other nodes)
+    if (canMsg.can_id == CAN_ID_FROTHER_CMD && canMsg.can_dlc >= 2) {
+      // Payload: b0=cmd, b1=flags(hasArgs), b2.. args as u16 scaled as specified
+      uint8_t cmd  = canMsg.data[0];
+      uint8_t flags = canMsg.data[1];
+      // Forward to Mega over UART in compact CSV: FR_CMD:cmd,flags,arg1,arg2,arg3
+      Serial1.print("FR_CMD:");
+      Serial1.print((int)cmd);
+      Serial1.print(",");
+      Serial1.print((int)flags);
+      // Up to 3 u16 args (big endian as CAN suggested), but we just pass raw bytes orderless as values decoded here
+      if (canMsg.can_dlc >= 4) {
+        uint16_t a1 = ((uint16_t)canMsg.data[2] << 8) | (uint16_t)canMsg.data[3];
+        Serial1.print(","); Serial1.print((int)a1);
+      }
+      if (canMsg.can_dlc >= 6) {
+        uint16_t a2 = ((uint16_t)canMsg.data[4] << 8) | (uint16_t)canMsg.data[5];
+        Serial1.print(","); Serial1.print((int)a2);
+      }
+      if (canMsg.can_dlc >= 8) {
+        uint16_t a3 = ((uint16_t)canMsg.data[6] << 8) | (uint16_t)canMsg.data[7];
+        Serial1.print(","); Serial1.print((int)a3);
+      }
+      Serial1.println();
+      // Immediate ACK on CAN
+      can_send_evt_ack(cmd, 1, frother_busy ? 1 : 0);
+      continue;
+    }
     if (canMsg.can_id == CAN_ID_DISPENSING_CMD && canMsg.can_dlc >= 8) {
       CanDispenseCmd cmd;
       memcpy(&cmd, canMsg.data, sizeof(cmd));
@@ -241,16 +349,12 @@ void processCAN() {
   }
 }
 
+#if ENABLE_MQTT
 void callback(char* topic, byte* payload, unsigned int len) {
   payload[len] = 0;
-  
-  // Parse JSON and handle different command types
   String payloadStr = String((char*)payload);
   String topicStr = String(topic);
-
-  // Per-motor lag tuning over MQTT
   if (topicStr == "automation_dispensing_lag") {
-    // Expect JSON: {"motor":"sauce9","speed":1,"lag":12.5}
     int mStart = payloadStr.indexOf("\"motor\":\"") + 9;
     int mEnd = payloadStr.indexOf("\"", mStart);
     int sStart = payloadStr.indexOf("\"speed\":") + 8;
@@ -259,44 +363,31 @@ void callback(char* topic, byte* payload, unsigned int len) {
     int lStart = payloadStr.indexOf("\"lag\":") + 7;
     int lEnd = payloadStr.indexOf(",", lStart);
     if (lEnd == -1) lEnd = payloadStr.indexOf("}", lStart);
-
     if (mStart > 8 && mEnd > mStart && sStart > 7 && sEnd > sStart && lStart > 6 && lEnd > lStart) {
       String motor = payloadStr.substring(mStart, mEnd);
       int speed = payloadStr.substring(sStart, sEnd).toInt();
       float lag = payloadStr.substring(lStart, lEnd).toFloat();
       motor.toLowerCase();
       Serial1.print("LAGM "); Serial1.print(motor); Serial1.print(" "); Serial1.print(speed); Serial1.print(" "); Serial1.println(lag, 1);
-      
-      // Also broadcast over CAN for visibility and CAN-only usage
       uint8_t motor_id = getMotorIdFromName(motor.c_str());
       sendCANSetLag(motor_id, lag, (uint8_t)(speed ? 1 : 0));
     }
     return;
   }
-  
-  // Handle dispensing commands via CAN (also forwarded to Mega)
   if (strstr(topic, "automation_dispensing")) {
-    // Parse JSON: {"ingredient":"caramel","weight":10,"motor":"sauce1"}
     int ingredientStart = payloadStr.indexOf("\"ingredient\":\"") + 14;
     int ingredientEnd = payloadStr.indexOf("\"", ingredientStart);
     String ingredient = payloadStr.substring(ingredientStart, ingredientEnd);
-    
     int weightStart = payloadStr.indexOf("\"weight\":") + 9;
     int weightEnd = payloadStr.indexOf(",", weightStart);
     if (weightEnd == -1) weightEnd = payloadStr.indexOf("}", weightStart);
     float weight = payloadStr.substring(weightStart, weightEnd).toFloat();
-    
     int motorStart = payloadStr.indexOf("\"motor\":\"") + 9;
     int motorEnd = payloadStr.indexOf("\"", motorStart);
     String motor = payloadStr.substring(motorStart, motorEnd);
-    
-    // Convert to CAN format and send
     uint8_t motor_id = getMotorIdFromName(motor.c_str());
     uint8_t liquid_type = getLiquidTypeId(ingredient.c_str());
-    
     sendCANDispenseCommand(motor_id, weight, liquid_type);
-    
-    // Also forward to Mega over UART
     uint16_t weight_dg = (uint16_t)(weight * 10.0f);
     Serial1.print("CAN:");
     Serial1.print((int)motor_id);
@@ -306,13 +397,15 @@ void callback(char* topic, byte* payload, unsigned int len) {
     Serial1.println((int)liquid_type);
   }
 }
+#endif
 
 void setup() {
   Serial.begin(115200);
   Serial1.begin(115200);
   delay(300);
   
-  // Setup W5500 Ethernet
+  // Setup W5500 Ethernet (if enabled)
+#if ENABLE_MQTT
   pinMode(W5500_CS_PIN, OUTPUT);
   pinMode(W5500_RST_PIN, OUTPUT);
   digitalWrite(W5500_RST_PIN, LOW);
@@ -320,6 +413,7 @@ void setup() {
   digitalWrite(W5500_RST_PIN, HIGH);
   delay(80);
   Ethernet.begin(mac, ip, gw, gw, sub);
+#endif
   
   // Setup MCP2515 CAN
   SPI.begin();
@@ -328,11 +422,14 @@ void setup() {
   mcp2515.setNormalMode();
   
   // Setup MQTT
+#if ENABLE_MQTT
   mqtt.setServer("192.168.200.233", 1883);
   mqtt.setCallback(callback);
+#endif
 }
 
 void loop() {
+  #if ENABLE_MQTT
   if (!mqtt.connected()) {
     if (mqtt.connect("bridge01", "admin", "admin123")) {
       mqtt.subscribe("automation_dispensing");
@@ -340,15 +437,63 @@ void loop() {
     }
   }
   mqtt.loop();
+  #endif
   processCAN();
+  
+  // Periodic CAN heartbeat every 30 seconds: ID 0x3FF, payload FF FF
+  if (millis() - last_heartbeat_ms >= 30000UL) {
+    struct can_frame hb;
+    hb.can_id = 0x3FF;
+    hb.can_dlc = 2;
+    hb.data[0] = 0xFF; hb.data[1] = 0xFF;
+    {
+      MCP2515::ERROR txres = mcp2515.sendMessage(&hb);
+      if (txres != MCP2515::ERROR_OK) { if (++can_error_count >= 3) { can_reinit_normal(); } }
+    }
+    last_heartbeat_ms = millis();
+  }
   
   // UART bridge of status from Mega → MQTT
   while (Serial1.available()) {
     char c = Serial1.read();
     if (c == '\n') {
       buf[idx] = 0;
-      if (strstr(buf, "Scales ") || strstr(buf, "LEAK")) {
-        mqtt.publish("dispenser/status", buf);
+      if (strstr(buf, "FR_EVT:")) {
+        // Parse frother event line formats
+        String s = String(buf);
+        if (s.startsWith("FR_EVT:DONE,")) {
+          int p1 = s.indexOf(',');
+          int p2 = s.indexOf(',', p1 + 1);
+          uint8_t cmd = (uint8_t)s.substring(p1 + 1, p2).toInt();
+          uint8_t err = (uint8_t)s.substring(p2 + 1).toInt();
+          frother_busy = 0;
+          can_send_evt_done(cmd, err);
+        } else if (s.startsWith("FR_EVT:ERROR,")) {
+          int p1 = s.indexOf(',');
+          uint8_t code = (uint8_t)s.substring(p1 + 1).toInt();
+          frother_busy = 0;
+          can_send_evt_error(code);
+        } else if (s.startsWith("FR_EVT:TEMP,")) {
+          int p1 = s.indexOf(',');
+          int p2 = s.indexOf(',', p1 + 1);
+        long t_parsed = s.substring(p1 + 1, p2).toInt();
+        if (t_parsed < 0) { t_parsed = 0; }
+        if (t_parsed > 65535) { t_parsed = 65535; }
+        uint16_t t = (uint16_t)t_parsed;
+        uint8_t valid = (uint8_t)s.substring(p2 + 1).toInt();
+        can_send_evt_temp(t, valid);
+        } else if (s.startsWith("FR_EVT:STATE,")) {
+          int p1 = s.indexOf(',');
+          int p2 = s.indexOf(',', p1 + 1);
+          int p3 = s.indexOf(',', p2 + 1);
+          uint8_t mode = (uint8_t)s.substring(p1 + 1, p2).toInt();
+          uint8_t busy = (uint8_t)s.substring(p2 + 1, p3).toInt();
+          uint8_t err = (uint8_t)s.substring(p3 + 1).toInt();
+          frother_busy = busy ? 1 : 0;
+          can_send_evt_state(mode, busy, err);
+        }
+      } else if (strstr(buf, "Scales ") || strstr(buf, "LEAK")) {
+        // MQTT disabled: skip publishing
       }
       // When Mega reports completion, send deferred CAN ACK
       if (pending_dispense_ack && strstr(buf, "State=COMPLETED")) {
