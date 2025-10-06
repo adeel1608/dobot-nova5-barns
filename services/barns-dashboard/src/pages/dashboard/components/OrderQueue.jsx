@@ -10,6 +10,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import useStore from '../../../store';
 import backarrow from '../../../assets/backarrow.png';
+import deleteIcon from '../../../assets/delete.png';
 
 function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isDeleting, isReordering, getStatusBadge }) {
   // Debug: Log that this component is rendering
@@ -129,85 +130,66 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
             Details
           </button>
 
-            {/* Reorder Button - always available */}
+            {/* Reorder Button - outlined like Details */}
             <button 
               onClick={() => onReorderOrder(order)}
               disabled={isReordering === order.id}
-              className={`text-xs px-2 py-1 rounded flex items-center ${
+              className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
                 isReordering === order.id 
-                  ? 'bg-green-300 text-white cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-700 text-white'
+                  ? 'border-green-300 text-green-300 cursor-not-allowed'
+                  : 'border-green-600 text-green-600 hover:bg-green-50'
               }`}
+              style={{
+                borderWidth: '2px',
+                borderStyle: 'solid',
+                borderColor: isReordering === order.id ? '#86efac' : '#059669'
+              }}
               title={isReordering === order.id ? 'Reordering...' : 'Reorder this order'}
-              style={{height:'2rem'}}
             >
               {isReordering === order.id ? (
-                <>
+                <span className="inline-flex items-center">
                   <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Reordering...
-                </>
+                </span>
               ) : (
-                <>
-                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2m-15.356-2H9" />
-                  </svg>
+                <span className="inline-flex items-center">
+                 
                   Reorder
-                </>
+                </span>
               )}
             </button>
 
-            {/* Delete Button - Now available for all order types */}
+            {/* Delete Button - Icon only */}
             <button 
               onClick={() => {
                 console.log('🗑️ Delete button clicked for order:', order.id);
                 onDeleteOrder && onDeleteOrder(order.id);
               }}
               disabled={isDeleting}
-              className={`text-xs px-2 py-1 rounded flex items-center ${
-                isDeleting 
-                  ? 'bg-red-300 text-white cursor-not-allowed' 
-                  : order.status === 'PROCESSING'
-                    ? 'bg-red-600 hover:bg-red-700 text-white border-2 border-yellow-400'
-                    : 'bg-red-500 hover:bg-red-600 text-white'
-              }`}
-              title={isDeleting ? "Deleting..." : order.status === 'PROCESSING' ? "⚠️ Force delete processing order (DANGER)" : "Delete order"}
-               style={{height:'2rem'}}
+              className={`text-xs px-2 py-1 rounded flex items-center justify-center bg-danger-sublte text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed`}
+              title={isDeleting ? 'Deleting...' : 'Delete order'}
+              aria-label={isDeleting ? 'Deleting...' : 'Delete order'}
+              style={{height:'2rem'}}
             >
               {isDeleting ? (
-                <>
-                  <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Deleting...
-                </>
+                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
               ) : (
-                <>
-                  {order.status === 'PROCESSING' && (
-                    <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                  {order.status !== 'PROCESSING' && (
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  )}
-                  Delete
-                </>
+                <img src={deleteIcon} alt="" aria-hidden="true" className="w-10 h-10" />
               )}
             </button>
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
-export default function OrderQueue({ connectionStatus }) {
+function OrderQueue({ connectionStatus }) {
 
   const { 
     orders, 
@@ -909,8 +891,10 @@ const handleDeleteOrder = async (orderId) => {
                           onResumeOrder={handleResumeOrder}
                           onDeleteOrder={handleDeleteOrder}
                           onViewDetails={viewOrderDetails}
+                          onReorderOrder={handleReorderOrder}
                           isStarting={startingOrderId === order.id}
                           isDeleting={deletingOrderId === order.id}
+                          isReordering={reorderingOrderId === order.id}
                           getStatusBadge={getStatusBadge}
                         />
                       ))}
@@ -1218,3 +1202,5 @@ const handleDeleteOrder = async (orderId) => {
     </div>
   );
 }
+
+export default OrderQueue;

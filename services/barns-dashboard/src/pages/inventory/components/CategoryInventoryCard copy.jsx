@@ -7,6 +7,36 @@ import React, { useState, useEffect } from "react";
 import { useInventoryStore } from "../../../store/inventoryStore";
 import { CATEGORY_INFO, getCategoryItems } from "../../../utils/inventoryData";
 
+// Direct imports for all category/item icons
+import coffee_beans from "../../../assets/coffee_beans.png";
+import beans from "../../../assets/beans.png";
+import cups from "../../../assets/cups.png";
+import cup from "../../../assets/cup.png";
+import milks from "../../../assets/milks.png";
+import milk from "../../../assets/milk.png";
+import syrups from "../../../assets/syrups.png";
+import syrup from "../../../assets/syrup.png";
+import sauces from "../../../assets/sauces.png";
+import sauce from "../../../assets/sauce.png";
+import premixes from "../../../assets/premixes.png";
+import defaultIcon from "../../../assets/default.png";
+
+// Map of asset names to imported modules
+const pngAssets = {
+  "coffee_beans.png": coffee_beans,
+  "beans.png": beans,
+  "cups.png": cups,
+  "cup.png": cup,
+  "milks.png": milks,
+  "milk.png": milk,
+  "syrups.png": syrups,
+  "syrup.png": syrup,
+  "sauces.png": sauces,
+  "sauce.png": sauce,
+  "premixes.png": premixes,
+  "default.png": defaultIcon,
+};
+
 const CategoryInventoryCard = ({ category, isAllView,count }) => {
   const [expanded, setExpanded] = useState(!isAllView);
   const {
@@ -78,7 +108,7 @@ const CategoryInventoryCard = ({ category, isAllView,count }) => {
                 className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
               /> */}
               <img
-                src={`../src/assets/${category}.png`}
+                src={pngAssets[`${category}.png`] || defaultIcon}
                 alt={category}
                 className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
               />
@@ -173,7 +203,7 @@ const CategoryInventoryCard = ({ category, isAllView,count }) => {
                       <span className="text-xl text-[#00784B]">{itemData.icon}</span>
                     ) : (
                       <img
-                        src={itemData.icon}
+                        src={pngAssets[itemData.icon] || defaultIcon}
                         alt={itemData.name}
                         className="w-6 h-6 object-contain"
                       />
@@ -307,7 +337,7 @@ const CategoryInventoryCard = ({ category, isAllView,count }) => {
             <span className="text-3xl text-[#00784B]/40">{categoryInfo.icon}</span>
           ) : (
             <img
-              src={categoryInfo.icon}
+              src={pngAssets[categoryInfo.icon] || defaultIcon}
               alt={categoryInfo.title}
               className="w-10 h-10 object-contain opacity-40"
             />

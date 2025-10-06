@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import useStore from '../../../store';
 import stop from '../../../assets/stop.png';
 import coffee from '../../../assets/Coffee.png';
-import coffee from '../../../assets/coffee.png';
 import lighting from '../../../assets/lighting.png';
 import dots from '../../../assets/dots.png';
 import progressing from '../../../assets/progressing.png';
@@ -71,29 +70,11 @@ export default function OrderDetails() {
       <div className="p-3 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-900">Current Order</h2>
-          {/* <div className="flex items-center space-x-2">
-            <button 
-              onClick={() => setShowTaskInterface(false)}
-              className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
-            >
-              Show Idle
-            </button>
-            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-            <span className="text-xs font-medium text-yellow-600">Processing</span>
-          </div> */}
         </div>
       </div>
 
       {/* Task Management Interface */}
       <div className="flex-1 p-4">
-        {/* Order Header */}
-        {/* <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-900">Order #16412</span>
-            <span className="text-xs text-yellow-600 font-medium">Processing</span>
-          </div>
-          <h3 className="text-base font-medium text-gray-900">Vanilla Latte (Large)</h3>
-        </div> */}
 
         {/* Task Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
