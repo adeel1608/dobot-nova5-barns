@@ -120,6 +120,55 @@ def setup_tasks(orders, recipes):
             tasks_by_cup[cup_id].append(task)
             tasks_total += 1
 
+    # After building all tasks, emit per-arm lists of [step, cup_id]
+    try:
+        lists_str = _format_per_arm_lists()
+        logger.info(lists_str)
+    except Exception as e:
+        logger.warning(f"[SCHEDULER] Could not log per-arm lists: {e}")
+
+def get_per_arm_plan() -> Dict[str, List[Tuple[str, str]]]:
+    """Return a per-arm execution plan as lists of (action, cup_id) pairs.
+
+    The plan is derived from the current task graph and preserves the insertion
+    order of cups and in-recipe step order, grouped by arm assignment.
+    """
+    plan: Dict[str, List[Tuple[str, str]]] = {"Arm1": [], "Arm2": []}
+    try:
+        # Iterate cups in insertion order, then steps in recipe order
+        for cup_id, cup_tasks in tasks_by_cup.items():
+            for t in cup_tasks:
+                arm = t.get("assigned_arm")
+                if arm in plan:
+                    plan[arm].append((t.get("action"), cup_id))
+    except Exception:
+        # In case of any unexpected structure, fall back to scanning flat task list
+        for t in tasks:
+            arm = t.get("assigned_arm")
+            cup_id = t.get("cup")
+            if arm in ("Arm1", "Arm2") and cup_id:
+                plan[arm].append((t.get("action"), cup_id))
+    return plan
+
+def get_per_arm_lists() -> Dict[str, List[List[str]]]:
+    """Return per-arm lists with [step, cup_id] pairs suitable for printing/JSON."""
+    plan = get_per_arm_plan()
+    return {
+        "Arm1": [[action, cup_id] for (action, cup_id) in plan.get("Arm1", [])],
+        "Arm2": [[action, cup_id] for (action, cup_id) in plan.get("Arm2", [])],
+    }
+
+def _format_per_arm_lists() -> str:
+    """Formatted string with two lists (Arm1 and Arm2) where elements are [step, cup_id]."""
+    try:
+        lists = get_per_arm_lists()
+        return (
+            f"[SCHEDULER] Arm1: {lists.get('Arm1', [])}\n"
+            f"[SCHEDULER] Arm2: {lists.get('Arm2', [])}"
+        )
+    except Exception as e:
+        return f"[SCHEDULER] Failed to format per-arm lists: {e}"
+
 def select_task_with_per_arm_cup_priority(arm_name: str):
     """
     Select a task for the given arm using per-arm cup-priority scheduling.

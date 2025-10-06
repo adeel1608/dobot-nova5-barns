@@ -149,18 +149,9 @@
           }
       },
       {
-          "type": "robot",
-          "function": "grab_paper_cup",
-          "params": {
-          "size": "7oz"
-          }
-      },
-      {
-          "type": "robot",
-          "function": "place_paper_cup",
-          "params": {
-          "stage": "stage_1"
-          }
+        "type": "robot",
+        "function": "dispense_paper_cup",
+        "params": {}
       },
       {
           "type": "robot",
@@ -283,17 +274,25 @@
   "Froth_Milk": {
     "steps": [
         {
-            "type": "robot",
-            "function": "mount_frother",
-            "params": {}
-          },
-          {
-            "type": "robot",
-            "function": "froth_milk",
-            "params": {
-              "duration": 5
-            }
-          }
+          "type": "automation",
+          "function": "initialize_frother",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "mount_frother",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "froth_milk",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "unmount_and_swirl_milk",
+          "params": {}
+        }
     ]
   },
   "Pour_Frothed_Milk": {
@@ -461,28 +460,6 @@
       }
     ]
   },
-  "Pick_Cup_Station_Arm1": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pick_plastic_cup_station_arm1",
-        "params": {
-          "cup_size": "7oz"
-        }
-      }
-    ]
-  },
-  "Place_Cup_Station_Arm1": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_plastic_cup_station_arm1",
-        "params": {
-          "stage": "1"
-        }
-      }
-    ]
-  },
   "Get_Hot_Water": {
     "steps": [
       {
@@ -518,7 +495,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "place_plastic_cup_with_ice",
+        "function": "go_home_with_ice",
         "params": {}
       }
     ]

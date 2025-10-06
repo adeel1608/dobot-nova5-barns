@@ -80,7 +80,7 @@ export default function OrderDetails() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                      {/* Left Column - Automated Tasks */}
            <div className="flex flex-col h-full">
-             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Automated Tasks</h3>
+             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Robot Arm 1</h3>
              
              {/* Task Steps */}
              <div className="relative flex-1 overflow-y-auto pr-2">
@@ -190,7 +190,7 @@ export default function OrderDetails() {
 
                      {/* Right Column - Manual Tasks */}
            <div className="flex flex-col h-full">
-             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Manual (Barista) Tasks</h3>
+             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Robot Arm 2</h3>
              
              {/* Task Steps */}
              <div className="relative flex-1 overflow-y-auto pr-2">

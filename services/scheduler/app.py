@@ -376,6 +376,13 @@ class SchedulerService:
             
             # Use the scheduler's process_order_async function
             # Note: The scheduler module handles sending completion/failure events to OMS
+            # Log per-arm lists [[step, cup_id], ...] before processing
+            try:
+                lists = scheduler._format_per_arm_lists()
+                logger.info(lists)
+            except Exception as e:
+                logger.warning(f"[SCHEDULER] Could not log per-arm lists pre-run: {e}")
+
             success = await scheduler.process_order_async(order_id, drinks, recipes)
             
             # Send status notifications (events are already sent by scheduler module)
