@@ -274,22 +274,25 @@
   "Froth_Milk": {
     "steps": [
         {
-            "type": "robot",
-            "function": "mount_frother",
-            "params": {}
-          },
-          {
-            "type": "robot",
-            "function": "froth_milk",
-            "params": {
-              "duration": 5
-            }
-          },
-          {
-            "type": "robot",
-            "function": "swirl_milk",
-            "params": {}
-          }
+          "type": "automation",
+          "function": "initialize_frother",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "mount_frother",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "froth_milk",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "unmount_and_swirl_milk",
+          "params": {}
+        }
     ]
   },
   "Pour_Frothed_Milk": {
