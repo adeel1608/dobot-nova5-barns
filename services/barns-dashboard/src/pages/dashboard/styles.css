@@ -111,3 +111,8 @@
     gap: 1rem;
   }
 } 
+
+.no-outline-shadow {
+  outline: none !important;
+  box-shadow: none !important;
+} 

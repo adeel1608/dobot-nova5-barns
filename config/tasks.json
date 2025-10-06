@@ -149,18 +149,9 @@
           }
       },
       {
-          "type": "robot",
-          "function": "grab_paper_cup",
-          "params": {
-          "size": "7oz"
-          }
-      },
-      {
-          "type": "robot",
-          "function": "place_paper_cup",
-          "params": {
-          "stage": "stage_1"
-          }
+        "type": "robot",
+        "function": "dispense_paper_cup",
+        "params": {}
       },
       {
           "type": "robot",
@@ -293,6 +284,11 @@
             "params": {
               "duration": 5
             }
+          },
+          {
+            "type": "robot",
+            "function": "swirl_milk",
+            "params": {}
           }
     ]
   },
@@ -461,28 +457,6 @@
       }
     ]
   },
-  "Pick_Cup_Station_Arm1": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "pick_plastic_cup_station_arm1",
-        "params": {
-          "cup_size": "7oz"
-        }
-      }
-    ]
-  },
-  "Place_Cup_Station_Arm1": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_plastic_cup_station_arm1",
-        "params": {
-          "stage": "1"
-        }
-      }
-    ]
-  },
   "Get_Hot_Water": {
     "steps": [
       {
@@ -518,7 +492,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "place_plastic_cup_with_ice",
+        "function": "go_home_with_ice",
         "params": {}
       }
     ]

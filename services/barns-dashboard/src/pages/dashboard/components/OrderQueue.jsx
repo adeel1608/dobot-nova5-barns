@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import useStore from '../../../store';
+import backarrow from '../../../assets/backarrow.png';
 
 function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isDeleting, isReordering, getStatusBadge }) {
   // Debug: Log that this component is rendering
@@ -27,160 +28,106 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
 
   const disableDrag = index === 0 && order.status === 'PROCESSING';
 
+  // Determine if buttons should be disabled
+  const isDisabled = ['COMPLETED', 'CANCELLED'].includes(order.status);
+  
+  // Get status badge with colored dot
+  const getStatusBadgeWithDot = (status) => {
+    switch(status) {
+      case 'PROCESSING':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
+            Processing
+          </span>
+        );
+      case 'COMPLETED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
+            Completed
+          </span>
+        );
+      case 'QUEUED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+            Queued
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <div className="w-2 h-2 bg-red-600 rounded-full mr-2"></div>
+            Canceled
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            <div className="w-2 h-2 bg-blue-600 rounded-full mr-2"></div>
+            {status}
+          </span>
+        );
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`mb-2 p-3 rounded border ${
-        order.status === 'PROCESSING' ? 'bg-yellow-50 border-yellow-200' : 
-        order.status === 'COMPLETED' ? 'bg-green-50 border-green-200' :
-        order.status === 'HALTED' ? 'bg-orange-50 border-orange-200' :
-        order.status === 'STOPPED' ? 'bg-red-50 border-red-200' :
-        order.status === 'ERROR' ? 'bg-red-50 border-red-200' :
-        order.status === 'CANCELLED' ? 'bg-gray-50 border-gray-200' :
-        'bg-white border-gray-200'
-      } hover:shadow-md transition-shadow duration-200`}
+      className={`mb-2 p-4 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200`}
     >
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
-        {/* Draggable area - only the content area, not the buttons */}
-        <div 
-          {...attributes}
-          {...listeners}
-          className={`mb-2 sm:mb-0 flex-1 ${disableDrag ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'}`}
-        >
-          <div className="space-y-1">
-          <span className="text-sm font-medium text-gray-500">Order #{order.id}</span>
-          {/* <h3 className="font-semibold">{order.itemName}</h3> */}
-            <h3 className="font-semibold">
-              {order.itemName?.split(' ').length > 1
-                ? `${order.itemName.split(' ')[0]} ...`
-                : order.itemName}
-            </h3>
-             {getStatusBadge(order.status)}
-            {order.manualRequired && (
-              <div className="text-xs text-red-600 mt-1 flex items-center">
-                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                Manual step required
-              </div>
-            )}
-        </div>
+      <div className="flex items-center justify-between">
+        {/* Left side - ID and Status */}
+        <div className="flex flex-col space-y-2">
+          <span className="text-md text-bold text-gray-900">Order ID: {order.id}</span>
+          {getStatusBadgeWithDot(order.status)}
         </div>
         
-        {/* Button area - NOT draggable */}
-        <div className="flex items-center space-x-2 mt-12 ">
-       
-           <button 
-            onClick={() => onViewDetails(order)}
-            className="text-[11px] font-medium px-1.5 py-0.5 barns-dark-bg  text-white rounded flex items-center"
-            title="View order details"
-             style={{height:'2rem'}}
+        {/* Right side - Action Buttons */}
+        <div className="flex items-center space-x-2">
+          {/* Start Button */}
+          <button 
+            onClick={() => onStartOrder(order.id)}
+            disabled={isDisabled || isStarting === order.id}
+            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              isDisabled 
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : isStarting === order.id
+                  ? 'bg-blue-300 text-white cursor-not-allowed'
+                  : 'text-white'
+            }`}
+            style={{
+              backgroundColor: isDisabled 
+                ? undefined 
+                : isStarting === order.id 
+                  ? undefined 
+                  : '#00754A'
+            }}
+            title={isDisabled ? "Action not available" : "Start processing"}
           >
-            {/* <svg
-              className="w-3 h-3 mr-1 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-              />
-            </svg> */}
+            {isStarting === order.id ? "Starting..." : "Start"}
+          </button>
+
+          {/* Details Button */}
+          <button 
+            onClick={() => onViewDetails(order)}
+            disabled={isDisabled}
+            className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
+              isDisabled 
+                ? 'border-gray-300 text-gray-500 cursor-not-allowed'
+                : 'border-green-600 text-green-600 hover:bg-green-50'
+            }`}
+            style={{
+              borderWidth: '2px',
+              borderStyle: 'solid',
+              borderColor: isDisabled ? '#d1d5db' : '#059669'
+            }}
+            title={isDisabled ? "Action not available" : "View order details"}
+          >
             Details
           </button>
-          {/* Action buttons */}
-          <div className="flex space-x-2  ">
-            {/* Debug: Log button condition */}
-            {console.log(`🔍 Order ${order.id}: status="${order.status}", shouldShowButton:`, !['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status))}
-            {!['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(order.status) && (
-              <>
-                {/* Start Button for Queued Orders */}
-                {order.status === 'QUEUED' && (
-                  <button 
-                    onClick={() => {
-                      console.log('🔘 Start button clicked for order:', order.id);
-                      onStartOrder(order.id);
-                    }}
-                    disabled={isStarting === order.id}
-                    className={`text-xs px-2 py-1 rounded flex items-center ${
-                      isStarting === order.id 
-                        ? 'bg-blue-300 text-white cursor-not-allowed' 
-                        : 'bg-blue-500 hover:bg-blue-600 text-white'
-                    }`}
-                    title={isStarting === order.id ? "Starting..." : "Start processing"}
-                    style={{height:'2rem'}}
-                  >
-                    {isStarting === order.id ? (
-                      <>
-                        <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Starting...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Start
-                      </>
-                    )}
-                  </button>
-                )}
-
-                {/* Resume Button for Halted Orders */}
-                {order.status === 'HALTED' && (
-                  <button 
-                    onClick={() => {
-                      console.log('🔄 Resume button clicked for order:', order.id);
-                      onResumeOrder && onResumeOrder(order.id);
-                    }}
-                    className="text-xs px-2 py-1 rounded flex items-center bg-orange-500 hover:bg-orange-600 text-white"
-                    title="Resume halted order"
-                     style={{height:'2rem'}}
-                  >
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Resume
-                  </button>
-                )}
-
-                {/* Retry Button for Error Orders */}
-                {order.status === 'ERROR' && (
-                  <button 
-                    onClick={() => {
-                      console.log('🔄 Retry button clicked for order:', order.id);
-                      onStartOrder(order.id);
-                    }}
-                    disabled={isStarting === order.id}
-                    className={`text-xs px-2 py-1 rounded flex items-center ${
-                      isStarting === order.id 
-                        ? 'bg-red-300 text-white cursor-not-allowed' 
-                        : 'bg-red-500 hover:bg-red-600 text-white'
-                    }`}
-                    title="Retry failed order"
-                     style={{height:'2rem'}}
-                  >
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0V9a8 8 0 1115.356 2m-15.356-2H9" />
-                    </svg>
-                    Retry
-                  </button>
-                )}
-              </>
-            )}
 
             {/* Reorder Button - always available */}
             <button 
@@ -283,6 +230,7 @@ export default function OrderQueue({ connectionStatus }) {
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [reorderingOrderId, setReorderingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [orderData, setOrderData] = useState({
     cups: [{ type: '', size: 'regular', addons: [] }]
   });
@@ -558,10 +506,12 @@ const handleDeleteOrder = async (orderId) => {
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
+    setShowOrderDetails(true);
   };
 
   const closeOrderDetails = () => {
     setSelectedOrder(null);
+    setShowOrderDetails(false);
   };
 
   const retryFetchOrders = () => {
@@ -818,7 +768,7 @@ const handleDeleteOrder = async (orderId) => {
                 </div>
                 
                 <form onSubmit={handleSubmitNewOrder} className="space-y-4">
-                                    {/* Add/Remove Drinks and Submit */}
+                  {/* Add/Remove Drinks and Submit */}
                   <div className="flex justify-between items-center sticky top-0 z-10  bg-gradient-to-b from-white/70 to-transparent backdrop-blur-sm ">
                     <h2
                       type="button"
@@ -959,10 +909,8 @@ const handleDeleteOrder = async (orderId) => {
                           onResumeOrder={handleResumeOrder}
                           onDeleteOrder={handleDeleteOrder}
                           onViewDetails={viewOrderDetails}
-                          onReorderOrder={handleReorderOrder}
                           isStarting={startingOrderId === order.id}
                           isDeleting={deletingOrderId === order.id}
-                          isReordering={reorderingOrderId === order.id}
                           getStatusBadge={getStatusBadge}
                         />
                       ))}

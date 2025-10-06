@@ -62,7 +62,7 @@
     {
       "action": "Place_Cup_Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
+      "depends_on": ["Go_Home_With_Ice"]
     },
     {
       "action": "Espresso_Only",
@@ -222,19 +222,14 @@
         "depends_on": []
       },
     {
-      "action": "Place_Cup_Station_Arm1",
+      "action": "Espresso_Only",
       "assigned_arm": "Arm1",
       "depends_on": ["Dispense_Paper_Cup"]
     },
     {
-      "action": "Espresso_Only",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Place_Cup_Station_Arm1"]
-    },
-    {
       "action": "Pick_Cup_Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Cup_Station_Arm1"]
+      "depends_on": ["Dispense_Paper_Cup"]
     },
     {
       "action": "Place_Cup_Sauces",
@@ -596,19 +591,19 @@
         "depends_on": []
     },
     {
-      "action": "Place_Cup_Station_Arm1",
+      "action": "Place_Cup_Station",
       "assigned_arm": "Arm1",
       "depends_on": ["Dispense_Paper_Cup"]
     },
     {
       "action": "Espresso_Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Place_Cup_Station_Arm1"]
+      "depends_on": ["Place_Cup_Station"]
     },
     {
       "action": "Pick_Cup_Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Cup_Station_Arm1"]
+      "depends_on": ["Place_Cup_Station"]
     },
     {
       "action": "Place_Cup_Sauces",
@@ -663,19 +658,19 @@
         "depends_on": []
     },
     {
-      "action": "Place_Cup_Station_Arm1",
+      "action": "Place_Cup_Station",
       "assigned_arm": "Arm1",
       "depends_on": ["Dispense_Paper_Cup"]
     },
     {
       "action": "Espresso_Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Place_Cup_Station_Arm1"]
+      "depends_on": ["Place_Cup_Station"]
     },
     {
       "action": "Pick_Cup_Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Cup_Station_Arm1"]
+      "depends_on": ["Place_Cup_Station"]
     },
     {
       "action": "Place_Cup_Sauces",

@@ -17,8 +17,37 @@ from oms_v1.params import (
 )
 
 
+# -------------------------
+# Normalization helpers
+# -------------------------
+def _normalize_cup_size(size: Any) -> str:
+    """Map new codes C7/C9/C12/C16 to existing plastic cup sizes (7oz/9oz/12oz/16oz)."""
+    if not size:
+        return DEFAULT_CUP_SIZE
+    s = str(size).strip().lower()
+    mapping = {
+        "c7": "7oz",
+        "c9": "9oz",
+        "c12": "12oz",
+        "c16": "16oz",
+    }
+    return mapping.get(s, s)
 
-def grab_plastic_cup(**params) -> bool:
+def _normalize_stage(stage_value: Any) -> Optional[str]:
+    if stage_value is None:
+        return None
+    if isinstance(stage_value, str) and stage_value.startswith("stage_"):
+        return stage_value
+    try:
+        n = int(float(stage_value))
+        if n in (1, 2, 3, 4):
+            return f"stage_{n}"
+    except Exception:
+        pass
+    return None
+
+
+def dispnese_plastic_cup(**params) -> bool:
     """
     Grab a plastic cup of specified size from the plastic cup dispenser.
     
@@ -47,13 +76,13 @@ def grab_plastic_cup(**params) -> bool:
         Exception: If unexpected error occurs during cup grabbing process
         
     Example:
-        success = grab_plastic_cup(cup_size='12oz')
+        success = dispnese_plastic_cup(cup_size='12oz')
         if success:
             print("12oz plastic cup grabbed successfully")
     """
     try:
         # Extract and validate cup size parameter
-        cup_size = params.get("cup_size", DEFAULT_CUP_SIZE)
+        cup_size = _normalize_cup_size(params.get("cup_size", DEFAULT_CUP_SIZE))
         if not cup_size or not validate_cup_size(cup_size):
             return False
         
@@ -295,6 +324,7 @@ def grab_plastic_cup(**params) -> bool:
             print(f"[ERROR] Unknown cup size: {cup_size!r}")
             print("[INFO] Valid cup sizes: 6oz, 9oz, 12oz, 16oz")
             return False
+        home(position="north")
         
         # Final success summary
         print("=" * 50)
@@ -326,7 +356,7 @@ def get_ice(**params) -> bool:
         bool: True if ice dispensing completed successfully, False otherwise
     """
     try:
-        cup_size = params.get("cup_size")
+        cup_size = _normalize_cup_size(params.get("cup_size"))
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
@@ -340,14 +370,6 @@ def get_ice(**params) -> bool:
         
         print(f"🧊 Starting ice dispensing sequence for {cup_size}")
         print("=" * 50)
-        # run_skill("set_speed_factor", 25)
-        # run_skill("sync")
-        # Step 1: Move to home positions
-        print("🏠 Step 1/3: Moving to west home position...")
-        if not home(position="west"):
-            print("[ERROR] Failed to move to west home position")
-            return False
-        print("   ✅ Successfully moved to west home")
         
         print("🏠 Step 2/3: Moving to north-east home position...")
         if not home(position="north_east"):
@@ -431,28 +453,7 @@ def get_ice(**params) -> bool:
         print("[INFO] Ice dispensing process terminated due to error")
         return False
 
-def place_plastic_cup_with_ice(**params) -> bool:
-    """
-    Place a plastic cup with ice at specified staging area.
-    
-    This function places a previously grabbed plastic cup filled with ice at a designated staging area:
-    1. Validates stage parameter
-    2. Moves through positioning sequence
-    3. Navigates to target stage position
-    4. Releases cup and moves up safely
-    5. Returns to home position
-    
-    Args:
-        stage (str): Target staging area ('1', '2', '3', or '4')
-        
-    Returns:
-        bool: True if cup placement completed successfully, False otherwise
-        
-    Example:
-        success = place_plastic_cup_with_ice(stage='1')
-        if success:
-            print("Plastic cup with ice placed successfully")
-    """
+def go_home_with_ice(**params) -> bool:
     try:
         # Extract and validate stage parameter
         stage = params.get("stage")
@@ -485,57 +486,6 @@ def place_plastic_cup_with_ice(**params) -> bool:
             return False
         print("   ✅ Successfully moved to north-east home")
         
-        # Step 3: Move to east home
-        print("🏠 Step 3/6: Moving to east home...")
-        if not home(position="east"):
-            print("[ERROR] Failed to move to east home")
-            return False
-        print("   ✅ Successfully moved to east home")
-        
-        # Step 4: Move to stage-specific position
-        print(f"🎯 Step 4/6: Moving to stage {stage} position...")
-        stage_result = False
-        
-        if stage == "1":
-            print("   📍 Positioning for stage 1...")
-            stage_result = run_skill("gotoJ_deg", -80.221687,-43.867016,-125.338081,-18.518541,-84.856163,0.006812)
-        elif stage == "2":
-            print("   📍 Positioning for stage 2...")
-            stage_result = run_skill("gotoJ_deg", -100.830803,-45.966148,-116.024010,-26.002304,-105.266800,-2.802466)
-        elif stage == "3":
-            print("   📍 Positioning for stage 3...")
-            home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -117.226875,-50.948524,-99.833191,-38.283516,-121.485474,-5.440053)
-        elif stage == "4":
-            print("   📍 Positioning for stage 4...")
-            home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -129.165802,-59.506020,-76.980766,-54.155602,-133.259628,-8.007045)
-        
-        if not stage_result:
-            print(f"[ERROR] Failed to move to stage {stage} position")
-            return False
-        print(f"   ✅ Successfully positioned at stage {stage}")
-        
-        # Step 5: Release cup
-        print("🤏 Step 5/6: Releasing plastic cup with ice...")
-        release_result = run_skill("set_gripper_position", 50, 0)
-        if not release_result:
-            print("[ERROR] Failed to release plastic cup")
-            return False
-        print("   ✅ Cup released successfully")
-        
-        # Step 6: Move up and return to home
-        print("⬆️ Step 6/6: Moving up and returning to home...")
-        up_result = run_skill("moveEE", 0, 100, 0, 0, 0, 0)
-        if not up_result:
-            print("[ERROR] Failed to move up after placement")
-            return False
-        
-        if not home(position="east"):
-            print("[ERROR] Failed to return to east home")
-            return False
-        print("   ✅ Successfully moved up and returned to home")
-        
         # Final success summary
         print("=" * 50)
         print(f"✅ PLASTIC CUP WITH ICE PLACEMENT COMPLETED FOR STAGE {stage}")
@@ -551,7 +501,7 @@ def place_plastic_cup_with_ice(**params) -> bool:
         print("[INFO] Cup placement process terminated due to error")
         return False
 
-def place_plastic_cup(**params) -> bool:
+def place_plastic_cup_station(**params) -> bool:
     """
     Place a plastic cup at specified staging area.
     
@@ -663,7 +613,8 @@ def place_plastic_cup(**params) -> bool:
         print("[INFO] Cup placement process terminated due to error")
         return False
 
-def pick_plastic_cup_for_ice(**params) -> bool:
+#ADD NEW FUNCTION: pick_plastic_cup_station
+def pick_plastic_cup_station(**params) -> bool:
     """
     Pick up a plastic cup from a specific stage and add ice to it.
     
@@ -685,7 +636,7 @@ def pick_plastic_cup_for_ice(**params) -> bool:
     try:
         # Extract and validate parameters
         stage = params.get("stage")
-        cup_size = params.get("cup_size")
+        cup_size = _normalize_cup_size(params.get("cup_size"))
         
         if not stage:
             print("[ERROR] No stage parameter provided")
@@ -786,19 +737,6 @@ def pick_plastic_cup_for_ice(**params) -> bool:
             print("[ERROR] Failed to return to east home")
             return False
         print("   ✅ Successfully returned to safe position")
-
-        # Step 6: Move to ice dispensing positions
-        print("🧊 Step 6/6: Moving to ice dispensing positions...")
-        ice1_result = run_skill("gotoJ_deg", *ice_pos1)
-        if not ice1_result:
-            print("[ERROR] Failed to move to first ice position")
-            return False
-            
-        ice2_result = run_skill("gotoJ_deg", *ice_pos2)
-        if not ice2_result:
-            print("[ERROR] Failed to move to ice dispensing position")
-            return False
-        print("   ✅ Successfully positioned for ice dispensing")
         
         # Final success summary
         print("=" * 50)
@@ -814,12 +752,131 @@ def pick_plastic_cup_for_ice(**params) -> bool:
         print("[INFO] Cup pickup process terminated due to error")
         return False
 
+#ADD NEW FUNCTION: place_plastic_cup_sauces
+def place_plastic_cup_sauces(**params) -> bool:
+    """
+    Place the plastic cup at the sauces station.
+    """
+    try:
+        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+            return False
+        if run_skill("set_gripper_position", 255, 0) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] place_plastic_cup_sauces failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: pick_plastic_cup_sauces
+def pick_plastic_cup_sauces(**params) -> bool:
+    """
+    Pick the plastic cup from the sauces station.
+
+    Args:
+        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+    """
+    try:
+        cup_size = params.get("cup_size")
+        if not cup_size:
+            print("[ERROR] No cup_size parameter provided")
+            return False
+        valid_sizes = ("7oz", "9oz", "12oz", "16oz")
+        if cup_size not in valid_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid sizes: {', '.join(valid_sizes)}")
+            return False
+
+        gripper_positions = {
+            "7oz": 145,
+            "9oz": 145,
+            "12oz": 145,
+            "16oz": 118,
+        }
+
+        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+            return False
+        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] pick_plastic_cup_sauces failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: place_plastic_cup_milk
+def place_plastic_cup_milk(**params) -> bool:
+    """
+    Place the plastic cup at the milk station.
+    """
+    try:
+        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.012863,-66.881073,-89.347626,-21.746090,-115.826347,-2.388248) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+            return False
+        if run_skill("set_gripper_position", 255, 0) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] place_plastic_cup_milk failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: pick_plastic_cup_milk
+def pick_plastic_cup_milk(**params) -> bool:
+    """
+    Pick the plastic cup from the milk station.
+
+    Args:
+        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+    """
+    try:
+        cup_size = params.get("cup_size")
+        if not cup_size:
+            print("[ERROR] No cup_size parameter provided")
+            return False
+        valid_sizes = ("7oz", "9oz", "12oz", "16oz")
+        if cup_size not in valid_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid sizes: {', '.join(valid_sizes)}")
+            return False
+
+        gripper_positions = {
+            "7oz": 145,
+            "9oz": 145,
+            "12oz": 145,
+            "16oz": 118,
+        }
+
+        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.012863,-66.881073,-89.347626,-21.746090,-115.826347,-2.388248) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] pick_plastic_cup_milk failed: {e}")
+        return False
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
-    'grab_plastic_cup': grab_plastic_cup,
+    'dispnese_plastic_cup': dispnese_plastic_cup,
     'get_ice': get_ice,
-    'place_plastic_cup_with_ice': place_plastic_cup_with_ice,
-    'pick_plastic_cup_for_ice': pick_plastic_cup_for_ice,
-    'place_plastic_cup': place_plastic_cup,
+    'go_home_with_ice': go_home_with_ice,
+    'place_plastic_cup_station': place_plastic_cup_station,
+    'pick_plastic_cup_station': pick_plastic_cup_station,
+    'place_plastic_cup_sauces': place_plastic_cup_sauces,
+    'pick_plastic_cup_sauces': pick_plastic_cup_sauces,
+    'place_plastic_cup_milk': place_plastic_cup_milk,
+    'pick_plastic_cup_milk': pick_plastic_cup_milk,
 }

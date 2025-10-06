@@ -1,25 +1,40 @@
-import React from 'react';
+import React, { useState } from 'react';
 import useStore from '../../../store';
 import stop from '../../../assets/stop.png';
 import coffee from '../../../assets/Coffee.png';
+import coffee from '../../../assets/coffee.png';
+import lighting from '../../../assets/lighting.png';
+import dots from '../../../assets/dots.png';
+import progressing from '../../../assets/progressing.png';
+import circledots from '../../../assets/circledots.png';
 export default function OrderDetails() {
   const { orders } = useStore();
+  const [showTaskInterface, setShowTaskInterface] = useState(true); // State to control showing task interface
 
   // Find the currently processing order
   const processingOrder = orders?.find(order => 
     order.status?.toUpperCase() === 'PROCESSING'
   );
 
-  if (!processingOrder) {
+  // Show task interface if enabled, otherwise show idle message
+  if (!showTaskInterface && !processingOrder) {
     return (
       <div className=" rounded-lg border border-gray-200 flex flex-col h-full ">
         {/* Header - Responsive */}
         <div className="p-2 md:p-3  flex-shrink-0 flex  justify-between  p-4">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
+          <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => setShowTaskInterface(true)}
+              className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+            >
+              Show Tasks
+            </button>
             <button className="flex text-red bg-red-300 hover:bg-red-600 text-white" style={{ padding: '0.3rem', outline: 'none', }}>
               {/* Stop */}
               <img src={stop} alt="Refresh" className="w-6 h-6 cursor-pointer " />
            </button>
+          </div>
         </div>
 
         {/* No Processing Order - Responsive */}
@@ -34,8 +49,10 @@ export default function OrderDetails() {
     );
   }
 
-  // Format order data for display
+  // Format order data for display (only if we have a processing order)
   const formatOrderForDisplay = (order) => {
+    if (!order) return null;
+    
     return {
       ...order,
       itemName: order.cups && order.cups.length > 0 
@@ -46,94 +63,235 @@ export default function OrderDetails() {
     };
   };
 
-  const displayOrder = formatOrderForDisplay(processingOrder);
+  const displayOrder = processingOrder ? formatOrderForDisplay(processingOrder) : null;
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
-      {/* Header - Responsive */}
-      <div className="p-2 md:p-3 border-b border-gray-200 flex-shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
-
-          <div className="flex items-center space-x-2">
+      {/* Header */}
+      <div className="p-3 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Current Order</h2>
+          {/* <div className="flex items-center space-x-2">
+            <button 
+              onClick={() => setShowTaskInterface(false)}
+              className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
+            >
+              Show Idle
+            </button>
             <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
             <span className="text-xs font-medium text-yellow-600">Processing</span>
-          </div>
+          </div> */}
         </div>
       </div>
 
-      {/* Order Content - Responsive */}
-      <div className="flex-1 p-2 md:p-3 space-y-2 md:space-y-3">
+      {/* Task Management Interface */}
+      <div className="flex-1 p-4">
         {/* Order Header */}
-        <div className="bg-yellow-50 p-2 md:p-3 rounded-lg border border-yellow-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 space-y-1 sm:space-y-0">
-            <span className="text-sm font-semibold text-gray-900">Order #{displayOrder.id}</span>
-            <span className="text-xs text-yellow-600 font-medium">�� Processing</span>
+        {/* <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-gray-900">Order #16412</span>
+            <span className="text-xs text-yellow-600 font-medium">Processing</span>
           </div>
-          <h3 className="text-sm md:text-base font-medium text-gray-900">{displayOrder.itemName}</h3>
-        </div>
+          <h3 className="text-base font-medium text-gray-900">Vanilla Latte (Large)</h3>
+        </div> */}
 
-        {/* Order Details - Responsive */}
-        <div className="space-y-1 md:space-y-2">
-          <div className="flex justify-between text-xs md:text-sm">
-            <span className="text-gray-600">Started:</span>
-            <span className="font-medium">{displayOrder.startedAt}</span>
-          </div>
-          <div className="flex justify-between text-xs md:text-sm">
-            <span className="text-gray-600">Created:</span>
-            <span className="font-medium">{displayOrder.createdAt}</span>
-          </div>
-        </div>
-
-        {/* Cups Details - Responsive */}
-        {displayOrder.cups && displayOrder.cups.length > 0 && (
-          <div>
-            <h4 className="text-xs md:text-sm font-medium text-gray-700 mb-2">Order Items:</h4>
-            <div className="space-y-1 md:space-y-2">
-              {displayOrder.cups.map((cup, index) => (
-                <div key={index} className="bg-gray-50 p-1.5 md:p-2 rounded border">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs md:text-sm font-medium">
-                      {cup.drink_type || cup.type} ({cup.cup_size || cup.size})
-                    </span>
-                  </div>
-                  {cup.addons && cup.addons.length > 0 && (
-                    <div className="mt-1">
-                      <span className="text-xs text-gray-600">Add-ons: </span>
-                      <span className="text-xs text-gray-800">
-                        {cup.addons.join(', ').replace(/_/g, ' ')}
-                      </span>
-                    </div>
-                  )}
+        {/* Task Columns */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                     {/* Left Column - Automated Tasks */}
+           <div className="flex flex-col h-full">
+             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Automated Tasks</h3>
+             
+             {/* Task Steps */}
+             <div className="relative flex-1 overflow-y-auto pr-2">
+              
+              {/* Task 1 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={lighting} alt="Lighting" className="w-6 h-6" />
                 </div>
-              ))}
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 1</span>
+                    
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    
+                    <span className="text-base font-medium text-gray-900">Robot Task</span>
+                    <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task 2 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={lighting} alt="Lighting" className="w-6 h-6" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 2</span>
+                   
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    
+                    <span className="text-base font-medium text-gray-900">Robot Task</span>
+                    <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                  
+                </div>
+              </div>
+
+              {/* Task 3 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={lighting} alt="Lighting" className="w-6 h-6" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 3</span>
+                   
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    
+                    <span className="text-base font-medium text-gray-900">Robot Task</span>
+                    <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                 
+                </div>
+              </div>
+
+              {/* Task 4 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={lighting} alt="Lighting" className="w-6 h-6" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xs font-medium text-gray-600">STEP 4</span>
+                  </div>
+                    
+                  <div className="flex items-center space-x-3">
+                    
+                    <span className="text-base font-medium text-gray-900">Robot Task</span>
+                    <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                 
+                </div>
+              </div>
+
+              {/* Task 5 - In Progress */}
+              <div className="relative flex items-start space-x-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={progressing} alt="Progressing" className="w-12 h-21" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 5</span>
+                   
+                  </div>
+                  <div className="flex items-center space-x-3">
+                 
+                    <span className="text-base font-medium text-gray-900">Robot Task</span>
+                    <span className="text-xs font-medium bg-orange-100 text-orange-800 rounded-full px-3 py-1"> In Progress</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
 
-        {/* Manual Steps Alert - Responsive */}
-        {displayOrder.cups?.some(cup => 
-          cup.addons && cup.addons.includes('manual_required')
-        ) && (
-          <div className="bg-orange-50 border border-orange-200 p-2 rounded">
-            <div className="flex items-center space-x-2">
-              <svg className="w-3 md:w-4 h-3 md:h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <span className="text-xs font-medium text-orange-800">Manual step required</span>
+                     {/* Right Column - Manual Tasks */}
+           <div className="flex flex-col h-full">
+             <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Manual (Barista) Tasks</h3>
+             
+             {/* Task Steps */}
+             <div className="relative flex-1 overflow-y-auto pr-2">
+              
+              {/* Task 1 - Tap to Complete */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12  flex items-center justify-center flex-shrink-0">
+                  <img src={circledots} alt="Dots" className="w-12 h-12" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+
+
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 1</span>
+                    
+                  </div>
+                  <div className="space-x-3">
+                  <span className="text-base font-medium text-gray-900">Barista Task</span>
+                  <span className="text-xs font-medium border bg-gray-100 text-gray-800 hover:bg-gray-200 rounded-full px-3 py-1">Tap to Complete</span>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Task 2 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={dots} alt="Dots" className="w-6 h-6" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 2</span>
+                    
+                  </div>
+                  <div className="space-x-3">
+                  <span className="text-base font-medium text-gray-900">Barista Task</span>
+                  <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task 3 - Completed */}
+              <div className="relative flex items-start space-x-4 mb-16">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={dots} alt="Dots" className="w-6 h-6" />
+                </div>
+                {/* Vertical line connecting to next task */}
+                <div className="absolute left-6 top-14 w-0.5 h-10 bg-green-600"></div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 3</span>
+                    
+                  </div>
+                  <div className=" space-x-3">
+                  <span className="text-base font-medium text-gray-900">Barista Task</span>
+                  <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Task 4 - Completed */}
+              <div className="relative flex items-start space-x-4">
+                <div className="w-12 h-12 bg-[#00754A] rounded-full flex items-center justify-center flex-shrink-0">
+                  <img src={dots} alt="Dots" className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm font-medium text-gray-600">STEP 4</span>
+                    
+                  </div>
+                  <div className="space-x-3">
+                  <span className="text-base font-medium text-gray-900">Barista Task</span>
+                  <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Progress Footer - Responsive */}
-      <div className="p-2 md:p-3 border-t border-gray-200 flex-shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between text-xs text-gray-600 space-y-1 sm:space-y-0">
-          <span>Progress: In Progress</span>
-          <span>Est. completion: 3-5 min</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-1 mt-2">
-          <div className="bg-yellow-500 h-1 rounded-full w-1/3 transition-all duration-500"></div>
         </div>
       </div>
     </div>

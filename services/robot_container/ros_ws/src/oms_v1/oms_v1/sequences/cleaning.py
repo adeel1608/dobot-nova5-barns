@@ -17,7 +17,7 @@ from oms_v1.params import (
 )
 
 
-def clean(**params) -> bool:
+def clean_portafilter(**params) -> bool:
     """
     Very simple cleaning flow:
       1) unmount
@@ -74,5 +74,5 @@ def clean(**params) -> bool:
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
-    'clean': clean,
+    'clean_portafilter': clean_portafilter,
 }

@@ -43,7 +43,10 @@ html, body, #root {
   padding: 0;
   overflow: hidden;
 }
-
+.no-outline-shadow {
+  outline: none !important;
+  box-shadow: none !important;
+}
 body {
 
   color: var(--barns-gray-800);
