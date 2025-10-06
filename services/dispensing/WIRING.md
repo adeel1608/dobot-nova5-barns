@@ -77,7 +77,7 @@ Notes:
   - CANH/CANL → CAN bus twisted pair
 
 Notes:
-- The bridge subscribes to MQTT topics (e.g., `automation_dispensing`, `automation_dispensing_can`) and forwards commands to the Mega over UART2, and to CAN (ID 0x110). Ensure the Micro is on the same network as your broker (192.168.200.233:1883 by default in firmware).
+- The bridge subscribes to MQTT topics (e.g., `automation_dispensing`, `automation_dispensing_can`) and forwards commands to the Mega over UART2, and to CAN (ID 0x110). Ensure the Micro is on the same network as your broker (192.168.200.233:1883 by default in firmware). It also emits a heartbeat every 30 s on CAN ID 0x3FF with payload `FF FF`.
 
 ## 3) CAN Bus (between Micro bridge and any CAN nodes)
 
@@ -117,6 +117,7 @@ Notes:
 
 ## 7) Reference Files
 
-- `services/dispensing/src/main.cpp` (motor pins, leak sensors, UART2 config, I²C addresses)
-- `services/dispensing/src/mqtt_can_bridge.cpp` (W5500, MCP2515, MQTT topics, CAN IDs, Serial1 to Mega)
-- `services/dispensing/CAN_COMMANDS.md` (CAN frame format and examples) 
+- `services/dispensing/src/main.cpp` (motor pins, leak sensors, UART2 config, I²C addresses, rinser pulse on D49)
+- `services/dispensing/src/mqtt_can_bridge.cpp` (MCP2515 CAN IDs including frother 0x320/0x321, heartbeat 0x3FF, Serial1 to Mega)
+- `services/dispensing/src/nano_every_frother.cpp` (Nano Every pins: Solenoid D2, M1 D3/D4, M2 D5/D6, MAX6675 D10/D12/D13; INIT/FROTH end in STANDBY)
+- `services/dispensing/CAN_COMMANDS.md` (CAN frame format and examples for dispenser and frother) 

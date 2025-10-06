@@ -11,7 +11,7 @@ Monitor (keep running in another terminal):
 candump can0 -td
 ```
 
-## Frame format (ID 0x110)
+## Dispenser frame format (ID 0x110)
 - ID: `0x110`
 - DLC: 8
 - Payload bytes: `[cmd] [motor_id] [weight_dg_low] [weight_dg_high] [liquid_type] [ext0] [ext1] [ext2]`
@@ -63,7 +63,7 @@ ACK: Comes back on ID `0x111` with byte0 = `0x01`.
 | sauce13   | 15 |
 | sauce14   | 16 |
 | sauce15   | 17 |
-| rinser    | 18 |
+| rinser    | 18 | 49 |
 
 ### Motor name → CAN ID → Mega pin
 | Motor | CAN motor_id (hex) | Mega pin |
@@ -236,3 +236,81 @@ set_lag_can() {
 - MCP2515 crystal on Micro side: 8 MHz (firmware configured accordingly).
 - Exactly two 120 Ω terminators on the CAN bus. Common ground required.
 - ACK appears on ID `0x111` (byte0=`0x01`). If no ACK, check wiring/termination/bitrate/crystal. 
+
+## Frother control (separate IDs 0x320 / 0x321)
+
+- Command (0x320): `b0=cmd(0=OFF,1=STBY,2=INIT,3=FROTH,4=CLEAN)`, `b1=flags(bit0=hasArgs)`, `b2..7=args` (u16 big‑endian, x100 scaling)
+  - INIT: secs
+  - FROTH: targetC, timeoutS
+  - CLEAN: tValve, tSteam, tStandby
+- Events (0x321):
+  - ACK: `b0=00`, `b1=cmd`, `b2=accepted`, `b3=busy`
+  - DONE: `b0=01`, `b1=cmd`, `b2=errorMask`
+  - ERROR: `b0=02`, `b1=code`
+  - TEMP: `b0=03`, `b1..b2=tempCx100`, `b3=valid`
+  - STATE: `b0=04`, `b1=mode`, `b2=busy`, `b3=errorMask`
+
+Behavior notes:
+- INIT completes then auto‑transitions to STANDBY (M1 Reverse, M2 Forward, Solenoid OFF).
+- FROTH now completes by auto‑transitioning to STANDBY when target temperature is reached (or emits ERROR on timeout/TC fault).
+
+## Rinser control (via 0x110 shortcut)
+
+- `motor_id = 24` (rinser) triggers Mega pin D49 HIGH for 5 seconds, then LOW. Scales are not used.
+- Example (rinser pulse):
+```bash
+cansend can0 110#0118640004000000  # weight/liquid ignored; motor_id 0x18 triggers rinser
+```
+
+## Heartbeat
+
+- The Micro sends a heartbeat every 30 s on ID `0x3FF` with payload `FF FF`.
+
+## Frother examples (SocketCAN)
+
+INIT (defaults):
+```bash
+cansend can0 320#02.00.00.00.00.00.00.00
+```
+
+INIT 3.00 s (override: secs×100 = 300 = 0x01 0x2C):
+```bash
+cansend can0 320#02.01.01.2C.00.00.00.00
+```
+
+CLEAN (defaults 5/5/5 s):
+```bash
+cansend can0 320#04.00.00.00.00.00.00.00
+```
+
+CLEAN explicit 5/5/5 s (each 5.00 s = 500 = 0x01F4):
+```bash
+cansend can0 320#04.01.01.F4.01.F4.01.F4
+```
+
+FROTH with overrides (timeout kept at default 180.00 s = 0x46 0x50):
+
+- 54.00 °C → 5400 = 0x15 0x18
+```bash
+cansend can0 320#03.01.15.18.46.50.00.00
+```
+
+- 70.00 °C → 7000 = 0x1B 0x58
+```bash
+cansend can0 320#03.01.1B.58.46.50.00.00
+```
+
+- 75.00 °C → 7500 = 0x1D 0x4C
+```bash
+cansend can0 320#03.01.1D.4C.46.50.00.00
+```
+
+- 85.00 °C → 8500 = 0x21 0x34
+```bash
+cansend can0 320#03.01.21.34.46.50.00.00
+```
+
+- 90.00 °C → 9000 = 0x23 0x28
+```bash
+cansend can0 320#03.01.23.28.46.50.00.00
+```
