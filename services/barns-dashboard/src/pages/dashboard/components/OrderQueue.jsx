@@ -169,10 +169,10 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
                 onDeleteOrder && onDeleteOrder(order.id);
               }}
               disabled={isDeleting}
-              className={`text-xs px-2 py-1 rounded flex items-center justify-center bg-danger-sublte text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed`}
+              className={`text-xs px-2 py-1 rounded flex items-center justify-center  text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed shadow-none`}
               title={isDeleting ? 'Deleting...' : 'Delete order'}
               aria-label={isDeleting ? 'Deleting...' : 'Delete order'}
-              style={{height:'2rem'}}
+              style={{height:'2rem',boxShadow:'none'}}
             >
               {isDeleting ? (
                 <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

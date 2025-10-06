@@ -1327,37 +1327,39 @@ async def process_pos_order(order_data: dict):
         # Process the order via core
         parsed_order = parse_transaction(order_data)
 
-        # Print the dataclass object (as requested)
-        results = {}
-
-        for item in parsed_order.get("items", []):
-            grouped = {}
-            for ing in item.ingredients:
-                cat = ing.category
-                if cat not in grouped:
-                    grouped[cat] = {}
-                grouped[cat][ing.type] = ing.total_amount
-
-            # key the result by recipe_id
-            results[item.recipe_id] = grouped
+        # Build cups honoring item quantity (ordered_qty)
         order = {"order": {"cups": []}}
 
-        for recipe_id, ingredients in results.items():
-            # Extract size from 'cups' category (if available)
+        for item in parsed_order.get("items", []):
+            # Group this item's ingredients by category -> type -> amount
+            grouped = {}
+            for ing in item.ingredients:
+                cat = getattr(ing, "category", None)
+                typ = getattr(ing, "type", None)
+                amount = getattr(ing, "total_amount", 0)
+                if cat not in grouped:
+                    grouped[cat] = {}
+                grouped[cat][typ] = amount
+
+            # Determine size from grouped cups (if present)
             size = None
-            if "cups" in ingredients:
-                # take first key under cups (e.g., "H7", "H12")
-                size = next(iter(ingredients["cups"].keys()))
+            if "cups" in grouped and len(grouped["cups"]) > 0:
+                size = next(iter(grouped["cups"].keys()))
 
-            # Build cup entry
-            cup_entry = {
-                "type": recipe_id,
-                "size": size,
-                "addons": [],
-                "ingredients": ingredients
-            }
+            # Number of identical cups to create for this item
+            quantity = int(getattr(item, "ordered_qty", 1) or 1)
 
-            order["order"]["cups"].append(cup_entry)
+            # Append one cup entry per quantity
+            for _ in range(max(1, quantity)):
+                # Shallow copy per append to avoid shared references
+                ingredients_copy = {k: dict(v) for k, v in grouped.items()}
+                cup_entry = {
+                    "type": item.recipe_id,
+                    "size": size,
+                    "addons": [],
+                    "ingredients": ingredients_copy,
+                }
+                order["order"]["cups"].append(cup_entry)
         print(order, type(order))
 
         result = await handle_create_order_mq(order)
