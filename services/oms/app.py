@@ -1371,6 +1371,71 @@ async def process_pos_order(order_data: dict):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing order: {str(e)}")
 
+@app.get("/pos/menu-items")
+async def get_menu_items():
+    """Get all menu items with their default ingredients from the POS database."""
+    try:
+        from .pos_core import MENU_ITEMS, load_reference_data_from_db
+        
+        # Ensure reference data is loaded
+        if not MENU_ITEMS:
+            load_reference_data_from_db()
+        
+        # Convert to list format for frontend
+        menu_items_list = []
+        for item_id, item_data in MENU_ITEMS.items():
+            menu_items_list.append({
+                "item_id": item_id,
+                "name": item_data["name"],
+                "category": item_data["category"],
+                "size": item_data["size"],
+                "automation": item_data["automation"],
+                "recipe": item_data["recipe"],
+                "default_ingredients": item_data["default_ingredients"]
+            })
+        
+        return {
+            "success": True,
+            "menu_items": menu_items_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching menu items: {str(e)}")
+
+@app.get("/pos/ingredients")
+async def get_ingredients():
+    """Get all ingredients grouped by category from the POS database."""
+    try:
+        from .pos_core import INGREDIENT_DETAILS, INGREDIENTS, load_reference_data_from_db
+        
+        # Ensure reference data is loaded
+        if not INGREDIENT_DETAILS:
+            load_reference_data_from_db()
+        
+        # Group ingredients by category
+        ingredients_by_category = {}
+        for ingredient_id, details in INGREDIENT_DETAILS.items():
+            category = details["category"]
+            if category not in ingredients_by_category:
+                ingredients_by_category[category] = []
+            
+            ingredients_by_category[category].append({
+                "ingredient_id": ingredient_id,
+                "name": INGREDIENTS.get(ingredient_id, ingredient_id),
+                "type": details["type"],
+                "category": category,
+                "base_units": details["base_units"],
+                "automated": details["automated"],
+                "default_amount": details["default_amount"],
+                "is_topping": details["is_topping"]
+            })
+        
+        return {
+            "success": True,
+            "ingredients_by_category": ingredients_by_category
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching ingredients: {str(e)}")
+
 @app.get("/queue/sync")
 def sync_queue():
     """Manually sync the Redis queue with database orders."""

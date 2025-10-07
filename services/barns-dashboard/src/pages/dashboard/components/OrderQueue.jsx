@@ -193,13 +193,15 @@ function OrderQueue({ connectionStatus }) {
 
   const { 
     orders, 
-    recipes, 
+    menuItems,
+    ingredientsByCategory,
     sendReorder, 
     startOrder, 
     resumeOrder, 
     deleteOrder, 
-    createOrder, 
-    fetchRecipes,
+    processPOSOrder,
+    fetchMenuItems,
+    fetchIngredientsByCategory,
     isLoading, 
     errors, 
     clearError 
@@ -213,32 +215,27 @@ function OrderQueue({ connectionStatus }) {
   const [reorderingOrderId, setReorderingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [orderData, setOrderData] = useState({
-    cups: [{ type: '', size: 'regular', addons: [] }]
+  const [posOrderData, setPosOrderData] = useState({
+    items: [{ 
+      item_id: '', 
+      quantity: 1,
+      kitchen_notes: [],
+      item_ingredients: []
+    }]
   });
   const logsEndRef = useRef(null);
 
-  // Fetch recipes when component loads
+  // Fetch menu items and ingredients for POS mode
   useEffect(() => {
-    if (recipes.length === 0) {
-      fetchRecipes();
+    if (showNewOrder) {
+      if (menuItems.length === 0) {
+        fetchMenuItems();
+      }
+      if (Object.keys(ingredientsByCategory).length === 0) {
+        fetchIngredientsByCategory();
+      }
     }
-  }, [fetchRecipes, recipes.length]);
-
-  // Fallback recipes if API fails
-  const fallbackRecipes = [
-    { name: 'latte', display_name: 'Latte', steps: 4 },
-    { name: 'americano', display_name: 'Americano', steps: 3 },
-    { name: 'cappuccino', display_name: 'Cappuccino', steps: 5 },
-    { name: 'espresso', display_name: 'Espresso', steps: 2 },
-    { name: 'mocha', display_name: 'Mocha', steps: 6 }
-  ];
-
-  // Use API recipes if available, otherwise fallback to hardcoded ones
-  const availableRecipes = recipes.length > 0 ? recipes : fallbackRecipes;
-  
-  const sizes = ['small', 'regular', 'large'];
-  const addons = ['extra_shot', 'oat_milk', 'almond_milk', 'sugar_free', 'decaf'];
+  }, [showNewOrder, menuItems.length, ingredientsByCategory, fetchMenuItems, fetchIngredientsByCategory]);
 
   const displayOrders = orders;
 
@@ -501,16 +498,16 @@ const handleDeleteOrder = async (orderId) => {
     useStore.getState().fetchOrders();
   };
 
-  // New Order functions
-  const handleSubmitNewOrder = async (e) => {
+  // POS Order Functions
+  const handleSubmitPOSOrder = async (e) => {
     e.preventDefault();
     
-    // Validate that all cups have a drink type selected
-    const invalidCups = orderData.cups.filter(cup => !cup.type || cup.type.trim() === '');
-    if (invalidCups.length > 0) {
+    // Validate that all items have item_id
+    const invalidItems = posOrderData.items.filter(item => !item.item_id || item.item_id.trim() === '');
+    if (invalidItems.length > 0) {
       Swal.fire({
-        title: 'Missing Drink Type',
-        text: 'Please select a drink type for all drinks before creating the order.',
+        title: 'Missing Item ID',
+        text: 'Please enter an item ID for all items before creating the order.',
         icon: 'warning',
         timer: 3000,
         timerProgressBar: true,
@@ -519,67 +516,209 @@ const handleDeleteOrder = async (orderId) => {
       return;
     }
     
-    const success = await createOrder(orderData);
+    // Generate transaction_id
+    const transactionId = `TXN${Date.now()}`;
+    const now = new Date();
+    const date = now.toISOString().split('T')[0];
+    const time = now.toTimeString().split(' ')[0];
+    
+    // Build POS order format matching desired_output.json
+    const posOrder = {
+      transaction_id: transactionId,
+      date: date,
+      time: time,
+      store_number: 1,
+      pos_reg_id: 1,
+      customer_id: null,
+      items: posOrderData.items
+    };
+    
+    const success = await processPOSOrder(posOrder);
     if (success) {
-      setOrderData({ cups: [{ type: '', size: 'regular', addons: [] }] });
+      setPosOrderData({ 
+        items: [{ 
+          item_id: '', 
+          quantity: 1,
+          kitchen_notes: [],
+          item_ingredients: []
+        }]
+      });
       setShowNewOrder(false);
 
       Swal.fire({
-        title: 'Order!',
-        text: 'Order created successfully!',
+        title: 'Success!',
+        text: 'POS Order processed successfully!',
         icon: 'success',
-        timer: 3000, // 3 seconds = 3000ms
+        timer: 3000,
         timerProgressBar: true,
         showConfirmButton: false
       });
     } else {
-      
-        
-          Swal.fire({
-          title: 'Order!',
-          text: 'Failed to create order!',
-          icon: 'error',
-          timer: 3000, // 3 seconds = 3000ms
-          timerProgressBar: true,
-          showConfirmButton: false
+      Swal.fire({
+        title: 'Failed!',
+        text: 'Failed to process POS order!',
+        icon: 'error',
+        timer: 3000,
+        timerProgressBar: true,
+        showConfirmButton: false
       });
     }
   };
 
-  const addDrink = () => {
-    setOrderData(prev => ({
-      cups: [...prev.cups, { type: '', size: 'regular', addons: [] }]
+  const addPOSItem = () => {
+    setPosOrderData(prev => ({
+      items: [...prev.items, { 
+        item_id: '', 
+        quantity: 1,
+        kitchen_notes: [],
+        item_ingredients: []
+      }]
     }));
   };
 
-  const removeDrink = (index) => {
-    if (orderData.cups.length > 1) {
-      setOrderData(prev => ({
-        cups: prev.cups.filter((_, i) => i !== index)
+  const removePOSItem = (index) => {
+    if (posOrderData.items.length > 1) {
+      setPosOrderData(prev => ({
+        items: prev.items.filter((_, i) => i !== index)
       }));
     }
   };
 
-  const updateDrink = (index, field, value) => {
-    setOrderData(prev => ({
-      cups: prev.cups.map((cup, i) => 
-        i === index ? { ...cup, [field]: value } : cup
+  const updatePOSItem = (index, field, value) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => {
+        if (i === index) {
+          // If changing item_id, load default ingredients for that menu item
+          if (field === 'item_id') {
+            const selectedMenuItem = menuItems.find(m => m.item_id === value);
+            if (selectedMenuItem) {
+              // Initialize with empty modifications - user will select replacements/addons
+              return {
+                ...item,
+                item_id: value,
+                selectedMenuItem: selectedMenuItem, // Store for reference
+                kitchen_notes: [],
+                item_ingredients: []
+              };
+            }
+          }
+          return { ...item, [field]: value };
+        }
+        return item;
+      })
+    }));
+  };
+
+  const addKitchenNote = (itemIndex) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? { 
+          ...item, 
+          kitchen_notes: [...item.kitchen_notes, { type: '', qty: 1, detail: '' }]
+        } : item
       )
     }));
   };
 
-  const toggleAddon = (drinkIndex, addon) => {
-    setOrderData(prev => ({
-      cups: prev.cups.map((cup, i) => {
-        if (i === drinkIndex) {
-          const currentAddons = cup.addons || [];
-          const newAddons = currentAddons.includes(addon)
-            ? currentAddons.filter(a => a !== addon)
-            : [...currentAddons, addon];
-          return { ...cup, addons: newAddons };
-        }
-        return cup;
-      })
+  const removeKitchenNote = (itemIndex, noteIndex) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          kitchen_notes: item.kitchen_notes.filter((_, ni) => ni !== noteIndex)
+        } : item
+      )
+    }));
+  };
+
+  const updateKitchenNote = (itemIndex, noteIndex, field, value) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          kitchen_notes: item.kitchen_notes.map((note, ni) => 
+            ni === noteIndex ? { ...note, [field]: value } : note
+          )
+        } : item
+      )
+    }));
+  };
+
+  const addIngredientModification = (itemIndex) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          item_ingredients: [...item.item_ingredients, { 
+            itemId: '', 
+            qty: 1, 
+            isAddon: false,
+            modifierGroupId: '',
+            isModified: false,
+            initialItemId: ''
+          }]
+        } : item
+      )
+    }));
+  };
+
+  const removeIngredientModification = (itemIndex, ingIndex) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          item_ingredients: item.item_ingredients.filter((_, ii) => ii !== ingIndex)
+        } : item
+      )
+    }));
+  };
+
+  const updateIngredientModification = (itemIndex, ingIndex, field, value) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          item_ingredients: item.item_ingredients.map((ing, ii) => 
+            ii === ingIndex ? { ...ing, [field]: value } : ing
+          )
+        } : item
+      )
+    }));
+  };
+
+  // Helper function to add an ingredient replacement
+  const addIngredientReplacement = (itemIndex, originalIngredientId, newIngredientId, quantity) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          item_ingredients: [...item.item_ingredients, {
+            itemId: newIngredientId,
+            qty: quantity || 1,
+            isAddon: false,
+            modifierGroupId: 'replacement',
+            isModified: true,
+            initialItemId: originalIngredientId
+          }]
+        } : item
+      )
+    }));
+  };
+
+  // Helper function to add an ingredient addon
+  const addIngredientAddon = (itemIndex, ingredientId, quantity) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((item, i) => 
+        i === itemIndex ? {
+          ...item,
+          item_ingredients: [...item.item_ingredients, {
+            itemId: ingredientId,
+            qty: quantity || 1,
+            isAddon: true,
+            modifierGroupId: 'AddOns'
+          }]
+        } : item
+      )
     }));
   };
 
@@ -643,11 +782,6 @@ const handleDeleteOrder = async (orderId) => {
                 API Error
               </span>
             )}
-            {errors.recipes && showNewOrder && (
-              <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                Recipes Error
-              </span>
-            )}
           </div>
           
           <h2
@@ -709,22 +843,6 @@ const handleDeleteOrder = async (orderId) => {
         </div>
       )}
 
-      {/* Recipes Error display */}
-      {errors.recipes && showNewOrder && (
-        <div className="border-b border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-700 flex justify-between items-center flex-shrink-0">
-          <div>
-            <span className="font-medium">Recipes Error:</span> {errors.recipes}
-            <p className="text-xs mt-1">Using fallback recipes. Please check the API connection.</p>
-          </div>
-          <button 
-            onClick={() => fetchRecipes()}
-            className="px-2 py-1 bg-yellow-100 hover:bg-yellow-200 text-yellow-800 rounded text-xs font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      
       {/* Scrollable content area */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-y-auto p-4">
@@ -734,128 +852,318 @@ const handleDeleteOrder = async (orderId) => {
               {/* Custom Order Form */}
               <div>
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">New Order</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">New POS Order</h3>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm text-gray-600">{orderData.cups.length} drink{orderData.cups.length !== 1 ? 's' : ''}</span>
-                    {recipes.length === 0 && !errors.recipes && (
-                      <span className="text-xs text-blue-600 flex items-center">
-                        <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Loading recipes...
-                      </span>
-                    )}
+                    <span className="text-sm text-gray-600">
+                      {posOrderData.items.length} item{posOrderData.items.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
                 </div>
                 
-                <form onSubmit={handleSubmitNewOrder} className="space-y-4">
-                  {/* Add/Remove Drinks and Submit */}
-                  <div className="flex justify-between items-center sticky top-0 z-10  bg-gradient-to-b from-white/70 to-transparent backdrop-blur-sm ">
-                    <h2
-                      type="button"
-                      onClick={addDrink}
-                      className="px-4 py-2 barns-dark-bg text-white rounded-lg cursor-pointer text-sm"
-                      style={{outline:'none', color:'white'}}
-                    >
-                      Add Drink
-                    </h2>
-                    
-                    <button
-                      type="submit"
-                      disabled={isLoading || orderData.cups.some(cup => !cup.type || cup.type.trim() === '')}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoading ? 'Creating...' : `Create Order (${orderData.cups.length} drink${orderData.cups.length !== 1 ? 's' : ''})`}
-                    </button>
-                  </div>
-                  {/* Multiple Drinks */}
-                  {orderData.cups.map((cup, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-900">Drink {index + 1}</h4>
-                        {orderData.cups.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeDrink(index)}
-                            className="text-red-500 hover:text-red-700 text-sm"
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
+                {/* POS Order Form */}
+                <form onSubmit={handleSubmitPOSOrder} className="space-y-4">
+                  {/* Add/Remove Items and Submit */}
+                  <div className="flex justify-between items-center sticky top-0 z-10 bg-gradient-to-b from-white/70 to-transparent backdrop-blur-sm">
+                      <button
+                        type="button"
+                        onClick={addPOSItem}
+                        className="px-4 py-2 barns-dark-bg text-white rounded-lg cursor-pointer text-sm"
+                        style={{outline:'none', color:'white'}}
+                      >
+                        Add Item
+                      </button>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Drink Type</label>
-                          <select
-                            value={cup.type}
-                            onChange={(e) => updateDrink(index, 'type', e.target.value)}
-                            className={`w-full px-3 py-2 border rounded-lg text-sm ${
-                              !cup.type || cup.type.trim() === '' 
-                                ? 'border-red-300 bg-red-50' 
-                                : 'border-gray-300'
-                            }`}
-                            disabled={recipes.length === 0 && !errors.recipes}
-                          >
-                            {availableRecipes.length === 0 ? (
-                              <option value="">Loading recipes...</option>
-                            ) : (
-                              <>
-                                <option value="">Select drink type...</option>
-                                {availableRecipes.map(recipe => (
-                                  <option key={recipe.name} value={recipe.name}>
-                                    {recipe.display_name}
-                                  </option>
-                                ))}
-                              </>
-                            )}
-                          </select>
-                          {(!cup.type || cup.type.trim() === '') && (
-                            <p className="text-xs text-red-600 mt-1">Please select a drink type</p>
-                          )}
-                          {errors.recipes && (
-                            <p className="text-xs text-yellow-600 mt-1">Using fallback recipes</p>
+                      <button
+                        type="submit"
+                        disabled={isLoading || posOrderData.items.some(item => !item.item_id || item.item_id.trim() === '')}
+                        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoading ? 'Processing...' : `Process Order (${posOrderData.items.length} item${posOrderData.items.length !== 1 ? 's' : ''})`}
+                      </button>
+                    </div>
+                    
+                    {/* Multiple Items */}
+                    {posOrderData.items.map((item, itemIndex) => (
+                      <div key={itemIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-medium text-gray-900">Item {itemIndex + 1}</h4>
+                          {posOrderData.items.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removePOSItem(itemIndex)}
+                              className="text-red-500 hover:text-red-700 text-sm"
+                            >
+                              Remove
+                            </button>
                           )}
                         </div>
                         
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
-                          <select
-                            value={cup.size}
-                            onChange={(e) => updateDrink(index, 'size', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                          >
-                            {sizes.map(size => (
-                              <option key={size} value={size}>
-                                {size.charAt(0).toUpperCase() + size.slice(1)}
-                              </option>
-                            ))}
-                          </select>
+                        {/* Menu Item Selection and Quantity */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Menu Item</label>
+                            <select
+                              value={item.item_id}
+                              onChange={(e) => updatePOSItem(itemIndex, 'item_id', e.target.value)}
+                              className={`w-full px-3 py-2 border rounded-lg text-sm ${
+                                !item.item_id || item.item_id.trim() === '' 
+                                  ? 'border-red-300 bg-red-50' 
+                                  : 'border-gray-300'
+                              }`}
+                            >
+                              <option value="">Select a menu item...</option>
+                              {menuItems.length === 0 ? (
+                                <option value="">Loading menu items...</option>
+                              ) : (
+                                menuItems.map(menuItem => (
+                                  <option key={menuItem.item_id} value={menuItem.item_id}>
+                                    {menuItem.name} ({menuItem.size})
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            {(!item.item_id || item.item_id.trim() === '') && (
+                              <p className="text-xs text-red-600 mt-1">Please select a menu item</p>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => updatePOSItem(itemIndex, 'quantity', parseInt(e.target.value) || 1)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            />
+                          </div>
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Add-ons</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {addons.map(addon => (
-                            <label key={addon} className="flex items-center">
-                              <input
-                                type="checkbox"
-                                checked={cup.addons?.includes(addon) || false}
-                                onChange={() => toggleAddon(index, addon)}
-                                className="mr-2"
-                              />
-                              <span className="text-sm">{addon.replace('_', ' ')}</span>
-                            </label>
-                          ))}
+                        
+                        {/* Default Ingredients (shown when item is selected) */}
+                        {item.selectedMenuItem && item.selectedMenuItem.default_ingredients.length > 0 && (
+                          <div className="border-t pt-3">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">Default Ingredients:</h5>
+                            <div className="text-xs text-gray-600 space-y-1 bg-blue-50 p-2 rounded">
+                              {item.selectedMenuItem.default_ingredients.map((ing, idx) => (
+                                <div key={idx}>
+                                  • {ing.type} ({ing.category}) - {ing.quantity}x {ing.unit_amount}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Kitchen Modifiers (Automated - qty=0) */}
+                        {item.selectedMenuItem && (
+                          <div className="border-t pt-3">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">Kitchen Modifiers:</h5>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Temperature</label>
+                                <select
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setPosOrderData(prev => ({
+                                        items: prev.items.map((itm, i) => 
+                                          i === itemIndex ? {
+                                            ...itm,
+                                            kitchen_notes: [
+                                              ...itm.kitchen_notes.filter(n => n.type !== 'Drink Temprature'),
+                                              { type: 'Drink Temprature', qty: 0, detail: e.target.value }
+                                            ]
+                                          } : itm
+                                        )
+                                      }));
+                                    }
+                                  }}
+                                >
+                                  <option value="">Normal</option>
+                                  <option value="Extra Hot">Extra Hot</option>
+                                  <option value="Less Hot">Less Hot</option>
+                                  <option value="Hot">Hot</option>
+                                  <option value="Cold">Cold</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Ice Level</label>
+                                <select
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setPosOrderData(prev => ({
+                                        items: prev.items.map((itm, i) => 
+                                          i === itemIndex ? {
+                                            ...itm,
+                                            kitchen_notes: [
+                                              ...itm.kitchen_notes.filter(n => n.type !== 'Drink Ice'),
+                                              { type: 'Drink Ice', qty: 0, detail: e.target.value }
+                                            ]
+                                          } : itm
+                                        )
+                                      }));
+                                    }
+                                  }}
+                                >
+                                  <option value="">Normal</option>
+                                  <option value="Extra Ice">Extra Ice</option>
+                                  <option value="Light Ice">Light Ice</option>
+                                  <option value="No Ice">No Ice</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Foam</label>
+                                <select
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      setPosOrderData(prev => ({
+                                        items: prev.items.map((itm, i) => 
+                                          i === itemIndex ? {
+                                            ...itm,
+                                            kitchen_notes: [
+                                              ...itm.kitchen_notes.filter(n => n.type !== 'Drink Foam'),
+                                              { type: 'Drink Foam', qty: 0, detail: e.target.value }
+                                            ]
+                                          } : itm
+                                        )
+                                      }));
+                                    }
+                                  }}
+                                >
+                                  <option value="">Normal</option>
+                                  <option value="Extra Foam">Extra Foam</option>
+                                  <option value="Light Foam">Light Foam</option>
+                                  <option value="No Foam">No Foam</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Manual Kitchen Notes (qty > 0) */}
+                        <div className="border-t pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-gray-700">Manual Notes (for barista)</label>
+                            <button
+                              type="button"
+                              onClick={() => addKitchenNote(itemIndex)}
+                              className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              + Add Manual Note
+                            </button>
+                          </div>
+                          {item.kitchen_notes.filter(n => n.qty > 0).map((note, noteIndex) => {
+                            const actualIndex = item.kitchen_notes.findIndex(n => n === note);
+                            return (
+                              <div key={noteIndex} className="grid grid-cols-3 gap-2 mb-2">
+                                <input
+                                  type="text"
+                                  value={note.type}
+                                  onChange={(e) => updateKitchenNote(itemIndex, actualIndex, 'type', e.target.value)}
+                                  className="px-2 py-1 border border-gray-300 rounded text-xs"
+                                  placeholder="Type (e.g., Sugar)"
+                                />
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={note.qty}
+                                  onChange={(e) => updateKitchenNote(itemIndex, actualIndex, 'qty', parseInt(e.target.value) || 1)}
+                                  className="px-2 py-1 border border-gray-300 rounded text-xs"
+                                  placeholder="Qty"
+                                />
+                                <div className="flex gap-1">
+                                  <input
+                                    type="text"
+                                    value={note.detail}
+                                    onChange={(e) => updateKitchenNote(itemIndex, actualIndex, 'detail', e.target.value)}
+                                    className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                                    placeholder="Detail (e.g., Brown)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeKitchenNote(itemIndex, actualIndex)}
+                                    className="text-red-500 hover:text-red-700 text-xs px-2"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
+                        
+                        {/* Item Ingredients - Organized by Category */}
+                        {item.selectedMenuItem && Object.keys(ingredientsByCategory).length > 0 && (
+                          <div className="border-t pt-3">
+                            <h5 className="text-sm font-medium text-gray-700 mb-2">Customize Ingredients:</h5>
+                            <div className="space-y-3">
+                              {/* Show ingredient categories with dropdowns */}
+                              {Object.entries(ingredientsByCategory).map(([category, ingredients]) => (
+                                <div key={category} className="bg-gray-50 p-3 rounded">
+                                  <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">
+                                    {category.replace('_', ' ')}
+                                  </label>
+                                  <div className="flex gap-2">
+                                    <select
+                                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          // Check if replacing default or adding addon
+                                          const defaultIng = item.selectedMenuItem.default_ingredients.find(
+                                            di => di.category === category
+                                          );
+                                          if (defaultIng) {
+                                            addIngredientReplacement(itemIndex, defaultIng.ingredient_id, e.target.value, 1);
+                                          } else {
+                                            addIngredientAddon(itemIndex, e.target.value, 1);
+                                          }
+                                          e.target.value = ''; // Reset dropdown
+                                        }
+                                      }}
+                                    >
+                                      <option value="">Add {category}...</option>
+                                      {ingredients.map(ing => (
+                                        <option key={ing.ingredient_id} value={ing.ingredient_id}>
+                                          {ing.name} ({ing.type})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Show added modifications */}
+                            {item.item_ingredients.length > 0 && (
+                              <div className="mt-3">
+                                <h6 className="text-xs font-medium text-gray-700 mb-1">Added Modifications:</h6>
+                                <div className="space-y-1">
+                                  {item.item_ingredients.map((ing, ingIndex) => (
+                                    <div key={ingIndex} className="flex items-center justify-between bg-white px-2 py-1 rounded text-xs">
+                                      <span>
+                                        {ing.itemId} x{ing.qty} 
+                                        <span className="ml-2 text-gray-500">
+                                          ({ing.isAddon ? 'Add-on' : 'Replacement'})
+                                        </span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeIngredientModification(itemIndex, ingIndex)}
+                                        className="text-red-500 hover:text-red-700"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
-
-
-                </form>
+                    ))}
+                  </form>
               </div>
             </div>
           ) : (
