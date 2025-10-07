@@ -1331,15 +1331,15 @@ async def process_pos_order(order_data: dict):
         order = {"order": {"cups": []}}
 
         for item in parsed_order.get("items", []):
-            # Group this item's ingredients by category -> type -> amount
+            # Group this item's ingredients by category -> ingredient_id -> amount
             grouped = {}
             for ing in item.ingredients:
                 cat = getattr(ing, "category", None)
-                typ = getattr(ing, "type", None)
+                ingredient_id = getattr(ing, "ingredient_id", None)
                 amount = getattr(ing, "total_amount", 0)
                 if cat not in grouped:
                     grouped[cat] = {}
-                grouped[cat][typ] = amount
+                grouped[cat][ingredient_id] = amount
 
             # Determine size from grouped cups (if present)
             size = None

@@ -16,6 +16,26 @@ MENU_ITEMS: Dict[str, Dict[str, Any]] = {}
 INGREDIENTS: Dict[str, str] = {}
 INGREDIENT_DETAILS: Dict[str, Dict[str, Any]] = {}
 
+# Hardcoded mappings for milk and syrups categories
+MILK_MAPPINGS = {
+    "whole_fat": 1,
+    "almond": 2,
+    "oat": 3,
+    "soy": 4,
+    "lactose_free": 6,
+}
+
+SYRUP_MAPPINGS = {
+    "white_chocolate": 1,
+    "caramel": 2,
+    "condense_milk": 3,
+    "hazelnut": 4,
+    "vanilla": 5,
+    "peach_iced_tea": 7,
+    "passion_fruit_puree": 8,
+    "ice_tea": 9,
+}
+
 
 # ------------------------------------------------------------------------------
 # Dataclasses for parsed order representation
@@ -26,7 +46,7 @@ INGREDIENT_DETAILS: Dict[str, Dict[str, Any]] = {}
 class ParsedIngredient:
     category: str
     type: str
-    ingredient_id: str
+    ingredient_id: Any  # Can be str or int (mapped for milk/syrups)
     ingredient_name: str
     quantity: int
     unit_amount: Any
@@ -210,6 +230,23 @@ def _get_ingredient_details(ingredient_id: str) -> Dict[str, Any]:
     return INGREDIENT_DETAILS.get(ingredient_id, {})
 
 
+def _map_ingredient_id(ingredient_id: str, category: str, ingredient_type: str) -> Any:
+    """
+    Map ingredient ID to numeric value for milk and syrups categories.
+    For other categories, return the original ingredient_id.
+    """
+    if category == "milk":
+        # Try to map using type or id
+        mapped_id = MILK_MAPPINGS.get(ingredient_type) or MILK_MAPPINGS.get(ingredient_id)
+        return mapped_id if mapped_id is not None else ingredient_id
+    elif category == "syrups":
+        # Try to map using type or id
+        mapped_id = SYRUP_MAPPINGS.get(ingredient_type) or SYRUP_MAPPINGS.get(ingredient_id)
+        return mapped_id if mapped_id is not None else ingredient_id
+    else:
+        return ingredient_id
+
+
 def _extract_kitchen_info(
     kitchen_notes: List[Dict[str, Any]],
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
@@ -339,14 +376,21 @@ def _create_ingredient_list(
 
     for ingredient in ingredients:
         category = ingredient["category"]
+        ingredient_type = ingredient.get("type", "")
+        original_ingredient_id = ingredient["ingredient_id"]
+        
+        # Apply hardcoded mapping for milk and syrups categories
+        mapped_ingredient_id = _map_ingredient_id(
+            original_ingredient_id, category, ingredient_type
+        )
 
         # Create base ingredient object
         ingredient_obj = ParsedIngredient(
             category=ingredient["category"],
             type=ingredient["type"],
-            ingredient_id=ingredient["ingredient_id"],
+            ingredient_id=mapped_ingredient_id,
             ingredient_name=ingredient.get(
-                "ingredient_name", _lookup_ingredient_name(ingredient["ingredient_id"])
+                "ingredient_name", _lookup_ingredient_name(original_ingredient_id)
             ),
             quantity=ingredient.get("quantity", 1),
             unit_amount=ingredient.get("unit_amount", 1),
