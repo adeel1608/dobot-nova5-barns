@@ -1327,37 +1327,39 @@ async def process_pos_order(order_data: dict):
         # Process the order via core
         parsed_order = parse_transaction(order_data)
 
-        # Print the dataclass object (as requested)
-        results = {}
-
-        for item in parsed_order.get("items", []):
-            grouped = {}
-            for ing in item.ingredients:
-                cat = ing.category
-                if cat not in grouped:
-                    grouped[cat] = {}
-                grouped[cat][ing.type] = ing.total_amount
-
-            # key the result by recipe_id
-            results[item.recipe_id] = grouped
+        # Build cups honoring item quantity (ordered_qty)
         order = {"order": {"cups": []}}
 
-        for recipe_id, ingredients in results.items():
-            # Extract size from 'cups' category (if available)
+        for item in parsed_order.get("items", []):
+            # Group this item's ingredients by category -> ingredient_id -> amount
+            grouped = {}
+            for ing in item.ingredients:
+                cat = getattr(ing, "category", None)
+                ingredient_id = getattr(ing, "ingredient_id", None)
+                amount = getattr(ing, "total_amount", 0)
+                if cat not in grouped:
+                    grouped[cat] = {}
+                grouped[cat][ingredient_id] = amount
+
+            # Determine size from grouped cups (if present)
             size = None
-            if "cups" in ingredients:
-                # take first key under cups (e.g., "H7", "H12")
-                size = next(iter(ingredients["cups"].keys()))
+            if "cups" in grouped and len(grouped["cups"]) > 0:
+                size = next(iter(grouped["cups"].keys()))
 
-            # Build cup entry
-            cup_entry = {
-                "type": recipe_id,
-                "size": size,
-                "addons": [],
-                "ingredients": ingredients
-            }
+            # Number of identical cups to create for this item
+            quantity = int(getattr(item, "ordered_qty", 1) or 1)
 
-            order["order"]["cups"].append(cup_entry)
+            # Append one cup entry per quantity
+            for _ in range(max(1, quantity)):
+                # Shallow copy per append to avoid shared references
+                ingredients_copy = {k: dict(v) for k, v in grouped.items()}
+                cup_entry = {
+                    "type": item.recipe_id,
+                    "size": size,
+                    "addons": [],
+                    "ingredients": ingredients_copy,
+                }
+                order["order"]["cups"].append(cup_entry)
         print(order, type(order))
 
         result = await handle_create_order_mq(order)
@@ -1368,6 +1370,71 @@ async def process_pos_order(order_data: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing order: {str(e)}")
+
+@app.get("/pos/menu-items")
+async def get_menu_items():
+    """Get all menu items with their default ingredients from the POS database."""
+    try:
+        from .pos_core import MENU_ITEMS, load_reference_data_from_db
+        
+        # Ensure reference data is loaded
+        if not MENU_ITEMS:
+            load_reference_data_from_db()
+        
+        # Convert to list format for frontend
+        menu_items_list = []
+        for item_id, item_data in MENU_ITEMS.items():
+            menu_items_list.append({
+                "item_id": item_id,
+                "name": item_data["name"],
+                "category": item_data["category"],
+                "size": item_data["size"],
+                "automation": item_data["automation"],
+                "recipe": item_data["recipe"],
+                "default_ingredients": item_data["default_ingredients"]
+            })
+        
+        return {
+            "success": True,
+            "menu_items": menu_items_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching menu items: {str(e)}")
+
+@app.get("/pos/ingredients")
+async def get_ingredients():
+    """Get all ingredients grouped by category from the POS database."""
+    try:
+        from .pos_core import INGREDIENT_DETAILS, INGREDIENTS, load_reference_data_from_db
+        
+        # Ensure reference data is loaded
+        if not INGREDIENT_DETAILS:
+            load_reference_data_from_db()
+        
+        # Group ingredients by category
+        ingredients_by_category = {}
+        for ingredient_id, details in INGREDIENT_DETAILS.items():
+            category = details["category"]
+            if category not in ingredients_by_category:
+                ingredients_by_category[category] = []
+            
+            ingredients_by_category[category].append({
+                "ingredient_id": ingredient_id,
+                "name": INGREDIENTS.get(ingredient_id, ingredient_id),
+                "type": details["type"],
+                "category": category,
+                "base_units": details["base_units"],
+                "automated": details["automated"],
+                "default_amount": details["default_amount"],
+                "is_topping": details["is_topping"]
+            })
+        
+        return {
+            "success": True,
+            "ingredients_by_category": ingredients_by_category
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching ingredients: {str(e)}")
 
 @app.get("/queue/sync")
 def sync_queue():

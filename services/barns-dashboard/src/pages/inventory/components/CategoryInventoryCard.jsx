@@ -1,7 +1,35 @@
 import React, { useState, useEffect } from "react";
 import { useInventoryStore } from "../../../store/inventoryStore";
 
+// Direct imports for all category/item icons
+import coffee_beans from "../../../assets/coffee_beans.png";
+import beans from "../../../assets/beans.png";
+import cups from "../../../assets/cups.png";
+import cup from "../../../assets/cup.png";
+import milks from "../../../assets/milks.png";
+import milk from "../../../assets/milk.png";
+import syrups from "../../../assets/syrups.png";
+import syrup from "../../../assets/syrup.png";
+import sauces from "../../../assets/sauces.png";
+import sauce from "../../../assets/sauce.png";
+import premixes from "../../../assets/premixes.png";
+import defaultIcon from "../../../assets/default.png";
 
+// Map of asset names to imported modules
+const pngAssets = {
+  "coffee_beans.png": coffee_beans,
+  "beans.png": beans,
+  "cups.png": cups,
+  "cup.png": cup,
+  "milks.png": milks,
+  "milk.png": milk,
+  "syrups.png": syrups,
+  "syrup.png": syrup,
+  "sauces.png": sauces,
+  "sauce.png": sauce,
+  "premixes.png": premixes,
+  "default.png": defaultIcon,
+};
 
 const CategoryInventoryCard = ({ category, isAllView, count }) => {
   const [expanded, setExpanded] = useState(!isAllView);
@@ -74,7 +102,7 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
           <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
             <div className="flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gradient-to-br from-[#00784B]/10 to-white border-2 border-[#00784B]/20 shadow-inner flex-shrink-0">
               <img
-                src={`../src/assets/${category}.png`}
+                src={pngAssets[`${category}.png`] || defaultIcon}
                 alt={category}
                 className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
               />
@@ -161,8 +189,7 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
                         <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-[#00784B]/5 flex-shrink-0">
                           <img
-                          
-                            src={`../src/assets/${itemData.icon}`}
+                            src={pngAssets[itemData.icon] || defaultIcon}
                             alt={itemData.name}
                             className="w-6 h-6 object-contain"
                           />

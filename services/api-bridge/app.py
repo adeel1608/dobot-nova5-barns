@@ -498,6 +498,58 @@ async def resume_system():
         logger.error(f"Error resuming system: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# POS Integration Endpoints
+@app.post("/api/pos/process-order")
+async def process_pos_order(order_data: dict):
+    """Proxy POS order processing to OMS service"""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "http://oms-service:8000/pos/process-order",
+                json=order_data
+            )
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error(f"Error proxying POS order to OMS: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process POS order: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error processing POS order: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pos/menu-items")
+async def get_menu_items():
+    """Proxy menu items request to OMS service"""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get("http://oms-service:8000/pos/menu-items")
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error(f"Error fetching menu items from OMS: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch menu items: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching menu items: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pos/ingredients")
+async def get_ingredients():
+    """Proxy ingredients request to OMS service"""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get("http://oms-service:8000/pos/ingredients")
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        logger.error(f"Error fetching ingredients from OMS: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch ingredients: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching ingredients: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Recipe Management Endpoints
 @app.get("/api/recipes")
 async def get_recipes():

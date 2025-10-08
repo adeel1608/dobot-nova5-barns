@@ -789,6 +789,22 @@ async def dispense_ingredient(params: dict):
             "command": command
         }
     }
+async def initialize_frother(params: dict):
+    """Initialize the frother."""
+    logger.info("Calling initialize_frother function")
+    return {
+        "success": True,
+        "message": "Successfully initialized the frother",
+        "details": "Frother initialized"
+    }
+async def froth_milk(params: dict):
+    """Froth milk."""
+    logger.info("Calling froth_milk function")
+    return {
+        "success": True,
+        "message": "Successfully frothed the milk",
+        "details": "Milk frothed"
+    }
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
@@ -802,5 +818,7 @@ AUTOMATION_FUNCTIONS = {
     "tampering_machine" : tampering_machine,
     "dispense_ice": dispense_ice,
     "automation_test": automation_test,
+    "initialize_frother": initialize_frother,
+    "froth_milk": froth_milk
     # Add more automation functions as needed
 }

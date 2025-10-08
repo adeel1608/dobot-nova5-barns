@@ -36,5 +36,29 @@ export const ordersAPI = {
   reorderQueue: (orderIds) =>
     apiClient.put('/queue/reorder', { order_ids: orderIds }, {
       successMessage: 'Queue reordered successfully'
-    })
+    }),
+
+  // Process POS order (uses POS transaction format)
+  processPOSOrder: (posOrderData) =>
+    apiClient.create('/pos/process-order', posOrderData, 'POS Order')
+      .then(result => ({
+        ...result,
+        message: result.success ? 'POS Order processed successfully' : result.message
+      })),
+
+  // Fetch menu items with default ingredients
+  fetchMenuItems: () =>
+    apiClient.getList('/pos/menu-items', {}, 'menu items')
+      .then(result => ({
+        ...result,
+        data: result.data?.menu_items || []
+      })),
+
+  // Fetch available ingredients by category
+  fetchIngredients: () =>
+    apiClient.getList('/pos/ingredients', {}, 'ingredients')
+      .then(result => ({
+        ...result,
+        data: result.data?.ingredients_by_category || {}
+      }))
 }; 

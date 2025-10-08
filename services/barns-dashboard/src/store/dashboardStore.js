@@ -11,6 +11,8 @@ export const useDashboardStore = create((set, get) => ({
   // State
   orders: [],
   recipes: [],
+  menuItems: [],
+  ingredientsByCategory: {},
   systemStatus: {
     oms: 'unknown',
     scheduler: 'unknown',
@@ -117,6 +119,54 @@ export const useDashboardStore = create((set, get) => ({
     }
 
     return result.success;
+  },
+
+  processPOSOrder: async (posOrderData) => {
+    addLog('API', 'info', `Processing POS order...`);
+    const result = await ordersAPI.processPOSOrder(posOrderData);
+    
+    if (result.success) {
+      addLog('API', 'info', result.message, posOrderData);
+      
+      // Add a small delay to ensure backend has time to update
+      setTimeout(async () => {
+        addLog('API', 'info', `Refreshing orders after processing POS order`);
+        await get().fetchOrders(); // Refresh orders
+      }, 500);
+    } else {
+      addLog('API', 'error', result.error, result.details);
+    }
+
+    return result.success;
+  },
+
+  fetchMenuItems: async () => {
+    addLog('API', 'info', `Fetching menu items...`);
+    const result = await ordersAPI.fetchMenuItems();
+    
+    if (result.success) {
+      set({ menuItems: result.data });
+      addLog('API', 'info', `Loaded ${result.data.length} menu items`);
+    } else {
+      addLog('API', 'error', result.error);
+    }
+    
+    return result.data;
+  },
+
+  fetchIngredientsByCategory: async () => {
+    addLog('API', 'info', `Fetching ingredients...`);
+    const result = await ordersAPI.fetchIngredients();
+    
+    if (result.success) {
+      set({ ingredientsByCategory: result.data });
+      const categoryCount = Object.keys(result.data).length;
+      addLog('API', 'info', `Loaded ingredients from ${categoryCount} categories`);
+    } else {
+      addLog('API', 'error', result.error);
+    }
+    
+    return result.data;
   },
 
   startOrder: async (orderId) => {

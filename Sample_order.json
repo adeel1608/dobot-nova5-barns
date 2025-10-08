@@ -39,7 +39,7 @@
              "item_ingredients": [
                   {
                         "itemId": "213419",
-                        "qty": 1,
+                        "qty": 2,
                         "isAddon": false,
                         "modifierGroupId": "milk",
                         "isModified": "true",
@@ -58,6 +58,16 @@
                         "modifierGroupId": "AddOns"
                   }
             ] 
+        },
+        
+        {
+            "item_id": "espresso",
+            "quantity": 1,
+             "kitchen_notes": [
+            ],
+            "item_ingredients": [
+            ]
         }
+      
     ]
 }
