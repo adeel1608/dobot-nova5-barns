@@ -443,7 +443,7 @@ void loop() {
   // Periodic CAN heartbeat every 30 seconds: ID 0x3FF, payload FF FF
   if (millis() - last_heartbeat_ms >= 30000UL) {
     struct can_frame hb;
-    hb.can_id = 0x3FF;
+    hb.can_id = 0x110;
     hb.can_dlc = 2;
     hb.data[0] = 0xFF; hb.data[1] = 0xFF;
     {
