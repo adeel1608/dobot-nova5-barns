@@ -223,7 +223,8 @@ function OrderQueue({ connectionStatus }) {
       item_ingredients: [],
       selectedDrinkName: '',
       selectedSize: '',
-      isExpanded: false
+      isExpanded: false,
+      isCustomizeOpen: false
     }]
   });
   const logsEndRef = useRef(null);
@@ -579,7 +580,8 @@ const handleDeleteOrder = async (orderId) => {
         item_ingredients: [],
         selectedDrinkName: '',
         selectedSize: '',
-        isExpanded: true
+        isExpanded: true,
+        isCustomizeOpen: false
       }]
     }));
   };
@@ -607,7 +609,8 @@ const handleDeleteOrder = async (orderId) => {
             selectedMenuItem: undefined,
             kitchen_notes: [],
             item_ingredients: [],
-            isExpanded: true
+            isExpanded: true,
+            isCustomizeOpen: false
           };
         }
 
@@ -622,7 +625,8 @@ const handleDeleteOrder = async (orderId) => {
               selectedMenuItem: selectedMenuItem,
               kitchen_notes: [],
               item_ingredients: [],
-              isExpanded: true
+              isExpanded: true,
+              isCustomizeOpen: false
             };
           }
           return { ...item, selectedSize: value, item_id: '', selectedMenuItem: undefined };
@@ -1180,11 +1184,23 @@ const handleDeleteOrder = async (orderId) => {
                           })}
                         </div>
                         
-                        {/* Item Ingredients - Organized by Category */}
+                        {/* Item Ingredients - Organized by Category (collapsible) */}
                         {item.isExpanded && item.selectedMenuItem && Object.keys(ingredientsByCategory).length > 0 && (
                           <div className="border-t pt-3">
-                            <h5 className="text-sm font-medium text-gray-700 mb-2">Customize Ingredients:</h5>
-                            <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h5 className="text-sm font-medium text-gray-700">Customize Ingredients</h5>
+                              <button
+                                type="button"
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                                onClick={() => setPosOrderData(prev => ({
+                                  items: prev.items.map((itm, i) => i === itemIndex ? { ...itm, isCustomizeOpen: !itm.isCustomizeOpen } : itm)
+                                }))}
+                              >
+                                {item.isCustomizeOpen ? 'Hide' : 'Show'}
+                              </button>
+                            </div>
+                            {item.isCustomizeOpen && (
+                            <div className="space-y-3 mt-2">
                               {/* Show ingredient categories with dropdowns */}
                               {Object.entries(ingredientsByCategory).map(([category, ingredients]) => (
                                 // Skip cups category from modification in removal/replacement, but still show current cup
@@ -1302,6 +1318,7 @@ const handleDeleteOrder = async (orderId) => {
                                 )
                               ))}
                             </div>
+                            )}
                             {/* Global modifications list removed to avoid duplication; shown per category above */}
                           </div>
                         )}
