@@ -220,7 +220,10 @@ function OrderQueue({ connectionStatus }) {
       item_id: '', 
       quantity: 1,
       kitchen_notes: [],
-      item_ingredients: []
+      item_ingredients: [],
+      selectedDrinkName: '',
+      selectedSize: '',
+      isExpanded: false
     }]
   });
   const logsEndRef = useRef(null);
@@ -540,7 +543,9 @@ const handleDeleteOrder = async (orderId) => {
           item_id: '', 
           quantity: 1,
           kitchen_notes: [],
-          item_ingredients: []
+          item_ingredients: [],
+          selectedDrinkName: '',
+          selectedSize: ''
         }]
       });
       setShowNewOrder(false);
@@ -571,7 +576,10 @@ const handleDeleteOrder = async (orderId) => {
         item_id: '', 
         quantity: 1,
         kitchen_notes: [],
-        item_ingredients: []
+        item_ingredients: [],
+        selectedDrinkName: '',
+        selectedSize: '',
+        isExpanded: true
       }]
     }));
   };
@@ -587,24 +595,56 @@ const handleDeleteOrder = async (orderId) => {
   const updatePOSItem = (index, field, value) => {
     setPosOrderData(prev => ({
       items: prev.items.map((item, i) => {
-        if (i === index) {
-          // If changing item_id, load default ingredients for that menu item
-          if (field === 'item_id') {
-            const selectedMenuItem = menuItems.find(m => m.item_id === value);
-            if (selectedMenuItem) {
-              // Initialize with empty modifications - user will select replacements/addons
-              return {
-                ...item,
-                item_id: value,
-                selectedMenuItem: selectedMenuItem, // Store for reference
-                kitchen_notes: [],
-                item_ingredients: []
-              };
-            }
-          }
-          return { ...item, [field]: value };
+        if (i !== index) return item;
+
+        // Two-step selection logic
+        if (field === 'selectedDrinkName') {
+          return {
+            ...item,
+            selectedDrinkName: value,
+            selectedSize: '',
+            item_id: '',
+            selectedMenuItem: undefined,
+            kitchen_notes: [],
+            item_ingredients: [],
+            isExpanded: true
+          };
         }
-        return item;
+
+        if (field === 'selectedSize') {
+          const drinkName = item.selectedDrinkName;
+          const selectedMenuItem = menuItems.find(m => m.name === drinkName && m.size === value);
+          if (selectedMenuItem) {
+            return {
+              ...item,
+              selectedSize: value,
+              item_id: selectedMenuItem.item_id,
+              selectedMenuItem: selectedMenuItem,
+              kitchen_notes: [],
+              item_ingredients: [],
+              isExpanded: true
+            };
+          }
+          return { ...item, selectedSize: value, item_id: '', selectedMenuItem: undefined };
+        }
+
+        // Fallback: item_id direct change
+        if (field === 'item_id') {
+          const selectedMenuItem = menuItems.find(m => m.item_id === value);
+          if (selectedMenuItem) {
+            return {
+              ...item,
+              item_id: value,
+              selectedDrinkName: selectedMenuItem.name || item.selectedDrinkName || '',
+              selectedSize: selectedMenuItem.size || item.selectedSize || '',
+              selectedMenuItem: selectedMenuItem,
+              kitchen_notes: [],
+              item_ingredients: []
+            };
+          }
+        }
+
+        return { ...item, [field]: value };
       })
     }));
   };
@@ -687,7 +727,7 @@ const handleDeleteOrder = async (orderId) => {
   };
 
   // Helper function to add an ingredient replacement
-  const addIngredientReplacement = (itemIndex, originalIngredientId, newIngredientId, quantity) => {
+  const addIngredientReplacement = (itemIndex, originalIngredientId, newIngredientId, quantity, modifierGroupId) => {
     setPosOrderData(prev => ({
       items: prev.items.map((item, i) => 
         i === itemIndex ? {
@@ -696,7 +736,7 @@ const handleDeleteOrder = async (orderId) => {
             itemId: newIngredientId,
             qty: quantity || 1,
             isAddon: false,
-            modifierGroupId: 'replacement',
+            modifierGroupId: modifierGroupId || 'replacement',
             isModified: true,
             initialItemId: originalIngredientId
           }]
@@ -720,6 +760,24 @@ const handleDeleteOrder = async (orderId) => {
         } : item
       )
     }));
+  };
+
+  // Lookup ingredient name by id from ingredientsByCategory
+  const getIngredientNameById = (id) => {
+    for (const arr of Object.values(ingredientsByCategory)) {
+      const found = arr.find(x => String(x.ingredient_id) === String(id));
+      if (found) return found.name || found.type || String(id);
+    }
+    return String(id);
+  };
+
+  // Lightweight details getter used to check category when listing current add-ons
+  const getIngredientDetailsById = (id) => {
+    for (const [category, arr] of Object.entries(ingredientsByCategory)) {
+      const found = arr.find(x => String(x.ingredient_id) === String(id));
+      if (found) return { ...found, category };
+    }
+    return null;
   };
 
   const formatOrderForDisplay = (order) => {
@@ -762,6 +820,12 @@ const handleDeleteOrder = async (orderId) => {
 
   // Debug: Log filtered orders to see what we're working with
   console.log('🎯 Filtered orders:', filteredOrders);
+
+  // Build unique drink list for two-step selection
+  const uniqueDrinkNames = React.useMemo(() => {
+    const names = menuItems.map(m => m.name).filter(Boolean);
+    return Array.from(new Set(names));
+  }, [menuItems]);
 
   return (
     <div className="bg-white rounded-lg shadow-xl  flex flex-col h-full">
@@ -860,7 +924,7 @@ const handleDeleteOrder = async (orderId) => {
                   </div>
                 </div>
                 
-                {/* POS Order Form */}
+                {/* POS Order Form - Create new order*/}
                 <form onSubmit={handleSubmitPOSOrder} className="space-y-4">
                   {/* Add/Remove Items and Submit */}
                   <div className="flex justify-between items-center sticky top-0 z-10 bg-gradient-to-b from-white/70 to-transparent backdrop-blur-sm">
@@ -884,9 +948,18 @@ const handleDeleteOrder = async (orderId) => {
                     
                     {/* Multiple Items */}
                     {posOrderData.items.map((item, itemIndex) => (
-                      <div key={itemIndex} className="border border-gray-200 rounded-lg p-4 bg-gray-50 space-y-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <h4 className="text-sm font-medium text-gray-900">Item {itemIndex + 1}</h4>
+                      <div key={itemIndex} className="border border-gray-200 rounded-lg p-3 bg-gray-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            className="flex items-center gap-2 text-left"
+                            onClick={() => setPosOrderData(prev => ({
+                              items: prev.items.map((itm, i) => i === itemIndex ? { ...itm, isExpanded: !itm.isExpanded } : itm)
+                            }))}
+                          >
+                            <h4 className="text-sm font-medium text-gray-900">Item {itemIndex + 1}</h4>
+                            <span className="text-gray-500 text-xs">{item.selectedDrinkName && item.selectedSize ? `${item.selectedDrinkName} • ${item.selectedSize}` : ''}</span>
+                          </button>
                           {posOrderData.items.length > 1 && (
                             <button
                               type="button"
@@ -898,35 +971,61 @@ const handleDeleteOrder = async (orderId) => {
                           )}
                         </div>
                         
-                        {/* Menu Item Selection and Quantity */}
-                        <div className="grid grid-cols-2 gap-4">
+                        {/* Menu Item Selection (two-step) and Quantity */}
+                        <div className={`grid ${item.isExpanded ? 'grid-cols-3' : 'grid-cols-3'} gap-3`}>
+                          {/* Drink */}
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Menu Item</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Drink</label>
                             <select
-                              value={item.item_id}
-                              onChange={(e) => updatePOSItem(itemIndex, 'item_id', e.target.value)}
+                              value={item.selectedDrinkName}
+                              onChange={(e) => updatePOSItem(itemIndex, 'selectedDrinkName', e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            >
+                              <option value="">Select a drink...</option>
+                              {uniqueDrinkNames.length === 0 ? (
+                                <option value="">Loading drinks...</option>
+                              ) : (
+                                uniqueDrinkNames.map(name => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))
+                              )}
+                            </select>
+                          </div>
+
+                          {/* Size */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
+                            <select
+                              value={item.selectedSize}
+                              onChange={(e) => updatePOSItem(itemIndex, 'selectedSize', e.target.value)}
                               className={`w-full px-3 py-2 border rounded-lg text-sm ${
                                 !item.item_id || item.item_id.trim() === '' 
                                   ? 'border-red-300 bg-red-50' 
                                   : 'border-gray-300'
                               }`}
+                              disabled={!item.selectedDrinkName}
                             >
-                              <option value="">Select a menu item...</option>
-                              {menuItems.length === 0 ? (
-                                <option value="">Loading menu items...</option>
+                              {!item.selectedDrinkName ? (
+                                <option value="">Select drink first</option>
                               ) : (
-                                menuItems.map(menuItem => (
-                                  <option key={menuItem.item_id} value={menuItem.item_id}>
-                                    {menuItem.name} ({menuItem.size})
-                                  </option>
-                                ))
+                                <>
+                                  <option value="">Select a size...</option>
+                                  {menuItems
+                                    .filter(m => m.name === item.selectedDrinkName)
+                                    .map(mi => mi.size)
+                                    .filter((v, i, a) => a.indexOf(v) === i)
+                                    .map(size => (
+                                      <option key={size} value={size}>{size}</option>
+                                    ))}
+                                </>
                               )}
                             </select>
                             {(!item.item_id || item.item_id.trim() === '') && (
-                              <p className="text-xs text-red-600 mt-1">Please select a menu item</p>
+                              <p className="text-xs text-red-600 mt-1">Select size to continue</p>
                             )}
                           </div>
-                          
+
+                          {/* Quantity */}
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
                             <input
@@ -939,22 +1038,10 @@ const handleDeleteOrder = async (orderId) => {
                           </div>
                         </div>
                         
-                        {/* Default Ingredients (shown when item is selected) */}
-                        {item.selectedMenuItem && item.selectedMenuItem.default_ingredients.length > 0 && (
-                          <div className="border-t pt-3">
-                            <h5 className="text-sm font-medium text-gray-700 mb-2">Default Ingredients:</h5>
-                            <div className="text-xs text-gray-600 space-y-1 bg-blue-50 p-2 rounded">
-                              {item.selectedMenuItem.default_ingredients.map((ing, idx) => (
-                                <div key={idx}>
-                                  • {ing.type} ({ing.category}) - {ing.quantity}x {ing.unit_amount}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                        {/* Default Ingredients block removed; merged under categories below */}
                         
                         {/* Kitchen Modifiers (Automated - qty=0) */}
-                        {item.selectedMenuItem && (
+                        {item.isExpanded && item.selectedMenuItem && (
                           <div className="border-t pt-3">
                             <h5 className="text-sm font-medium text-gray-700 mb-2">Kitchen Modifiers:</h5>
                             <div className="grid grid-cols-3 gap-2">
@@ -1094,12 +1181,24 @@ const handleDeleteOrder = async (orderId) => {
                         </div>
                         
                         {/* Item Ingredients - Organized by Category */}
-                        {item.selectedMenuItem && Object.keys(ingredientsByCategory).length > 0 && (
+                        {item.isExpanded && item.selectedMenuItem && Object.keys(ingredientsByCategory).length > 0 && (
                           <div className="border-t pt-3">
                             <h5 className="text-sm font-medium text-gray-700 mb-2">Customize Ingredients:</h5>
                             <div className="space-y-3">
                               {/* Show ingredient categories with dropdowns */}
                               {Object.entries(ingredientsByCategory).map(([category, ingredients]) => (
+                                // Skip cups category from modification in removal/replacement, but still show current cup
+                                category === 'cups' ? (
+                                  <div key={category} className="bg-gray-50 p-3 rounded">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">cups</label>
+                                    {/* Show current cup (from defaults) as read-only */}
+                                    <div className="text-xs bg-white px-2 py-1 rounded">
+                                      {(item.selectedMenuItem.default_ingredients || []).filter(di => di.category === 'cups').map((di, idx) => (
+                                        <div key={`cup-${idx}`}>{di.type} (fixed)</div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : (
                                 <div key={category} className="bg-gray-50 p-3 rounded">
                                   <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">
                                     {category.replace('_', ' ')}
@@ -1109,16 +1208,23 @@ const handleDeleteOrder = async (orderId) => {
                                       className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
                                       onChange={(e) => {
                                         if (e.target.value) {
-                                          // Check if replacing default or adding addon
                                           const defaultIng = item.selectedMenuItem.default_ingredients.find(
                                             di => di.category === category
                                           );
                                           if (defaultIng) {
-                                            addIngredientReplacement(itemIndex, defaultIng.ingredient_id, e.target.value, 1);
+                                            // Replacement: persist category as modifierGroupId
+                                            addIngredientReplacement(
+                                              itemIndex,
+                                              defaultIng.ingredient_id,
+                                              e.target.value,
+                                              1,
+                                              category
+                                            );
                                           } else {
+                                            // Add-on
                                             addIngredientAddon(itemIndex, e.target.value, 1);
                                           }
-                                          e.target.value = ''; // Reset dropdown
+                                          e.target.value = '';
                                         }
                                       }}
                                     >
@@ -1130,35 +1236,73 @@ const handleDeleteOrder = async (orderId) => {
                                       ))}
                                     </select>
                                   </div>
+
+                                  {/* Current items in this category: defaults (with ability to hide via zero-qty replacement) + add-ons */}
+                                  <div className="mt-2 space-y-1">
+                                    {/* Defaults for this category */}
+                                    {(item.selectedMenuItem.default_ingredients || []).filter(di => di.category === category).map((di, dIdx) => {
+                                      const replacementIndex = (item.item_ingredients || []).findIndex(m => !m.isAddon && m.isModified && String(m.initialItemId) === String(di.ingredient_id));
+                                      const replacement = replacementIndex >= 0 ? item.item_ingredients[replacementIndex] : null;
+                                      return (
+                                        <div key={`def-${category}-${dIdx}`} className="flex items-center justify-between bg-white px-2 py-1 rounded text-xs">
+                                          <span className="truncate">
+                                            {di.type} <span className="text-gray-500">(default {di.quantity} x {di.unit_amount})</span>
+                                            {replacement && (
+                                              <span className="ml-2 text-amber-700">→ {getIngredientNameById(replacement.itemId)} x{replacement.qty}</span>
+                                            )}
+                                          </span>
+                                          <div className="flex items-center gap-1">
+                                            {replacement && (
+                                              <button
+                                                type="button"
+                                                onClick={() => removeIngredientModification(itemIndex, replacementIndex)}
+                                                className="text-red-500 hover:text-red-700"
+                                                title="Remove replacement"
+                                              >
+                                                ×
+                                              </button>
+                                            )}
+                                            {/* Hide default by adding zero-qty replacement (interpreted as removed) */}
+                                            {!replacement && (
+                                              <button
+                                                type="button"
+                                                className="text-gray-500 hover:text-gray-700"
+                                                title="Exclude default"
+                                                onClick={() => addIngredientReplacement(itemIndex, di.ingredient_id, di.ingredient_id, 0, category)}
+                                              >
+                                                ×
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+
+                                    {/* Add-ons for this category */}
+                                    {(item.item_ingredients || []).map((mod, modIdx) => {
+                                      if (!mod.isAddon) return null;
+                                      const details = getIngredientDetailsById(mod.itemId);
+                                      if (!details || details.category !== category) return null;
+                                      return (
+                                        <div key={`addon-${category}-${modIdx}`} className="flex items-center justify-between bg-white px-2 py-1 rounded text-xs">
+                                          <span className="truncate">{details.name || getIngredientNameById(mod.itemId)} x{mod.qty} <span className="text-gray-500">(add-on)</span></span>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeIngredientModification(itemIndex, modIdx)}
+                                            className="text-red-500 hover:text-red-700"
+                                            title="Remove add-on"
+                                          >
+                                            ×
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
+                                )
                               ))}
                             </div>
-                            
-                            {/* Show added modifications */}
-                            {item.item_ingredients.length > 0 && (
-                              <div className="mt-3">
-                                <h6 className="text-xs font-medium text-gray-700 mb-1">Added Modifications:</h6>
-                                <div className="space-y-1">
-                                  {item.item_ingredients.map((ing, ingIndex) => (
-                                    <div key={ingIndex} className="flex items-center justify-between bg-white px-2 py-1 rounded text-xs">
-                                      <span>
-                                        {ing.itemId} x{ing.qty} 
-                                        <span className="ml-2 text-gray-500">
-                                          ({ing.isAddon ? 'Add-on' : 'Replacement'})
-                                        </span>
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeIngredientModification(itemIndex, ingIndex)}
-                                        className="text-red-500 hover:text-red-700"
-                                      >
-                                        ×
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            {/* Global modifications list removed to avoid duplication; shown per category above */}
                           </div>
                         )}
                       </div>
@@ -1289,37 +1433,6 @@ const handleDeleteOrder = async (orderId) => {
                     </div>
                   </div>
                   
-                  {/* Timestamps */}
-                  {/* <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Timeline
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">Created:</span>
-                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.createdAt}</span>
-                      </div>
-                      {selectedOrder.startedAt !== 'N/A' && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Started:</span>
-                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.startedAt}</span>
-                        </div>
-                      )}
-                      {selectedOrder.completedAt !== 'N/A' && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">Completed:</span>
-                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.completedAt}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">Last Updated:</span>
-                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
-                      </div>
-                    </div>
-                  </div> */}
                   <div>
                    {selectedOrder.cups && selectedOrder.cups.length > 0 && (
                     <div>
@@ -1372,53 +1485,7 @@ const handleDeleteOrder = async (orderId) => {
                 
                 {/* Order Details */}
                 <div className="space-y-6">
-                  {/* Cup Details */}
-                  {/* {selectedOrder.cups && selectedOrder.cups.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                        Order Details
-                      </h3>
-                      <div className="space-y-4">
-                        {selectedOrder.cups.map((cup, index) => (
-                          <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="font-semibold text-gray-900">Cup #{index + 1}</h4>
-                              <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
-                                {cup.cup_size || cup.size || 'Standard'}
-                              </span>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <span className="text-gray-600 font-medium">Drink:</span>
-                                <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || 'Unknown'}</p>
-                              </div>
-                              <div>
-                                <span className="text-gray-600 font-medium">Size:</span>
-                                <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || 'Standard'}</p>
-                              </div>
-                            </div>
-                            
-                            {cup.addons && cup.addons.length > 0 && (
-                              <div className="mt-3">
-                                <span className="text-gray-600 font-medium text-sm">Add-ons:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {cup.addons.map((addon, addonIndex) => (
-                                    <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                                      {addon}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )} */}
+
                   
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
