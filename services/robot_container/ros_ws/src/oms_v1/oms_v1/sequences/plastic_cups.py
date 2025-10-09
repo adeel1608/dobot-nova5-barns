@@ -20,10 +20,47 @@ from oms_v1.params import (
 # -------------------------
 # Normalization helpers
 # -------------------------
-def _normalize_cup_size(size: Any) -> str:
-    """Map new codes C7/C9/C12/C16 to existing plastic cup sizes (7oz/9oz/12oz/16oz)."""
-    if not size:
-        return DEFAULT_CUP_SIZE
+def _normalize_cup_size(cups_dict: Any) -> str:
+    """
+    Parse cup size from new JSON format.
+    
+    Expected format: {'cup_C16': 1.0} or {'cup_C7': 1.0}
+    Extracts C7/C9/C12/C16 and maps to plastic cup sizes (7oz/9oz/12oz/16oz).
+    
+    Args:
+        cups_dict: Dictionary containing cup information, or a simple string/value for backward compatibility
+        
+    Returns:
+        str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
+    """
+    # Handle new dictionary format
+    if isinstance(cups_dict, dict):
+        # Get the first key from the cups dictionary
+        cup_key = next(iter(cups_dict.keys()), None)
+        if not cup_key:
+            return DEFAULT_CUP_SIZE
+        
+        # Extract cup code from key like 'cup_C16' -> 'C16'
+        cup_key_str = str(cup_key).upper()
+        if 'CUP_' in cup_key_str:
+            # Extract code after 'CUP_'
+            cup_code = cup_key_str.split('CUP_', 1)[1] if 'CUP_' in cup_key_str else cup_key_str
+        else:
+            cup_code = cup_key_str
+        
+        # Check if it's a plastic cup (starts with C)
+        if not cup_code.startswith('C'):
+            return DEFAULT_CUP_SIZE
+        
+        # Map to size
+        size = cup_code
+    else:
+        # Backward compatibility: handle direct string/value
+        if not cups_dict:
+            return DEFAULT_CUP_SIZE
+        size = str(cups_dict).strip().upper()
+    
+    # Normalize the size string
     s = str(size).strip().lower()
     mapping = {
         "c7": "7oz",
@@ -31,7 +68,7 @@ def _normalize_cup_size(size: Any) -> str:
         "c12": "12oz",
         "c16": "16oz",
     }
-    return mapping.get(s, s)
+    return mapping.get(s, DEFAULT_CUP_SIZE)
 
 def _normalize_stage(stage_value: Any) -> Optional[str]:
     if stage_value is None:
@@ -82,7 +119,9 @@ def dispnese_plastic_cup(**params) -> bool:
     """
     try:
         # Extract and validate cup size parameter
-        cup_size = _normalize_cup_size(params.get("cup_size", DEFAULT_CUP_SIZE))
+        # New format: {'cups': {'cup_C16': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_cup_size(cups_dict if cups_dict else DEFAULT_CUP_SIZE)
         if not cup_size or not validate_cup_size(cup_size):
             return False
         
@@ -356,7 +395,9 @@ def get_ice(**params) -> bool:
         bool: True if ice dispensing completed successfully, False otherwise
     """
     try:
-        cup_size = _normalize_cup_size(params.get("cup_size"))
+        # New format: {'cups': {'cup_C16': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_cup_size(cups_dict)
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
@@ -636,7 +677,9 @@ def pick_plastic_cup_station(**params) -> bool:
     try:
         # Extract and validate parameters
         stage = params.get("stage")
-        cup_size = _normalize_cup_size(params.get("cup_size"))
+        # New format: {'cups': {'cup_C16': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_cup_size(cups_dict)
         
         if not stage:
             print("[ERROR] No stage parameter provided")
@@ -818,7 +861,7 @@ def place_plastic_cup_milk(**params) -> bool:
     try:
         if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
             return False
-        if run_skill("gotoJ_deg", -25.012863,-66.881073,-89.347626,-21.746090,-115.826347,-2.388248) is False:
+        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
             return False
         if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
             return False
@@ -859,7 +902,7 @@ def pick_plastic_cup_milk(**params) -> bool:
             return False
         if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
             return False
-        if run_skill("gotoJ_deg", -25.012863,-66.881073,-89.347626,-21.746090,-115.826347,-2.388248) is False:
+        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
             return False
         if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
             return False

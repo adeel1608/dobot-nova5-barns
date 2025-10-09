@@ -21,17 +21,54 @@ Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229
 # -------------------------
 # Normalization helpers
 # -------------------------
-def _normalize_cup_size(size: str) -> str:
-    """Map new codes H7/H9/H12 to existing paper cup sizes (7oz/9oz/12oz)."""
-    if not size:
-        return "7oz"
+def _normalize_cup_size(cups_dict: Any) -> str:
+    """
+    Parse cup size from new JSON format.
+    
+    Expected format: {'cup_H12': 1.0} or {'cup_H7': 1.0}
+    Extracts H7/H9/H12 and maps to paper cup sizes (7oz/9oz/12oz).
+    
+    Args:
+        cups_dict: Dictionary containing cup information, or a simple string/value for backward compatibility
+        
+    Returns:
+        str: Normalized cup size (e.g., '7oz', '9oz', '12oz')
+    """
+    # Handle new dictionary format
+    if isinstance(cups_dict, dict):
+        # Get the first key from the cups dictionary
+        cup_key = next(iter(cups_dict.keys()), None)
+        if not cup_key:
+            return "7oz"
+        
+        # Extract cup code from key like 'cup_H12' -> 'H12'
+        cup_key_str = str(cup_key).upper()
+        if 'CUP_' in cup_key_str:
+            # Extract code after 'CUP_'
+            cup_code = cup_key_str.split('CUP_', 1)[1] if 'CUP_' in cup_key_str else cup_key_str
+        else:
+            cup_code = cup_key_str
+        
+        # Check if it's a paper cup (starts with H)
+        if not cup_code.startswith('H'):
+            return "7oz"
+        
+        # Map to size
+        size = cup_code
+    else:
+        # Backward compatibility: handle direct string/value
+        if not cups_dict:
+            return "7oz"
+        size = str(cups_dict).strip().upper()
+    
+    # Normalize the size string
     s = str(size).strip().lower()
     mapping = {
         "h7": "7oz",
         "h9": "9oz",
         "h12": "12oz",
     }
-    return mapping.get(s, size)
+    return mapping.get(s, "7oz")
 
 def _normalize_stage(stage_value: str) -> str:
     """Return 'stage_1'..'stage_4' from flexible input like 1/1.0/'1'/stage_1."""
@@ -75,7 +112,9 @@ def grab_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate size parameter
-        size = _normalize_cup_size(params.get("size", "7oz"))  # Default to 7oz and map H7/H9/H12
+        # New format: {'cups': {'cup_H12': 1.0}}
+        cups_dict = params.get("cups", params.get("size"))  # Fallback to old format for compatibility
+        size = _normalize_cup_size(cups_dict if cups_dict else "7oz")
         if not size:
             print("[ERROR] No size parameter provided")
             return False
@@ -333,8 +372,6 @@ def place_paper_cup(**params) -> bool:
         print(f"[ERROR] Unexpected error during paper cup placement: {e}")
         print("[INFO] Paper cup placement process terminated due to error")
         return False
-
-
 # New combined function for grab + place
 
 def dispense_paper_cup(**params) -> bool:
@@ -376,9 +413,7 @@ def dispense_paper_cup(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Unexpected error during paper cup dispensing: {e}")
         return False
-
-
-# Station functions replicated from plastic cups, adapted for paper cup sizes (H7/H9/H12)
+# Station functions replicated from paper cups, adapted for paper cup sizes (H7/H9/H12)
 
 def pick_paper_cup_station(**params) -> bool:
     """
@@ -408,13 +443,14 @@ def pick_paper_cup_station(**params) -> bool:
             except Exception:
                 stage = str(raw_stage)
 
-        cup_size_input = params.get("cup_size")
-        if not cup_size_input:
+        # New format: {'cups': {'cup_H12': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        if not cups_dict:
             print("[ERROR] No cup_size parameter provided")
             return False
 
         # Map H-codes to legacy sizes
-        size_mapped = _normalize_cup_size(cup_size_input)  # H7/H9/H12 -> 7oz/9oz/12oz
+        size_mapped = _normalize_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
 
         # Validate parameters
         valid_stages = ('1', '2', '3', '4')
@@ -426,14 +462,14 @@ def pick_paper_cup_station(**params) -> bool:
             return False
 
         if size_mapped not in valid_sizes:
-            print(f"[ERROR] Invalid cup size for paper: {cup_size_input!r}")
+            print(f"[ERROR] Invalid cup size for paper: {size_mapped!r}")
             print(f"[INFO] Valid sizes: H7/H9/H12 (or 7oz/9oz/12oz)")
             return False
 
         print(f"🥤 Starting paper cup pickup sequence - Stage: {stage}, Size: {size_mapped}")
         print("=" * 50)
 
-        # Stage-specific positioning (replicated from plastic station)
+        # Stage-specific positioning (replicated from paper station)
         stage_positions = {
             "1": (-75.801956, -43.247288, -144.295563, -0.250561, -80.475777, 0.593474),
             "2": (-104.642982, -42.934860, -132.064575, -13.168961, -109.036461, -3.372526),
@@ -562,7 +598,7 @@ def place_paper_cup_station(**params) -> bool:
             return False
         print("   ✅ Successfully moved to east home")
 
-        # Step 3: Move to stage-specific position (re-using plastic station positions)
+        # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
             "1": (-80.221687,-43.867016,-125.338081,-18.518541,-84.856163,0.006812),
@@ -611,6 +647,126 @@ def place_paper_cup_station(**params) -> bool:
         print("[INFO] Cup placement process terminated due to error")
         return False
 
+#ADD NEW FUNCTION: place_paper_cup_sauces
+def place_paper_cup_sauces(**params) -> bool:
+    """
+    Place the paper cup at the sauces station.
+    """
+    try:
+        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+            return False
+        if run_skill("set_gripper_position", 255, 0) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] place_paper_cup_sauces failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: pick_paper_cup_sauces
+def pick_paper_cup_sauces(**params) -> bool:
+    """
+    Pick the paper cup from the sauces station.
+
+    Args:
+        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+    """
+    try:
+        # New format: {'cups': {'cup_H12': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_cup_size(cups_dict) if cups_dict else None
+        if not cup_size:
+            print("[ERROR] No cup_size parameter provided")
+            return False
+        valid_sizes = ("7oz", "9oz", "12oz")
+        if cup_size not in valid_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid sizes: {', '.join(valid_sizes)}")
+            return False
+
+        # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
+        gripper_positions = {
+            "7oz": 145,
+            "9oz": 145,
+            "12oz": 145,
+        }
+
+        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+            return False
+        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] pick_paper_cup_sauces failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: place_paper_cup_milk
+def place_paper_cup_milk(**params) -> bool:
+    """
+    Place the paper cup at the milk station.
+    """
+    try:
+        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+            return False
+        if run_skill("set_gripper_position", 255, 0) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] place_paper_cup_milk failed: {e}")
+        return False
+
+#ADD NEW FUNCTION: pick_paper_cup_milk
+def pick_paper_cup_milk(**params) -> bool:
+    """
+    Pick the paper cup from the milk station.
+
+    Args:
+        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+    """
+    try:
+        # New format: {'cups': {'cup_H12': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_cup_size(cups_dict) if cups_dict else None
+        if not cup_size:
+            print("[ERROR] No cup_size parameter provided")
+            return False
+        valid_sizes = ("7oz", "9oz", "12oz")
+        if cup_size not in valid_sizes:
+            print(f"[ERROR] Invalid cup size: {cup_size!r}")
+            print(f"[INFO] Valid sizes: {', '.join(valid_sizes)}")
+            return False
+
+        # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
+        gripper_positions = {
+            "7oz": 145,
+            "9oz": 145,
+            "12oz": 145,
+        }
+
+        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+            return False
+        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
+            return False
+        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+            return False
+        return True
+    except Exception as e:
+        print(f"[ERROR] pick_paper_cup_milk failed: {e}")
+        return False
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'grab_paper_cup': grab_paper_cup,
@@ -618,4 +774,8 @@ SEQUENCES = {
     'dispense_paper_cup': dispense_paper_cup,
     'pick_paper_cup_station': pick_paper_cup_station,
     'place_paper_cup_station': place_paper_cup_station,
+    'place_paper_cup_sauces': place_paper_cup_sauces,
+    'pick_paper_cup_sauces': pick_paper_cup_sauces,
+    'place_paper_cup_milk': place_paper_cup_milk,
+    'pick_paper_cup_milk': pick_paper_cup_milk,
 }

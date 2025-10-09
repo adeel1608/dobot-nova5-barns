@@ -26,33 +26,62 @@ mount_espresso_port: Optional[Tuple[float, ...]] = None
 # -------------------------
 # Normalization helpers
 # -------------------------
-def _normalize_espresso_shot(value: Optional[float]) -> Optional[Dict[str, Any]]:
+def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
-    Map numeric espresso value to a consistent set of parameters.
+    Parse espresso parameters from new JSON format.
+
+    Expected format: {'espresso_shot_single': 1.0} or {'espresso_shot_double': 2.0}
 
     Rules:
-      - <= 1.0  -> single shot → port_3, positioning_time=2.0, portafilter_tool=single_portafilter
-      - >  1.0  -> double shot → port_1, positioning_time=3.0, portafilter_tool=double_portafilter
+      - 'espresso_shot_single' -> single shot → port_3, positioning_time=2.0, portafilter_tool=single_portafilter
+      - 'espresso_shot_double' -> double shot → port_1, positioning_time=3.0, portafilter_tool=double_portafilter
     """
     try:
-        if value is None:
+        if not espresso_dict or not isinstance(espresso_dict, dict):
             return None
-        shots = float(value)
-    except Exception:
+        
+        # Get the first key from the espresso dictionary
+        espresso_key = next(iter(espresso_dict.keys()), None)
+        if not espresso_key:
+            return None
+        
+        # Parse the key to determine shot type
+        espresso_key_lower = str(espresso_key).lower()
+        
+        if 'single' in espresso_key_lower:
+            return {
+                "port": "port_3",
+                "positioning_time": 2.0,
+                "portafilter_tool": "single_portafilter",
+            }
+        elif 'double' in espresso_key_lower:
+            return {
+                "port": "port_1",
+                "positioning_time": 3.0,
+                "portafilter_tool": "double_portafilter",
+            }
+        else:
+            # Fallback: try to parse as numeric value
+            value = espresso_dict.get(espresso_key)
+            if value is not None:
+                shots = float(value)
+                if shots <= 1.0:
+                    return {
+                        "port": "port_3",
+                        "positioning_time": 2.0,
+                        "portafilter_tool": "single_portafilter",
+                    }
+                else:
+                    return {
+                        "port": "port_1",
+                        "positioning_time": 3.0,
+                        "portafilter_tool": "double_portafilter",
+                    }
+    except Exception as e:
+        print(f"[WARNING] Error parsing espresso parameters: {e}")
         return None
-
-    if shots <= 1.0:
-        return {
-            "port": "port_3",
-            "positioning_time": 2.0,
-            "portafilter_tool": "single_portafilter",
-        }
-    else:
-        return {
-            "port": "port_1",
-            "positioning_time": 3.0,
-            "portafilter_tool": "double_portafilter",
-        }
+    
+    return None
 
 
 def _normalize_stage_with_prefix(stage_value: Any) -> Optional[str]:
@@ -101,8 +130,9 @@ def unmount(**params) -> bool:
     global below_espresso_port, mount_espresso_port
     try:
         # Normalize from espresso shot if provided
-        espresso_value = params.get("espresso", params.get("shots"))
-        shot_cfg = _normalize_espresso_shot(espresso_value)
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
 
         # Extract and validate port parameter (derived from shot when not explicitly provided)
         port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
@@ -360,8 +390,9 @@ def grinder(**params) -> bool:
     """
     try:
         # Extract and normalize parameters
-        espresso_value = params.get("espresso", params.get("shots"))
-        shot_cfg = _normalize_espresso_shot(espresso_value)
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
 
         # Allow explicit overrides, else derive from shot config, else fall back to legacy defaults
         port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
@@ -668,8 +699,9 @@ def mount(**params) -> bool:
     """
     try:
         # Normalize from espresso shot if provided
-        espresso_value = params.get("espresso", params.get("shots"))
-        shot_cfg = _normalize_espresso_shot(espresso_value)
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
 
         # Extract and validate port parameter (derived from shot when not explicitly provided)
         port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")

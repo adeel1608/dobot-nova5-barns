@@ -40,8 +40,6 @@ def _normalize_stage(stage_value: Any) -> str:
         pass
     return str(stage_value)
 
-
-
 def get_frother_position(**params) -> bool:
     """
     Calibrate and record the milk frother position for future operations.
@@ -192,7 +190,6 @@ def get_frother_position(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother position calibration: {e}")
         print("[INFO] Calibration process terminated due to error")
         return False
-
 
 def pick_frother(**params) -> bool:
     """
@@ -395,7 +392,6 @@ def pick_frother_milk_station(**params) -> bool:
         print(f"[ERROR] Unexpected error while picking frother from milk station: {e}")
         return False
 
-
 def mount_frother(**params) -> bool:
     """
     Mount the milk frother to the steam wand for frothing preparation.
@@ -463,89 +459,7 @@ def mount_frother(**params) -> bool:
         print("[INFO] Mounting process terminated due to error")
         return False
 
-
-def froth_milk(**params) -> bool:
-    """
-    Activate steam to froth milk for the specified duration.
-    
-    This function controls the steam activation for milk frothing:
-    1. Validates duration parameter
-    2. Activates steam for frothing
-    3. Maintains steam for specified duration
-    4. Deactivates steam safely
-    5. Allows settling time
-    
-    Args:
-        duration (float): Duration in seconds to froth milk (default: 7.5)
-    
-    Returns:
-        bool: True if milk frothing completed successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during frothing process
-        
-    Example:
-        success = froth_milk(duration=10.0)
-        if success:
-            print("Milk frothing completed successfully")
-    """
-    try:
-        # Extract and validate duration parameter
-        duration = params.get("duration", 7.5)
-        if not isinstance(duration, (int, float)) or duration <= 0:
-            print(f"[ERROR] Invalid duration: {duration}, must be a positive number")
-            return False
-        
-        print(f"🥛 Starting milk frothing sequence for {duration} seconds...")
-        print("=" * 50)
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
-        # Step 1: Activate steam for frothing
-        print("💨 Step 1/4: Activating steam for milk frothing...")
-        steam_on_result = run_skill("set_DO", 1, 1)
-        if steam_on_result is False:
-            print("[ERROR] Failed to activate steam")
-            return False
-        print("   ✅ Steam successfully activated")
-        
-        # Step 2: Allow frothing time
-        print(f"☁️ Step 2/4: Frothing milk ({duration} seconds)...")
-        print("   🥛 Milk frothing in progress...")
-        time.sleep(duration)
-        print("   ✅ Frothing duration completed")
-        
-        # Step 3: Deactivate steam
-        print("💨 Step 3/4: Deactivating steam...")
-        steam_off_result = run_skill("set_DO", 1, 0)
-        if steam_off_result is False:
-            print("[ERROR] Failed to deactivate steam")
-            return False
-        print("   ✅ Steam successfully deactivated")
-        
-        # Step 4: Allow settling time
-        print("⏰ Step 4/4: Allowing settling time...")
-        time.sleep(2)
-        print("   ✅ Settling time completed")
-        
-        # Final success summary
-        print("=" * 50)
-        print("✅ MILK FROTHING COMPLETED SUCCESSFULLY")
-        print(f"   ✓ Steam activated for {duration} seconds")
-        print("   ✓ Optimal froth consistency achieved")
-        print("   ✓ Steam safely deactivated")
-        print("=" * 50)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during milk frothing: {e}")
-        print("[INFO] Milk frothing process terminated due to error")
-        return False
-
-
-def swirl_milk(**params) -> bool:
+def unmount_and_swirl_milk(**params) -> bool:
     """
     Swirl frothed milk in a circular motion for latte art preparation.
     
@@ -565,7 +479,7 @@ def swirl_milk(**params) -> bool:
         Exception: If unexpected error occurs during swirling process
         
     Example:
-        success = swirl_milk()
+        success = unmount_and_swirl_milk()
         if success:
             print("Milk swirled successfully")
     """
@@ -637,7 +551,6 @@ def swirl_milk(**params) -> bool:
         print(f"[ERROR] Unexpected error during milk swirling: {e}")
         print("[INFO] Milk swirling process terminated due to error")
         return False
-
 
 def pour_milk(**params) -> bool:
     """
@@ -916,6 +829,34 @@ def clean_frother(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother cleaning: {e}")
         return False
 
+#ADD NEW FUNCTION: clean_milk_pitcher
+def clean_milk_pitcher(**params) -> bool:
+    """
+    Perform a cleaning motion for the frother tool.
+
+    Returns:
+        bool: True on successful cleaning movement sequence, False otherwise.
+    """
+    try:
+        print("🧽 Cleaning frother motion sequence...")
+        if run_skill("gotoJ_deg", -37.858528,-39.202564,-84.331383,-67.038254,-75.938263,-12.405199) is False:
+            print("[ERROR] Failed to reach clean pose 1")
+            return False
+        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
+            print("[ERROR] Failed to reach clean pose 2")
+            return False
+        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+            print("[ERROR] Failed to reach clean pose 3")
+            return False
+        if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
+            print("[ERROR] Failed to execute cleaning motion")
+            return False
+        print("✅ Frother cleaning movement completed")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during frother cleaning: {e}")
+        return False
+
 def return_frother(**params) -> bool:
     """
     Return the frother to its original location using recorded approach/grab angles.
@@ -968,115 +909,14 @@ def return_frother(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother return: {e}")
         return False
 
-
-def clean_steam_wand(**params) -> bool:
-    """
-    Clean the steam wand by running steam through it.
-    
-    This function cleans the steam wand after use:
-    1. Validates duration parameter
-    2. Activates steam for cleaning
-    3. Runs steam for specified duration to clear residue
-    4. Deactivates steam
-    5. Allows settling time
-    
-    Args:
-        duration (int): Duration in seconds to run cleaning steam (default: 10)
-        
-    Returns:
-        bool: True if steam wand cleaned successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during cleaning process
-        
-    Example:
-        success = clean_steam_wand(duration=15)
-        if success:
-            print("Steam wand cleaned successfully")
-    """
-    try:
-        # Extract and validate duration parameter
-        duration = params.get("duration", 10)
-        if not isinstance(duration, (int, float)) or duration <= 0:
-            print(f"[ERROR] Invalid duration: {duration}, must be a positive number")
-            return False
-        
-        print(f"🧽 Starting steam wand cleaning sequence for {duration} seconds...")
-        print("=" * 50)
-        
-        # Step 1: Activate steam for cleaning
-        print("💨 Step 1/6: Activating steam for cleaning...")
-        steam_on_result = run_skill("set_DO", 2, 1)
-        if steam_on_result is False:
-            print("[ERROR] Failed to activate steam for cleaning")
-            return False
-        print("   ✅ Steam successfully activated for cleaning")
-        
-        # Step 2: Allow cleaning time
-        print(f"🧽 Step 2/6: Running cleaning steam ({duration} seconds)...")
-        print("   💨 Steam cleaning in progress...")
-        time.sleep(duration)
-        print("   ✅ Steam cleaning duration completed")
-
-        # Step 2: Activate steam for cleaning
-        print("💨 Step 3/6: Activating steam for cleaning...")
-        steam_on_result = run_skill("set_DO", 1, 1)
-        if steam_on_result is False:
-            print("[ERROR] Failed to activate steam for cleaning")
-            return False
-        print("   ✅ Steam successfully activated for cleaning")
-
-        time.sleep(5)
-
-        # Step 3: Deactivate steam
-        print("💨 Step 4/6: Deactivating steam...")
-        steam_off_result = run_skill("set_DO", 1, 0)
-        if steam_off_result is False:
-            print("[ERROR] Failed to deactivate steam")
-            return False
-        print("   ✅ Steam successfully deactivated")
-
-        time.sleep(5)
-
-        
-        # Step 3: Deactivate steam
-        print("💨 Step 5/6: Deactivating steam...")
-        steam_off_result = run_skill("set_DO", 2, 0)
-        if steam_off_result is False:
-            print("[ERROR] Failed to deactivate steam")
-            return False
-        print("   ✅ Steam successfully deactivated")
-        
-        # Step 4: Allow settling time
-        print("⏰ Step 6/6: Allowing settling time...")
-        time.sleep(2)
-        print("   ✅ Settling time completed")
-        
-        # Final success summary
-        print("=" * 50)
-        print("✅ STEAM WAND CLEANING COMPLETED SUCCESSFULLY")
-        print(f"   ✓ Steam ran for {duration} seconds")
-        print("   ✓ All milk residue cleared from wand")
-        print("   ✓ Steam wand ready for next use")
-        print("=" * 50)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during steam wand cleaning: {e}")
-        print("[INFO] Steam wand cleaning process terminated due to error")
-        return False
-
-
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_frother_position': get_frother_position,
     'pick_frother': pick_frother,
-    'froth_milk': froth_milk,
-    'swirl_milk': swirl_milk,
+    'unmount_and_swirl_milk': unmount_and_swirl_milk,
     'pour_milk': pour_milk,
     'return_frother': return_frother,
     'mount_frother': mount_frother,
-    'clean_steam_wand': clean_steam_wand,
     'clean_frother': clean_frother,
     'return_frother': return_frother,
     'place_frother_milk_station': place_frother_milk_station,
