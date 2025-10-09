@@ -1,5 +1,5 @@
 {
-  "Espresso (Hot)": [
+  "Espresso": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -16,7 +16,7 @@
       "depends_on": ["Pour_Espresso", "Espresso"]
     }
   ],
-  "Americano (Hot)": [
+  "Americano": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -38,7 +38,7 @@
       "depends_on": ["Pour_Espresso"]
     }
   ],
-  "Americano (Cold)": [
+  "Iced Americano": [
     {
       "action": "Dispense_Plastic_Cup",
       "assigned_arm": "Arm2",
@@ -80,7 +80,7 @@
       "depends_on": ["Pour_Espresso"]
     }
   ],
-  "Macchiato (Hot)": [
+  "Macchiato": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -112,7 +112,7 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
-  "Cortado (Hot)": [
+  "Cortado": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -144,7 +144,7 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
-  "Cappuccino (Hot)": [
+  "Cappuccino": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -176,7 +176,7 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
-  "Caramel Macchiato (Hot)": [
+  "Caramel Macchiato": [
     {
       "action": "Dispense_Paper_Cup",
         "assigned_arm": "Arm1",
@@ -238,7 +238,7 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
-  "Flat White (Hot)": [
+  "Flat White": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -270,7 +270,7 @@
       "depends_on": ["Froth_Milk", "Pour_Espresso"]
     }
   ],
-  "Latte (Hot)": [
+  "Latte": [
     {
       "action": "Espresso",
       "assigned_arm": "Arm1",
@@ -359,7 +359,7 @@
       "depends_on": ["Pour_Espresso"]
     }
   ],  
-  "Passion Fruit Ice Tea (Cold)": [
+  "Passion Fruit Iced Tea": [
     {
       "action": "Dispense_Plastic_Cup",
       "assigned_arm": "Arm2",
@@ -416,7 +416,7 @@
       "depends_on": ["Pick_Cup_Milk"]
     }
   ],
-  "Peached Ice Tea (Cold)": [
+  "Peach Iced Tea": [
     {
       "action": "Dispense_Plastic_Cup",
       "assigned_arm": "Arm2",
@@ -545,7 +545,7 @@
       "depends_on": ["Pour_Espresso"]
     }
   ],
-  "Spanish Latte (Hot)": [
+  "Spanish Latte": [
     {
       "action": "Dispense_Paper_Cup",
         "assigned_arm": "Arm1",
@@ -612,7 +612,7 @@
       "depends_on": ["Froth_Milk","Pour_Espresso"]
     }
   ],
-  "White Mocha (Hot)": [
+  "White Mocha": [
     {
       "action": "Dispense_Paper_Cup",
         "assigned_arm": "Arm1",
@@ -679,14 +679,14 @@
       "depends_on": ["Froth_Milk","Pour_Espresso"]
     }
   ],
-  "Mocha Frappe (Cold)": [
+  "Mocha Frappe": [
     {
       "action": "Slushie",
       "assigned_arm": "Arm2",
       "depends_on": []
     }
   ],
-  "Chocolate Frappe (Cold)": [
+  "Chocolate Frappe": [
     {
       "action": "Slushie",
       "assigned_arm": "Arm2",
