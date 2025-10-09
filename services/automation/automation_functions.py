@@ -34,12 +34,28 @@ async def heat_water(params: dict):
 # This function uses MQTT to communicate with the syrup dispenser service.
 # It sends a request to dispense a specific type and amount of syrup, and waits for a response.
 # params should contain "syrup_type" ("whole", "oat", "almond", etc.) and "amount" (integer)
+# EX: example params: {"pump_number": 9, "amount": 15, "timeout": 300}
+# OR: {"syrups": {3: 45.0}, "timeout": 300}
 async def dispense_syrup(params: dict):
     """Dispense syrup using MQTT communication."""
-    # example params: {"syrup_type": "whole", "amount": 150, "timeout": 300}
-    syrup_type = params.get("syrup_type", "whole")
-    amount = params.get("amount", 20)
-    logger.info("Calling dispense_syrup function")
+    # example params: {"pump_number": 9, "amount": 15, "timeout": 300}
+    # OR nested format: {"syrups": {3: 45.0}, "timeout": 300} where 3 is pump number (9-23)
+    logger.info(f"Calling dispense_syrup function with params:{params}")
+    
+    # Handle nested syrups dictionary format
+    if "syrups" in params and isinstance(params["syrups"], dict):
+        syrups_dict = params["syrups"]
+        # Extract the first key-value pair (pump_number: amount)
+        pump_key = list(syrups_dict.keys())[0]
+        amount = syrups_dict[pump_key]
+        # Convert pump_key to integer (handle both int and string keys)
+        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
+    else:
+        # Fallback to flat parameter format
+        pump_number = params.get("pump_number", 9)
+        amount = params.get("amount", 20)
+    
+    logger.info(f"Dispensing {amount}g from syrup pump {pump_number}")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -55,7 +71,7 @@ async def dispense_syrup(params: dict):
             logger.info(f"Invalid JSON: {msg.payload.decode()}")
 
     #
-    payload = json.dumps({"syrup_type": syrup_type, "amount": amount})
+    payload = json.dumps({"pump_number": pump_number, "amount": amount})
     logger.info("Calling MQTT")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
@@ -116,7 +132,7 @@ async def dispense_syrup(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully dispensed {amount}ml of {syrup_type} syrup",
+            "message": f"Successfully dispensed {amount}g from syrup pump {pump_number}",
             "details": mqtt_response
         }
     else:
@@ -130,11 +146,21 @@ async def dispense_syrup(params: dict):
 
 
 async def dispense_ice(params: dict):
-    """Dispense syrup using MQTT communication."""
-    # example params: {"syrup_type": "whole", "amount": 150, "timeout": 300}
-    ice = params.get("ice", 1)
-
-    logger.info("Calling dispense_syrup function")
+    """Dispense ice using MQTT communication."""
+    # example params: {"ice": 8, "timeout": 300}
+    # OR nested format: {"ice": {"ice_cubes_16oz": 11.0}, "timeout": 300}
+    logger.info(f"Calling dispense_ice function with params:{params}")
+    
+    # Handle nested ice dictionary format
+    if "ice" in params and isinstance(params["ice"], dict):
+        ice_dict = params["ice"]
+        # Extract amount from first value (ignore the key name like "ice_cubes_16oz")
+        ice = int(list(ice_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format (direct integer value)
+        ice = params.get("ice", 1)
+    
+    logger.info(f"Dispensing {ice} ice cubes")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -223,13 +249,28 @@ async def dispense_ice(params: dict):
         }
 
 
-# EX:example params: {"milk_type": "whole", "amount": 150, "timeout": 300}
+# EX:example params: {"pump_number": 1, "amount": 150, "timeout": 300}
+# OR: {"milk": {'213411': 200.0}, "timeout": 300}
 async def dispense_milk(params: dict):
     """Dispense milk using MQTT communication."""
-    # example params: {"milk_type": "whole", "amount": 150, "timeout": 300}
+    # example params: {"pump_number": 1, "amount": 150, "timeout": 300}
+    # OR nested format: {"milk": {'213411': 200.0}, "timeout": 300} where key is pump number (1-8)
     logger.info(f"Calling dispense_milk function with params:{params}")
-    milk_type = params.get("milk_type", "whole")
-    amount = params.get("amount", 150)
+    
+    # Handle nested milk dictionary format
+    if "milk" in params and isinstance(params["milk"], dict):
+        milk_dict = params["milk"]
+        # Extract the first key-value pair (pump_number: amount)
+        pump_key = list(milk_dict.keys())[0]
+        amount = milk_dict[pump_key]
+        # Convert pump_key to integer (handle both int and string keys)
+        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 1
+    else:
+        # Fallback to flat parameter format
+        pump_number = params.get("pump_number", 1)
+        amount = params.get("amount", 150)
+    
+    logger.info(f"Dispensing {amount}g from milk pump {pump_number}")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -245,7 +286,7 @@ async def dispense_milk(params: dict):
             logger.info(f"Invalid JSON: {msg.payload.decode()}")
 
     #
-    payload = json.dumps({"milk_type": milk_type, "amount": amount})
+    payload = json.dumps({"pump_number": pump_number, "amount": amount})
     logger.info("Calling MQTT")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
@@ -306,7 +347,7 @@ async def dispense_milk(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully dispensed {amount}ml of {milk_type} milk",
+            "message": f"Successfully dispensed {amount}g from milk pump {pump_number}",
             "details": mqtt_response
         }
     else:
@@ -416,13 +457,29 @@ async def slush_machine(params: dict):
             "details": mqtt_response
         }
 # cooffee machine commented until Ammar finshes the issue with Registers
-# EX: example params: {"cup": "C12", "shots_number": 1, "timeout": 300}
+# EX: example params: {"coffee_t": 1, "slot_number": 1, "timeout": 300}
+# OR: {"espresso": {"espresso_shot_double": 2.0}, "slot_number": 1, "timeout": 300}
 async def coffee_machine(params: dict):
     """coffee machine using MQTT communication."""
-    # coffee_type is the number of the shots 1,2
-    coffee_t = params.get("coffee_t", 1)
-    slot_number = params.get("slot_number", 1)
-    print("Calling Coffee machine function")
+    # coffee_t is the number of the shots 1,2
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        # Extract amount from first value (ignore the key name like "espresso_shot_double")
+        coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format
+        coffee_t = params.get("coffee_t", 1)
+    
+    if coffee_t == 1:
+        slot_number = 1
+    elif coffee_t == 2:
+        slot_number = 3
+    else:
+         raise ValueError("Invalid triple shot not supported: {coffee_t}")
+        
+    # slot_number = params.get("slot_number", 1)
+    logger.info(f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -437,7 +494,7 @@ async def coffee_machine(params: dict):
         except json.JSONDecodeError:
             print(f"Invalid JSON: {msg.payload.decode()}")
 
-    payload = json.dumps({"slot_number": slot_number, "coffee_t": coffee_t})
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
     logger.info("Calling MQTT")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
@@ -513,11 +570,22 @@ async def coffee_machine(params: dict):
         }
 
 # EX: example params: {"shots_number": 1, "timeout": 300}
+# OR: {"espresso": {"espresso_shot_double": 2.0}, "timeout": 300}
 async def grinding_machine(params: dict):
     """Grinding machine using MQTT communication."""
     # example params: {"shots_number": 1, "timeout": 300}
-    shots_number = params.get("shots_number", 1)
-    logger.info("Calling grinding machine function")
+    # OR nested format: {"espresso": {"espresso_shot_double": 2.0}, "timeout": 300}
+    
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        # Extract amount from first value (ignore the key name like "espresso_shot_double")
+        shots_number = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format
+        shots_number = params.get("shots_number", 1)
+    
+    logger.info(f"Calling grinding machine function with shots_number: {shots_number}")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -705,6 +773,214 @@ async def automation_test(params: dict):
         "details": "Automation test completed"
     }
 
+async def froth_milk(params: dict):
+    """Froth milk using MQTT communication."""
+    # example params: {"temperature": "standard", "timeout": 300}
+    # OR nested format: {"temperature": {"regular_temperature": 73.0}, "timeout": 300}
+    logger.info(f"Calling froth_milk function with params:{params}")
+    
+    # Handle nested temperature dictionary format
+    if "temperature" in params and isinstance(params["temperature"], dict):
+        temp_dict = params["temperature"]
+        # Extract temperature value (could be numeric or string)
+        temp_value = list(temp_dict.values())[0]
+        
+        # Map temperature ranges to frother settings
+        if isinstance(temp_value, (int, float)):
+            # Numeric temperature in Celsius
+            if temp_value <= 60:
+                temperature = "kids"
+            elif temp_value <= 75:
+                temperature = "standard"
+            else:
+                temperature = "extra_hot"
+        else:
+            # String temperature
+            temperature = str(temp_value).lower()
+    else:
+        # Fallback to flat parameter format
+        temperature = params.get("temperature", "standard")
+    
+    logger.info(f"Frothing milk at temperature: {temperature}")
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        logger.info(f"Connected with code {rc}")
+        client.subscribe("automation/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+    # Send temperature to frother
+    payload = json.dumps({"temperature": temperature})
+    logger.info("Calling MQTT")
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to external MQTT broker for frother (your Arduino setup)
+    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        logger.error("Failed to connect to MQTT broker")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    # Now send the message to frother topic
+    client.publish("automation_frother", payload, qos=1)
+    logger.info(f"Sent: {payload}")
+
+    timeout = params.get("timeout", 210)  # Extended timeout for frothing (200s + buffer)
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        logger.info("Timeout: No response from frother")
+        return {
+            "success": False,
+            "error": "Timeout: No response from frother",
+            "message": "Timeout: No response from frother"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    logger.info(f"[Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully frothed milk at {temperature} temperature",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to froth milk: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
+
+async def initialize_frother(params: dict):
+    """Initialize frother using MQTT communication."""
+    # This function doesn't use any parameters from params dict
+    # It just sends a frother_init command to the MQTT broker
+    logger.info("Calling frother_init function")
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        logger.info(f"Connected with code {rc}")
+        client.subscribe("automation/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+    # Fixed payload for frother initialization
+    payload = json.dumps({"frother_init": 1})
+    logger.info("Calling MQTT")
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to external MQTT broker for frother (your Arduino setup)
+    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        logger.error("Failed to connect to MQTT broker")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    # Now send the message to frother init topic
+    client.publish("automation_frother_init", payload, qos=1)
+    logger.info(f"Sent: {payload}")
+
+    timeout = params.get("timeout", 90)  # Timeout for frother init
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        logger.info("Timeout: No response from frother")
+        return {
+            "success": False,
+            "error": "Timeout: No response from frother",
+            "message": "Timeout: No response from frother"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    logger.info(f"[Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": "Successfully initialized frother",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to initialize frother: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
+
 async def dispense_ingredient(params: dict):
     """Dispense ingredient using MQTT communication."""
     ingredient = params.get("ingredient", "sauce")
@@ -789,22 +1065,6 @@ async def dispense_ingredient(params: dict):
             "command": command
         }
     }
-async def initialize_frother(params: dict):
-    """Initialize the frother."""
-    logger.info("Calling initialize_frother function")
-    return {
-        "success": True,
-        "message": "Successfully initialized the frother",
-        "details": "Frother initialized"
-    }
-async def froth_milk(params: dict):
-    """Froth milk."""
-    logger.info("Calling froth_milk function")
-    return {
-        "success": True,
-        "message": "Successfully frothed the milk",
-        "details": "Milk frothed"
-    }
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
@@ -817,8 +1077,8 @@ AUTOMATION_FUNCTIONS = {
     "grinding_machine": grinding_machine,
     "tampering_machine" : tampering_machine,
     "dispense_ice": dispense_ice,
-    "automation_test": automation_test,
+    "froth_milk": froth_milk,
     "initialize_frother": initialize_frother,
-    "froth_milk": froth_milk
+    "automation_test": automation_test,
     # Add more automation functions as needed
 }

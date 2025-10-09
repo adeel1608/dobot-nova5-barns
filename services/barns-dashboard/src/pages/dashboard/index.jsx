@@ -19,11 +19,9 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen ">
 
-
       {/* Main Dashboard Grid - Responsive layout */}
         <div className="p-1 pt-2 h-[calc(100vh-90px)]">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 md:gap-2 h-full">
-            
             
             {/* Left Column */}
             <div className="lg:col-span-4 h-full flex flex-col min-h-0 order-1">
@@ -44,8 +42,6 @@ export default function Dashboard() {
              
             </div>
 
-
-
             {/* Right Column */}
             <div className="lg:col-span-3 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-2 lg:order-3">
               <div className="flex-1 min-h-0">
@@ -61,7 +57,6 @@ export default function Dashboard() {
                 <IngredientsIndicator />
               </div>
             </div>
-
           </div>
         </div>
 
