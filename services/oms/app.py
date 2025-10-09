@@ -214,6 +214,10 @@ def register_event_handlers():
     event_listener.register_event_handler("scheduler.order_completed", handle_order_completed_event)
     event_listener.register_event_handler("scheduler.order_failed", handle_order_failed_event)
     event_listener.register_event_handler("scheduler.order_heartbeat", handle_order_heartbeat_event)
+    # Detailed scheduler task events for dashboard live updates
+    event_listener.register_event_handler("scheduler.plan_built", handle_scheduler_plan_built)
+    event_listener.register_event_handler("scheduler.status_update", handle_scheduler_status_update)
+    event_listener.register_event_handler("scheduler.feedback_processed", handle_scheduler_feedback_processed)
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
@@ -748,6 +752,35 @@ async def handle_order_heartbeat_event(data: Dict):
             logger.warning(f"⚠️ [OMS] Order {order_id} not found in database. Ignoring heartbeat.")
     else:
         logger.error(f"❌ [OMS] Received order_heartbeat event but no order_id provided: {data}")
+
+# Forward detailed scheduler task events to dashboard via WebSocket broadcast
+async def handle_scheduler_plan_built(data: Dict):
+    order_id = data.get("order_id")
+    plan = data.get("plan", {})
+    if order_id and plan:
+        broadcast({
+            "event": "scheduler.plan_built",
+            "order": order_id,
+            "plan": plan
+        })
+
+async def handle_scheduler_status_update(data: Dict):
+    status = data.get("status", {})
+    message = data.get("message")
+    broadcast({
+        "event": "scheduler.status_update",
+        "status": status,
+        "message": message
+    })
+
+async def handle_scheduler_feedback_processed(data: Dict):
+    broadcast({
+        "event": "scheduler.task_update",
+        "cup_id": data.get("cup_id"),
+        "action": data.get("action"),
+        "success": data.get("success"),
+        "message": data.get("message")
+    })
 
 async def handle_threshold_warning_event(data: Dict):
     """Handle threshold warning events from validation service"""

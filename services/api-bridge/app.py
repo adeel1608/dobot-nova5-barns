@@ -120,6 +120,10 @@ async def startup_event():
         event_listener.register_event_handler("scheduler.order_completed", handle_order_event)
         event_listener.register_event_handler("scheduler.order_failed", handle_order_event)
         event_listener.register_event_handler("scheduler.order_error", handle_order_event)
+        # Detailed scheduler task events (plan and per-task updates)
+        event_listener.register_event_handler("scheduler.plan_built", handle_scheduler_plan_built_event)
+        event_listener.register_event_handler("scheduler.status_update", handle_scheduler_status_update_event)
+        event_listener.register_event_handler("scheduler.feedback_processed", handle_scheduler_feedback_processed_event)
         
         # Inventory Events
         event_listener.register_event_handler("validation.inventory_updated", handle_inventory_updated_event)
@@ -152,6 +156,31 @@ async def handle_order_event(data: Dict):
     await broadcast_to_websockets({
         "type": "order_update",
         "event": data.get("event_type", "unknown"),
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
+
+async def handle_scheduler_plan_built_event(data: Dict):
+    """Forward per-arm plan to WebSocket clients so UI can render task list."""
+    await broadcast_to_websockets({
+        "type": "order_update",
+        "event": "scheduler.plan_built",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
+
+async def handle_scheduler_status_update_event(data: Dict):
+    await broadcast_to_websockets({
+        "type": "order_update",
+        "event": "scheduler.status_update",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
+
+async def handle_scheduler_feedback_processed_event(data: Dict):
+    await broadcast_to_websockets({
+        "type": "order_update",
+        "event": "scheduler.feedback_processed",
         "data": data,
         "timestamp": datetime.now().isoformat()
     })

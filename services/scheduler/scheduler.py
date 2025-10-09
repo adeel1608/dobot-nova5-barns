@@ -43,6 +43,34 @@ def set_rabbitmq_client(client):
     _global_rabbitmq_client = client
     logger.info("🔧 [SCHEDULER] Global RabbitMQ client set for notifications")
 
+async def _emit_plan_built(order_id: int):
+    """Emit current per-arm plan for the given order so UI can render immediately."""
+    try:
+        if _global_rabbitmq_client is None:
+            return
+        plan = get_per_arm_lists()
+        await _global_rabbitmq_client.send_event("scheduler.plan_built", {
+            "order_id": order_id,
+            "plan": plan,
+            "timestamp": time.time()
+        })
+    except Exception as e:
+        logger.warning(f"[SCHEDULER] Failed to emit plan_built: {e}")
+
+async def _emit_task_progress(cup_id: str, action: str):
+    """Emit a task progress (submitted/in_progress) update."""
+    try:
+        if _global_rabbitmq_client is None:
+            return
+        await _global_rabbitmq_client.send_event("scheduler.feedback_processed", {
+            "cup_id": cup_id,
+            "action": action,
+            "success": None,  # signifies in-progress
+            "message": "submitted"
+        })
+    except Exception as e:
+        logger.warning(f"[SCHEDULER] Failed to emit task progress: {e}")
+
 # Configuration for the routine service
 ROUTINE_SERVICE_URL = "http://routine:8000"  # Can be overridden via environment variable
 
@@ -343,6 +371,16 @@ async def arm_worker(arm_name: str):
                 with lock:
                     task["status"] = "submitted"
                     logger.info(f"✅ Task {action} for cup {cup_id} successfully submitted to routine")
+                # Emit in-progress update so dashboard marks it
+                try:
+                    import asyncio as _asyncio
+                    loop = _asyncio.get_event_loop()
+                    if loop.is_running():
+                        loop.create_task(_emit_task_progress(cup_id, action))
+                    else:
+                        loop.run_until_complete(_emit_task_progress(cup_id, action))
+                except Exception as _e:
+                    logger.warning(f"[SCHEDULER] Could not emit task progress: {_e}")
             else:
                 # Mark the task as failed immediately
                 with lock:
@@ -487,6 +525,16 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
     try:
         setup_tasks(orders, recipes)
         logger.info(f"[SCHEDULER] Created {tasks_total} tasks for order {order_id}")
+        # Emit plan immediately after building tasks so dashboard renders sequence early
+        try:
+            import asyncio as _asyncio
+            loop = _asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(_emit_plan_built(order_id))
+            else:
+                loop.run_until_complete(_emit_plan_built(order_id))
+        except Exception as _e:
+            logger.warning(f"[SCHEDULER] Could not schedule plan_built emission: {_e}")
         return True
     except Exception as e:
         logger.error(f"[SCHEDULER] Error setting up tasks: {str(e)}")

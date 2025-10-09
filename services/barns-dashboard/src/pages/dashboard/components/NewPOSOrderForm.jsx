@@ -21,6 +21,56 @@ function NewPOSOrderForm({
   getIngredientNameById,
   onCancel
 }) {
+  // Sorted drink names for better UX
+  const sortedDrinkNames = React.useMemo(() => {
+    return Array.isArray(uniqueDrinkNames)
+      ? [...uniqueDrinkNames].sort((a, b) => String(a).localeCompare(String(b)))
+      : [];
+  }, [uniqueDrinkNames]);
+
+  // Duplicate an item at index
+  const duplicateItem = (itemIndex) => {
+    setPosOrderData(prev => {
+      const item = prev.items[itemIndex];
+      const cloned = {
+        ...item,
+        isExpanded: true
+      };
+      const items = [...prev.items.slice(0, itemIndex + 1), cloned, ...prev.items.slice(itemIndex + 1)];
+      return { items };
+    });
+  };
+
+  // Reset an item to defaults
+  const resetItem = (itemIndex) => {
+    setPosOrderData(prev => ({
+      items: prev.items.map((itm, i) => i === itemIndex ? {
+        item_id: '',
+        quantity: 1,
+        kitchen_notes: [],
+        item_ingredients: [],
+        selectedDrinkName: '',
+        selectedSize: '',
+        isExpanded: true,
+        isCustomizeOpen: false
+      } : itm)
+    }));
+  };
+
+  // Set preparation preferences (Temperature / Ice / Foam)
+  const setKitchenPreference = (itemIndex, type, value) => {
+    if (value === undefined || value === null) return;
+    setPosOrderData(prev => ({
+      items: prev.items.map((itm, i) => i === itemIndex ? {
+        ...itm,
+        kitchen_notes: [
+          ...itm.kitchen_notes.filter(n => n.type !== type),
+          { type, qty: 0, detail: value }
+        ]
+      } : itm)
+    }));
+  };
+
   return (
     /* New Order Form */
     <div className="space-y-6">
@@ -105,10 +155,10 @@ function NewPOSOrderForm({
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   >
                     <option value="">Select a drink...</option>
-                    {uniqueDrinkNames.length === 0 ? (
+                    {sortedDrinkNames.length === 0 ? (
                       <option value="">Loading drinks...</option>
                     ) : (
-                      uniqueDrinkNames.map(name => (
+                      sortedDrinkNames.map(name => (
                         <option key={name} value={name}>{name}</option>
                       ))
                     )}
@@ -161,6 +211,52 @@ function NewPOSOrderForm({
                 </div>
               </div>
               
+              {/* Preparation Preferences */}
+              <div className="border-t pt-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Temperature</label>
+                    <select
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Temprature', e.target.value)}
+                      value={(item.kitchen_notes.find(n => n.type === 'Drink Temprature')?.detail) || ''}
+                    >
+                      <option value="">Normal</option>
+                      <option value="Extra Hot">Extra Hot</option>
+                      <option value="Less Hot">Less Hot</option>
+                      <option value="Hot">Hot</option>
+                      <option value="Cold">Cold</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Ice Level</label>
+                    <select
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Ice', e.target.value)}
+                      value={(item.kitchen_notes.find(n => n.type === 'Drink Ice')?.detail) || ''}
+                    >
+                      <option value="">Normal</option>
+                      <option value="Extra Ice">Extra Ice</option>
+                      <option value="Light Ice">Light Ice</option>
+                      <option value="No Ice">No Ice</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Foam</label>
+                    <select
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Foam', e.target.value)}
+                      value={(item.kitchen_notes.find(n => n.type === 'Drink Foam')?.detail) || ''}
+                    >
+                      <option value="">Normal</option>
+                      <option value="Extra Foam">Extra Foam</option>
+                      <option value="Light Foam">Light Foam</option>
+                      <option value="No Foam">No Foam</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               
               {/* Manual Kitchen Notes (qty > 0) */}
               <div className="border-t pt-3">
@@ -217,8 +313,9 @@ function NewPOSOrderForm({
               {/* Item Ingredients - Organized by Category (collapsible) */}
               {item.isExpanded && item.selectedMenuItem && Object.keys(ingredientsByCategory).length > 0 && (
                 <div className="border-t pt-3">
-                  <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                     <h5 className="text-sm font-medium text-gray-700">Customize Ingredients</h5>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       className="text-xs text-blue-600 hover:text-blue-800"
@@ -228,6 +325,33 @@ function NewPOSOrderForm({
                     >
                       {item.isCustomizeOpen ? 'Hide' : 'Show'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => duplicateItem(itemIndex)}
+                      className="text-xs text-gray-600 hover:text-gray-800"
+                      title="Duplicate item"
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resetItem(itemIndex)}
+                      className="text-xs text-gray-600 hover:text-gray-800"
+                      title="Reset item"
+                    >
+                      Reset
+                    </button>
+                    {posOrderData.items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePOSItem(itemIndex)}
+                        className="text-xs text-red-600 hover:text-red-700"
+                        title="Remove item"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                   </div>
                   {item.isCustomizeOpen && (
                     <div className="space-y-3 mt-2">

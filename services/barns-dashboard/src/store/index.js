@@ -32,8 +32,32 @@ export const useWebSocketStore = create((set, get) => ({
         // Handle different types of events from the API bridge
         if (data.type === 'order_update') {
           addLog('WebSocket', 'info', 'Order update received', data);
-          // Refresh orders when we get updates
-          useDashboardStore.getState().fetchOrders();
+          // Handle detailed scheduler events
+          if (data.event === 'scheduler.plan_built') {
+            const payload = data.data || {};
+            const plan = payload.plan || {};
+            const orderId = payload.order_id;
+            useDashboardStore.getState().setSchedulerPlan(orderId, plan);
+          } else if (data.event === 'scheduler.feedback_processed') {
+            const payload = data.data || {};
+            useDashboardStore.getState().updateSchedulerTask({
+              cup_id: payload.cup_id,
+              action: payload.action,
+              success: payload.success,
+              message: payload.message
+            });
+          } else if (data.event === 'scheduler.order_failed') {
+            // Order-level failure: mark remaining tasks as cancelled
+            const payload = data.data || {};
+            const reason = payload.error || 'Order failed';
+            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
+          } else if (data.event === 'scheduler.status_update') {
+            const payload = data.data || {};
+            useDashboardStore.getState().setSchedulerStatusMessage(payload.message, payload.status);
+          } else {
+            // Fallback: refresh orders on generic updates
+            useDashboardStore.getState().fetchOrders();
+          }
         } else if (data.type === 'inventory_update') {
           addLog('WebSocket', 'info', 'Inventory update received', data);
           // Refresh inventory when we get updates

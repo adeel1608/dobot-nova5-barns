@@ -385,6 +385,17 @@ class SchedulerService:
 
             success = await scheduler.process_order_async(order_id, drinks, recipes)
             
+            # Before processing, emit per-arm plan so UI can render task lists
+            try:
+                plan = scheduler.get_per_arm_lists()
+                await self.rabbitmq_client.send_event("scheduler.plan_built", {
+                    "order_id": order_id,
+                    "plan": plan,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as plan_err:
+                logger.warning(f"[SCHEDULER] Could not emit plan_built event: {plan_err}")
+
             # Send status notifications (events are already sent by scheduler module)
             if success:
                 logger.info(f"✅ [SCHEDULER] Order {order_id} completed successfully")

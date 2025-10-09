@@ -450,44 +450,6 @@ const handleDeleteOrder = async (orderId) => {
   }
 };
 
-  // const handleDeleteOrder = async (orderId) => {
-  //   console.log('🗑️ handleDeleteOrder called with orderId:', orderId);
-    
-  //   // Find the order to get its status
-  //   const order = displayOrders.find(o => o.id === orderId);
-  //   const orderStatus = order?.status?.toUpperCase() || 'UNKNOWN';
-    
-  //   // Show different confirmation messages based on order status
-  //   let confirmMessage;
-  //   if (orderStatus === 'PROCESSING') {
-  //     confirmMessage = `⚠️ WARNING: Order #${orderId} is currently being processed!\n\nDeleting this order will immediately stop all ongoing operations and may cause system issues.\n\nAre you absolutely sure you want to force delete this order?`;
-  //   } else {
-  //     confirmMessage = `Are you sure you want to delete order #${orderId}?\n\nThis action cannot be undone.`;
-  //   }
-    
-  //   const confirmed = window.confirm(confirmMessage);
-  //   if (!confirmed) {
-  //     return;
-  //   }
-    
-  //   setDeletingOrderId(orderId);
-  //   try {
-  //     console.log('🗑️ About to call deleteOrder from store...');
-  //     const success = await deleteOrder(orderId);
-  //     console.log('🗑️ deleteOrder returned:', success);
-      
-  //     if (success) {
-  //       console.log(`✅ Order ${orderId} deleted successfully`);
-  //     } else {
-  //       console.error(`❌ Failed to delete order ${orderId}`);
-  //     }
-  //   } catch (error) {
-  //     console.error('🗑️ Error in handleDeleteOrder:', error);
-  //   } finally {
-  //     setDeletingOrderId(null);
-  //   }
-  // };
-
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
     setShowOrderDetails(true);
