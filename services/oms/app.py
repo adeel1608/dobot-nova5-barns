@@ -1384,6 +1384,10 @@ async def get_menu_items():
         # Convert to list format for frontend
         menu_items_list = []
         for item_id, item_data in MENU_ITEMS.items():
+            # Only include fully automated items
+            automation_value = str(item_data.get("automation", "")).lower()
+            if automation_value != "full":
+                continue
             menu_items_list.append({
                 "item_id": item_id,
                 "name": item_data["name"],
