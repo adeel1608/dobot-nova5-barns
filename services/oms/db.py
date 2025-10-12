@@ -752,3 +752,66 @@ def mark_processing_orders_as_failed(reason: str = "Container restart - processi
         raise e
     finally:
         release_connection(conn)
+
+def mark_intermediate_orders_as_cancelled(reason: str = "Container restart - order interrupted") -> int:
+    """Mark all orders in intermediate states as cancelled during container startup.
+    
+    This handles orders that were in STOPPING, STOPPED, or HALTED states when the container restarted.
+    
+    Args:
+        reason: The reason for marking orders as cancelled
+        
+    Returns:
+        int: Number of orders that were marked as cancelled
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            # Get all orders in intermediate states
+            cur.execute(
+                """
+                SELECT id, status FROM orders 
+                WHERE status IN (%s, %s, %s)
+                """,
+                ('stopping', 'stopped', 'halted')
+            )
+            intermediate_orders = cur.fetchall()
+            
+            if not intermediate_orders:
+                return 0
+            
+            # Update all intermediate orders to cancelled status
+            cur.execute(
+                """
+                UPDATE orders 
+                SET status = %s, completed_at = %s, error_message = %s
+                WHERE status IN (%s, %s, %s)
+                """,
+                ('cancelled', datetime.now(), reason, 'stopping', 'stopped', 'halted')
+            )
+            
+            # Log events for each cancelled order
+            for order_row in intermediate_orders:
+                order_id = order_row[0]
+                old_status = order_row[1]
+                cur.execute(
+                    """
+                    INSERT INTO events (event_type, payload)
+                    VALUES (%s, %s)
+                    """,
+                    ('order_cancelled_on_restart', json.dumps({
+                        'order_id': order_id,
+                        'old_status': old_status,
+                        'reason': reason,
+                        'timestamp': datetime.now().isoformat()
+                    }))
+                )
+            
+            conn.commit()
+            return len(intermediate_orders)
+            
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        release_connection(conn)

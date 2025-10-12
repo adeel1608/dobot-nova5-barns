@@ -28,6 +28,18 @@ export const ordersAPI = {
       successMessage: `Order ${orderId} started successfully`
     }),
 
+  // Stop processing order
+  stopOrder: (orderId) =>
+    apiClient.create(`/orders/${orderId}/stop`, {}, {
+      successMessage: `Order ${orderId} stopped successfully`
+    }),
+
+  // Resume stopped/halted order
+  resumeOrder: (orderId) =>
+    apiClient.create(`/orders/${orderId}/resume`, {}, {
+      successMessage: `Order ${orderId} resumed successfully`
+    }),
+
   // Delete order
   deleteOrder: (orderId) =>
     apiClient.remove('/orders', orderId, 'Order'),

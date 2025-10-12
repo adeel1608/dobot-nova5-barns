@@ -13,7 +13,7 @@ import useStore from '../../../store';
 import backarrow from '../../../assets/backarrow.png';
 import deleteIcon from '../../../assets/delete.png';
 
-function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isDeleting, isReordering, getStatusBadge }) {
+function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isStopping, isResuming, isDeleting, isReordering, getStatusBadge }) {
   // Debug: Log that this component is rendering
   console.log(`📦 SortableItem rendering for order ${order.id} with status: ${order.status}`);
   
@@ -28,57 +28,85 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const disableDrag = index === 0 && order.status === 'PROCESSING';
+  const disableDrag = index === 0 && (order.status === 'PROCESSING' || order.status === 'STOPPING');
 
-  // Determine if buttons should be disabled
-  const isDisabled = ['COMPLETED', 'CANCELLED'].includes(order.status);
+  // Determine if buttons should be disabled (only COMPLETED orders are fully disabled)
+  const isDisabled = order.status === 'COMPLETED';
   
   // Get status badge with colored dot
   const getStatusBadgeWithDot = (status) => {
     switch(status) {
       case 'PROCESSING':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
             Processing
+          </span>
+        );
+      case 'STOPPING':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+            <svg className="animate-spin w-3 h-3 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Stopping...
           </span>
         );
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
             Completed
           </span>
         );
       case 'QUEUED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <div className="w-2 h-2 bg-blue-600 rounded-full mr-2"></div>
             Queued
           </span>
         );
       case 'CANCELLED':
+      case 'ERROR':
+      case 'STOPPED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
             <div className="w-2 h-2 bg-red-600 rounded-full mr-2"></div>
-            Canceled
+            {status === 'CANCELLED' ? 'Canceled' : status === 'ERROR' ? 'Error' : 'Stopped'}
+          </span>
+        );
+      case 'HALTED':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+            Halted
           </span>
         );
       default:
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            <div className="w-2 h-2 bg-blue-600 rounded-full mr-2"></div>
+            <div className="w-2 h-2 bg-gray-500 rounded-full mr-2"></div>
             {status}
           </span>
         );
     }
   };
 
+  // Visual highlight for processing/stopping orders
+  const isProcessing = order.status === 'PROCESSING';
+  const isInStoppingState = order.status === 'STOPPING';
+  const containerClasses = isProcessing
+    ? 'mb-2 p-4 rounded-lg border-2 border-orange-400 bg-orange-50 shadow-lg transition-all duration-200 ring-2 ring-orange-200'
+    : isInStoppingState
+    ? 'mb-2 p-4 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
+    : 'mb-2 p-4 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`mb-2 p-4 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200`}
+      className={containerClasses}
     >
       <div className="flex items-center justify-between">
         {/* Left side - ID and Status */}
@@ -89,31 +117,85 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
         
         {/* Right side - Action Buttons */}
         <div className="flex items-center space-x-2">
-          {/* Start Button */}
-          <button 
-            onClick={() => onStartOrder(order.id)}
-            disabled={isDisabled || isStarting === order.id}
-            className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-              isDisabled 
-                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : isStarting === order.id
+          {/* Dynamic Action Button (Start/Stop/Resume) */}
+          {order.status === 'PROCESSING' ? (
+            // Stop Button for Processing Orders
+            <button 
+              type="button"
+              onClick={() => onStopOrder(order.id)}
+              disabled={isStopping === order.id}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                isStopping === order.id
+                  ? 'bg-red-300 text-white cursor-not-allowed'
+                  : 'bg-red-600 text-white hover:bg-red-700'
+              }`}
+              title={isStopping === order.id ? "Stopping..." : "Stop processing"}
+            >
+              {isStopping === order.id ? "Stopping..." : "Stop"}
+            </button>
+          ) : order.status === 'STOPPING' ? (
+            // Stopping - button disabled while waiting
+            <button 
+              type="button"
+              disabled={true}
+              className="px-3 py-1.5 rounded text-xs font-medium bg-amber-300 text-white cursor-not-allowed"
+              title="Stopping - waiting for current task to complete"
+            >
+              <span className="inline-flex items-center">
+                <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Stopping...
+              </span>
+            </button>
+          ) : order.status === 'STOPPED' ? (
+            // Resume Button for Stopped Orders
+            <button 
+              type="button"
+              onClick={() => onResumeOrder(order.id)}
+              disabled={isResuming === order.id}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                isResuming === order.id
                   ? 'bg-blue-300 text-white cursor-not-allowed'
                   : 'text-white'
-            }`}
-            style={{
-              backgroundColor: isDisabled 
-                ? undefined 
-                : isStarting === order.id 
+              }`}
+              style={{
+                backgroundColor: isResuming === order.id ? undefined : '#00754A'
+              }}
+              title={isResuming === order.id ? "Resuming..." : "Resume processing"}
+            >
+              {isResuming === order.id ? "Resuming..." : "Resume"}
+            </button>
+          ) : (
+            // Start Button for Queued/Cancelled/Error Orders
+            <button 
+              type="button"
+              onClick={() => onStartOrder(order.id)}
+              disabled={isDisabled || isStarting === order.id}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                isDisabled 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : isStarting === order.id
+                    ? 'bg-blue-300 text-white cursor-not-allowed'
+                    : 'text-white'
+              }`}
+              style={{
+                backgroundColor: isDisabled 
                   ? undefined 
-                  : '#00754A'
-            }}
-            title={isDisabled ? "Action not available" : "Start processing"}
-          >
-            {isStarting === order.id ? "Starting..." : "Start"}
-          </button>
+                  : isStarting === order.id 
+                    ? undefined 
+                    : '#00754A'
+              }}
+              title={isDisabled ? "Action not available" : "Start processing"}
+            >
+              {isStarting === order.id ? "Starting..." : "Start"}
+            </button>
+          )}
 
           {/* Details Button */}
           <button 
+            type="button"
             onClick={() => onViewDetails(order)}
             disabled={isDisabled}
             className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
@@ -133,6 +215,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
 
             {/* Reorder Button - outlined like Details */}
             <button 
+              type="button"
               onClick={() => onReorderOrder(order)}
               disabled={isReordering === order.id}
               className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
@@ -165,6 +248,7 @@ function SortableItem({ order, index, onStartOrder, onResumeOrder, onDeleteOrder
 
             {/* Delete Button - Icon only */}
             <button 
+              type="button"
               onClick={() => {
                 console.log('🗑️ Delete button clicked for order:', order.id);
                 onDeleteOrder && onDeleteOrder(order.id);
@@ -196,8 +280,10 @@ function OrderQueue({ connectionStatus }) {
     orders, 
     menuItems,
     ingredientsByCategory,
-    sendReorder, 
-    startOrder, 
+    sendReorder,
+    createOrder,
+    startOrder,
+    stopOrder,
     resumeOrder, 
     deleteOrder, 
     processPOSOrder,
@@ -212,6 +298,8 @@ function OrderQueue({ connectionStatus }) {
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [startingOrderId, setStartingOrderId] = useState(null);
+  const [stoppingOrderId, setStoppingOrderId] = useState(null);
+  const [resumingOrderId, setResumingOrderId] = useState(null);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [reorderingOrderId, setReorderingOrderId] = useState(null);
   const [showNewOrder, setShowNewOrder] = useState(false);
@@ -248,6 +336,8 @@ function OrderQueue({ connectionStatus }) {
     switch(status) {
       case 'PROCESSING':
         return <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">🔄 Processing</span>;
+      case 'STOPPING':
+        return <span className="bg-amber-100 text-amber-800 text-xs font-medium px-2.5 py-0.5 rounded">⏳ Stopping...</span>;
       case 'COMPLETED':
         return <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded">✅ Completed</span>;
       case 'HALTED':
@@ -268,7 +358,7 @@ function OrderQueue({ connectionStatus }) {
     
     const oldIndex = displayOrders.findIndex(o => o.id === active.id);
     const newIndex = displayOrders.findIndex(o => o.id === over.id);
-    if (oldIndex === 0 && displayOrders[0].status === 'PROCESSING') return; // block moving processing
+    if (oldIndex === 0 && (displayOrders[0].status === 'PROCESSING' || displayOrders[0].status === 'STOPPING')) return; // block moving processing/stopping
     
     const newOrders = arrayMove(displayOrders, oldIndex, newIndex);
     sendReorder(newOrders);
@@ -300,9 +390,34 @@ function OrderQueue({ connectionStatus }) {
     }
   };
 
+  const handleStopOrder = async (orderId) => {
+    console.log('🛑 handleStopOrder called with orderId:', orderId);
+    
+    setStoppingOrderId(orderId);
+    try {
+      console.log('🛑 About to call stopOrder from store...');
+      const success = await stopOrder(orderId);
+      console.log('🛑 stopOrder returned:', success);
+      
+      if (success) {
+        console.log(`✅ Order ${orderId} stopped successfully`);
+        setTimeout(() => {
+          setStoppingOrderId(null);
+        }, 1000);
+      } else {
+        console.error(`❌ Failed to stop order ${orderId}`);
+        setStoppingOrderId(null);
+      }
+    } catch (error) {
+      console.error('🛑 Error in handleStopOrder:', error);
+      setStoppingOrderId(null);
+    }
+  };
+
   const handleResumeOrder = async (orderId) => {
     console.log('🔄 handleResumeOrder called with orderId:', orderId);
     
+    setResumingOrderId(orderId);
     try {
       console.log('🔄 About to call resumeOrder from store...');
       const success = await resumeOrder(orderId);
@@ -310,11 +425,16 @@ function OrderQueue({ connectionStatus }) {
       
       if (success) {
         console.log(`✅ Order ${orderId} resumed successfully`);
+        setTimeout(() => {
+          setResumingOrderId(null);
+        }, 1000);
       } else {
         console.error(`❌ Failed to resume order ${orderId}`);
+        setResumingOrderId(null);
       }
     } catch (error) {
       console.error('🔄 Error in handleResumeOrder:', error);
+      setResumingOrderId(null);
     }
   };
 
@@ -847,6 +967,7 @@ const handleDeleteOrder = async (orderId) => {
               <option value="ALL">All Orders</option>
               <option value="QUEUED">Queued</option>
               <option value="PROCESSING">Processing</option>
+              <option value="STOPPING">Stopping</option>
               <option value="HALTED">Halted</option>
               <option value="COMPLETED">Completed</option>
               <option value="STOPPED">Stopped</option>
@@ -943,11 +1064,14 @@ const handleDeleteOrder = async (orderId) => {
                           order={order} 
                           index={idx} 
                           onStartOrder={handleStartOrder}
+                          onStopOrder={handleStopOrder}
                           onResumeOrder={handleResumeOrder}
                           onDeleteOrder={handleDeleteOrder}
                           onViewDetails={viewOrderDetails}
                           onReorderOrder={handleReorderOrder}
                           isStarting={startingOrderId === order.id}
+                          isStopping={stoppingOrderId === order.id}
+                          isResuming={resumingOrderId === order.id}
                           isDeleting={deletingOrderId === order.id}
                           isReordering={reorderingOrderId === order.id}
                           getStatusBadge={getStatusBadge}
@@ -1134,7 +1258,7 @@ const handleDeleteOrder = async (orderId) => {
               </button>
               
               {/* Action buttons based on order status */}
-              {!['PROCESSING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(selectedOrder.status) && (
+              {!['PROCESSING', 'STOPPING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(selectedOrder.status) && (
                 <>
                   {selectedOrder.status === 'QUEUED' && (
                     <button 

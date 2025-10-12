@@ -72,7 +72,8 @@ class InventoryRefill(BaseModel):
 # Order status constants
 ORDER_STATUS = {
     'QUEUED': 'queued',
-    'PROCESSING': 'processing', 
+    'PROCESSING': 'processing',
+    'STOPPING': 'stopping',     # In process of stopping - waiting for current tasks
     'COMPLETED': 'completed',
     'HALTED': 'halted',         # Paused due to validation/ingredient issues
     'STOPPED': 'stopped',       # Manually stopped
@@ -125,6 +126,24 @@ async def lifespan(app: FastAPI):
             print("✅ No processing orders found to mark as failed")
     except Exception as e:
         print(f"⚠️ Error marking processing orders as failed: {e}")
+    
+    # Mark any intermediate state orders as cancelled due to container restart
+    print("Marking intermediate state orders (stopping, stopped, halted) as cancelled...")
+    try:
+        cancelled_count = db.mark_intermediate_orders_as_cancelled()
+        if cancelled_count > 0:
+            print(f"✅ Marked {cancelled_count} intermediate orders as cancelled due to container restart")
+            # Broadcast the cancellation events to any connected clients
+            for i in range(cancelled_count):
+                broadcast({
+                    "event": "container_restart_intermediate_cleanup",
+                    "message": f"Marked {cancelled_count} intermediate orders as cancelled due to container restart",
+                    "timestamp": "now"
+                })
+        else:
+            print("✅ No intermediate orders found to mark as cancelled")
+    except Exception as e:
+        print(f"⚠️ Error marking intermediate orders as cancelled: {e}")
     
     # Sync queue with database on startup
     print("Syncing queue with database on startup...")
@@ -190,6 +209,7 @@ def register_rabbitmq_handlers():
     rabbitmq_client.register_handler("list_orders", handle_list_orders_mq)
     rabbitmq_client.register_handler("get_order", handle_get_order_mq)
     rabbitmq_client.register_handler("start_order", handle_start_order_mq)
+    rabbitmq_client.register_handler("stop_order", handle_stop_order_mq)
     rabbitmq_client.register_handler("update_order_status", handle_update_order_status_mq)
     rabbitmq_client.register_handler("delete_order", handle_delete_order_mq)
     rabbitmq_client.register_handler("halt_order", handle_halt_order_mq)
@@ -286,15 +306,34 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         
         logger.info(f"🚀 OMS received start_order request for order {order_id}")
         
-        # Concurrency guard: allow only one processing order at a time
+        # Concurrency guard: allow only one processing/stopping order at a time
         try:
             processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
         except Exception as e:
             processing = []
-            logger.error(f"Error checking processing orders: {e}")
+            stopping = []
+            logger.error(f"Error checking processing/stopping orders: {e}")
+        
         if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
             logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is already processing")
             return {"success": False, "error": "Another order is currently processing. Please wait."}
+        
+        if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
+            logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is currently stopping")
+            return {"success": False, "error": "Another order is currently stopping. Please wait."}
+        
+        # Cancel any STOPPED orders when starting a new order
+        try:
+            stopped_orders = db.get_orders(status=ORDER_STATUS['STOPPED'])
+            for stopped_order in stopped_orders:
+                stopped_id = stopped_order.get('id')
+                if stopped_id != order_id:
+                    logger.info(f"🚫 Cancelling stopped order {stopped_id} due to new order starting")
+                    db.update_order_status(stopped_id, ORDER_STATUS['CANCELLED'], "Cancelled due to new order starting")
+                    broadcast({"event": "order_cancelled", "order": stopped_id})
+        except Exception as e:
+            logger.error(f"Error cancelling stopped orders: {e}")
         
         order = db.get_order(order_id)
         if not order:
@@ -322,6 +361,196 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         
     except Exception as e:
         logger.error(f"💥 Error starting order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_stop_order_mq(data: Dict) -> Dict:
+    """Handle stop order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+        
+        logger.info(f"🛑 [OMS-MQ] Received stop_order request for order {order_id}")
+        
+        # Call the HTTP endpoint logic
+        order = db.get_order(order_id)
+        if not order:
+            logger.error(f"🛑 [OMS-MQ] Order {order_id} not found")
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        current_status = order.get("status")
+        logger.info(f"🛑 [OMS-MQ] Order {order_id} current status: {current_status}")
+        
+        # If order is already in a terminal state, return success (idempotent)
+        if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
+            logger.info(f"🛑 [OMS-MQ] Order {order_id} is already in terminal state: {current_status}")
+            return {"success": True, "message": "order_already_stopped", "order_id": order_id, "status": current_status}
+        
+        # If order is in ERROR state, we can still mark it as STOPPED
+        if current_status not in [ORDER_STATUS['PROCESSING'], ORDER_STATUS['ERROR'], ORDER_STATUS['HALTED']]:
+            logger.error(f"🛑 [OMS-MQ] Cannot stop order {order_id} in {current_status} state")
+            return {"success": False, "error": f"Cannot stop order in {current_status} state"}
+        
+        logger.info(f"🛑 [OMS-MQ] Proceeding to stop order {order_id}")
+        
+        # Update status to stopping first
+        db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
+        
+        # Broadcast stopping event
+        broadcast({
+            "event": "order_stopping",
+            "order": order_id,
+            "timestamp": "now"
+        })
+        
+        # Send stop request to scheduler via RabbitMQ
+        # Scheduler will wait for current tasks to complete before responding
+        if rabbitmq_client:
+            try:
+                logger.info(f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...")
+                response = await rabbitmq_client.send_request(
+                    target_service="scheduler",
+                    action="stop_order",
+                    data={"order_id": order_id},
+                    timeout=120  # Increased timeout to allow tasks to complete (up to 2 minutes)
+                )
+                
+                if response.get("success"):
+                    logger.info(f"✅ Scheduler confirmed order {order_id} has stopped - all tasks completed")
+                else:
+                    logger.error(f"❌ Scheduler failed to stop order {order_id}: {response.get('error')}")
+                    # Continue with database update anyway
+            except asyncio.TimeoutError:
+                logger.error(f"⚠️ Scheduler stop request timed out for order {order_id} - forcing stop")
+                # Continue with database update
+            except Exception as e:
+                logger.error(f"❌ Error sending stop request to scheduler: {e}")
+                # Continue with database update anyway
+        
+        # Update status to stopped after scheduler confirmed or timed out
+        db.update_order_status(order_id, ORDER_STATUS['STOPPED'], "Manually stopped by user")
+        
+        # Log the stop event
+        db.log_event("order_stopped", {
+            "order_id": order_id,
+            "timestamp": "now"
+        })
+        
+        # Broadcast the final stopped event
+        broadcast({
+            "event": "order_stopped",
+            "order": order_id,
+            "timestamp": "now"
+        })
+        
+        logger.info(f"✅ [OMS-MQ] Successfully stopped order {order_id}")
+        return {"success": True, "message": "order_stopped", "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"💥 [OMS-MQ] Error stopping order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_resume_order_mq(data: Dict) -> Dict:
+    """Handle resume order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+        
+        logger.info(f"🔄 [OMS-MQ] Received resume_order request for order {order_id}")
+        
+        # Concurrency guard: allow only one processing/stopping order at a time
+        try:
+            processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+        except Exception as e:
+            processing = []
+            stopping = []
+            logger.error(f"Error checking processing/stopping orders: {e}")
+        
+        if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+            logger.warning(f"🔒 OMS rejecting resume_order for {order_id}: another order is already processing")
+            return {"success": False, "error": "Another order is currently processing. Please wait."}
+        
+        if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
+            logger.warning(f"🔒 OMS rejecting resume_order for {order_id}: another order is currently stopping")
+            return {"success": False, "error": "Another order is currently stopping. Please wait."}
+        
+        order = db.get_order(order_id)
+        if not order:
+            logger.error(f"🔄 [OMS-MQ] Order {order_id} not found")
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        current_status = order.get("status")
+        logger.info(f"🔄 [OMS-MQ] Order {order_id} current status: {current_status}")
+        
+        if current_status not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
+            logger.error(f"🔄 [OMS-MQ] Cannot resume order {order_id} in {current_status} state")
+            return {"success": False, "error": f"Order is not in stopped or halted state"}
+        
+        logger.info(f"🔄 [OMS-MQ] Proceeding to resume order {order_id}")
+        
+        # Update status back to processing
+        db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
+        
+        # Log the resume event
+        db.log_event("order_resumed", {
+            "order_id": order_id,
+            "timestamp": "now"
+        })
+        
+        # Broadcast the resume event
+        broadcast({
+            "event": "order_resumed",
+            "order": order_id
+        })
+        
+        # Re-send order to scheduler to resume processing (restarts from beginning)
+        await send_to_scheduler(order)
+        
+        logger.info(f"✅ [OMS-MQ] Successfully resumed order {order_id}")
+        return {"success": True, "message": "order_resumed", "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"💥 [OMS-MQ] Error resuming order via MQ: {e}")
+        return {"success": False, "error": str(e)}
+
+async def handle_halt_order_mq(data: Dict) -> Dict:
+    """Handle halt order requests via RabbitMQ"""
+    try:
+        order_id = data.get("order_id")
+        reason = data.get("reason", "Manual halt")
+        
+        if not order_id:
+            return {"success": False, "error": "Missing order_id"}
+            
+        order = db.get_order(order_id)
+        if not order:
+            return {"success": False, "error": f"Order {order_id} not found"}
+        
+        # Update status to halted
+        db.update_order_status(order_id, ORDER_STATUS['HALTED'], reason)
+        
+        # Create alert
+        event_id = db.log_event("order_halted", {
+            "order_id": order_id,
+            "reason": reason,
+            "timestamp": "now"
+        })
+        alert_id = db.create_alert(event_id, "order_halted", "warning")
+        
+        # Broadcast halt event
+        broadcast({
+            "event": "order_halted",
+            "order": order_id,
+            "reason": reason,
+            "alert_id": alert_id
+        })
+        
+        return {"success": True, "message": "order_halted", "order_id": order_id, "alert_id": alert_id}
+        
+    except Exception as e:
+        logger.error(f"Error halting order via MQ: {e}")
         return {"success": False, "error": str(e)}
 
 async def handle_update_order_status_mq(data: Dict) -> Dict:
@@ -680,12 +909,16 @@ async def handle_order_completed_event(data: Dict):
     order_id = data.get("order_id")
     logger.info(f"🎉 [OMS] Received order_completed event from scheduler for order {order_id}")
     
-    if order_id:
+    try:
+        if not order_id:
+            logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
+            return {"success": False, "acknowledged": False, "error": "Missing order_id"}
+        
         # Check if order is already completed to prevent duplicate processing
         order = db.get_order(order_id)
         if order and order.get("status") == ORDER_STATUS['COMPLETED']:
             logger.warning(f"⚠️ [OMS] Order {order_id} is already COMPLETED. Ignoring duplicate completion event.")
-            return
+            return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
         
         logger.info(f"✅ [OMS] Updating order {order_id} status to COMPLETED in database")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
@@ -697,8 +930,13 @@ async def handle_order_completed_event(data: Dict):
             "timestamp": "now"
         })
         logger.info(f"✅ [OMS] Successfully processed order completion for order {order_id}")
-    else:
-        logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
+        
+        # Return acknowledgment for send_event_with_ack
+        return {"success": True, "acknowledged": True, "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"❌ [OMS] Error processing order_completed event for order {order_id}: {e}")
+        return {"success": False, "acknowledged": False, "error": str(e)}
 
 async def handle_order_failed_event(data: Dict):
     """Handle order failure events from scheduler"""
@@ -706,12 +944,16 @@ async def handle_order_failed_event(data: Dict):
     error = data.get("error", "Unknown error")
     logger.info(f"❌ [OMS] Received order_failed event from scheduler for order {order_id}, error: {error}")
     
-    if order_id:
+    try:
+        if not order_id:
+            logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
+            return {"success": False, "acknowledged": False, "error": "Missing order_id"}
+        
         # Check if order is already in error state to prevent duplicate processing
         order = db.get_order(order_id)
         if order and order.get("status") == ORDER_STATUS['ERROR']:
             logger.warning(f"⚠️ [OMS] Order {order_id} is already in ERROR state. Ignoring duplicate failure event.")
-            return
+            return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already in error state"}
         
         logger.info(f"❌ [OMS] Updating order {order_id} status to ERROR in database")
         db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
@@ -724,8 +966,13 @@ async def handle_order_failed_event(data: Dict):
             "timestamp": "now"
         })
         logger.info(f"❌ [OMS] Successfully processed order failure for order {order_id}")
-    else:
-        logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
+        
+        # Return acknowledgment for send_event_with_ack
+        return {"success": True, "acknowledged": True, "order_id": order_id}
+        
+    except Exception as e:
+        logger.error(f"❌ [OMS] Error processing order_failed event for order {order_id}: {e}")
+        return {"success": False, "acknowledged": False, "error": str(e)}
 
 async def handle_order_heartbeat_event(data: Dict):
     """Handle order heartbeat events from scheduler"""
@@ -941,14 +1188,20 @@ def bulk_reorder_queue(order_data: dict):
 @app.patch("/orders/{order_id}/start")
 def start_order(order_id: int, background_tasks: BackgroundTasks):
     """Mark order as processing and send it to Scheduler."""
-    # Concurrency guard: allow only one processing order at a time
+    # Concurrency guard: allow only one processing/stopping order at a time
     try:
         processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
     except Exception as e:
         processing = []
-        logger.error(f"Error checking processing orders: {e}")
+        stopping = []
+        logger.error(f"Error checking processing/stopping orders: {e}")
+    
     if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
         raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
+    
+    if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
+        raise HTTPException(status_code=409, detail="Another order is currently stopping. Please wait.")
 
     order = db.get_order(order_id)
     if not order:
@@ -1030,15 +1283,109 @@ def halt_order(
     
     return {"msg": "order_halted", "order": order_id, "reason": reason, "alert_id": alert_id}
 
+@app.post("/orders/{order_id}/stop")
+async def stop_order(order_id: int = Path(..., title="The ID of the order to stop")):
+    """Manually stop a processing order."""
+    logger.info(f"🛑 [OMS] Received stop request for order {order_id}")
+    
+    order = db.get_order(order_id)
+    if not order:
+        logger.error(f"🛑 [OMS] Order {order_id} not found")
+        raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+    
+    current_status = order.get("status")
+    logger.info(f"🛑 [OMS] Order {order_id} current status: {current_status}")
+    
+    # If order is already in a terminal state, return success (idempotent)
+    if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
+        logger.info(f"🛑 [OMS] Order {order_id} is already in terminal state: {current_status}")
+        return {"msg": "order_already_stopped", "order": order_id, "status": current_status}
+    
+    # If order is in ERROR state, we can still mark it as STOPPED
+    if current_status not in [ORDER_STATUS['PROCESSING'], ORDER_STATUS['ERROR'], ORDER_STATUS['HALTED']]:
+        logger.error(f"🛑 [OMS] Cannot stop order {order_id} in {current_status} state")
+        raise HTTPException(status_code=400, detail=f"Cannot stop order in {current_status} state")
+    
+    logger.info(f"🛑 [OMS] Proceeding to stop order {order_id}")
+    
+    # Update status to stopping first
+    db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
+    
+    # Broadcast stopping event
+    broadcast({
+        "event": "order_stopping",
+        "order": order_id,
+        "timestamp": "now"
+    })
+    
+    # Send stop request to scheduler via RabbitMQ
+    # Scheduler will wait for current tasks to complete before responding
+    if rabbitmq_client:
+        try:
+            logger.info(f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...")
+            response = await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="stop_order",
+                data={"order_id": order_id},
+                timeout=120  # Increased timeout to allow tasks to complete (up to 2 minutes)
+            )
+            
+            if response.get("success"):
+                logger.info(f"✅ Scheduler confirmed order {order_id} has stopped - all tasks completed")
+            else:
+                logger.error(f"❌ Scheduler failed to stop order {order_id}: {response.get('error')}")
+                # Continue with database update anyway
+        except asyncio.TimeoutError:
+            logger.error(f"⚠️ Scheduler stop request timed out for order {order_id} - forcing stop")
+            # Continue with database update
+        except Exception as e:
+            logger.error(f"❌ Error sending stop request to scheduler: {e}")
+            # Continue with database update anyway
+    
+    # Update status to stopped after scheduler confirmed or timed out
+    db.update_order_status(order_id, ORDER_STATUS['STOPPED'], "Manually stopped by user")
+    
+    # Log the stop event
+    db.log_event("order_stopped", {
+        "order_id": order_id,
+        "timestamp": "now"
+    })
+    
+    # Broadcast the stop event
+    broadcast({
+        "event": "order_stopped",
+        "order": order_id,
+        "timestamp": "now"
+    })
+    
+    logger.info(f"✅ [OMS] Successfully stopped order {order_id}")
+    return {"msg": "order_stopped", "order": order_id}
+
 @app.post("/orders/{order_id}/resume")
-def resume_order(order_id: int = Path(..., title="The ID of the order to resume")):
-    """Resume a halted order."""
+async def resume_order(order_id: int = Path(..., title="The ID of the order to resume")):
+    """Resume a stopped order."""
+    
+    # Concurrency guard: allow only one processing/stopping order at a time
+    try:
+        processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+    except Exception as e:
+        processing = []
+        stopping = []
+        logger.error(f"Error checking processing/stopping orders: {e}")
+    
+    if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
+        raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
+    
+    if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
+        raise HTTPException(status_code=409, detail="Another order is currently stopping. Please wait.")
+    
     order = db.get_order(order_id)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
     
-    if order.get("status") != ORDER_STATUS['HALTED']:
-        raise HTTPException(status_code=400, detail="Order is not in halted state")
+    if order.get("status") not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
+        raise HTTPException(status_code=400, detail="Order is not in stopped or halted state")
     
     # Update status back to processing
     db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
@@ -1054,6 +1401,9 @@ def resume_order(order_id: int = Path(..., title="The ID of the order to resume"
         "event": "order_resumed",
         "order": order_id
     })
+    
+    # Re-send order to scheduler to resume processing (restarts from beginning)
+    await send_to_scheduler(order)
     
     return {"msg": "order_resumed", "order": order_id}
 

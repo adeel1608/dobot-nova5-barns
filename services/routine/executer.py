@@ -59,7 +59,7 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
                 "function": func_name,
                 "params": params
             },
-            timeout=180  # Increased timeout to provide buffer for MQTT communication
+            timeout=80  # 80 second timeout for automation functions
         )
         
         logger.info(f"📨 [ROUTINE] Received automation response: {response}")

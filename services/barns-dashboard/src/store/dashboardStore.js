@@ -24,7 +24,8 @@ const saveSchedulerToStorage = (state) => {
     const payload = {
       orderId: state.schedulerCurrentOrderId || null,
       schedulerTasks: state.schedulerTasks,
-      schedulerTaskStatus: state.schedulerTaskStatus
+      schedulerTaskStatus: state.schedulerTaskStatus,
+      taskTimings: state.taskTimings || {}
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {}
@@ -46,11 +47,13 @@ export const useDashboardStore = create((set, get) => ({
   ...(loadSchedulerFromStorage() ? {
     schedulerCurrentOrderId: loadSchedulerFromStorage().orderId || null,
     schedulerTasks: loadSchedulerFromStorage().schedulerTasks || { Arm1: [], Arm2: [] },
-    schedulerTaskStatus: loadSchedulerFromStorage().schedulerTaskStatus || {}
+    schedulerTaskStatus: loadSchedulerFromStorage().schedulerTaskStatus || {},
+    taskTimings: loadSchedulerFromStorage().taskTimings || {}
   } : {
     schedulerCurrentOrderId: null,
     schedulerTasks: { Arm1: [], Arm2: [] },
-    schedulerTaskStatus: {}
+    schedulerTaskStatus: {},
+    taskTimings: {}
   }),
   // key: `${cup_id}:${action}` -> { status, success, message }
   schedulerStatusMessage: null,
@@ -81,7 +84,8 @@ export const useDashboardStore = create((set, get) => ({
         Arm1: format(plan.Arm1),
         Arm2: format(plan.Arm2)
       },
-      schedulerTaskStatus: {}
+      schedulerTaskStatus: {},
+      taskTimings: {} // Clear timings when new plan starts
     });
     saveSchedulerToStorage(get());
   },
@@ -89,11 +93,22 @@ export const useDashboardStore = create((set, get) => ({
   updateSchedulerTask: ({ cup_id, action, success, message }) => {
     const key = `${cup_id}:${action}`;
     set(state => {
-      const updateList = (list) => list.map(t => (
-        t.cup_id === cup_id && t.action === action
-          ? { ...t, status: success === true ? 'completed' : success === false ? 'failed' : 'in_progress', message }
-          : t
-      ));
+      const updateList = (list) => list.map(t => {
+        if (t.cup_id === cup_id && t.action === action) {
+          // Preserve terminal states - don't overwrite completed, failed, or cancelled
+          const isTerminal = t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled';
+          if (isTerminal) {
+            return t; // Keep the existing terminal state
+          }
+          // Update to new status if not terminal
+          return { 
+            ...t, 
+            status: success === true ? 'completed' : success === false ? 'failed' : 'in_progress', 
+            message 
+          };
+        }
+        return t;
+      });
       return {
         schedulerTasks: {
           Arm1: updateList(state.schedulerTasks.Arm1),
@@ -110,6 +125,16 @@ export const useDashboardStore = create((set, get) => ({
 
   setSchedulerStatusMessage: (message, statusObj) => {
     set({ schedulerStatusMessage: message });
+    saveSchedulerToStorage(get());
+  },
+
+  updateTaskTiming: (taskKey, timing) => {
+    set(state => ({
+      taskTimings: {
+        ...state.taskTimings,
+        [taskKey]: timing
+      }
+    }));
     saveSchedulerToStorage(get());
   },
 
@@ -200,7 +225,8 @@ export const useDashboardStore = create((set, get) => ({
             schedulerCurrentOrderId: currentOrderId,
             schedulerTasks: { Arm1: [], Arm2: [] },
             schedulerTaskStatus: {},
-            schedulerStatusMessage: null
+            schedulerStatusMessage: null,
+            taskTimings: {} // Clear task timings for new order
           });
           clearSchedulerStorage();
         }
@@ -288,18 +314,96 @@ export const useDashboardStore = create((set, get) => ({
 
   startOrder: async (orderId) => {
     addLog('API', 'info', `Starting order ${orderId}...`);
+    
+    // Check if there are any STOPPED orders and mark them as CANCELLED
+    set(state => ({
+      orders: state.orders.map(order => {
+        if (order.status === 'STOPPED' && order.id !== orderId) {
+          return { ...order, status: 'CANCELLED' };
+        }
+        if (order.id === orderId) {
+          return { ...order, status: 'PROCESSING', started_at: new Date().toISOString() };
+        }
+        return order;
+      })
+    }));
+    
     const result = await ordersAPI.startOrder(orderId);
     
     if (result.success) {
       addLog('API', 'info', result.message);
       
-      // Add a small delay to ensure backend has time to update
+      // Refresh orders to get the actual state from backend
       setTimeout(async () => {
         addLog('API', 'info', `Refreshing orders after starting order ${orderId}`);
         await get().fetchOrders(); // Refresh orders
       }, 500);
     } else {
       addLog('API', 'error', result.error, result.details);
+      // Revert optimistic update on failure
+      await get().fetchOrders();
+    }
+
+    return result.success;
+  },
+
+  stopOrder: async (orderId) => {
+    addLog('API', 'info', `Stopping order ${orderId}...`);
+    
+    // Optimistic update: immediately change order status to STOPPING in UI
+    set(state => ({
+      orders: state.orders.map(order => 
+        order.id === orderId 
+          ? { ...order, status: 'STOPPING' }
+          : order
+      )
+    }));
+    
+    const result = await ordersAPI.stopOrder(orderId);
+    
+    if (result.success) {
+      addLog('API', 'info', result.message);
+      
+      // Refresh orders to get the actual state from backend
+      setTimeout(async () => {
+        addLog('API', 'info', `Refreshing orders after stopping order ${orderId}`);
+        await get().fetchOrders();
+      }, 500);
+    } else {
+      addLog('API', 'error', result.error, result.details);
+      // Revert optimistic update on failure
+      await get().fetchOrders();
+    }
+
+    return result.success;
+  },
+
+  resumeOrder: async (orderId) => {
+    addLog('API', 'info', `Resuming order ${orderId}...`);
+    
+    // Optimistic update: immediately change order status to PROCESSING in UI
+    set(state => ({
+      orders: state.orders.map(order => 
+        order.id === orderId 
+          ? { ...order, status: 'PROCESSING' }
+          : order
+      )
+    }));
+    
+    const result = await ordersAPI.resumeOrder(orderId);
+    
+    if (result.success) {
+      addLog('API', 'info', result.message);
+      
+      // Refresh orders to get the actual state from backend
+      setTimeout(async () => {
+        addLog('API', 'info', `Refreshing orders after resuming order ${orderId}`);
+        await get().fetchOrders();
+      }, 500);
+    } else {
+      addLog('API', 'error', result.error, result.details);
+      // Revert optimistic update on failure
+      await get().fetchOrders();
     }
 
     return result.success;

@@ -394,10 +394,38 @@ async def halt_order(order_id: int, reason: str = None):
         logger.error(f"Error halting order {order_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/orders/{order_id}/stop")
+async def stop_order(order_id: int):
+    """Stop a processing order"""
+    try:
+        logger.info(f"🛑 API Bridge received stop request for order {order_id}")
+        
+        response = await rabbitmq_client.send_request(
+            target_service="oms",
+            action="stop_order",
+            data={"order_id": order_id},
+            timeout=30
+        )
+        
+        logger.info(f"🛑 API Bridge received response from OMS for stop order {order_id}: {response}")
+        
+        if response.get("success"):
+            logger.info(f"✅ Order {order_id} stopped successfully")
+            return response
+        else:
+            logger.error(f"❌ Order {order_id} stop failed: {response.get('error')}")
+            raise HTTPException(status_code=400, detail=response.get("error", "Failed to stop order"))
+            
+    except Exception as e:
+        logger.error(f"💥 Exception stopping order {order_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/orders/{order_id}/resume")
 async def resume_order(order_id: int):
-    """Resume a halted order"""
+    """Resume a stopped/halted order"""
     try:
+        logger.info(f"🔄 API Bridge received resume request for order {order_id}")
+        
         response = await rabbitmq_client.send_request(
             target_service="oms",
             action="resume_order",
@@ -405,13 +433,17 @@ async def resume_order(order_id: int):
             timeout=30
         )
         
+        logger.info(f"🔄 API Bridge received response from OMS for resume order {order_id}: {response}")
+        
         if response.get("success"):
+            logger.info(f"✅ Order {order_id} resumed successfully")
             return response
         else:
+            logger.error(f"❌ Order {order_id} resume failed: {response.get('error')}")
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to resume order"))
             
     except Exception as e:
-        logger.error(f"Error resuming order {order_id}: {e}")
+        logger.error(f"💥 Exception resuming order {order_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Queue Management Endpoints

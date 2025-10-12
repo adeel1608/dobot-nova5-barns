@@ -7,24 +7,45 @@ import dots from '../../../assets/dots.png';
 import progressing from '../../../assets/progressing.png';
 import circledots from '../../../assets/circledots.png';
 export default function OrderDetails() {
-  const { orders, schedulerTasks, schedulerTaskStatus, schedulerStatusMessage } = useStore(state => ({
+  const { orders, schedulerTasks, schedulerTaskStatus, schedulerStatusMessage, taskTimings, updateTaskTiming } = useStore(state => ({
     orders: state.orders,
     schedulerTasks: state.schedulerTasks || { Arm1: [], Arm2: [] },
     schedulerTaskStatus: state.schedulerTaskStatus || {},
-    schedulerStatusMessage: state.schedulerStatusMessage || null
+    schedulerStatusMessage: state.schedulerStatusMessage || null,
+    taskTimings: state.taskTimings || {},
+    updateTaskTiming: state.updateTaskTiming
   }));
-  const [showTaskInterface, setShowTaskInterface] = useState(true); // State to control showing task interface
+  const [showTaskInterface, setShowTaskInterface] = useState(true);
   const arm1ContainerRef = useRef(null);
   const arm2ContainerRef = useRef(null);
   const itemRefs = useRef({});
+  
+  // Track current time for live timers
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
+  // Track previous in-progress tasks to detect when a new one starts
+  const prevInProgressRef = useRef({ Arm1: null, Arm2: null });
 
   // Find the currently processing order
   const processingOrder = orders?.find(order => 
     order.status?.toUpperCase() === 'PROCESSING'
   );
 
+  // Find the last completed/failed order if no processing order
+  const lastFinishedOrder = !processingOrder ? orders
+    ?.filter(order => ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(order.status?.toUpperCase()))
+    ?.sort((a, b) => {
+      const aTime = new Date(a.completed_at || a.started_at || a.created_at).getTime();
+      const bTime = new Date(b.completed_at || b.started_at || b.created_at).getTime();
+      return bTime - aTime; // Most recent first
+    })[0] : null;
+
+  // Use processing order if available, otherwise use last finished order
+  const displayedOrder = processingOrder || lastFinishedOrder;
+  const isCurrentOrder = !!processingOrder;
+
   // Show task interface if enabled, otherwise show idle message
-  if (!showTaskInterface && !processingOrder) {
+  if (!showTaskInterface && !displayedOrder) {
     return (
       <div className=" rounded-lg border border-gray-200 flex flex-col h-full ">
         {/* Header - Responsive */}
@@ -70,70 +91,133 @@ export default function OrderDetails() {
     };
   };
 
-  const displayOrder = processingOrder ? formatOrderForDisplay(processingOrder) : null;
+  const displayOrder = displayedOrder ? formatOrderForDisplay(displayedOrder) : null;
 
-  // Auto-scroll to keep focus on in-progress task; choose the arm with least completed tasks
+  // Track task timing - start times and elapsed times
+  useEffect(() => {
+    const allTasks = [...(schedulerTasks.Arm1 || []), ...(schedulerTasks.Arm2 || [])];
+    const now = Date.now();
+    
+    allTasks.forEach((task) => {
+      const taskKey = `${task.cup_id}:${task.action}`;
+      const isInProgress = task.status === 'in_progress' || task.status === 'submitted';
+      const isCompleted = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled';
+      const existingTiming = taskTimings[taskKey];
+      
+      // Start timer when task becomes in progress
+      if (isInProgress && !existingTiming) {
+        updateTaskTiming(taskKey, { startTime: now, elapsedTime: null });
+      }
+      
+      // Freeze timer when task completes
+      if (isCompleted && existingTiming && existingTiming.elapsedTime === null) {
+        const elapsed = now - existingTiming.startTime;
+        updateTaskTiming(taskKey, { ...existingTiming, elapsedTime: elapsed });
+      }
+    });
+  }, [schedulerTasks, taskTimings, updateTaskTiming]);
+
+  // Update current time every second for live timers
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-scroll to in-progress task when it changes (allows manual scrolling between changes)
   useEffect(() => {
     try {
       const arm1 = schedulerTasks.Arm1 || [];
       const arm2 = schedulerTasks.Arm2 || [];
 
-      const completed1 = arm1.filter(t => t.status === 'completed').length;
-      const completed2 = arm2.filter(t => t.status === 'completed').length;
+      // Find current in-progress tasks for each arm
+      const arm1InProgress = arm1.find(t => t.status === 'in_progress' || t.status === 'submitted');
+      const arm2InProgress = arm2.find(t => t.status === 'in_progress' || t.status === 'submitted');
 
-      // Pick arm with least completed tasks; if equal, prefer one with an in-progress task
-      const armChoice = (() => {
-        const hasIP1 = arm1.some(t => t.status === 'in_progress' || t.status === 'submitted');
-        const hasIP2 = arm2.some(t => t.status === 'in_progress' || t.status === 'submitted');
-        if (completed1 < completed2) return 'Arm1';
-        if (completed2 < completed1) return 'Arm2';
-        if (hasIP1 && !hasIP2) return 'Arm1';
-        if (hasIP2 && !hasIP1) return 'Arm2';
-        return 'Arm1';
-      })();
+      const arm1Key = arm1InProgress ? `${arm1InProgress.cup_id}:${arm1InProgress.action}` : null;
+      const arm2Key = arm2InProgress ? `${arm2InProgress.cup_id}:${arm2InProgress.action}` : null;
 
-      const container = armChoice === 'Arm1' ? arm1ContainerRef.current : arm2ContainerRef.current;
-      const list = armChoice === 'Arm1' ? arm1 : arm2;
-      if (!container || !list || list.length === 0) return;
+      // Check if in-progress task changed for Arm1
+      if (arm1Key && arm1Key !== prevInProgressRef.current.Arm1) {
+        const container = arm1ContainerRef.current;
+        const key = `Arm1:${arm1InProgress.cup_id}:${arm1InProgress.action}`;
+        const el = itemRefs.current[key];
+        
+        if (container && el) {
+          const top = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+          container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        }
+        
+        prevInProgressRef.current.Arm1 = arm1Key;
+      } else if (!arm1Key && prevInProgressRef.current.Arm1) {
+        // Reset if no in-progress task
+        prevInProgressRef.current.Arm1 = null;
+      }
 
-      const inProgress = list.find(t => t.status === 'in_progress' || t.status === 'submitted');
-      const pendingFirst = list.find(t => t.status === 'pending');
-      const target = inProgress || pendingFirst || list.find(t => t.status === 'failed') || list[list.length - 1];
-      if (!target) return;
-      const key = `${armChoice}:${target.cup_id}:${target.action}`;
-      const el = itemRefs.current[key];
-      if (!el) return;
-
-      const top = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
-      container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-    } catch {}
+      // Check if in-progress task changed for Arm2
+      if (arm2Key && arm2Key !== prevInProgressRef.current.Arm2) {
+        const container = arm2ContainerRef.current;
+        const key = `Arm2:${arm2InProgress.cup_id}:${arm2InProgress.action}`;
+        const el = itemRefs.current[key];
+        
+        if (container && el) {
+          const top = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
+          container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        }
+        
+        prevInProgressRef.current.Arm2 = arm2Key;
+      } else if (!arm2Key && prevInProgressRef.current.Arm2) {
+        // Reset if no in-progress task
+        prevInProgressRef.current.Arm2 = null;
+      }
+    } catch (error) {
+      // Silently handle any errors in auto-scroll
+    }
   }, [schedulerTasks]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Current Order</h2>
+      <div className={`p-2 sm:p-3 border-b flex-shrink-0 ${isCurrentOrder ? 'border-gray-200 bg-white' : 'border-gray-300 bg-gray-50'}`}>
+        <div className="flex items-center justify-center space-x-1 sm:space-x-2 flex-wrap gap-y-1">
+          {!isCurrentOrder && (
+            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )}
+          <h2 className={`text-base sm:text-lg font-semibold ${isCurrentOrder ? 'text-gray-900' : 'text-gray-600'}`}>
+            {isCurrentOrder ? 'Current Order' : 'Last Order'}{displayedOrder ? `: ${displayedOrder.id}` : ''}
+          </h2>
+          {!isCurrentOrder && displayedOrder && (
+            <span className={`text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
+              displayedOrder.status?.toUpperCase() === 'COMPLETED' 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {displayedOrder.status?.toUpperCase() === 'COMPLETED' ? 'Completed' : 'Failed'}
+            </span>
+          )}
         </div>
       </div>
 
       {/* Task Management Interface */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 p-2 sm:p-4 overflow-hidden flex flex-col">
         {schedulerStatusMessage && (
-          <div className="mb-3 text-xs text-gray-500">{schedulerStatusMessage}</div>
+          <div className="mb-2 sm:mb-3 text-xs text-gray-500 flex-shrink-0">{schedulerStatusMessage}</div>
         )}
 
         {/* Task Columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 flex-1 overflow-hidden">
           {/* Left Column - Arm 1 Tasks (Live) */}
-          <div className="flex flex-col h-full">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Robot Arm 1</h3>
-            <div ref={arm1ContainerRef} className="relative flex-1 overflow-y-auto pr-2 scroll-smooth">
+          <div className="flex flex-col h-full overflow-hidden">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">Robot Arm 1</h3>
+            <div ref={arm1ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
               {schedulerTasks.Arm1.length === 0 ? (
                 <div className="text-xs text-gray-400">No tasks yet.</div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2 sm:space-y-3">
                   {schedulerTasks.Arm1.map((t, idx) => (
                     <TaskRow
                       key={`${t.cup_id}:${t.action}:${idx}`}
@@ -142,6 +226,8 @@ export default function OrderDetails() {
                       action={t.action}
                       cup={t.cup_id}
                       status={t.status}
+                      taskTimings={taskTimings}
+                      currentTime={currentTime}
                     />
                   ))}
                 </div>
@@ -150,13 +236,13 @@ export default function OrderDetails() {
           </div>
 
           {/* Right Column - Arm 2 Tasks (Live) */}
-          <div className="flex flex-col h-full">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">Robot Arm 2</h3>
-            <div ref={arm2ContainerRef} className="relative flex-1 overflow-y-auto pr-2 scroll-smooth">
+          <div className="flex flex-col h-full overflow-hidden">
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">Robot Arm 2</h3>
+            <div ref={arm2ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
               {schedulerTasks.Arm2.length === 0 ? (
                 <div className="text-xs text-gray-400">No tasks yet.</div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2 sm:space-y-3">
                   {schedulerTasks.Arm2.map((t, idx) => (
                     <TaskRow
                       key={`${t.cup_id}:${t.action}:${idx}`}
@@ -165,6 +251,8 @@ export default function OrderDetails() {
                       action={t.action}
                       cup={t.cup_id}
                       status={t.status}
+                      taskTimings={taskTimings}
+                      currentTime={currentTime}
                     />
                   ))}
                 </div>
@@ -177,13 +265,39 @@ export default function OrderDetails() {
   );
 } 
 
-function TaskRow({ action, cup, status, refKey, registerRef }) {
+function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, currentTime }) {
+  const taskKey = `${cup}:${action}`;
+  const timing = taskTimings[taskKey];
+  
+  // Calculate elapsed time
+  const getElapsedTime = () => {
+    if (!timing) return null;
+    
+    const isInProgress = status === 'in_progress' || status === 'submitted';
+    const elapsed = isInProgress 
+      ? (currentTime - timing.startTime) 
+      : timing.elapsedTime;
+    
+    if (elapsed === null || elapsed === undefined) return null;
+    
+    const seconds = Math.floor(elapsed / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    
+    if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+    return `${seconds}s`;
+  };
+  
+  const elapsedTime = getElapsedTime();
+  
   const getBadge = (s) => {
-    if (s === 'completed') return <span className="text-xs font-medium bg-green-100 text-green-800 rounded-full px-3 py-1">Completed</span>;
-    if (s === 'failed') return <span className="text-xs font-medium bg-white-100 text-red-800 rounded-full px-3 py-1">Failed</span>;
-    if (s === 'in_progress' || s === 'submitted') return <span className="text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-3 py-1">In&nbsp;Progress</span>;
-    if (s === 'cancelled') return <span className="text-xs font-medium bg-gray-200 text-gray-600 rounded-full px-3 py-1">Cancelled</span>;
-    return <span className="text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-3 py-1">Pending</span>;
+    if (s === 'completed') return <span className="text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Completed</span>;
+    if (s === 'failed') return <span className="text-[10px] sm:text-xs font-medium bg-white-100 text-red-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Failed</span>;
+    if (s === 'in_progress' || s === 'submitted') return <span className="text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">In&nbsp;Progress</span>;
+    if (s === 'cancelled') return <span className="text-[10px] sm:text-xs font-medium bg-gray-200 text-gray-600 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Cancelled</span>;
+    return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Pending</span>;
   };
 
   const getIcon = (s) => {
@@ -210,17 +324,33 @@ function TaskRow({ action, cup, status, refKey, registerRef }) {
   })();
 
   return (
-    <div ref={(el) => registerRef && registerRef(refKey, el)} className={`relative flex items-start space-x-4 p-3 rounded-lg ${containerClasses}`}>
-      <div className={`w-10 h-10 ${iconBg} rounded-full flex items-center justify-center flex-shrink-0`}>
-        <img src={getIcon(status)} alt="" className="w-5 h-5" />
+    <div ref={(el) => registerRef && registerRef(refKey, el)} className={`relative flex items-start space-x-2 sm:space-x-4 p-2 sm:p-3 rounded-lg ${containerClasses}`}>
+      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${iconBg} rounded-full flex items-center justify-center flex-shrink-0`}>
+        {status === 'in_progress' || status === 'submitted' ? (
+          <svg className="animate-spin w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        ) : (
+          <img src={getIcon(status)} alt="" className="w-4 h-4 sm:w-5 sm:h-5" />
+        )}
       </div>
-      <div className="flex-1">
-        <div className="flex items-center space-x-3">
-          <span className="text-xs font-medium text-gray-600">{cup}</span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
+            Cup {cup.split('-')[1] || cup}
+          </span>
+          {elapsedTime && (
+            <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0">
+              {elapsedTime}
+            </span>
+          )}
         </div>
-        <div className="flex items-center space-x-3">
-          <span className="text-sm font-medium text-gray-900">{action}</span>
-          {getBadge(status)}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+          <span className="text-xs sm:text-sm font-medium text-gray-900 break-words line-clamp-2">{action}</span>
+          <div className="flex-shrink-0">
+            {getBadge(status)}
+          </div>
         </div>
       </div>
     </div>

@@ -71,6 +71,8 @@ class SchedulerService:
         self.rabbitmq_client.register_handler("subscribe_status", self.handle_subscribe_status)
         self.rabbitmq_client.register_handler("health", self.handle_health)
         self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
+        self.rabbitmq_client.register_handler("stop_order", self.handle_stop_order)
+        self.rabbitmq_client.register_handler("resume_order", self.handle_resume_order)
         logger.info("✅ [SCHEDULER] All RabbitMQ message handlers registered successfully")
         
         # Register event handlers for the event listener
@@ -336,6 +338,94 @@ class SchedulerService:
             return {"success": True, "cancelled_tasks": cancelled}
         except Exception as e:
             logger.error(f"[SCHEDULER] cancel_order handler error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_stop_order(self, data: Dict) -> Dict:
+        """Handle stop order request - signals workers to halt processing gracefully."""
+        try:
+            order_id = data.get("order_id")
+            if not order_id:
+                return {"success": False, "error": "Missing order_id"}
+            
+            from . import scheduler as core
+            
+            with core.lock:
+                if core.current_status.get("order_id") != order_id:
+                    return {"success": False, "error": f"Order {order_id} is not currently processing"}
+                
+                # Set stop flag to signal workers (they'll finish current task then stop)
+                core.order_stopped = True
+                core.current_status["status"] = "stopping"
+                logger.info(f"🛑 [SCHEDULER] Order {order_id} stopping signal sent - workers will finish current tasks then halt")
+            
+            # Send stopping status to dashboard
+            try:
+                await self.rabbitmq_client.send_event("scheduler.order_stopping", {
+                    "order_id": order_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send stopping event: {e}")
+            
+            # Wait for submitted tasks to complete (poll with timeout)
+            max_wait_time = 90  # Maximum 90 seconds to wait
+            wait_interval = 0.5  # Check every 0.5 seconds
+            elapsed = 0
+            
+            while elapsed < max_wait_time:
+                with core.lock:
+                    submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
+                    if len(submitted_tasks) == 0:
+                        logger.info(f"✅ [SCHEDULER] All submitted tasks completed for order {order_id}")
+                        break
+                    else:
+                        logger.debug(f"⏳ [SCHEDULER] Waiting for {len(submitted_tasks)} submitted tasks to complete...")
+                
+                await asyncio.sleep(wait_interval)
+                elapsed += wait_interval
+            
+            # Check if we timed out
+            with core.lock:
+                submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
+                if len(submitted_tasks) > 0:
+                    logger.warning(f"⚠️ [SCHEDULER] Stop timed out with {len(submitted_tasks)} tasks still submitted")
+            
+            # Send stopped event when actually stopped
+            try:
+                await self.rabbitmq_client.send_event("scheduler.order_stopped", {
+                    "order_id": order_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                logger.warning(f"Failed to send stopped event: {e}")
+            
+            logger.info(f"✅ [SCHEDULER] Order {order_id} fully stopped")
+            return {"success": True, "message": "Order stopped - all tasks completed or halted"}
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error stopping order: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_resume_order(self, data: Dict) -> Dict:
+        """Handle resume order request - clears stop flag."""
+        try:
+            order_id = data.get("order_id")
+            if not order_id:
+                return {"success": False, "error": "Missing order_id"}
+            
+            from . import scheduler as core
+            
+            with core.lock:
+                if core.current_status.get("order_id") != order_id:
+                    return {"success": False, "error": f"Order {order_id} was not stopped"}
+                
+                # Clear stop flag
+                core.order_stopped = False
+                core.current_status["status"] = "in_progress"
+                logger.info(f"🔄 [SCHEDULER] Order {order_id} resume signal sent")
+            
+            return {"success": True, "message": "Order resumed"}
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error resuming order: {e}")
             return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):

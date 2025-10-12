@@ -29,6 +29,7 @@ current_status = {"order_id": None, "cup_index": None, "step": None, "status": "
 cup_data_by_cup: Dict[str, Dict[str, Any]] = {}
 status_callback = None  # Callback function to notify about status updates
 order_completion_notified = False  # Flag to prevent duplicate completion notifications
+order_stopped = False  # Flag to signal workers to stop processing
 
 # Per-arm cup priority scheduling data structures
 per_arm_current_cups = {}    # Map arm_name -> cup_id currently being worked on (one cup per arm)
@@ -323,7 +324,7 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
 
 async def arm_worker(arm_name: str):
     """Worker thread for a robotic arm that executes tasks when they are ready."""
-    global completed_count, failed_count
+    global completed_count, failed_count, order_stopped
     logger.info(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
     
     consecutive_no_work_count = 0
@@ -335,9 +336,19 @@ async def arm_worker(arm_name: str):
         
         # Find a pending task for this arm with all dependencies satisfied (Cup-Priority Algorithm)
         with lock:
+            # Check if order is stopped
+            if order_stopped:
+                # Don't pick up new tasks, but wait for submitted tasks to complete
+                submitted_tasks = [t for t in tasks if t["status"] == "submitted"]
+                if len(submitted_tasks) == 0:
+                    logger.info(f"🛑 {arm_name} worker stopped - no tasks in progress")
+                    should_exit = True
+                else:
+                    logger.info(f"🛑 {arm_name} worker waiting for {len(submitted_tasks)} submitted tasks to complete before stopping")
+                    # Don't pick up new tasks, but don't exit yet
+                    task = None
             # Exit when all tasks are either completed or failed (NOT just submitted)
-            total_finished = completed_count + failed_count
-            if total_finished >= tasks_total:
+            elif completed_count + failed_count >= tasks_total:
                 logger.info(f"🤖 DEBUG: {arm_name} worker finished. Completed: {completed_count}, Failed: {failed_count}, Total: {tasks_total}")
                 should_exit = True
             else:
@@ -476,7 +487,7 @@ def register_status_callback(callback):
 
 def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Create task entries for an order received through the API."""
-    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count, per_arm_current_cups, cup_completion_status
+    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count, per_arm_current_cups, cup_completion_status, order_stopped
     
     logger.info(f"[SCHEDULER] Setting up tasks for order {order_id} with {len(drinks)} drinks")
     
@@ -489,6 +500,7 @@ def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes:
     completed_count = 0  # Reset completed count
     tasks_total = 0
     order_completion_notified = False  # Critical: Reset completion notification flag for new order
+    order_stopped = False  # Reset stop flag for new order
     
     # Reset per-arm cup priority scheduling data structures
     per_arm_current_cups = {"Arm1": None, "Arm2": None}
@@ -633,18 +645,48 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_tasks]
                 reason = f"Failed tasks: {', '.join(failed_task_names)}"
                 
-                # Notify OMS about order failure
-                await notify_oms_completion(order_id, False, reason)
-                order_completion_notified = True
+                # Notify OMS about order failure with retry
+                notification_success = False
+                for attempt in range(3):
+                    if attempt > 0:
+                        delay = 2 ** attempt
+                        logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                        await asyncio.sleep(delay)
+                    
+                    notification_success = await notify_oms_completion(order_id, False, reason)
+                    if notification_success:
+                        break
+                
+                if notification_success:
+                    order_completion_notified = True
+                    logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed")
+                else:
+                    logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
+                
                 return False
             elif completed_count == tasks_total:
                 # All tasks completed successfully
                 current_status.update({"status": "completed", "step": None, "cup_index": None})
                 await update_status(f"Order {order_id} completed successfully")
                 
-                # Notify OMS about order completion
-                await notify_oms_completion(order_id, True)
-                order_completion_notified = True
+                # Notify OMS about order completion with retry
+                notification_success = False
+                for attempt in range(3):
+                    if attempt > 0:
+                        delay = 2 ** attempt
+                        logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                        await asyncio.sleep(delay)
+                    
+                    notification_success = await notify_oms_completion(order_id, True)
+                    if notification_success:
+                        break
+                
+                if notification_success:
+                    order_completion_notified = True
+                    logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed")
+                else:
+                    logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
+                
                 return True
             else:
                 # This shouldn't happen, but handle it as a failure
@@ -652,16 +694,49 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
                 current_status.update({"status": "error", "step": reason})
                 await update_status(f"Order {order_id} failed: {reason}")
                 
-                # Notify OMS about order failure
-                await notify_oms_completion(order_id, False, reason)
-                order_completion_notified = True
+                # Notify OMS about order failure with retry
+                notification_success = False
+                for attempt in range(3):
+                    if attempt > 0:
+                        delay = 2 ** attempt
+                        logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                        await asyncio.sleep(delay)
+                    
+                    notification_success = await notify_oms_completion(order_id, False, reason)
+                    if notification_success:
+                        break
+                
+                if notification_success:
+                    order_completion_notified = True
+                    logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed")
+                else:
+                    logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
+                
                 return False
                 
     except Exception as e:
-        # Notify OMS about order failure
-        await notify_oms_completion(order_id, False, f"Order processing failed: {str(e)}")
+        # Notify OMS about order failure with retry
         current_status.update({"status": "error", "step": str(e)})
         await update_status(f"Order {order_id} failed: {e}")
+        
+        notification_success = False
+        for attempt in range(3):
+            if attempt > 0:
+                delay = 2 ** attempt
+                logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} exception notification after {delay}s delay")
+                await asyncio.sleep(delay)
+            
+            notification_success = await notify_oms_completion(order_id, False, f"Order processing failed: {str(e)}")
+            if notification_success:
+                break
+        
+        if notification_success:
+            with lock:
+                order_completion_notified = True
+            logger.info(f"✅ [SCHEDULER] Order {order_id} exception notification confirmed")
+        else:
+            logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} exception after 3 attempts")
+        
         return False
     finally:
         # Clean up heartbeat task
@@ -760,10 +835,6 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                 order_id = current_status.get("order_id")
             
             if order_id:
-                # Mark as notified to prevent duplicate notifications
-                with lock:
-                    order_completion_notified = True
-                
                 failed_action = failed_task_info['action']
                 failed_cup = failed_task_info['cup']
                 reason = f"Task failed: {failed_action} for {failed_cup}"
@@ -773,7 +844,26 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                 
                 await update_status(f"Order {order_id} failed: {reason}")
                 logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
-                await notify_oms_completion(order_id, False, reason)
+                
+                # Retry notification up to 3 times with exponential backoff
+                notification_success = False
+                for attempt in range(3):
+                    if attempt > 0:
+                        delay = 2 ** attempt  # 2, 4 seconds
+                        logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                        await asyncio.sleep(delay)
+                    
+                    notification_success = await notify_oms_completion(order_id, False, reason)
+                    if notification_success:
+                        break
+                
+                # Only mark as notified if we successfully delivered the notification
+                if notification_success:
+                    with lock:
+                        order_completion_notified = True
+                    logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+                else:
+                    logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
                 
                 # Cancel remaining tasks
                 with lock:
@@ -830,8 +920,24 @@ async def check_and_notify_order_completion():
             await update_status(f"Order {order_id} failed: {failed_tasks_count} out of {tasks_total} tasks failed")
             
             logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
-            await notify_oms_completion(order_id, False, reason)
-            order_completion_notified = True
+            
+            # Retry notification up to 3 times with exponential backoff
+            notification_success = False
+            for attempt in range(3):
+                if attempt > 0:
+                    delay = 2 ** attempt  # 2, 4 seconds
+                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                    await asyncio.sleep(delay)
+                
+                notification_success = await notify_oms_completion(order_id, False, reason)
+                if notification_success:
+                    break
+            
+            if notification_success:
+                order_completion_notified = True
+                logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+            else:
+                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
             
         elif completed_tasks == tasks_total:
             # All tasks completed successfully
@@ -839,8 +945,24 @@ async def check_and_notify_order_completion():
             await update_status(f"Order {order_id} completed successfully")
             
             logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} completion")
-            await notify_oms_completion(order_id, True)
-            order_completion_notified = True
+            
+            # Retry notification up to 3 times with exponential backoff
+            notification_success = False
+            for attempt in range(3):
+                if attempt > 0:
+                    delay = 2 ** attempt  # 2, 4 seconds
+                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                    await asyncio.sleep(delay)
+                
+                notification_success = await notify_oms_completion(order_id, True)
+                if notification_success:
+                    break
+            
+            if notification_success:
+                order_completion_notified = True
+                logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed after {attempt + 1} attempt(s)")
+            else:
+                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
             
         else:
             # Unexpected state
@@ -849,12 +971,32 @@ async def check_and_notify_order_completion():
             await update_status(f"Order {order_id} failed: {reason}")
             
             logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} unexpected failure")
-            await notify_oms_completion(order_id, False, reason)
-            order_completion_notified = True
+            
+            # Retry notification up to 3 times with exponential backoff
+            notification_success = False
+            for attempt in range(3):
+                if attempt > 0:
+                    delay = 2 ** attempt  # 2, 4 seconds
+                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                    await asyncio.sleep(delay)
+                
+                notification_success = await notify_oms_completion(order_id, False, reason)
+                if notification_success:
+                    break
+            
+            if notification_success:
+                order_completion_notified = True
+                logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+            else:
+                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
 
 # Helper function to notify OMS of order completion
-async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None, rabbitmq_client=None):
-    """Notify the OMS service that an order has completed or failed via RabbitMQ events."""
+async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None, rabbitmq_client=None) -> bool:
+    """Notify the OMS service that an order has completed or failed via RabbitMQ events.
+    
+    Returns:
+        bool: True if notification was confirmed received by OMS, False otherwise
+    """
     global _global_rabbitmq_client
     
     try:
@@ -874,75 +1016,58 @@ async def notify_oms_completion(order_id: int, success: bool, reason: Optional[s
                         logger.info(f"🔧 [SCHEDULER] Using service instance RabbitMQ client as fallback for order {order_id}")
                     else:
                         logger.warning(f"⚠️ [SCHEDULER] Service instance has no rabbitmq_client, skipping notification for order {order_id}")
-                        return
+                        return False
                 else:
                     logger.warning(f"⚠️ [SCHEDULER] No service instance available, skipping notification for order {order_id}")
-                    return
+                    return False
             except Exception as fallback_error:
                 logger.error(f"❌ [SCHEDULER] Fallback client access failed for order {order_id}: {fallback_error}")
-                return
+                return False
         
         if not client:
             logger.warning(f"⚠️ [SCHEDULER] No RabbitMQ client available, skipping notification for order {order_id}")
-            return
+            return False
             
         logger.info(f"🔧 [SCHEDULER] Using RabbitMQ client for order {order_id} notification")
         
+        # Use send_event_with_ack for guaranteed delivery with acknowledgment
         if success:
             event_data = {
                 "order_id": order_id,
                 "timestamp": time.time()
             }
-            
-            # Use the enhanced send_event method with retry logic
-            try:
-                await client.send_event("scheduler.order_completed", event_data)
-                logger.info(f"✅ [SCHEDULER] Order {order_id} completion sent to OMS")
-            except Exception as send_error:
-                logger.error(f"❌ [SCHEDULER] Error sending completion event for order {order_id}: {send_error}")
-                # Try alternative notification method
-                await _send_alternative_notification(order_id, True, reason, client)
+            event_type = "scheduler.order_completed"
         else:
             event_data = {
                 "order_id": order_id, 
                 "error": reason or "Processing failed",
                 "timestamp": time.time()
             }
+            event_type = "scheduler.order_failed"
+        
+        # Send event with acknowledgment (20 second timeout for DB writes)
+        try:
+            result = await client.send_event_with_ack(event_type, event_data, timeout=20.0)
             
-            # Use the enhanced send_event method with retry logic
-            try:
-                await client.send_event("scheduler.order_failed", event_data)
-                logger.error(f"❌ [SCHEDULER] Order {order_id} failure sent to OMS: {reason}")
-            except Exception as send_error:
-                logger.error(f"❌ [SCHEDULER] Error sending failure event for order {order_id}: {send_error}")
-                # Try alternative notification method
-                await _send_alternative_notification(order_id, False, reason, client)
+            if result.get("success") and result.get("acknowledged"):
+                logger.info(f"✅ [SCHEDULER] Order {order_id} {'completion' if success else 'failure'} confirmed by OMS")
+                return True
+            else:
+                error_msg = result.get("error", "Unknown error")
+                logger.error(f"❌ [SCHEDULER] OMS did not acknowledge order {order_id} notification: {error_msg}")
+                return False
+                
+        except Exception as send_error:
+            logger.error(f"❌ [SCHEDULER] Error sending acknowledged event for order {order_id}: {send_error}")
+            import traceback
+            logger.error(f"❌ [SCHEDULER] Traceback: {traceback.format_exc()}")
+            return False
         
     except Exception as e:
         logger.error(f"⚠️ [SCHEDULER] Failed to notify OMS for order {order_id}: {e}")
         import traceback
         logger.error(f"⚠️ [SCHEDULER] Traceback: {traceback.format_exc()}")
-
-async def _send_alternative_notification(order_id: int, success: bool, reason: Optional[str], client):
-    """Send alternative notification if primary method fails"""
-    try:
-        # Try using send_event_with_ack for critical notifications
-        event_type = "scheduler.order_completed" if success else "scheduler.order_failed"
-        event_data = {
-            "order_id": order_id,
-            "error": reason or "Processing failed" if not success else None,
-            "timestamp": time.time(),
-            "notification_method": "alternative"
-        }
-        
-        result = await client.send_event_with_ack(event_type, event_data, timeout=15.0)
-        if result.get("success"):
-            logger.info(f"✅ [SCHEDULER] Alternative notification successful for order {order_id}")
-        else:
-            logger.error(f"❌ [SCHEDULER] Alternative notification failed for order {order_id}: {result.get('error')}")
-            
-    except Exception as alt_error:
-        logger.error(f"❌ [SCHEDULER] Alternative notification also failed for order {order_id}: {alt_error}")
+        return False
 
 async def send_order_heartbeat(order_id: int, status: str, progress: Dict[str, Any] = None):
     """Send periodic heartbeat updates for long-running orders"""
