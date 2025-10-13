@@ -243,8 +243,8 @@ PLASTIC_CUPS_PARAMS = {
 GRAB_PAPER_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
-        'approach':     ( 233,        -5,          0,          0,          0,         0),
-        'grip_width':   141,
+        'approach':     ( 231,        -5,          -1,          0,          0,         0),
+        'grip_width':   145,
         'retreat':      (-350,        0,          0,          0,          0,         0),
     },
     '9oz': {
