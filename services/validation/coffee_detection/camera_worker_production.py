@@ -45,6 +45,8 @@ class DetectionConfig:
     debug_frame_dir: str = "debug_frames_coffee"
     max_retries: int = 3
     retry_backoff: float = 0.1
+    max_debug_frames: int = 10
+    cleanup_after_detection: bool = True
     roi_points: list = None
 
 class CameraError(Exception):
@@ -291,6 +293,69 @@ class ProductionCoffeeDetector:
         except Exception as e:
             logger.error(f"Failed to save debug frames for frame {frame_idx}: {e}")
     
+    def _cleanup_old_debug_frames(self):
+        """Remove old debug frames keeping only the most recent ones"""
+        if not self.config.cleanup_after_detection:
+            return
+        
+        try:
+            debug_dir = self.config.debug_frame_dir
+            if not os.path.exists(debug_dir):
+                return
+            
+            # Get all debug frame files (excluding roi_mask.png)
+            frame_files = []
+            for filename in os.listdir(debug_dir):
+                if filename.startswith('frame_') and os.path.isfile(os.path.join(debug_dir, filename)):
+                    frame_files.append(filename)
+            
+            if len(frame_files) == 0:
+                return
+            
+            # Extract frame numbers and sort by them
+            frame_data = []
+            for filename in frame_files:
+                try:
+                    # Extract frame number from filename (e.g., frame_0001_scaled_roi.jpg -> 0001)
+                    parts = filename.split('_')
+                    if len(parts) >= 2:
+                        frame_num = int(parts[1])
+                        frame_data.append((frame_num, filename))
+                except (ValueError, IndexError):
+                    continue
+            
+            # Sort by frame number descending (newest first)
+            frame_data.sort(reverse=True)
+            
+            # Group files by frame number
+            frames_by_number = {}
+            for frame_num, filename in frame_data:
+                if frame_num not in frames_by_number:
+                    frames_by_number[frame_num] = []
+                frames_by_number[frame_num].append(filename)
+            
+            # Keep only the most recent max_debug_frames sets
+            frame_numbers = sorted(frames_by_number.keys(), reverse=True)
+            frames_to_keep = frame_numbers[:self.config.max_debug_frames]
+            
+            # Delete old frames
+            deleted_count = 0
+            for frame_num in frame_numbers:
+                if frame_num not in frames_to_keep:
+                    for filename in frames_by_number[frame_num]:
+                        try:
+                            filepath = os.path.join(debug_dir, filename)
+                            os.remove(filepath)
+                            deleted_count += 1
+                        except Exception as e:
+                            logger.error(f"Failed to delete {filename}: {e}")
+            
+            if deleted_count > 0:
+                logger.debug(f"Cleaned up {deleted_count} old debug frames, kept {len(frames_to_keep)} most recent frame sets")
+                
+        except Exception as e:
+            logger.error(f"Error during debug frame cleanup: {e}")
+    
     def detect_coffee(self) -> Dict[str, Any]:
         """
         Main detection method - optimized for production use
@@ -355,6 +420,10 @@ class ProductionCoffeeDetector:
                 "error": error_msg
             }
         finally:
+            # Cleanup old debug frames to save disk space
+            if self.config.enable_debug:
+                self._cleanup_old_debug_frames()
+            
             # Force garbage collection to free memory
             gc.collect()
     

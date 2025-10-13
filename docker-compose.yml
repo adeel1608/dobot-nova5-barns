@@ -26,6 +26,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Redis for OMS queue management
   redis:
@@ -42,6 +47,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # PostgreSQL for OMS data persistence
   postgres:
@@ -65,6 +75,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Validation Service
   validation-service:
@@ -107,6 +122,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Automation Service
   automation-service:
@@ -125,6 +145,11 @@ services:
     networks:
       - barns-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Routine Service
   routine-service:
@@ -154,6 +179,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 45s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Robot Arm Service
   robot-arm-service:
@@ -177,6 +207,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 45s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Scheduler Service
   scheduler-service:
@@ -205,6 +240,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 50s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # OMS Service
   oms-service:
@@ -234,6 +274,11 @@ services:
     ports:
       - "8002:8000"
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
   # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
@@ -267,6 +312,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Video Stream Service (keeping HTTP for streaming)
   video-stream-service:
@@ -287,6 +337,11 @@ services:
     networks:
       - barns-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Dashboard (keeping HTTP for web interface)
   dashboard:
@@ -316,6 +371,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:
@@ -331,6 +391,11 @@ services:
     profiles:
       - tools
     command: ["tail", "-f", "/dev/null"]  # Keep container running for CLI access
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   rabbitmq_data:

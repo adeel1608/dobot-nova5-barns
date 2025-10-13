@@ -46,6 +46,8 @@ ENABLE_FRAME_SKIPPING = True # Enable frame skipping for speed
 DEBUG_MODE = True  # Set to True to enable debug output
 SAVE_FRAMES = True  # Set to True to save processed frames
 DEBUG_FOLDER = "debug_frames"  # Folder to save debug frames
+MAX_DEBUG_FRAMES = 10  # Maximum number of debug frames to keep
+CLEANUP_AFTER_DETECTION = True  # Automatically cleanup old debug frames
 
 
 

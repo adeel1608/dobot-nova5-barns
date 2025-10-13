@@ -65,6 +65,8 @@ class Config:
         self.debug_mode = False
         self.save_frames = False
         self.debug_folder = "debug_frames"
+        self.max_debug_frames = 10
+        self.cleanup_after_detection = True
         
         # Default ROI and positions
         self.default_roi = np.array([[781, 713], [2435, 1060], [2346, 1450], [445, 884]], dtype=np.int32)
@@ -335,6 +337,8 @@ class CupDetector:
         config_obj.debug_mode = getattr(config_module, 'DEBUG_MODE', config_obj.debug_mode)
         config_obj.save_frames = getattr(config_module, 'SAVE_FRAMES', config_obj.save_frames)
         config_obj.debug_folder = getattr(config_module, 'DEBUG_FOLDER', config_obj.debug_folder)
+        config_obj.max_debug_frames = getattr(config_module, 'MAX_DEBUG_FRAMES', config_obj.max_debug_frames)
+        config_obj.cleanup_after_detection = getattr(config_module, 'CLEANUP_AFTER_DETECTION', config_obj.cleanup_after_detection)
         
         # Detection settings
         config_obj.frames = getattr(config_module, 'FRAMES', 1)  # Default to 1 for speed
@@ -585,8 +589,52 @@ class CupDetector:
         else:
             return self.config.threshold  # Use default threshold
     
+    def _cleanup_old_debug_frames(self):
+        """Remove old debug frames keeping only the most recent ones"""
+        if not self.config.cleanup_after_detection:
+            return
+        
+        try:
+            debug_dir = self.config.debug_folder
+            if not os.path.exists(debug_dir):
+                return
+            
+            # Get all debug frame files
+            frame_files = []
+            for filename in os.listdir(debug_dir):
+                if filename.startswith('debug_frame_') and filename.endswith('.jpg'):
+                    filepath = os.path.join(debug_dir, filename)
+                    if os.path.isfile(filepath):
+                        # Get file modification time
+                        mtime = os.path.getmtime(filepath)
+                        frame_files.append((mtime, filepath, filename))
+            
+            if len(frame_files) <= self.config.max_debug_frames:
+                return
+            
+            # Sort by modification time descending (newest first)
+            frame_files.sort(reverse=True)
+            
+            # Keep only the most recent max_debug_frames files
+            files_to_delete = frame_files[self.config.max_debug_frames:]
+            
+            # Delete old frames
+            deleted_count = 0
+            for mtime, filepath, filename in files_to_delete:
+                try:
+                    os.remove(filepath)
+                    deleted_count += 1
+                except Exception as e:
+                    self.logger.error(f"Failed to delete {filename}: {e}")
+            
+            if deleted_count > 0:
+                self.logger.debug(f"Cleaned up {deleted_count} old debug frames, kept {self.config.max_debug_frames} most recent frames")
+                
+        except Exception as e:
+            self.logger.error(f"Error during debug frame cleanup: {e}")
+    
     def _save_debug_frame(self, frame: np.ndarray, frame_type: str, bboxes: List = None, positions: List = None, all_detections: List = None):
-        """Save debug frame with annotations (overwrites same file)"""
+        """Save debug frame with annotations"""
         if not (self.config.debug_mode or self.config.save_frames):
             return
         
@@ -633,8 +681,9 @@ class CupDetector:
         cv2.putText(debug_frame, "Green: ROI | Blue: Positions | Light Red: All Detections | Bright Red: Filtered", 
                    (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        # Save frame (overwrites same file)
-        filename = f"{self.config.debug_folder}/debug_frame.jpg"
+        # Save frame with timestamp to prevent overwriting and enable cleanup
+        timestamp = int(time.time() * 1000)
+        filename = f"{self.config.debug_folder}/debug_frame_{timestamp}.jpg"
         cv2.imwrite(filename, debug_frame)
 
     def _detect_cups_in_roi(self, process_frame: np.ndarray, scaled_roi: np.ndarray):
@@ -737,6 +786,10 @@ class CupDetector:
             # Update detection history for next cycle
             position_results = [result[i] for i in range(4)]
             self._update_detection_history(position_results)
+            
+            # Cleanup old debug frames to save disk space
+            if self.config.debug_mode or self.config.save_frames:
+                self._cleanup_old_debug_frames()
             
             return result
             
