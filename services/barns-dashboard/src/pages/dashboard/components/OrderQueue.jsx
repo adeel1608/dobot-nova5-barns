@@ -443,7 +443,8 @@ function OrderQueue({ connectionStatus }) {
       const cups = (order.cups || []).map(cup => ({
         type: cup.type || cup.drink_type || '',
         size: cup.size || cup.cup_size || 'regular',
-        addons: Array.isArray(cup.addons) ? cup.addons : []
+        addons: Array.isArray(cup.addons) ? cup.addons : [],
+        ingredients: cup.ingredients || []
       })).filter(c => c.type && c.type.trim() !== '');
 
       if (cups.length === 0) {
