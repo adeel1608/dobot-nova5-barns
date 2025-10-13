@@ -32,6 +32,12 @@
 std::string g_camera_name = "orbbec_camera";  // Assuming this is declared elsewhere
 
 void signalHandler(int sig) {
+  if (sig == SIGINT) {
+    std::cout << "Received SIGINT (Ctrl+C), shutting down ROS2..." << std::endl;
+    rclcpp::shutdown();
+    // Do not call exit here, let ROS2 clean up
+    return;
+  }
   std::cout << "Received signal: " << sig << std::endl;
 
   std::string log_dir = "Log/";
@@ -105,6 +111,7 @@ OBCameraNodeDriver::~OBCameraNodeDriver() {
 }
 
 void OBCameraNodeDriver::init() {
+  signal(SIGINT, signalHandler);   // Ctrl+C
   signal(SIGSEGV, signalHandler);  // segment fault
   signal(SIGABRT, signalHandler);  // abort
   signal(SIGFPE, signalHandler);   // float point exception
@@ -268,18 +275,21 @@ void OBCameraNodeDriver::rebootDeviceCallback(
     return;
   }
   RCLCPP_INFO(logger_, "Reboot device");
-  ob_camera_node_->rebootDevice();
-  device_connected_ = false;
-  device_ = nullptr;
+  try {
+    ob_camera_node_->rebootDevice();
+    device_connected_ = false;
+    device_ = nullptr;
+  } catch (const ob::Error &e) {
+    RCLCPP_WARN(logger_, "Failed to reboot device: %s", e.getMessage());
+  } catch (const std::exception &e) {
+    RCLCPP_ERROR(logger_, "Exception during reboot: %s", e.what());
+  } catch (...) {
+    RCLCPP_ERROR(logger_, "Unknown error occurred during reboot");
+  }
 }
 
 std::shared_ptr<ob::Device> OBCameraNodeDriver::selectDevice(
     const std::shared_ptr<ob::DeviceList> &list) {
-  if (device_num_ == 1) {
-    RCLCPP_INFO_STREAM(logger_, "Connecting to the default device");
-    return list->getDevice(0);
-  }
-
   std::shared_ptr<ob::Device> device = nullptr;
   if (!serial_number_.empty()) {
     RCLCPP_INFO_STREAM(logger_, "Connecting to device with serial number: " << serial_number_);
@@ -287,6 +297,9 @@ std::shared_ptr<ob::Device> OBCameraNodeDriver::selectDevice(
   } else if (!usb_port_.empty()) {
     RCLCPP_INFO_STREAM(logger_, "Connecting to device with usb port: " << usb_port_);
     device = selectDeviceByUSBPort(list, usb_port_);
+  } else if (device_num_ == 1) {
+    RCLCPP_INFO_STREAM(logger_, "Connecting to the default device");
+    return list->getDevice(0);
   }
   if (device == nullptr) {
     RCLCPP_WARN_THROTTLE(logger_, *get_clock(), 1000, "Device with serial number %s not found",
@@ -497,6 +510,12 @@ void OBCameraNodeDriver::startDevice(const std::shared_ptr<ob::DeviceList> &list
 
   std::shared_ptr<int> lock_holder(nullptr,
                                    [this](int *) { pthread_mutex_unlock(orb_device_lock_); });
+
+  // check device connected flag again after get lock
+  if (device_connected_) {
+    return;
+  }
+
   bool start_device_failed = false;
   try {
     auto start_time = std::chrono::high_resolution_clock::now();

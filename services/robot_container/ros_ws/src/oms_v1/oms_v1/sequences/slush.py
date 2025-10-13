@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.sequences.plastic_cups import grab_plastic_cup, place_plastic_cup
+from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
     SLUSH_PARAMS, VALID_STAGES, VALID_CUP_SIZES, VALID_DISPENSERS,
     validate_stage, validate_cup_size, log_step, log_success, log_error, log_info,
@@ -77,7 +77,7 @@ def get_slush(**params) -> bool:
         
         # Step 1: Grab plastic cup
         log_step(1, 4, f"Grabbing {cup_size} plastic cup")
-        if not grab_plastic_cup(cup_size=cup_size):
+        if not dispense_plastic_cup(cup_size=cup_size):
             log_error(f"Failed to grab {cup_size} plastic cup")
             return False
         log_success("Cup grabbed successfully", indent=1)
@@ -217,7 +217,7 @@ def place_slush(**params) -> bool:
         
         # Step 4: Place slush cup at designated stage
         print(f"📍 Step 4/4: Placing slush cup at stage {stage}...")
-        if not place_plastic_cup(stage=stage):
+        if not place_plastic_cup_station(stage=stage):
             print(f"[ERROR] Failed to place slush cup at stage {stage}")
             return False
         print(f"   ✅ Successfully placed slush cup at stage {stage}")

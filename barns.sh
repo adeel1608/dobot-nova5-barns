@@ -26,13 +26,13 @@ start_barns() {
     xhost +local:root
 
     log "Stopping existing BARNS services..."
-    docker compose -f docker-compose.arms.yml down
+    docker compose -f docker-compose.yml down
 
     log "Starting BARNS services..."
     # Try to start with existing images first, only build if needed
-    docker compose -f docker-compose.arms.yml up -d --no-build || {
+    docker compose -f docker-compose.yml up -d --no-build || {
         warn "Some services need to be built. Building now..."
-        docker compose -f docker-compose.arms.yml up -d --build
+        docker compose -f docker-compose.yml up -d --build
     }
 
     log "BARNS services started successfully!"
@@ -44,7 +44,7 @@ start_barns() {
 # Function to stop BARNS services
 stop_barns() {
     log "Stopping BARNS services..."
-    docker compose -f docker-compose.arms.yml down
+    docker compose -f docker-compose.yml down
     
     log "BARNS services stopped successfully!"
 }

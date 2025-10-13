@@ -1665,6 +1665,7 @@ def return_espresso_pitcher(**params) -> bool:
         print("[INFO] Pitcher return process terminated due to error")
         return False
 
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'unmount': unmount,

@@ -84,7 +84,7 @@ def _normalize_stage(stage_value: Any) -> Optional[str]:
     return None
 
 
-def dispnese_plastic_cup(**params) -> bool:
+def dispense_plastic_cup(**params) -> bool:
     """
     Grab a plastic cup of specified size from the plastic cup dispenser.
     
@@ -113,7 +113,7 @@ def dispnese_plastic_cup(**params) -> bool:
         Exception: If unexpected error occurs during cup grabbing process
         
     Example:
-        success = dispnese_plastic_cup(cup_size='12oz')
+        success = dispense_plastic_cup(cup_size='12oz')
         if success:
             print("12oz plastic cup grabbed successfully")
     """
@@ -913,7 +913,7 @@ def pick_plastic_cup_milk(**params) -> bool:
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
-    'dispnese_plastic_cup': dispnese_plastic_cup,
+    'dispense_plastic_cup': dispense_plastic_cup,
     'get_ice': get_ice,
     'go_home_with_ice': go_home_with_ice,
     'place_plastic_cup_station': place_plastic_cup_station,

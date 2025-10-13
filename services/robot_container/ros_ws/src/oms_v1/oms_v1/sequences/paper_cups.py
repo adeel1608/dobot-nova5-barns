@@ -471,17 +471,17 @@ def pick_paper_cup_station(**params) -> bool:
 
         # Stage-specific positioning (replicated from paper station)
         stage_positions = {
-            "1": (-75.801956, -43.247288, -144.295563, -0.250561, -80.475777, 0.593474),
-            "2": (-104.642982, -42.934860, -132.064575, -13.168961, -109.036461, -3.372526),
-            "3": (-124.200401, -46.766388, -113.365036, -29.749237, -128.354553, -6.845194),
-            "4": (-136.622299, -54.745396, -89.557060, -47.935513, -140.554718, -10.175223)
+            "1": (-83.584272,-41.364897,-140.268525,-6.066052,-88.182438,-0.452527),
+            "2": (-109.701056,-42.671115,-126.342570,-19.446891,-114.040023,-4.152998),
+            "3": (-127.224669,-48.130566,-106.159965,-36.033557,-131.333571,-7.532646),
+            "4": (-138.417215,-57.668743,-80.279603,-54.777392,-142.312329,-10.796996)
         }
 
         # Paper cup gripper positions (align with 7/9/12oz used for paper)
         gripper_positions = {
-            "7oz": 145,
-            "9oz": 145,
-            "12oz": 145,
+            "7oz": 140,
+            "9oz": 140,
+            "12oz": 125,
         }
 
         # Step 1: Navigate to home positions
@@ -522,6 +522,8 @@ def pick_paper_cup_station(**params) -> bool:
             return False
         print("   ✅ Cup gripped successfully")
 
+        run_skill("moveEE_movJ", 0, 0, 200, 0, 0, 0)
+        
         # Step 5: Return to safe position
         print("🏠 Step 5/6: Returning to safe position...")
         if not home(position="east"):
@@ -598,13 +600,19 @@ def place_paper_cup_station(**params) -> bool:
             return False
         print("   ✅ Successfully moved to east home")
 
+        if stage in ("3", "4"):
+            if not home(position="south_east"):
+                print("[ERROR] Failed to move to south-east home")
+                return False
+        print("   ✅ Successfully moved to south-east home")
+
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
-            "1": (-80.221687,-43.867016,-125.338081,-18.518541,-84.856163,0.006812),
-            "2": (-100.830803,-45.966148,-116.024010,-26.002304,-105.266800,-2.802466),
-            "3": (-117.226875,-50.948524,-99.833191,-38.283516,-121.485474,-5.440053),
-            "4": (-129.165802,-59.506020,-76.980766,-54.155602,-133.259628,-8.007045),
+            "1": (-84.970117,-43.554280,-121.972224,-22.171019,-89.560371,-0.627537),
+            "2": (-104.277487,-46.435604,-111.282653,-30.428794,-108.683397,-3.307642),
+            "3": (-119.404919,-52.323667,-93.926585,-43.043072,-123.641506,-5.854237),
+            "4": (-130.473551,-62.030224,-69.275874,-59.578707,-134.552953,-8.351190)
         }
 
         stage_result = run_skill("gotoJ_deg", *stage_positions[stage])

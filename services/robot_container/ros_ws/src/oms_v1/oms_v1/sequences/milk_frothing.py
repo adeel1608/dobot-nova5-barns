@@ -329,8 +329,7 @@ def pick_frother(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother pickup: {e}")
         print("[INFO] Frother pickup process terminated due to error")
         return False
-    
-#ADD NEW FUNCTION: place_frother_milk_station 
+        
 def place_frother_milk_station(**params) -> bool:
     """
     Place the milk frother at the milk station safely.

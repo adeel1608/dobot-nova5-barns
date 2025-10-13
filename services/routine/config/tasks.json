@@ -315,7 +315,7 @@
         "params": {}
       },
       {
-        "type": "robot",
+        "type": "automation",
         "function": "clean_steam_wand",
         "params": {
           "duration": 5
