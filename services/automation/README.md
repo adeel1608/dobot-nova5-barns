@@ -1,226 +1,254 @@
 # Automation Service
 
-The Automation Service handles automated equipment control for coffee brewing operations in the BARNS system. It provides standardized automation functions for heating, dispensing, and testing operations.
+## Brief Overview
 
-## Features
+The Automation Service controls physical brewing equipment including grinders, espresso machines, milk frothers, syrup dispensers, and other hardware components via MQTT and direct interfaces, executing automated workflows for drink preparation.
 
-- **Async Operations**: Non-blocking execution with proper await/response patterns
-- **Error Handling**: Comprehensive error reporting and status tracking
-- **Extensible Design**: Easy to add new automation functions
-- **Health Monitoring**: Built-in health checks and status reporting
-- **Event-Driven**: Publishes automation events for system coordination
+## Key Features
 
-## File Structure
+- **Hardware Control**: Interface with grinders, espresso machines, dispensers
+- **MQTT Integration**: RabbitMQ MQTT plugin for device communication
+- **Function Library**: 20+ automation functions (grind, brew, dispense, steam)
+- **Async Execution**: Non-blocking hardware operations
+- **Event Broadcasting**: Real-time status updates
+- **Error Handling**: Hardware failure detection and reporting
+- **Emergency Stop**: Immediate halt capability
+
+## Architecture
 
 ```
-services/automation/
-├── app.py                    # Main service application
-├── automation_functions.py   # Automation function implementations
-├── Dockerfile.rabbitmq      # Container configuration
-├── requirements.txt         # Python dependencies
-└── README.md               # This documentation
+┌──────────────────────────────────────────────────────────┐
+│              Automation Service                          │
+│                                                          │
+│  ┌──────────────────────────────────────────────┐      │
+│  │  AutomationService (app.py)                  │      │
+│  │  - RabbitMQ Handler                          │      │
+│  └───────────┬──────────────────────────────────┘      │
+│              │                                          │
+│              ↓                                          │
+│  ┌──────────────────────────────────────────────┐      │
+│  │  AUTOMATION_FUNCTIONS                        │      │
+│  │  (automation_functions.py)                   │      │
+│  │  - heat_water()                              │      │
+│  │  - dispense_syrup()                          │      │
+│  │  - activate_grinder()                        │      │
+│  │  - pull_espresso_shot()                      │      │
+│  │  - steam_milk()                              │      │
+│  │  - dispense_milk()                           │      │
+│  │  + 15 more...                                │      │
+│  └───────────┬──────────────────────────────────┘      │
+│              │                                          │
+└──────────────┼──────────────────────────────────────────┘
+               │
+               ↓
+    ┌──────────────────────────┐
+    │   MQTT Broker (RabbitMQ) │
+    │   Port 1883              │
+    └──────────┬───────────────┘
+               │
+      ┌────────┼────────┐
+      ↓        ↓        ↓
+┌──────────┐ ┌───────┐ ┌──────────┐
+│ Grinder  │ │ESP Machine│ │Dispensers│
+│ (Arduino)│ │ (Arduino) │ │ (Arduino)│
+└──────────┘ └───────┘ └──────────┘
 ```
 
-## Available Automation Functions
+## Setup & Installation
 
-### heat_water
-Heat water to specified temperature.
-
-**Parameters:**
-- `target_temp_c` (number): Target temperature in Celsius - default: 93
-- `volume_ml` (number): Volume in milliliters - default: 250
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Heated 250ml water to 93°C",
-  "details": {
-    "target_temperature": 93,
-    "volume": 250,
-    "actual_temperature": 93,
-    "duration_sec": 3
-  }
-}
-```
-
-### dispense_milk
-Dispense milk from automated milk system.
-
-**Parameters:**
-- `milk_type` (string): Type of milk - default: "regular"
-- `amount` (number): Amount in milliliters - default: 120
-- `temperature` (string): Temperature - default: "cold"
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Dispensed 120ml of regular milk",
-  "details": {
-    "milk_type": "regular",
-    "amount_ml": 120,
-    "temperature": "cold",
-    "duration_sec": 1.5
-  }
-}
-```
-
-### automation_test1 / automation_test2
-Test functions for system validation.
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "automation_test1 passed successfully",
-  "details": {
-    "test_name": "automation_test1",
-    "params_received": {},
-    "duration_sec": 0.5,
-    "service": "automation"
-  }
-}
-```
-
-## API Endpoints (RabbitMQ)
-
-### Automation Request
-```python
-# Request
-{
-    "function": "heat_water",
-    "params": {
-        "target_temp_c": 93,
-        "volume_ml": 250
-    }
-}
-
-# Response  
-{
-    "success": true,
-    "message": "Heated 250ml water to 93°C",
-    "details": {...}
-}
-```
-
-### Health Check
-```python
-# Response
-{
-    "status": "healthy",
-    "service": "automation",
-    "timestamp": "2024-01-15T10:30:00Z",
-    "available_functions": 4
-}
-```
-
-### List Functions
-```python
-# Response
-{
-    "functions": ["heat_water", "dispense_milk", "automation_test1", "automation_test2"],
-    "count": 4,
-    "success": true
-}
-```
-
-### Stop Automation
-```python
-# Response
-{
-    "success": true,
-    "message": "Automation processes stopped"
-}
-```
-
-## Adding New Automation Functions
-
-To add a new automation function:
-
-1. **Define the function** in `automation_functions.py`:
-```python
-async def new_function(params: dict):
-    """Description of the function."""
-    param1 = params.get("param1", default_value)
-    
-    # Simulate or implement automation
-    await asyncio.sleep(duration)
-    
-    return {
-        "success": True,
-        "message": "Operation completed",
-        "details": {
-            "param1": param1,
-            "duration_sec": duration
-        }
-    }
-```
-
-2. **Add to function mapping**:
-```python
-AUTOMATION_FUNCTIONS = {
-    # ... existing functions ...
-    "new_function": new_function,
-}
-```
-
-## Integration with Routine Service
-
-Automation functions are called by the routine service through RabbitMQ:
-
-```python
-# In task configuration
-{
-    "type": "automation",
-    "function": "heat_water",
-    "params": {"target_temp_c": 85, "volume_ml": 200}
-}
-```
-
-## Events Published
-
-- `automation.started`: When automation function begins
-- `automation.completed`: When automation function completes
-- `automation.error`: When automation function fails
-- `automation.stopped`: When automation is manually stopped
-- `automation.emergency_stopped`: When emergency stop is triggered
-
-## Error Handling
-
-The service provides comprehensive error handling:
-
-- **Function Not Found**: Returns error when requested function doesn't exist
-- **Parameter Validation**: Validates input parameters  
-- **Execution Errors**: Catches and reports runtime errors
-- **Event Publishing**: Publishes error events for system coordination
-
-## Testing
-
-Test the service using the built-in test functions:
+### Local Development
 
 ```bash
-# Check service health
-docker logs barns-automation
+cd services/automation
+pip install -r requirements.txt
 
-# Verify service is running
-docker ps --filter name=barns-automation
+export RABBITMQ_URL="amqp://admin:admin123@localhost:5672/"
+export MQTT_HOST="localhost"
+export PYTHONPATH="/path/to/barns"
+
+python app.py
 ```
 
-## Container Status
+### Docker Deployment
 
-The automation service runs as a Docker container with:
-- **Health checks**: Container health monitoring
-- **Auto-restart**: Automatic restart on failure  
-- **RabbitMQ integration**: Event-driven communication
-- **Async execution**: Non-blocking automation operations
+```bash
+docker-compose up -d rabbitmq automation-service
+docker-compose logs -f automation-service
+```
 
-Check status: `docker ps --filter name=barns-automation`
+## Configuration
 
-## Development Guidelines
+### Environment Variables
 
-1. **Keep operations realistic** - Simulate actual equipment timing
-2. **Provide detailed responses** - Include operation details and timing
-3. **Handle errors gracefully** - Return appropriate error responses
-4. **Use descriptive messages** - Clear success/failure messages
-5. **Include duration tracking** - For performance monitoring 
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RABBITMQ_URL` | `amqp://admin:admin123@rabbitmq:5672/` | RabbitMQ AMQP connection |
+| `MQTT_HOST` | `rabbitmq` | MQTT broker host (uses RabbitMQ MQTT plugin) |
+| `PYTHONPATH` | `/app` | Python module path |
+
+### MQTT Topics
+
+- **Request**: `automation/request` - Send automation commands
+- **Response**: `automation/response` - Receive device responses
+
+## API/Endpoints
+
+### Action: `automate`
+Execute an automation function.
+
+**Request:**
+```json
+{
+  "function": "activate_grinder",
+  "params": {
+    "duration_sec": 15,
+    "grind_size": "fine"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Ground coffee for 15 seconds at fine setting",
+  "details": {
+    "duration": 15,
+    "grind_size": "fine",
+    "amount_g": 18
+  }
+}
+```
+
+### Action: `list_functions`
+Get available automation functions.
+
+**Response:**
+```json
+{
+  "success": true,
+  "functions": [
+    "heat_water",
+    "dispense_syrup",
+    "activate_grinder",
+    "pull_espresso_shot",
+    "steam_milk",
+    "dispense_milk",
+    "...20 more"
+  ]
+}
+```
+
+### Action: `stop_automation`
+Emergency stop all operations.
+
+### Action: `health`
+Health check.
+
+## Available Functions
+
+### Coffee Preparation
+- `activate_grinder(duration_sec, grind_size)`: Grind coffee beans
+- `pull_espresso_shot(shots, temperature)`: Extract espresso
+- `tamp_coffee(pressure)`: Tamp ground coffee
+
+### Milk Operations
+- `steam_milk(temperature, texture)`: Steam milk to temp
+- `dispense_milk(pump_number, amount)`: Dispense milk type
+- `froth_milk(duration, intensity)`: Create microfoam
+
+### Dispensing
+- `dispense_syrup(pump_number, amount)`: Dispense syrups
+- `dispense_water(amount_ml, temperature)`: Hot water
+- `dispense_ice(amount)`: Ice dispenser
+
+### Utilities
+- `heat_water(target_temp, volume_ml)`: Heat water
+- `clean_group_head()`: Cleaning cycle
+- `purge_steam_wand()`: Steam wand flush
+
+## Usage Examples
+
+### From Routine Service
+
+```python
+response = await rabbitmq_client.send_request(
+    target_service="automation",
+    action="automate",
+    data={
+        "function": "activate_grinder",
+        "params": {"duration_sec": 15}
+    },
+    timeout=80
+)
+```
+
+### MQTT Direct Control
+
+```python
+import paho.mqtt.client as mqtt
+import json
+
+client = mqtt.Client()
+client.username_pw_set("admin", "admin123")
+client.connect("rabbitmq", 1883)
+
+payload = json.dumps({
+    "pump_number": 9,
+    "amount": 20
+})
+
+client.publish("automation/request", payload)
+```
+
+## Dependencies
+
+- **paho-mqtt** (1.6.1): MQTT client
+- **aio-pika** (9.3.1): RabbitMQ async client
+- **asyncio-mqtt** (0.13.0): Async MQTT support
+
+## Integration Points
+
+### Upstream Services
+- **Routine Service**: Task execution requests
+
+### Downstream Services
+- **Arduino/ESP32 Devices**: Via MQTT
+- **Direct Hardware**: Via serial/GPIO (if configured)
+
+### Event Publications
+- `automation.started`: Function execution began
+- `automation.completed`: Function completed successfully
+- `automation.failed`: Function execution failed
+
+## Troubleshooting
+
+### MQTT Connection Failed
+```bash
+# Check RabbitMQ MQTT plugin
+docker exec -it barns-rabbitmq rabbitmq-plugins list | grep mqtt
+
+# Enable if needed
+docker exec -it barns-rabbitmq rabbitmq-plugins enable rabbitmq_mqtt
+```
+
+### Hardware Not Responding
+1. Check device power and connectivity
+2. Verify MQTT topics: `docker-compose logs | grep "mqtt"`
+3. Test MQTT manually:
+   ```bash
+   mosquitto_sub -h localhost -p 1883 -t "automation/#" -u admin -P admin123
+   ```
+
+## Security Notes
+
+- MQTT credentials required for device access
+- No encryption on MQTT (local network only)
+- Hardware commands not authenticated beyond MQTT
+
+## Future Enhancements
+
+- CAN bus integration for industrial devices
+- Predictive maintenance alerts
+- Hardware telemetry and monitoring
+- Recipe optimization based on equipment state

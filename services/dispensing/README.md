@@ -1,100 +1,368 @@
-# Intelligent Dispensing System
+# Dispensing Service
 
-## Overview
+## Brief Overview
 
-Complete IoT dispensing system with viscosity-aware liquid control, dual scale monitoring, and MQTT remote control.
+The Dispensing Service provides hardware integration and control for ingredient dispensing mechanisms including syrup pumps, milk dispensers, and other liquid/powder dispensing systems via CAN bus and MQTT protocols for precise ingredient delivery.
 
-## System Architecture
+## Key Features
+
+- **CAN Bus Integration**: Industrial-grade CAN protocol for motor control
+- **MQTT Communication**: RabbitMQ MQTT plugin for Arduino/ESP32 devices
+- **Multi-Dispenser Support**: Syrups, milk, water, powder dispensers
+- **Precise Dosing**: Weight-based and volume-based dispensing
+- **Motor Control**: PWM control for variable flow rates
+- **Calibration System**: Auto-calibration for accuracy
+- **Safety Interlocks**: Overflow prevention and timeout protection
+
+## Architecture
 
 ```
-[Nano Every Scales] ←I2C→ [Arduino Mega] ←UART→ [Arduino Micro + W5500] ←MQTT→ [Network]
-    (HX711 Sensors)        (Motor Control)         (MQTT Bridge)           (Remote Control)
+┌──────────────────────────────────────────────┐
+│         Dispensing Control Layer             │
+│                                              │
+│  ┌────────────────────────────────┐         │
+│  │  MQTT Bridge                   │         │
+│  │  (ESP32 Microcontroller)       │         │
+│  │  - Subscribe: dispensing/cmd   │         │
+│  │  - Publish: dispensing/status  │         │
+│  └──────────┬─────────────────────┘         │
+│             │                                │
+│             ↓                                │
+│  ┌────────────────────────────────┐         │
+│  │  CAN Bus Controller            │         │
+│  │  - MCP2515 CAN Module          │         │
+│  │  - 250kbps baud rate           │         │
+│  └──────────┬─────────────────────┘         │
+│             │                                │
+└─────────────┼────────────────────────────────┘
+              │
+       CAN Bus (Physical)
+              │
+    ┌─────────┼─────────┐
+    ↓         ↓         ↓
+┌────────┐ ┌───────┐ ┌────────┐
+│Syrup   │ │ Milk  │ │ Water  │
+│Pumps   │ │Disp.  │ │Disp.   │
+│1-14    │ │15-18  │ │19-23   │
+└────────┘ └───────┘ └────────┘
 ```
 
 ## Hardware Components
 
-- **Arduino Mega 2560**: Main controller with 24 motor outputs
-- **Arduino Micro**: MQTT bridge with W5500 Ethernet
-- **2x Nano Every**: I2C scale controllers with HX711 load cells
-- **W5500 Ethernet Module**: Network connectivity
-- **24 Motor Outputs**: Individual liquid dispensing control
-- **Global Speed Control**: Pin 23 for all motors
+### Supported Dispensers
 
-## Key Features
+1. **Syrup Dispensers** (Pumps 1-14)
+   - Peristaltic pumps
+   - 0-100ml/min flow rate
+   - ±2% accuracy
 
-✅ **Viscosity-Aware Dispensing**: Different lag compensation for water, milk, caramel, etc.  
-✅ **95% Accuracy**: Intelligent stop prediction with motor lag compensation  
-✅ **IoT Control**: MQTT commands for remote operation  
-✅ **Real-time Monitoring**: Live scale data via MQTT  
-✅ **24 Motor Control**: Individual liquid lines  
-✅ **Dual Scale System**: Separate milk and sauce scales  
-✅ **Auto-Tare**: Automatic zeroing before and after dispensing  
+2. **Milk Dispensers** (Pumps 15-18)
+   - Refrigerated reservoirs
+   - Temperature monitoring
+   - Types: whole, skim, oat, almond
 
-## Quick Start
+3. **Water Dispensers** (Pumps 19-23)
+   - Hot water (92°C)
+   - Cold water (4°C)
+   - Filtered water line
 
-### Upload Firmware:
+4. **Powder Dispensers** (Optional)
+   - Auger-based delivery
+   - Chocolate, matcha, protein powders
+
+## Setup & Installation
+
+### Prerequisites
+
+- ESP32 development board
+- MCP2515 CAN module
+- Motor drivers (L298N or similar)
+- Power supply (12V/24V depending on pumps)
+- PlatformIO or Arduino IDE
+
+### Hardware Wiring
+
+See `WIRING.md` for detailed wiring diagrams.
+
+**Basic Connections:**
+```
+ESP32 Pin    →  MCP2515 CAN Module
+GPIO 5 (CS)  →  CS
+GPIO 18 (SCK) →  SCK  
+GPIO 19 (MISO) → SO
+GPIO 23 (MOSI) → SI
+GND          →  GND
+3.3V         →  VCC
+```
+
+### Firmware Upload
+
 ```bash
-pio run -e mega --target upload          # Main controller
-pio run -e mqtt_bridge --target upload   # MQTT bridge
-pio run -e nano_every --target upload    # Scale controllers
+cd services/dispensing
+
+# Using PlatformIO
+pio run --target upload
+
+# Or using Arduino IDE
+# Open src/mqtt_can_bridge.cpp
+# Select ESP32 board
+# Upload
 ```
 
-### Local Commands (Mega):
+### MQTT Configuration
+
+```cpp
+// In src/mqtt_can_bridge.cpp
+const char* mqtt_server = "192.168.1.100";  // RabbitMQ host
+const int mqtt_port = 1883;
+const char* mqtt_user = "admin";
+const char* mqtt_pass = "admin123";
+```
+
+## CAN Bus Protocol
+
+### Message Format
+
+**Standard CAN Frame:**
+- ID: 11-bit identifier
+- DLC: Data length (0-8 bytes)
+- Data: Command payload
+
+### Dispenser Commands
+
+#### Dispense Command (ID: 0x100)
+
+```
+Byte 0: Pump number (1-23)
+Byte 1: Amount high byte
+Byte 2: Amount low byte
+Byte 3: Speed (0-255)
+Byte 4-7: Reserved
+```
+
+**Example: Dispense 50ml from pump 3 at 80% speed**
+```
+ID: 0x100
+Data: [03 00 32 CC 00 00 00 00]
+```
+
+#### Status Request (ID: 0x200)
+
+```
+Byte 0: Pump number
+Byte 1-7: Reserved
+```
+
+#### Calibration Command (ID: 0x300)
+
+```
+Byte 0: Pump number
+Byte 1: Calibration mode (0=zero, 1=span)
+Byte 2-7: Reserved
+```
+
+### Response Messages
+
+#### Dispense Complete (ID: 0x101)
+
+```
+Byte 0: Pump number
+Byte 1: Status (0=success, 1=error)
+Byte 2: Actual amount high
+Byte 3: Actual amount low
+Byte 4-7: Reserved
+```
+
+## MQTT Integration
+
+### Topics
+
+- **Command**: `dispensing/command`
+- **Status**: `dispensing/status`
+- **Telemetry**: `dispensing/telemetry`
+
+### Message Format
+
+#### Dispense Command (JSON)
+
+```json
+{
+  "pump": 3,
+  "amount_ml": 50,
+  "speed": 80
+}
+```
+
+#### Status Response
+
+```json
+{
+  "pump": 3,
+  "status": "completed",
+  "actual_amount": 49.8,
+  "duration_ms": 3200
+}
+```
+
+## Calibration
+
+### Auto-Calibration Procedure
+
+1. **Zero Calibration**: Establish baseline
+2. **Span Calibration**: Calibrate full range
+3. **Verification**: Test dispense accuracy
+
 ```bash
-SPEED 1           # Enable motors
-caramel_10        # Dispense 10g caramel
-water_50          # Dispense 50g water
-LAG 1 5.0         # Adjust motor lag
-HELP              # Show all commands
+# Via MQTT
+mosquitto_pub -h localhost -t "dispensing/command" \
+  -m '{"pump":3,"command":"calibrate","mode":"zero"}'
+
+# Wait 5 seconds
+
+mosquitto_pub -h localhost -t "dispensing/command" \
+  -m '{"pump":3,"command":"calibrate","mode":"span","volume":100}'
 ```
 
-### MQTT Commands:
+## Usage Examples
+
+### From Automation Service
+
+```python
+# In automation_functions.py
+async def dispense_syrup(params: dict):
+    pump_number = params.get("pump_number", 9)
+    amount = params.get("amount", 20)
+    
+    payload = json.dumps({
+        "pump": pump_number,
+        "amount_ml": amount,
+        "speed": 80
+    })
+    
+    client.publish("dispensing/command", payload)
+    
+    # Wait for completion
+    response = await wait_for_response("dispensing/status", timeout=30)
+    
+    return {
+        "success": response["status"] == "completed",
+        "actual_amount": response["actual_amount"]
+    }
+```
+
+### Direct MQTT Control
+
 ```bash
-# Send commands
-mosquitto_pub -h 192.168.200.233 -t "dispenser/cmd/liquid" -m "caramel_10"
+# Dispense 30ml from syrup pump 5
+mosquitto_pub -h 192.168.1.100 -p 1883 \
+  -u admin -P admin123 \
+  -t "dispensing/command" \
+  -m '{"pump":5,"amount_ml":30,"speed":90}'
 
-# Monitor data
-mosquitto_sub -h 192.168.200.233 -t "dispenser/weights"
+# Monitor status
+mosquitto_sub -h 192.168.1.100 -p 1883 \
+  -u admin -P admin123 \
+  -t "dispensing/status"
 ```
 
-## Supported Liquids
+## Configuration Files
 
-- **Water**: High flow, 11g lag compensation
-- **Milk**: Medium flow, 9g lag compensation  
-- **Sauce**: Medium flow, 7g lag compensation
-- **Caramel**: Low flow, 2g lag compensation
-- **Syrup**: Low flow, 2.5g lag compensation
-- **Honey**: Very low flow, 1.5g lag compensation
+### platformio.ini
 
-## Calibration Data
-
-Based on extensive testing:
-- **Speed 0** (faster): Higher lag values
-- **Speed 1** (slower): Lower lag values, more accurate
-- **Caramel accuracy**: 95% (11.4g for 10g target)
-
-## Network Configuration
-
-- **MQTT Broker**: 192.168.200.233:1883
-- **Micro IP**: 192.168.200.211
-- **Topics**: 
-  - Commands: `dispenser/cmd/liquid`
-  - Data: `dispenser/weights`
-
-## Motor Mapping
-
-```
-milk1-8:    pins 2-9
-sauce1-3:   pins 10-12  
-sauce4-15:  pins 25,27,29,31,33,35,37,39,41,43,45,47
-rinser:     pin 49
-speed:      pin 23 (global)
+```ini
+[env:esp32]
+platform = espressif32
+board = esp32dev
+framework = arduino
+lib_deps = 
+    mcp_can
+    PubSubClient
+    ArduinoJson
+monitor_speed = 115200
 ```
 
-## Production Ready
+## Troubleshooting
 
-This system has been tested and calibrated for production use with multiple viscosity liquids and provides consistent, accurate dispensing with IoT monitoring and control capabilities.
+### CAN Bus Not Responding
 
----
+1. Check wiring and termination resistors (120Ω at each end)
+2. Verify baud rate matches (250kbps standard)
+3. Use CAN bus analyzer or oscilloscope to check signals
+4. Check power supply to CAN transceivers
 
-*Built with Arduino ecosystem, optimized for reliability and accuracy.* 
+```cpp
+// In code, verify CAN initialization
+if (CAN.begin(MCP_ANY, CAN_250KBPS, MCP_16MHZ) == CAN_OK) {
+  Serial.println("CAN Init OK");
+} else {
+  Serial.println("CAN Init Failed");
+}
+```
+
+### MQTT Connection Failed
+
+```bash
+# Test MQTT broker
+mosquitto_sub -h localhost -p 1883 -u admin -P admin123 -t "#" -v
+
+# Check ESP32 serial output
+pio device monitor
+```
+
+### Inaccurate Dispensing
+
+1. Run calibration procedure
+2. Check pump tubing for air bubbles
+3. Verify supply reservoir has sufficient liquid
+4. Clean pump heads (peristaltic pumps need periodic maintenance)
+
+### Motor Not Running
+
+1. Check motor driver connections
+2. Verify power supply voltage and current capacity
+3. Test motor directly with power supply
+4. Check PWM signal with oscilloscope
+
+## Safety Features
+
+- **Timeout Protection**: Auto-stop after 30s of continuous operation
+- **Overflow Detection**: Stop if weight exceeds expected
+- **Temperature Monitoring**: Shutdown if reservoir temp out of range
+- **Emergency Stop**: MQTT command to halt all dispensers
+
+## Maintenance
+
+### Regular Maintenance
+
+- **Daily**: Visual inspection of reservoir levels
+- **Weekly**: Clean external surfaces, check for leaks
+- **Monthly**: Calibrate high-use dispensers, replace tubing if worn
+- **Quarterly**: Deep clean pump heads, inspect electrical connections
+
+### Troubleshooting Guide
+
+See `QUICK_REFERENCE.md` for command reference and common issues.
+
+## Documentation
+
+- `README.md`: This file
+- `CAN_INTEGRATION_GUIDE.md`: Detailed CAN bus setup
+- `MOTOR_CONTROL_README.md`: Motor driver configuration
+- `WIRING.md`: Hardware wiring diagrams
+- `QUICK_REFERENCE.md`: Command reference
+- `DISPENSING_INTEGRATION_PROCESS.md`: Integration steps
+
+## Dependencies
+
+- **mcp_can**: CAN bus library for MCP2515
+- **PubSubClient**: MQTT client for ESP32
+- **ArduinoJson**: JSON parsing
+
+## Future Enhancements
+
+- Web-based calibration interface
+- Machine learning for predictive maintenance
+- Multi-language dispensing profiles
+- Integration with scales for weight-based dispensing
+- Remote firmware updates (OTA)
+- Advanced diagnostics and telemetry

@@ -1,266 +1,400 @@
 # Video Stream Service
 
-A lightweight, CPU-efficient video streaming service that provides real-time camera feeds with fallback test patterns for development and testing environments.
+## Brief Overview
 
-## Overview
+The Video Stream Service provides real-time video streaming capabilities for the BARNS system. It manages multiple camera feeds, handles webcam access, and delivers MJPEG video streams over HTTP with automatic fallback to test patterns when physical cameras are unavailable.
 
-The Video Stream Service manages multiple camera feeds and provides HTTP endpoints for live video streaming. It's designed to be resource-efficient with simple test patterns when physical cameras aren't available.
+## Key Features
 
-## Features
+- Multi-camera support with up to 4 configurable streams
+- MJPEG video streaming over HTTP
+- Automatic fallback to test patterns when cameras unavailable
+- Still image capture from any camera
+- CORS-enabled for dashboard integration
+- Real-time camera status monitoring
+- Debug endpoints for troubleshooting camera issues
+- Graceful error handling with visual error frames
 
-- **Multiple Camera Support**: Manages webcam and multiple virtual cameras
-- **Lightweight Test Patterns**: CPU-efficient black frames with text for development
-- **Real-time Streaming**: MJPEG video streams at 10 FPS
-- **Graceful Fallback**: Automatic fallback to test patterns when cameras fail
-- **Debug Endpoints**: Comprehensive system information and camera status
-- **Docker Optimized**: Configured for container environments with device access
+## Architecture
 
-## API Endpoints
-
-### Core Endpoints
-
-```bash
-# Get service status
-GET /status
-# Returns: Service operational status and camera information
-
-# List all available cameras
-GET /cameras
-# Returns: Camera list with status and stream URLs
-
-# Live video stream (MJPEG)
-GET /stream/{camera_id}
-# Returns: Continuous video stream
-
-# Still image capture
-GET /still/{camera_id}
-# Returns: Single JPEG frame
-
-# Debug information
-GET /debug
-# Returns: System info, available video devices, camera tests
+```
+┌─────────────┐
+│  Dashboard  │
+└──────┬──────┘
+       │ HTTP GET /stream/{id}
+       ↓
+┌─────────────────────────────┐
+│  Video Stream Service       │
+│  (FastAPI)                  │
+│                             │
+│  ┌─────────────────────┐   │
+│  │  Camera Manager     │   │
+│  │  - webcam          │   │
+│  │  - test_pattern    │   │
+│  │  - camera1         │   │
+│  │  - camera2         │   │
+│  └─────────────────────┘   │
+│           │                 │
+│           ↓                 │
+│  ┌─────────────────────┐   │
+│  │  OpenCV             │   │
+│  │  Video Capture      │   │
+│  └─────────────────────┘   │
+└─────────────┬───────────────┘
+              │
+              ↓
+      Physical Cameras
+      (/dev/video0, etc.)
 ```
 
-### Available Cameras
+### Components
 
-- **webcam**: Primary webcam (tries real camera, falls back to test pattern)
-- **test_pattern**: Pure test pattern for development
-- **camera1**: Error frame display
-- **camera2**: Error frame display
+1. **Camera Class**: Manages individual camera lifecycle, frame capture, and test pattern generation
+2. **FastAPI Application**: Provides REST API and streaming endpoints
+3. **Frame Generator**: Yields MJPEG frames for continuous streaming
+4. **Error Handler**: Generates visual error frames when cameras fail
+
+## Setup & Installation
+
+### Prerequisites
+
+- Python 3.8+
+- Physical webcam (optional, test patterns available)
+- Docker (for containerized deployment)
+
+### Local Development
+
+```bash
+# Navigate to service directory
+cd services/video-stream
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run service
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Docker Deployment
+
+The service is automatically deployed via `docker-compose.yml`:
+
+```bash
+# Start all services
+docker-compose up -d
+
+# View logs
+docker-compose logs -f video-stream-service
+
+# Access service
+curl http://localhost:8001/status
+```
 
 ## Configuration
 
 ### Environment Variables
 
-```env
-PYTHONPATH=/app
-```
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PYTHONPATH` | `/app` | Python module search path |
 
-### Camera Settings
+### Camera Configuration
+
+Cameras are configured in `app.py`:
 
 ```python
-# Frame settings
-FRAME_WIDTH = 640
-FRAME_HEIGHT = 480
-FRAME_RATE = 10  # FPS (reduced for CPU efficiency)
-
-# Video quality
-JPEG_QUALITY = 80
+cameras: Dict[str, Camera] = {
+    "webcam": Camera("Live Webcam", "webcam", 0, use_test_pattern=True),
+    "test_pattern": Camera("Test Pattern Demo", "test_pattern", None, use_test_pattern=True),
+    "camera1": Camera("Camera 1", "camera1", None),
+    "camera2": Camera("Camera 2", "camera2", None),
+}
 ```
 
-## Development
+**Camera Parameters:**
+- `name`: Display name for the camera
+- `camera_id`: Unique identifier for API access
+- `source`: Camera index (0, 1, 2) or None for test pattern
+- `use_test_pattern`: If True, shows test pattern when camera unavailable
 
-### Local Development
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run service locally
-python -m uvicorn app:app --reload --host 0.0.0.0 --port 8001
-
-# Test endpoints
-curl http://localhost:8001/status
-curl http://localhost:8001/cameras
-```
-
-### Docker Development
-
-```bash
-# Build image
-docker build -f services/video-stream/Dockerfile -t video-stream .
-
-# Run with camera access (Linux)
-docker run --device=/dev/video0:/dev/video0 -p 8001:8000 video-stream
-
-# Run without camera (Windows/macOS)
-docker run -p 8001:8000 video-stream
-```
-
-## Architecture
-
-### Service Flow
-
-```
-Browser/Client
-    ↓ HTTP Request
-Video Stream Service
-    ↓ Camera Access
-Physical Camera OR Test Pattern
-    ↓ Frame Processing
-MJPEG Stream Response
-```
-
-### Camera Initialization
-
-1. **Try Real Camera**: Attempts to access physical webcam
-2. **Test Properties**: Sets resolution and frame rate
-3. **Validate Frame**: Reads test frame to confirm functionality
-4. **Fallback**: Uses test pattern if camera fails
-5. **Error Frame**: Simple error display for unavailable cameras
-
-### Performance Optimizations
-
-- **Lightweight Patterns**: Simple black frames with text only
-- **Reduced Frame Rate**: 10 FPS instead of 30 FPS
-- **Efficient Encoding**: Direct JPEG encoding without complex processing
-- **Memory Management**: Proper cleanup and resource management
-
-## Docker Configuration
-
-### Dockerfile Features
-
-```dockerfile
-# System dependencies for OpenCV camera access
-RUN apt-get install -y \
-    libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    libgomp1 libgstreamer1.0-0 libgtk-3-0 \
-    libavcodec59 libavformat59 libswscale6 \
-    v4l-utils ffmpeg
-```
-
-### Docker Compose Setup
+### Docker Volume Mounts
 
 ```yaml
-video-stream-service:
-  build:
-    context: .
-    dockerfile: services/video-stream/Dockerfile
-  ports:
-    - "8001:8000"
-  devices:
-    - /dev/video0:/dev/video0  # Camera access
-  privileged: true  # Required for camera access
-  volumes:
-    - /dev:/dev  # Device access
+devices:
+  - /dev/video0:/dev/video0  # Primary webcam
+  - /dev/video1:/dev/video1  # Secondary webcam
+privileged: true              # Required for camera access
+volumes:
+  - /dev:/dev                 # Device file access
+```
+
+## API/Endpoints
+
+### GET /cameras
+
+List all available cameras with their status.
+
+**Response:**
+```json
+{
+  "cameras": {
+    "webcam": {
+      "name": "Live Webcam",
+      "status": "active",
+      "stream_url": "/stream/webcam",
+      "type": "real"
+    },
+    "test_pattern": {
+      "name": "Test Pattern Demo",
+      "status": "test_pattern",
+      "stream_url": "/stream/test_pattern",
+      "type": "test_pattern"
+    }
+  }
+}
+```
+
+### GET /stream/{camera_id}
+
+Stream live video from specified camera.
+
+**Parameters:**
+- `camera_id` (path): Camera identifier (webcam, test_pattern, camera1, camera2)
+
+**Response:** MJPEG stream (`multipart/x-mixed-replace; boundary=frame`)
+
+**Example:**
+```html
+<img src="http://localhost:8001/stream/webcam" />
+```
+
+### GET /still/{camera_id}
+
+Capture a single still image from camera.
+
+**Parameters:**
+- `camera_id` (path): Camera identifier
+
+**Response:** JPEG image
+
+**Example:**
+```bash
+curl http://localhost:8001/still/webcam -o snapshot.jpg
+```
+
+### GET /status
+
+Get service health and camera status.
+
+**Response:**
+```json
+{
+  "status": "operational",
+  "cameras": {
+    "webcam": {
+      "name": "Live Webcam",
+      "active": true,
+      "type": "real"
+    }
+  },
+  "message": "Video streaming service with test patterns for development"
+}
+```
+
+### GET /debug
+
+Detailed debug information for troubleshooting camera issues.
+
+**Response:**
+```json
+{
+  "video_devices": ["/dev/video0", "/dev/video1"],
+  "opencv_version": "4.8.1",
+  "camera_tests": {
+    "camera_0": {
+      "available": true,
+      "can_read": true,
+      "frame_shape": [480, 640, 3]
+    }
+  },
+  "system_info": {
+    "/dev/video0": "readable"
+  }
+}
+```
+
+## Usage Examples
+
+### Dashboard Integration
+
+```javascript
+// React component
+<img 
+  src="http://video-stream-service:8000/stream/webcam" 
+  alt="Live Camera Feed"
+  style={{ width: '100%', height: 'auto' }}
+/>
+```
+
+### Python Client
+
+```python
+import requests
+
+# Get camera list
+response = requests.get("http://localhost:8001/cameras")
+cameras = response.json()["cameras"]
+
+# Capture still image
+response = requests.get("http://localhost:8001/still/webcam")
+with open("snapshot.jpg", "wb") as f:
+    f.write(response.content)
+
+# Check service status
+response = requests.get("http://localhost:8001/status")
+print(response.json())
+```
+
+### Testing Camera Access
+
+```bash
+# List cameras
+curl http://localhost:8001/cameras | jq
+
+# Test video stream
+curl http://localhost:8001/stream/test_pattern
+
+# Debug camera issues
+curl http://localhost:8001/debug | jq
+```
+
+## Dependencies
+
+### Core Dependencies
+
+- **FastAPI** (0.104.1): Web framework for API endpoints
+- **Uvicorn** (0.24.0): ASGI server for FastAPI
+- **OpenCV** (4.8.1.78): Video capture and image processing
+- **NumPy** (2.2.6): Array operations for image data
+
+### Optional Dependencies
+
+- **PyTorch** (2.8.0): Deep learning framework (for future CV features)
+- **Ultralytics** (8.3.203): YOLO object detection (for future features)
+
+### System Requirements
+
+- Linux: `/dev/video*` device access
+- Windows: DirectShow compatible webcams
+- macOS: AVFoundation compatible cameras
+
+## Integration Points
+
+### Upstream Services (Consumers)
+
+1. **Dashboard Service**
+   - Embeds video streams in monitoring UI
+   - Displays camera feeds on main dashboard
+   - Uses still images for thumbnails
+
+### Communication Pattern
+
+- **Protocol**: HTTP/REST
+- **Port**: 8001 (external), 8000 (internal)
+- **Type**: Synchronous request/response
+- **Format**: MJPEG streams, JPEG images, JSON metadata
+
+### Network Configuration
+
+```yaml
+networks:
+  - barns-network
+ports:
+  - "8001:8000"  # Host:Container mapping
 ```
 
 ## Troubleshooting
 
-### Common Issues
+### Camera Not Detected
 
-#### No Camera Detected
-```bash
-# Check video devices
-curl http://localhost:8001/debug
+**Issue**: Camera shows error frame instead of live video
 
-# Look for video_devices array
-# Empty array means no cameras available in container
+**Solutions:**
+1. Check camera permissions:
+   ```bash
+   ls -l /dev/video*
+   sudo chmod 666 /dev/video0
+   ```
+
+2. Verify camera in Docker:
+   ```yaml
+   devices:
+     - /dev/video0:/dev/video0
+   privileged: true
+   ```
+
+3. Test camera manually:
+   ```bash
+   docker exec -it barns-video-stream python -c "import cv2; print(cv2.VideoCapture(0).isOpened())"
+   ```
+
+### Test Pattern Displayed Instead of Camera
+
+**Expected behavior** when:
+- Running in Docker on Windows (camera passthrough limitations)
+- Physical camera not connected
+- Camera in use by another application
+
+Use `/debug` endpoint to diagnose camera availability.
+
+### Low Frame Rate
+
+**Issue**: Video stream appears choppy
+
+**Solutions:**
+1. Reduce number of concurrent streams
+2. Lower resolution in Camera initialization:
+   ```python
+   self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 320)
+   self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 240)
+   ```
+3. Increase sleep interval in `gen_frames()`:
+   ```python
+   time.sleep(0.2)  # Reduce to 5 FPS
+   ```
+
+### CORS Errors
+
+**Issue**: Dashboard cannot load video streams
+
+**Solution**: Add dashboard origin to CORS middleware:
+```python
+allow_origins=[
+    "http://localhost:3000",
+    "http://your-dashboard-domain.com"
+]
 ```
 
-#### High CPU Usage
-```bash
-# Check if using test patterns (should be low CPU)
-# Reduce frame rate in code if needed
-# Monitor with: docker stats barns-video-stream
-```
+## Performance Considerations
 
-#### Stream Not Loading
-```bash
-# Test direct stream access
-curl http://localhost:8001/stream/test_pattern
+- **FPS**: Default 10 FPS per stream (configurable)
+- **Resolution**: 640x480 (configurable)
+- **Encoding**: JPEG compression for bandwidth efficiency
+- **CPU Usage**: ~5-10% per active camera stream
+- **Memory**: ~50MB per service instance
 
-# Check service logs
-docker logs barns-video-stream
+## Security Notes
 
-# Verify port accessibility
-curl http://localhost:8001/status
-```
-
-### Camera Access on Different Platforms
-
-#### Linux
-- Full camera access with proper device mapping
-- Requires privileged mode for device access
-
-#### Windows (Docker Desktop)
-- Limited camera access in containers
-- Uses test patterns for development
-- Physical camera access requires additional setup
-
-#### macOS (Docker Desktop)
-- Similar limitations to Windows
-- Test patterns provide development capability
-
-## Testing
-
-### Manual Testing
-
-```bash
-# Test all endpoints
-curl http://localhost:8001/status
-curl http://localhost:8001/cameras
-curl http://localhost:8001/debug
-
-# Test video streams in browser
-open http://localhost:8001/stream/test_pattern
-open http://localhost:8001/stream/webcam
-```
-
-### Integration Testing
-
-```bash
-# Test from dashboard
-# Video feeds should appear in dashboard camera section
-# Check browser console for connection errors
-```
-
-## Performance Metrics
-
-### Resource Usage
-- **CPU**: <5% with test patterns
-- **Memory**: ~100MB baseline
-- **Network**: ~50KB/s per stream at 10 FPS
-
-### Benchmarks
-- **Startup Time**: <3 seconds
-- **Stream Latency**: <100ms
-- **Frame Processing**: <10ms per frame
+- Service runs in privileged Docker mode for device access
+- No authentication on endpoints (internal network only)
+- CORS restricted to known dashboard origins
+- No data persistence or logging of video content
 
 ## Future Enhancements
 
-- **WebRTC Support**: Lower latency streaming
-- **Multiple Resolutions**: Dynamic quality adjustment
-- **Motion Detection**: Computer vision integration
-- **Recording Capability**: Save video streams
-- **AI Integration**: Object detection and analysis
-
-## Dependencies
-
-### Core Libraries
-- **FastAPI**: Web framework and API
-- **OpenCV**: Camera access and image processing
-- **NumPy**: Array operations for image data
-- **Uvicorn**: ASGI server
-
-### System Dependencies
-- **V4L-utils**: Video4Linux camera support
-- **GStreamer**: Media framework
-- **FFmpeg**: Video processing libraries
-
----
-
-**Port**: 8001  
-**Technology**: Python + FastAPI + OpenCV  
-**Performance**: Optimized for low CPU usage  
-**Camera Support**: Physical webcams + test patterns 
+- Motion detection alerts
+- Recording and playback functionality
+- RTSP stream support
+- Multi-camera synchronized capture
+- Hardware-accelerated encoding
+- Authentication and authorization

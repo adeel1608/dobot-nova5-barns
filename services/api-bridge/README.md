@@ -1,415 +1,810 @@
 # API Bridge Service
 
-HTTP to RabbitMQ translator service that provides RESTful API endpoints for the BARNS microservices ecosystem. Acts as the gateway between the dashboard frontend and the RabbitMQ-based backend services.
+## Brief Overview
 
-## Overview
+The API Bridge Service acts as the primary HTTP gateway between the BARNS Dashboard and all backend microservices. It translates synchronous HTTP requests into asynchronous RabbitMQ messages, manages real-time WebSocket/Socket.IO connections for live updates, and provides a unified REST API interface for the entire system.
 
-The API Bridge Service serves as the primary HTTP interface for the BARNS system, translating REST API calls into RabbitMQ messages and providing real-time WebSocket communication for the dashboard.
+## Key Features
 
-## Features
-
-- **HTTP to RabbitMQ Translation**: Converts REST API calls to message queue operations
-- **WebSocket Support**: Real-time communication for dashboard updates
-- **Service Orchestration**: Coordinates communication between microservices
-- **Error Handling**: Comprehensive error responses and logging
-- **CORS Support**: Cross-origin resource sharing for web dashboard
-- **Health Monitoring**: Service health checks and status reporting
-
-## API Endpoints
-
-### Core Operations
-
-```bash
-# Service health check
-GET /health
-# Returns: Service status and connectivity
-
-# System status
-GET /api/status
-# Returns: Overall system status and service availability
-
-# Service discovery
-GET /api/services
-# Returns: Available services and their status
-```
-
-### Order Management
-
-```bash
-# Create new order
-POST /api/orders/create
-Content-Type: application/json
-{
-  "cups": [{"type": "Latte", "size": "regular"}],
-  "priority": "normal"
-}
-
-# Get order details
-GET /api/orders/{order_id}
-# Returns: Complete order information and status
-
-# Update order status
-PUT /api/orders/{order_id}
-Content-Type: application/json
-{
-  "status": "processing",
-  "updated_by": "system"
-}
-
-# List all orders
-GET /api/orders
-# Returns: Array of all orders with pagination
-
-# Cancel order
-DELETE /api/orders/{order_id}
-# Returns: Cancellation confirmation
-```
-
-### System Control
-
-```bash
-# Emergency stop
-POST /api/emergency/stop
-# Returns: Emergency stop confirmation
-
-# System reset
-POST /api/system/reset
-# Returns: Reset operation status
-
-# Get system logs
-GET /api/logs
-# Returns: Recent system logs and events
-```
-
-### WebSocket Events
-
-```javascript
-// Connect to WebSocket
-const ws = new WebSocket('ws://localhost:8000/ws');
-
-// Listen for real-time updates
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  // Handle: order_updated, system_alert, task_completed, etc.
-};
-```
+- **HTTP to RabbitMQ Translation**: Converts REST API calls to RabbitMQ RPC messages
+- **Dual Real-Time Support**: WebSocket and Socket.IO for dashboard updates
+- **Event Broadcasting**: Receives RabbitMQ events and pushes to connected clients
+- **Unified API Gateway**: Single entry point for dashboard to access all services
+- **Request/Response Correlation**: Handles async message correlation with timeouts
+- **CORS-Enabled**: Configured for local and production dashboard access
+- **Comprehensive API**: Orders, inventory, recipes, POS integration, alerts, system control
 
 ## Architecture
 
-### Message Flow
-
 ```
-Dashboard (HTTP/WS)
-    ↓
-API Bridge Service
-    ↓ RabbitMQ Messages
-Backend Services (OMS, Scheduler, etc.)
-    ↓ Response Messages
-API Bridge Service
-    ↓ HTTP Response/WS Event
-Dashboard
+┌────────────────────────────────────────────────────────────┐
+│                    BARNS Dashboard                         │
+│              (React Web Application)                       │
+└───────────────┬──────────────┬─────────────────────────────┘
+                │              │
+         HTTP/REST        WebSocket/Socket.IO
+                │              │ (Real-time updates)
+                ↓              ↓
+┌───────────────────────────────────────────────────────────┐
+│              API Bridge Service (FastAPI)                 │
+│                                                            │
+│  ┌─────────────────────┐      ┌──────────────────────┐   │
+│  │  HTTP Endpoints     │      │  Event Listener      │   │
+│  │  /api/orders        │      │  - Order events      │   │
+│  │  /api/inventory     │      │  - Inventory events  │   │
+│  │  /api/system        │      │  - Scheduler events  │   │
+│  │  /api/alerts        │      │  - Validation events │   │
+│  └──────────┬──────────┘      └─────────┬────────────┘   │
+│             │                           │                 │
+│             ↓                           ↓                 │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │        RabbitMQ Client (Request/Response)        │    │
+│  └──────────────────────────────────────────────────┘    │
+└───────────────┬───────────────────────┬────────────────  ───┘
+                │                       │
+                ↓                       ↓
+       ┌────────────────┐      ┌─────────────────┐
+       │   RabbitMQ     │      │   RabbitMQ      │
+       │   RPC Queue    │      │   Event Exchange│
+       └────────┬───────┘      └────────┬────────┘
+                │                       │
+     ┌──────────┼───────────┬───────────┼──────────┐
+     ↓          ↓           ↓           ↓          ↓
+┌────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐
+│  OMS   │ │Scheduler │ │Validation│ │Routine │ │Automation│
+└────────┘ └──────────┘ └──────────┘ └────────┘ └──────────┘
 ```
 
-### RabbitMQ Integration
+### Communication Flow
 
-```python
-# Exchange configuration
-EXCHANGES = {
-    'orders': 'orders.topic',
-    'tasks': 'tasks.topic', 
-    'system': 'system.topic',
-    'events': 'events.fanout'
-}
+1. **Inbound HTTP Requests**:
+   - Dashboard → HTTP POST/GET → API Bridge
+   - API Bridge → RabbitMQ RPC → Target Service
+   - Target Service → RabbitMQ Response → API Bridge
+   - API Bridge → HTTP Response → Dashboard
 
-# Routing keys
-ROUTING_KEYS = {
-    'order.create': 'orders.create',
-    'order.update': 'orders.update',
-    'task.execute': 'tasks.execute',
-    'system.status': 'system.status'
-}
+2. **Outbound Real-time Events**:
+   - Service → RabbitMQ Event Publish → Event Exchange
+   - API Bridge subscribes → Receives Event
+   - API Bridge → WebSocket/Socket.IO → Dashboard (real-time update)
+
+## Setup & Installation
+
+### Prerequisites
+
+- Python 3.8+
+- RabbitMQ server running
+- Access to BARNS network
+- Docker (for containerized deployment)
+
+### Local Development
+
+```bash
+# Navigate to service directory
+cd services/api-bridge
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variables
+export RABBITMQ_URL="amqp://admin:admin123@localhost:5672/"
+export PYTHONPATH="/path/to/barns"
+
+# Run service
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### Docker Deployment
+
+Automatically deployed via `docker-compose.yml`:
+
+```bash
+# Start API Bridge and dependencies
+docker-compose up -d rabbitmq api-bridge
+
+# View logs
+docker-compose logs -f api-bridge
+
+# Access API documentation
+curl http://localhost:8000/docs
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-```env
-# RabbitMQ Configuration
-RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
-RABBITMQ_EXCHANGE=barns_exchange
-RABBITMQ_QUEUE=api_bridge_queue
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RABBITMQ_URL` | `amqp://admin:admin123@rabbitmq:5672/` | RabbitMQ connection string |
+| `PYTHONPATH` | `/app` | Python module search path |
 
-# Service Configuration
-PORT=8000
-HOST=0.0.0.0
-DEBUG=false
+### CORS Configuration
 
-# CORS Settings
-CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
-
-# Timeout Settings
-MESSAGE_TIMEOUT=30
-RESPONSE_TIMEOUT=10
-```
-
-### Message Patterns
+Configured in `app.py` to allow dashboard origins:
 
 ```python
-# Request-Response Pattern
-async def send_message_and_wait(exchange, routing_key, message):
-    correlation_id = str(uuid.uuid4())
-    response = await publish_and_wait(
-        exchange=exchange,
-        routing_key=routing_key,
-        message=message,
-        correlation_id=correlation_id,
-        timeout=30
-    )
-    return response
-
-# Fire-and-Forget Pattern  
-async def send_notification(exchange, routing_key, message):
-    await publish_message(
-        exchange=exchange,
-        routing_key=routing_key,
-        message=message
-    )
+allow_origins=[
+    "http://localhost:3000",      # React dev server
+    "http://localhost:5173",      # Vite dev server
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173"
+]
 ```
 
-## Development
+### Docker Network Configuration
 
-### Local Development
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Start with auto-reload
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
-
-# Test endpoints
-curl http://localhost:8000/health
-curl http://localhost:8000/api/status
+```yaml
+networks:
+  - barns-network
+ports:
+  - "8000:8000"  # HTTP API and WebSocket
+depends_on:
+  - rabbitmq (must be healthy)
+  - validation-service
+  - routine-service
+  - scheduler-service
 ```
 
-### Docker Development
+## API/Endpoints
 
-```bash
-# Build image
-docker build -f services/api-bridge/Dockerfile -t api-bridge .
+### Health & Status
 
-# Run container
-docker run -p 8000:8000 \
-  -e RABBITMQ_URL=amqp://admin:admin123@localhost:5672/ \
-  api-bridge
-```
+#### GET /health, /api/health
+Health check endpoint.
 
-### Testing
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Create test order
-curl -X POST http://localhost:8000/api/orders/create \
-  -H "Content-Type: application/json" \
-  -d '{"cups": [{"type": "Latte", "size": "regular"}]}'
-
-# WebSocket test (using wscat)
-wscat -c ws://localhost:8000/ws
-```
-
-## Error Handling
-
-### HTTP Status Codes
-
-- **200**: Success
-- **201**: Created (new order/resource)
-- **400**: Bad Request (invalid data)
-- **404**: Not Found (order/resource not found)
-- **500**: Internal Server Error
-- **503**: Service Unavailable (RabbitMQ connection issues)
-
-### Error Response Format
-
+**Response:**
 ```json
 {
-  "error": {
-    "code": "ORDER_NOT_FOUND",
-    "message": "Order with ID 12345 not found",
-    "details": {
-      "order_id": "12345",
-      "timestamp": "2025-12-12T10:30:00Z"
+  "status": "healthy",
+  "service": "api_bridge",
+  "timestamp": "2025-01-15T10:30:00"
+}
+```
+
+### Order Management
+
+#### POST /api/orders
+Create a new order.
+
+**Request:**
+```json
+{
+  "cups": [
+    {"recipe": "latte", "size": "medium"}
+  ]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "order_id": 123,
+  "status": "pending",
+  "timestamp": "2025-01-15T10:30:00"
+}
+```
+
+#### GET /api/orders
+List all orders with optional status filter.
+
+**Query Parameters:**
+- `status` (optional): Filter by status (pending, processing, completed, failed)
+
+**Response:**
+```json
+{
+  "success": true,
+  "orders": [
+    {
+      "order_id": 123,
+      "status": "processing",
+      "cups": [...]
+    }
+  ]
+}
+```
+
+#### GET /api/orders/{order_id}
+Get specific order details.
+
+#### PATCH /api/orders/{order_id}/start
+Start processing an order.
+
+#### PATCH /api/orders/{order_id}/status
+Update order status.
+
+**Request:**
+```json
+{
+  "status": "completed",
+  "reason": "Order fulfilled successfully"
+}
+```
+
+#### DELETE /api/orders/{order_id}
+Delete an order.
+
+#### POST /api/orders/{order_id}/halt
+Halt order with reason.
+
+**Request:**
+```json
+{
+  "reason": "Ingredient shortage"
+}
+```
+
+#### POST /api/orders/{order_id}/stop
+Emergency stop an order.
+
+#### POST /api/orders/{order_id}/resume
+Resume a halted order.
+
+### Queue Management
+
+#### GET /api/queue
+Get current order queue state.
+
+**Response:**
+```json
+{
+  "success": true,
+  "queue": [
+    {"order_id": 123, "position": 1, "status": "processing"},
+    {"order_id": 124, "position": 2, "status": "pending"}
+  ]
+}
+```
+
+#### PUT /api/queue/reorder
+Reorder the queue.
+
+**Request:**
+```json
+{
+  "order": [124, 123, 125]
+}
+```
+
+### Inventory Management
+
+#### GET /api/inventory/status
+Get inventory status (all, by type, or specific item).
+
+**Query Parameters:**
+- `ingredient_type` (optional): Filter by ingredient type
+- `subtype` (optional): Filter by subtype
+
+**Response:**
+```json
+{
+  "success": true,
+  "inventory": {
+    "coffee_beans": {
+      "regular": {
+        "current_amount": 750,
+        "status": "high",
+        "warning_threshold": 300,
+        "critical_threshold": 100
+      }
+    }
+  },
+  "timestamp": "2025-01-15T10:30:00"
+}
+```
+
+#### POST /api/inventory/refill
+Refill inventory (triggers CV detection for coffee beans).
+
+**Query Parameters:**
+- `ingredient_type` (optional): Specific ingredient to refill
+- `subtype` (optional): Specific subtype to refill
+
+**Response:**
+```json
+{
+  "passed": true,
+  "details": {
+    "coffee_beans_message": "Refilled with 85% detected",
+    "coffee_beans_percentage": 85
+  }
+}
+```
+
+#### GET /api/inventory/category-summary
+Get lowest stock level per category.
+
+**Response:**
+```json
+{
+  "success": true,
+  "summary": {
+    "coffee_beans": "high",
+    "milk": "medium",
+    "syrups": "low"
+  }
+}
+```
+
+#### GET /api/inventory/stock-level
+Get stock level statistics (counts per level).
+
+**Response:**
+```json
+{
+  "success": true,
+  "stock_level": {
+    "high": 5,
+    "medium": 3,
+    "low": 2,
+    "empty": 0
+  }
+}
+```
+
+#### GET /api/inventory/by-stock-level/{stock_level}
+Get inventory items filtered by stock level.
+
+**Parameters:**
+- `stock_level`: high, medium, low, or empty
+
+**Response:**
+```json
+{
+  "success": true,
+  "stock_level": "low",
+  "ingredients": {
+    "syrups": {
+      "vanilla": {"current_amount": 50, "critical_threshold": 100}
     }
   }
 }
 ```
 
-## Performance
+#### GET /api/inventory/category-info
+Get category metadata (unit types, capacities).
 
-### Metrics
+#### GET /api/inventory/category-count
+Get count of items per category.
 
-- **Response Time**: <100ms for most endpoints
-- **Throughput**: 1000+ requests/second
-- **WebSocket Connections**: Support for 100+ concurrent connections
-- **Memory Usage**: ~50MB baseline
+### Recipe Management
 
-### Optimization
+#### GET /api/recipes
+Get available recipes from recipes.json.
 
-```python
-# Connection pooling
-RABBITMQ_POOL_SIZE = 10
-HTTP_CONNECTION_POOL = 20
-
-# Caching
-CACHE_TTL = 300  # 5 minutes
-CACHE_SIZE = 1000  # entries
-
-# Rate limiting
-RATE_LIMIT = "100/minute"
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "name": "latte",
+      "display_name": "Latte",
+      "steps": 5
+    }
+  ],
+  "count": 10
+}
 ```
 
-## Monitoring
+### POS Integration
 
-### Health Checks
+#### POST /api/pos/process-order
+Proxy POS order to OMS service.
 
-```bash
-# Service health
-curl http://localhost:8000/health
-
-# RabbitMQ connectivity
-curl http://localhost:8000/api/status
-
-# Response time monitoring
-curl -w "@curl-format.txt" http://localhost:8000/health
+**Request:**
+```json
+{
+  "transaction_id": "POS-001",
+  "items": [
+    {"product_id": "latte_medium", "quantity": 1}
+  ]
+}
 ```
 
-### Logging
+#### GET /api/pos/menu-items
+Get POS menu items from OMS.
 
-```python
-# Log levels
-LOG_LEVEL = "INFO"
-LOG_FORMAT = "json"
+#### GET /api/pos/ingredients
+Get ingredient list for POS.
 
-# Log categories
-- api.request: HTTP request logs
-- api.response: HTTP response logs  
-- mq.publish: Message publish events
-- mq.consume: Message consume events
-- error: Error and exception logs
+### System Management
+
+#### GET /api/system/status
+Get health status of all services.
+
+**Response:**
+```json
+{
+  "success": true,
+  "services": {
+    "oms": {"status": "healthy"},
+    "scheduler": {"status": "healthy"},
+    "validation": {"status": "healthy"}
+  }
+}
 ```
 
-## Troubleshooting
+#### POST /api/system/stop
+Emergency stop all operations.
 
-### Common Issues
-
-#### RabbitMQ Connection Failed
-```bash
-# Check RabbitMQ status
-curl http://localhost:15672/api/overview
-
-# Verify credentials and URL
-docker logs barns-api-bridge | grep "connection"
+**Request:**
+```json
+{
+  "reason": "Emergency maintenance required"
+}
 ```
 
-#### WebSocket Connection Issues
-```bash
-# Check CORS settings
-# Verify WebSocket URL in dashboard
-# Monitor browser console for errors
+#### POST /api/system/resume
+Resume system operations after emergency stop.
+
+### Alert Management
+
+#### GET /api/alerts/active
+Get active alerts.
+
+**Response:**
+```json
+{
+  "success": true,
+  "alerts": [
+    {
+      "alert_id": 1,
+      "type": "inventory_low",
+      "message": "Coffee beans running low",
+      "severity": "warning",
+      "timestamp": "2025-01-15T10:00:00"
+    }
+  ]
+}
 ```
 
-#### Slow Response Times
-```bash
-# Check RabbitMQ queue depths
-# Monitor service logs for timeouts
-# Verify backend service health
+#### GET /api/alerts/acknowledged
+Get acknowledged alerts.
+
+#### POST /api/alerts/{alert_id}/acknowledge
+Acknowledge an alert.
+
+### Real-Time WebSocket
+
+#### WebSocket /ws
+Real-time event streaming endpoint.
+
+**Connection:**
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Event:', data.type, data);
+};
 ```
 
-### Debug Commands
+**Event Types:**
+- `connection`: Initial connection confirmation
+- `order_update`: Order status changes
+- `inventory_update`: Inventory level changes
+- `pong`: Heartbeat response
 
-```bash
-# Service logs
-docker logs barns-api-bridge -f
-
-# RabbitMQ management
-curl -u admin:admin123 http://localhost:15672/api/queues
-
-# Connection testing
-telnet localhost 8000
+**Ping/Pong:**
+```javascript
+ws.send(JSON.stringify({type: 'ping'}));
 ```
 
-## Integration
+### Socket.IO (Alternative Real-Time)
 
-### Dashboard Integration
+#### GET /api/socketio/stats
+Get Socket.IO connection statistics.
+
+**Events:**
+- `inventory.update.{category}`: Category-specific updates
+- `inventory.summary`: Category summary updates
+- `inventory.stock_level`: Stock level statistics
+- `inventory.status`: Full inventory status
+
+## Usage Examples
+
+### Dashboard API Client
 
 ```javascript
-// API client configuration
-const API_BASE = 'http://localhost:8000/api';
-const WS_URL = 'ws://localhost:8000/ws';
+// services/barns-dashboard/src/api/orders.js
+import api from './base';
 
-// Example usage
-const response = await fetch(`${API_BASE}/orders/create`, {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify(orderData)
-});
+// Create order
+const createOrder = async (order) => {
+  const response = await api.post('/api/orders', order);
+  return response.data;
+};
+
+// Start order
+const startOrder = async (orderId) => {
+  const response = await api.patch(`/api/orders/${orderId}/start`);
+  return response.data;
+};
+
+// Get queue
+const getQueue = async () => {
+  const response = await api.get('/api/queue');
+  return response.data;
+};
 ```
 
-### Service Discovery
+### Real-Time Updates
 
-```python
-# Register with service discovery
-async def register_service():
-    await publish_message(
-        exchange='system',
-        routing_key='service.register',
-        message={
-            'service': 'api-bridge',
-            'endpoint': 'http://api-bridge:8000',
-            'status': 'healthy'
-        }
-    )
+```javascript
+// WebSocket connection
+const connectWebSocket = () => {
+  const ws = new WebSocket('ws://localhost:8000/ws');
+  
+  ws.onopen = () => console.log('Connected to API Bridge');
+  
+  ws.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    
+    switch(message.type) {
+      case 'order_update':
+        updateOrderUI(message.data);
+        break;
+      case 'inventory_update':
+        updateInventoryUI(message.data);
+        break;
+    }
+  };
+  
+  // Heartbeat
+  setInterval(() => {
+    ws.send(JSON.stringify({type: 'ping'}));
+  }, 30000);
+};
 ```
 
-## Security
-
-### Authentication
+### Python Client
 
 ```python
-# API key validation (if enabled)
-API_KEY_HEADER = "X-API-Key"
-VALID_API_KEYS = ["your-api-key-here"]
+import httpx
+import asyncio
+
+async def create_and_start_order():
+    async with httpx.AsyncClient() as client:
+        # Create order
+        response = await client.post(
+            "http://localhost:8000/api/orders",
+            json={"cups": [{"recipe": "latte"}]}
+        )
+        order = response.json()
+        order_id = order["order_id"]
+        
+        # Start order
+        response = await client.patch(
+            f"http://localhost:8000/api/orders/{order_id}/start"
+        )
+        return response.json()
+
+asyncio.run(create_and_start_order())
 ```
 
-### Rate Limiting
+### cURL Examples
 
-```python
-# Rate limiting configuration
-RATE_LIMITS = {
-    'default': '100/minute',
-    'orders': '50/minute',
-    'emergency': '10/minute'
-}
+```bash
+# Create order
+curl -X POST http://localhost:8000/api/orders \
+  -H "Content-Type: application/json" \
+  -d '{"cups": [{"recipe": "latte", "size": "medium"}]}'
+
+# Get inventory status
+curl http://localhost:8000/api/inventory/status | jq
+
+# Refill coffee beans
+curl -X POST 'http://localhost:8000/api/inventory/refill?ingredient_type=coffee_beans&subtype=regular'
+
+# Get system status
+curl http://localhost:8000/api/system/status | jq
 ```
 
 ## Dependencies
 
-### Core Libraries
-- **FastAPI**: Web framework and API
-- **aio-pika**: Async RabbitMQ client
-- **uvicorn**: ASGI server
-- **websockets**: WebSocket support
+### Core Dependencies
 
-### Development Dependencies
-- **pytest**: Testing framework
-- **pytest-asyncio**: Async testing support
-- **httpx**: HTTP client for testing
+- **FastAPI** (0.104.1): Web framework for HTTP API
+- **Uvicorn** (0.24.0): ASGI server
+- **Pydantic** (2.5.0): Data validation and serialization
+- **aio-pika** (9.3.1): Async RabbitMQ client
+- **pika** (1.3.2): Sync RabbitMQ client (fallback)
+- **python-socketio** (5.13.0): Socket.IO support
+- **httpx** (0.25.0): Async HTTP client for POS proxying
 
----
+### Shared Modules
 
-**Port**: 8000  
-**Technology**: Python + FastAPI + RabbitMQ  
-**Role**: HTTP/WebSocket Gateway  
-**Performance**: High-throughput message translation 
+- `shared.rabbitmq_client`: RabbitMQ client and event listener
+
+## Integration Points
+
+### Downstream Services (Calls To)
+
+1. **OMS Service**
+   - Order CRUD operations
+   - Queue management
+   - Alert management
+   - Emergency stop/resume
+   - **Protocol**: RabbitMQ RPC
+   - **Timeout**: 30 seconds
+
+2. **Validation Service**
+   - Inventory status queries
+   - Inventory refill operations
+   - Category summaries
+   - Stock level statistics
+   - **Protocol**: RabbitMQ RPC
+   - **Timeout**: 30 seconds
+
+3. **Scheduler Service**
+   - Health checks
+   - **Protocol**: RabbitMQ RPC
+   - **Timeout**: 10 seconds
+
+4. **Routine Service**
+   - Health checks
+   - **Protocol**: RabbitMQ RPC
+   - **Timeout**: 10 seconds
+
+5. **Automation Service**
+   - Health checks
+   - **Protocol**: RabbitMQ RPC
+   - **Timeout**: 10 seconds
+
+6. **OMS Direct HTTP** (POS Proxy)
+   - `/pos/process-order`
+   - `/pos/menu-items`
+   - `/pos/ingredients`
+   - **Protocol**: HTTP
+   - **Port**: Internal 8000
+
+### Upstream Services (Receives From)
+
+1. **Dashboard**
+   - All HTTP REST requests
+   - WebSocket connections for real-time updates
+   - **Port**: 8000 (external)
+
+### Event Subscriptions
+
+Subscribes to RabbitMQ events from:
+- `oms.*`: Order lifecycle events
+- `scheduler.*`: Order processing, plan updates
+- `validation.*`: Inventory updates
+- `automation.*`: Automation events
+- `routine.*`: Routine execution events
+
+**Event Handlers:**
+- Order events → Broadcast to WebSocket/Socket.IO
+- Inventory events → Broadcast inventory updates
+- Scheduler events → Broadcast task progress
+
+## Troubleshooting
+
+### RabbitMQ Connection Failed
+
+**Issue**: API Bridge fails to start with RabbitMQ connection error
+
+**Solutions:**
+1. Verify RabbitMQ is running:
+   ```bash
+   docker-compose ps rabbitmq
+   curl http://localhost:15672  # Management UI
+   ```
+
+2. Check RabbitMQ credentials:
+   ```bash
+   docker-compose logs rabbitmq | grep -i "default user"
+   ```
+
+3. Verify network connectivity:
+   ```bash
+   docker exec -it barns-api-bridge ping rabbitmq
+   ```
+
+### Timeout Errors on API Calls
+
+**Issue**: API returns 500 error with timeout message
+
+**Causes:**
+- Target service not running
+- Service overloaded
+- RabbitMQ queue backed up
+
+**Solutions:**
+1. Check target service health:
+   ```bash
+   docker-compose ps
+   docker-compose logs [service-name]
+   ```
+
+2. Increase timeout in code (default 30s):
+   ```python
+   response = await rabbitmq_client.send_request(
+       target_service="oms",
+       action="create_order",
+       timeout=60  # Increase to 60 seconds
+   )
+   ```
+
+### WebSocket Disconnects Frequently
+
+**Issue**: Dashboard loses real-time connection
+
+**Solutions:**
+1. Implement automatic reconnection in dashboard:
+   ```javascript
+   const reconnectWebSocket = () => {
+     const ws = new WebSocket('ws://localhost:8000/ws');
+     ws.onclose = () => {
+       setTimeout(reconnectWebSocket, 3000);
+     };
+   };
+   ```
+
+2. Check network stability and firewall rules
+
+3. Enable WebSocket ping/pong heartbeat
+
+### CORS Errors
+
+**Issue**: Dashboard cannot connect due to CORS
+
+**Solution**: Add dashboard origin to CORS configuration:
+```python
+allow_origins=[
+    "http://your-dashboard-domain:port"
+]
+```
+
+### Event Not Broadcasting
+
+**Issue**: Real-time updates not reaching dashboard
+
+**Debugging:**
+1. Check event listener connection:
+   ```bash
+   docker-compose logs api-bridge | grep "Event"
+   ```
+
+2. Verify RabbitMQ exchange bindings:
+   ```bash
+   # Access RabbitMQ management UI
+   http://localhost:15672
+   # Check barns_events exchange bindings
+   ```
+
+3. Test WebSocket connection:
+   ```javascript
+   const ws = new WebSocket('ws://localhost:8000/ws');
+   ws.onopen = () => console.log('Connected');
+   ws.onmessage = (e) => console.log('Message:', e.data);
+   ```
+
+## Performance Considerations
+
+- **Concurrent Requests**: Handles hundreds of concurrent HTTP requests
+- **WebSocket Connections**: Supports 100+ simultaneous connections
+- **RabbitMQ Connection Pooling**: Single persistent connection per client
+- **Timeout Management**: 30s default, configurable per endpoint
+- **Memory Usage**: ~100MB base + ~1MB per active WebSocket connection
+
+## Security Notes
+
+- No authentication implemented (internal network only)
+- CORS restricted to known dashboard origins
+- RabbitMQ credentials in environment variables
+- All communication over internal Docker network
+- External access only on port 8000
+
+## Future Enhancements
+
+- JWT authentication for API endpoints
+- Rate limiting per client
+- Request/response logging middleware
+- Metrics and monitoring integration
+- GraphQL API layer
+- HTTP/2 support
+- TLS/SSL for production deployments
