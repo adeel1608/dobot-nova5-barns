@@ -11,11 +11,11 @@ import time
 import paho.mqtt.client as mqtt
 import json
 
-async def heat_water(params: dict):
+async def dispnese_hot_water(params: dict):
     """Heat water to specified temperature."""
     target_temp = params.get("target_temp_c", 93)
     volume_ml = params.get("volume_ml", 250)
-    
+    ## Parameter: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
     # Simulate heating process
     await asyncio.sleep(3)
     
@@ -472,9 +472,9 @@ async def coffee_machine(params: dict):
         coffee_t = params.get("coffee_t", 1)
     
     if coffee_t == 1:
-        slot_number = 1
-    elif coffee_t == 2:
         slot_number = 3
+    elif coffee_t == 2:
+        slot_number = 1
     else:
          raise ValueError("Invalid triple shot not supported: {coffee_t}")
         
