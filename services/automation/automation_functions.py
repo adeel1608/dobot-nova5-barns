@@ -981,6 +981,189 @@ async def initialize_frother(params: dict):
             "details": mqtt_response
         }
 
+async def clean_frother(params: dict):
+    """Clean frother using MQTT communication."""
+    # This function ignores params and sends a fixed payload
+    logger.info("Calling clean_frother function")
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        logger.info(f"Connected with code {rc}")
+        client.subscribe("automation/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+    # Fixed payload for cleaning frother
+    payload = json.dumps({"clean_frother": 1})
+    logger.info("Calling MQTT")
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
+    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        logger.error("Failed to connect to MQTT broker")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    # Now send the message to clean frother topic
+    client.publish("automation_clean_frother", payload, qos=1)
+    logger.info(f"Sent: {payload}")
+
+    timeout = params.get("timeout", 120)  # Timeout for clean operation
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        logger.info("Timeout: No response from frother cleaning")
+        return {
+            "success": False,
+            "error": "Timeout: No response from frother cleaning",
+            "message": "Timeout: No response from frother cleaning"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    logger.info(f"[Clean Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": "Successfully cleaned frother",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to clean frother: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
+
+async def rinser_machine(params: dict):
+    """Rinser machine using MQTT communication."""
+    # example params: {"rinser": 1, "timer": 0, "timeout": 300}
+    rinser_state = params.get("rinser", 1)
+    timer = params.get("timer", 0)
+    
+    logger.info(f"Calling rinser machine function with rinser_state: {rinser_state}, timer: {timer}")
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        logger.info(f"Connected with code {rc}")
+        client.subscribe("automation/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+    payload = json.dumps({"rinser": rinser_state, "timer": timer})
+    logger.info("Calling MQTT")
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
+    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        logger.error("Failed to connect to MQTT broker")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_rinser", payload, qos=1)
+    logger.info(f"Sent: {payload}")
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        logger.info("Timeout: No response from rinser machine")
+        return {
+            "success": False,
+            "error": "Timeout: No response from rinser machine",
+            "message": "Timeout: No response from rinser machine"
+        }
+
+    client.loop_stop()
+    client.disconnect()
+
+    logger.info(f"[Rinser Machine] Final response: {json.dumps(response['data'], indent=2)}")
+
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": "Successfully completed rinser operation",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to complete rinser operation: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
+
 async def dispense_ingredient(params: dict):
     """Dispense ingredient using MQTT communication."""
     ingredient = params.get("ingredient", "sauce")
@@ -1079,6 +1262,8 @@ AUTOMATION_FUNCTIONS = {
     "dispense_ice": dispense_ice,
     "froth_milk": froth_milk,
     "initialize_frother": initialize_frother,
+    "clean_frother": clean_frother,
+    "rinser_machine": rinser_machine,
     "automation_test": automation_test,
     # Add more automation functions as needed
 }
