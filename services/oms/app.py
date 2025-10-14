@@ -273,8 +273,10 @@ async def handle_list_orders_mq(data: Dict) -> Dict:
     """Handle list orders requests via RabbitMQ"""
     try:
         status = data.get("status")
-        orders = db.get_orders(status=status)
-        return {"success": True, "orders": orders}
+        limit = data.get("limit")
+        offset = data.get("offset", 0)
+        result = db.get_orders(status=status, limit=limit, offset=offset)
+        return {"success": True, **result}
         
     except Exception as e:
         logger.error(f"Error listing orders via MQ: {e}")
@@ -1078,10 +1080,14 @@ def create_order(order: models.Order):
     return {"order_id": order_id, "status": "queued"}
 
 @app.get("/orders/")
-def list_orders(status: Optional[str] = None):
-    """Retrieve orders, optionally filtered by status."""
-    orders = db.get_orders(status=status)      # fetch from DB (joined with queue info for ordering)
-    return {"orders": orders}
+def list_orders(
+    status: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Number of orders to return"),
+    offset: int = Query(0, ge=0, description="Number of orders to skip")
+):
+    """Retrieve orders with pagination support, optionally filtered by status."""
+    result = db.get_orders(status=status, limit=limit, offset=offset)
+    return result
 
 @app.get("/orders/{order_id}")
 def get_order(order_id: int = Path(..., title="The ID of the order to retrieve")):

@@ -40,6 +40,10 @@ const clearSchedulerStorage = () => {
 export const useDashboardStore = create((set, get) => ({
   // State
   orders: [],
+  ordersTotal: 0,
+  ordersOffset: 0,
+  ordersHasMore: false,
+  ordersPageSize: 15,
   recipes: [],
   menuItems: [],
   ingredientsByCategory: {},
@@ -216,17 +220,24 @@ export const useDashboardStore = create((set, get) => ({
   },
 
   // Order Management
-  fetchOrders: async () => {
-    set(state => ({ 
+  fetchOrders: async (append = false) => {
+    const state = get();
+    const offset = append ? state.ordersOffset : 0;
+    const limit = state.ordersPageSize;
+    
+    set(currentState => ({ 
       isLoading: true, 
-      errors: { ...state.errors, orders: null }
+      errors: { ...currentState.errors, orders: null }
     }));
 
-    const result = await ordersAPI.fetchOrders();
+    const result = await ordersAPI.fetchOrders(limit, offset);
     
     if (result.success) {
       set(state => ({ 
-        orders: result.data, 
+        orders: append ? [...state.orders, ...result.data] : result.data,
+        ordersTotal: result.total,
+        ordersOffset: append ? state.ordersOffset + result.data.length : result.data.length,
+        ordersHasMore: result.hasMore,
         isLoading: false,
         systemStatus: { ...state.systemStatus, oms: 'online' }
       }));
@@ -236,6 +247,7 @@ export const useDashboardStore = create((set, get) => ({
         const processing = (result.data || []).find(o => (o.status || '').toUpperCase() === 'PROCESSING');
         const currentOrderId = processing ? processing.id : null;
         const persistedOrderId = get().schedulerCurrentOrderId || null;
+        
         if (currentOrderId && persistedOrderId && currentOrderId !== persistedOrderId) {
           // A different order began processing → reset until new plan arrives
           set({
@@ -246,6 +258,25 @@ export const useDashboardStore = create((set, get) => ({
             taskTimings: {} // Clear task timings for new order
           });
           clearSchedulerStorage();
+        } else if (!currentOrderId && persistedOrderId) {
+          // No order is currently processing, but we have persisted tasks
+          // Check if the persisted order is in a terminal state
+          const persistedOrder = (result.data || []).find(o => o.id === persistedOrderId);
+          const isTerminalState = persistedOrder && 
+            ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(persistedOrder.status?.toUpperCase());
+          
+          if (isTerminalState) {
+            // Order is complete/failed/stopped - clear tasks to allow new orders
+            console.log(`[Store] Clearing scheduler tasks for completed order ${persistedOrderId}`);
+            set({
+              schedulerCurrentOrderId: null,
+              schedulerTasks: { Arm1: [], Arm2: [] },
+              schedulerTaskStatus: {},
+              schedulerStatusMessage: null,
+              taskTimings: {}
+            });
+            clearSchedulerStorage();
+          }
         }
       } catch {}
       addLog('API', 'info', result.message);
@@ -260,6 +291,16 @@ export const useDashboardStore = create((set, get) => ({
     }
 
     return result.data;
+  },
+
+  loadMoreOrders: async () => {
+    const state = get();
+    if (!state.ordersHasMore || state.isLoading) {
+      return;
+    }
+    
+    addLog('API', 'info', `Loading more orders (offset: ${state.ordersOffset})...`);
+    await get().fetchOrders(true); // true = append mode
   },
 
   createOrder: async (orderData) => {

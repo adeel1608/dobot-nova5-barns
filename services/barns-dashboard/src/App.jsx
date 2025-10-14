@@ -36,14 +36,14 @@ export default function App() {
 
     const setupConnections = async () => {
       try {
-        // Initial data fetching
-        await fetchOrders();
-        await fetchAlerts();
-        await fetchSchedulerStatus();
-        await fetchInventoryStatus();
-
-        // Check all services health
-        await checkSystemHealth();
+        // Initial data fetching - parallel for faster loading
+        await Promise.all([
+          fetchOrders(),
+          fetchAlerts(),
+          fetchSchedulerStatus(),
+          fetchInventoryStatus(),
+          checkSystemHealth()
+        ]);
 
         // Set up WebSocket connections
         connectOrderWS();

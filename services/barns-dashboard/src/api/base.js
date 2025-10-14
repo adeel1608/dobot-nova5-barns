@@ -8,7 +8,7 @@ import { API_CONFIG } from '../utils/config';
 import { extractErrorMessage } from '../utils/errorHandler';
 
 class APIClient {
-  constructor(baseURL = API_CONFIG.API_BASE, defaultTimeout = 10000) {
+  constructor(baseURL = API_CONFIG.API_BASE, defaultTimeout = 5000) {
     this.client = axios.create({
       baseURL,
       timeout: defaultTimeout,
@@ -16,6 +16,10 @@ class APIClient {
         'Content-Type': 'application/json',
       }
     });
+    
+    // Simple cache for GET requests
+    this.cache = new Map();
+    this.cacheTimeout = 3000; // 3 seconds cache
 
     // Request interceptor for logging
     this.client.interceptors.request.use(
@@ -40,6 +44,17 @@ class APIClient {
         return Promise.reject(error);
       }
     );
+  }
+  
+  /**
+   * Clear cache for a specific URL or all cache
+   */
+  clearCache(url = null) {
+    if (url) {
+      this.cache.delete(url);
+    } else {
+      this.cache.clear();
+    }
   }
 
   /**
@@ -71,63 +86,114 @@ class APIClient {
   }
 
   /**
-   * GET request
+   * GET request with caching support
    */
   async get(url, params = {}, options = {}) {
     const operation = `get_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return this.request(
+    
+    // Check cache for GET requests (unless disabled)
+    if (!options.noCache) {
+      const cacheKey = `${url}?${JSON.stringify(params)}`;
+      const cached = this.cache.get(cacheKey);
+      
+      if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+        console.log(`✅ Cache hit: ${url}`);
+        return cached.data;
+      }
+    }
+    
+    const result = await this.request(
       { method: 'GET', url, params, ...options },
       operation,
       options.successMessage
     );
+    
+    // Cache successful GET requests
+    if (result.success && !options.noCache) {
+      const cacheKey = `${url}?${JSON.stringify(params)}`;
+      this.cache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now()
+      });
+    }
+    
+    return result;
   }
 
   /**
-   * POST request
+   * POST request (clears cache on success)
    */
   async post(url, data = {}, options = {}) {
     const operation = `post_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return this.request(
+    const result = await this.request(
       { method: 'POST', url, data, ...options },
       operation,
       options.successMessage
     );
+    
+    // Clear cache on successful mutation
+    if (result.success) {
+      this.clearCache();
+    }
+    
+    return result;
   }
 
   /**
-   * PUT request
+   * PUT request (clears cache on success)
    */
   async put(url, data = {}, options = {}) {
     const operation = `put_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return this.request(
+    const result = await this.request(
       { method: 'PUT', url, data, ...options },
       operation,
       options.successMessage
     );
+    
+    // Clear cache on successful mutation
+    if (result.success) {
+      this.clearCache();
+    }
+    
+    return result;
   }
 
   /**
-   * PATCH request
+   * PATCH request (clears cache on success)
    */
   async patch(url, data = {}, options = {}) {
     const operation = `patch_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return this.request(
+    const result = await this.request(
       { method: 'PATCH', url, data, ...options },
       operation,
       options.successMessage
     );
+    
+    // Clear cache on successful mutation
+    if (result.success) {
+      this.clearCache();
+    }
+    
+    return result;
   }
 
   /**
-   * DELETE request
+   * DELETE request (clears cache on success)
    */
   async delete(url, options = {}) {
     const operation = `delete_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    return this.request(
+    const result = await this.request(
       { method: 'DELETE', url, ...options },
       operation,
       options.successMessage
     );
+    
+    // Clear cache on successful mutation
+    if (result.success) {
+      this.clearCache();
+    }
+    
+    return result;
   }
 
   /**

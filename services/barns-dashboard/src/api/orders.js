@@ -6,13 +6,22 @@
 import { apiClient } from './base';
 
 export const ordersAPI = {
-  // Fetch all orders
-  fetchOrders: () => 
-    apiClient.getList('/orders', {}, 'orders')
+  // Fetch all orders with pagination support
+  fetchOrders: (limit = null, offset = 0) => {
+    const params = {};
+    if (limit !== null) params.limit = limit;
+    if (offset > 0) params.offset = offset;
+    
+    return apiClient.getList('/orders', params, 'orders')
       .then(result => ({
         ...result,
-        data: result.data?.orders || result.data || []
-      })),
+        data: result.data?.orders || result.data || [],
+        total: result.data?.total || 0,
+        limit: result.data?.limit,
+        offset: result.data?.offset || 0,
+        hasMore: result.data?.has_more || false
+      }));
+  },
 
   // Create new order  
   createOrder: (orderData) =>
