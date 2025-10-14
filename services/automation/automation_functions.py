@@ -1251,7 +1251,7 @@ async def dispense_ingredient(params: dict):
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
-    "heat_water": heat_water,
+    "dispnese_hot_water": dispnese_hot_water,
     "dispense_syrup": dispense_syrup,
     "dispense_milk": dispense_milk,
     "dispense_ingredient": dispense_ingredient,
