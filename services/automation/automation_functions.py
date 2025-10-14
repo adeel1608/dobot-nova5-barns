@@ -12,24 +12,114 @@ import paho.mqtt.client as mqtt
 import json
 
 async def dispnese_hot_water(params: dict):
-    """Heat water to specified temperature."""
-    target_temp = params.get("target_temp_c", 93)
-    volume_ml = params.get("volume_ml", 250)
-    ## Parameter: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
-    ## Parameter: {'milk': {1: 260.0}, 'syrups': {2: 5.0, 5: 16.0}, 'cups': {'cup_H12': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_double': 2.0}}
-    # Simulate heating process
-    await asyncio.sleep(3)
+    """Dispense hot water using MQTT communication."""
+    # Parameter example: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
+    logger.info(f"Calling dispense_hot_water function with params:{params}")
     
-    return {
-        "success": True,
-        "message": f"Heated {volume_ml}ml water to {target_temp}°C",
-        "details": {
-            "target_temperature": target_temp,
-            "volume": volume_ml,
-            "actual_temperature": target_temp,
-            "duration_sec": 3
+    # Handle nested cups dictionary format
+    if "cups" in params and isinstance(params["cups"], dict):
+        cups_dict = params["cups"]
+        # Extract cup type from first key (e.g., "cup_H9" or "cup_H12")
+        cup_type = list(cups_dict.keys())[0]
+        
+        # Map cup type to calibration value
+        if "cup_H9" in cup_type.lower():
+            calibration = 2
+        elif "cup_H12" in cup_type.lower():
+            calibration = 1
+        else:
+            # Default to calibration 2 if unknown cup type
+            logger.warning(f"Unknown cup type: {cup_type}, defaulting to calibration 2")
+            calibration = 2
+    else:
+        # Fallback to flat parameter format
+        calibration = params.get("calibration", 2)
+    
+    logger.info(f"Dispensing hot water with calibration={calibration}")
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        logger.info(f"Connected with code {rc}")
+        client.subscribe("automation/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+    payload = json.dumps({"calibration": calibration})
+    logger.info("Calling MQTT")
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
+    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        logger.error("Failed to connect to MQTT broker")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
         }
-    }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine_hot_water", payload, qos=1)
+    logger.info(f"Sent: {payload}")
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        logger.info("Timeout: No response from coffee machine")
+        return {
+            "success": False,
+            "error": "Timeout: No response from coffee machine",
+            "message": "Timeout: No response from coffee machine"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    logger.info(f"[Hot Water Dispense] Final response: {json.dumps(response['data'], indent=2)}")
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully dispensed hot water (calibration={calibration})",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to dispense hot water: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
 
 # Milk Dispenser
 # This function uses MQTT to communicate with the syrup dispenser service.
