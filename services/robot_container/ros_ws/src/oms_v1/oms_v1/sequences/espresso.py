@@ -174,22 +174,12 @@ def unmount(**params) -> bool:
         else:
             print("   ⏭️ Skipping approach step for port_2")
         
-        # Step 3: Mount to the portafilter for secure grip
-        print("🔧 Step 3/13: Mounting to portafilter...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
         mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
         
         if mount_result is False:
             print("[ERROR] Failed to mount to portafilter")
             return False
         print("   ✅ Successfully mounted to portafilter")
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
 
         # Step 4: Close gripper to secure portafilter
         print("🤏 Step 4/13: Securing portafilter with gripper...")
@@ -218,46 +208,14 @@ def unmount(**params) -> bool:
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
-        
-        if port == 'port_1':
-            # Step 7: Rotate portafilter to unlock (-45 degrees)
-            print("🔄 Step 7/13: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_tool", -45.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
-            print("   ✅ Portafilter rotated to unlock position")
-        
-        elif port == 'port_2':
-            # Step 7: Rotate portafilter to unlock (-35 degrees then -10 degrees)
-            print("🔄 Step 7/13: Rotating portafilter to unlock (first rotation)...")
-            rotate_result = run_skill("move_portafilter_arc_tool", -35.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
 
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-
-            # Step 7 continued: Second rotation
-            print("🔄 Step 7/13: Rotating portafilter to unlock (second rotation)...")
-            rotate_result = run_skill("move_portafilter_arc_movJ", -10.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
+        # Step 7: Rotate portafilter to unlock (-45 degrees)
+        print("🔄 Step 7/13: Rotating portafilter to unlock...")
+        rotate_result = run_skill("move_portafilter_arc_movJ", -45.0)
         
-        elif port == 'port_3':
-            # Step 7: Rotate portafilter to unlock (-45 degrees)
-            print("🔄 Step 7/13: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_movJ", -45.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
+        if rotate_result is False:
+            print("[ERROR] Failed to rotate portafilter")
+            return False
 
         sync_result = run_skill("sync")
         if sync_result is False:
@@ -309,15 +267,6 @@ def unmount(**params) -> bool:
             print(f"[ERROR] Invalid below position data: {below_espresso_port} (expected 6 joint angles)")
             return False
         print("   ✅ Below position captured successfully")
-        
-        # Step 12: Move to position below port
-        print("📍 Step 12/13: Moving to position below port...")
-        below_result = run_skill("gotoJ_deg", *port_params['below_port'])
-        
-        if below_result is False:
-            print("[ERROR] Failed to move to position below port")
-            return False
-        print("   ✅ Successfully moved to below port position")
         
         # Step 13: Move back to avoid collisions
         print("⬅️ Step 13/13: Moving back to avoid collisions...")
@@ -740,15 +689,6 @@ def mount(**params) -> bool:
             return False
         print("   ✅ Successfully moved to safe path position")
         
-        # Step 3: Move to position below port
-        print("📍 Step 3/10: Moving to position below port...")
-        below_result = run_skill("gotoJ_deg", *port_params['below_port'])
-        
-        if below_result is False:
-            print("[ERROR] Failed to move to position below port")
-            return False
-        print("   ✅ Successfully moved to below port position")
-        
         # Step 4: Approach the espresso group using captured position
         print(f"🎯 Step 4/10: Approaching espresso group {port_params['group_number']}...")
         if below_espresso_port is None:
@@ -821,45 +761,13 @@ def mount(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
 
-        if port == 'port_1':
-            # Step 7: Rotate portafilter to unlock (45 degrees)
-            print("🔄 Step 7/10: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_tool", 47.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
-            print("   ✅ Portafilter rotated to unlock position")
+        # Step 7: Rotate portafilter to unlock (45 degrees)
+        print("🔄 Step 7/10: Rotating portafilter to unlock...")
+        rotate_result = run_skill("move_portafilter_arc_movJ", 47.0)
         
-        elif port == 'port_2':
-            # Step 7: Rotate portafilter to unlock (10 degrees then 37 degrees)
-            print("🔄 Step 7/10: Rotating portafilter to unlock (first rotation)...")
-            rotate_result = run_skill("move_portafilter_arc_movJ", 10.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
-
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-
-            # Step 7 continued: Second rotation
-            print("🔄 Step 7/10: Rotating portafilter to unlock (second rotation)...")
-            rotate_result = run_skill("move_portafilter_arc_tool", 37.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
-        
-        elif port == 'port_3':
-            # Step 7: Rotate portafilter to unlock (45 degrees)
-            print("🔄 Step 7/10: Rotating portafilter to unlock...")
-            rotate_result = run_skill("move_portafilter_arc_movJ", 47.0)
-            
-            if rotate_result is False:
-                print("[ERROR] Failed to rotate portafilter")
-                return False
+        if rotate_result is False:
+            print("[ERROR] Failed to rotate portafilter")
+            return False
 
         sync_result = run_skill("sync")
         if sync_result is False:
@@ -886,9 +794,6 @@ def mount(**params) -> bool:
                 return False
             print("   ✅ Successfully moved back from portafilter")
 
-            if port == 'port_1':
-                run_skill("sync")
-                run_skill("moveEE", -10, 0, -10, 0, 0, 0)
         else:
             print("   ⏭️ Skipping retreat step for port_2")
         
@@ -1664,6 +1569,7 @@ def return_espresso_pitcher(**params) -> bool:
         print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
         print("[INFO] Pitcher return process terminated due to error")
         return False
+
 
 
 # Register functions for CLI discovery and external access
