@@ -498,6 +498,7 @@ def tamper(**params) -> bool:
     
     Args:
         portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
+        espresso (dict): Espresso configuration to derive portafilter_tool from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if tamping completed successfully, False otherwise
@@ -511,8 +512,12 @@ def tamper(**params) -> bool:
             print("Coffee tamping completed successfully")
     """
     try:
-        # Extract and validate parameters
-        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
+        # Normalize from espresso shot if provided
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate parameters (derived from shot when not explicitly provided)
+        portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter")
         
         # Validate portafilter tool parameter
         if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
@@ -832,6 +837,7 @@ def pick_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher picked successfully, False otherwise
@@ -845,8 +851,12 @@ def pick_espresso_pitcher(**params) -> bool:
             print("Espresso pitcher picked successfully")
     """
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -1412,6 +1422,7 @@ def return_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher returned successfully, False otherwise
@@ -1425,8 +1436,12 @@ def return_espresso_pitcher(**params) -> bool:
             print("Espresso pitcher returned successfully")
     """
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False

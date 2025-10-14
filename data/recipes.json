@@ -21,6 +21,11 @@
       "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
       "depends_on": ["Pour_Espresso", "Espresso"]
+    },
+    {
+      "action": "Mount_Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Clean_Portafilter"]
     }
   ],
   "Americano": [

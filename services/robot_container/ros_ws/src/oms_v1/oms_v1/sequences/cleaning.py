@@ -10,7 +10,7 @@ with precise positioning and error handling.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.espresso import unmount, mount
+from oms_v1.sequences.espresso import unmount, mount, _normalize_espresso_shot
 from oms_v1.params import (
     ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT,
     validate_port, log_step, log_success, log_error, log_info
@@ -26,13 +26,19 @@ def clean_portafilter(**params) -> bool:
       4) soft brush: approach → mount → motion1 → motion2 → retreat_soft
       5) grinder home
     """
-    port = params.get("port", DEFAULT_PORT)
+    # Normalize from espresso shot if provided
+    # New format: {'espresso': {'espresso_shot_double': 2.0}}
+    espresso_dict = params.get("espresso")
+    shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+    # Extract and validate port parameter (derived from shot when not explicitly provided)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else DEFAULT_PORT)
 
     def ok(r):  # minimal check: treat False/None as failure
         return r not in (False, None)
 
-    # 1) Unmount
-    if not ok(unmount(port=port)):
+    # 1) Unmount - pass all params to maintain espresso context
+    if not ok(unmount(**params)):
         return False
 
     # 2) Go to cleaning station home

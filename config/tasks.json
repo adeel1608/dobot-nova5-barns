@@ -334,6 +334,17 @@
       }
     ]
   },
+  "Mount_Portafilter": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
   "Clean_Milk_Pitcher": {
     "steps": [
       {
