@@ -21,11 +21,9 @@ from oms_v1.params import (
 # Global variables to store captured positions during unmount sequence
 below_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_port: Optional[Tuple[float, ...]] = None
+approach_pitcher: Optional[Tuple[float, ...]] = None
 
 
-# -------------------------
-# Normalization helpers
-# -------------------------
 def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
     Parse espresso parameters from new JSON format.
@@ -385,11 +383,11 @@ def grinder(**params) -> bool:
             return False
         print("   ✅ Successfully approached grinder")
         
-        # Step 3: Mount to grinder to activate grinding
-        print("⚙️ Step 3/7: Mounting to grinder for grinding...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 3: Mount to grinder to activate grinding
+        # print("⚙️ Step 3/7: Mounting to grinder for grinding...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         mount_result = run_skill("mount_machine", "espresso_grinder", "grinder")
         if mount_result is False:
@@ -397,11 +395,11 @@ def grinder(**params) -> bool:
             return False
         print("   ✅ Successfully mounted to grinder")
         
-        # Step 4: Approach tamper station
-        print("🎯 Step 4/7: Approaching tamper...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 4: Approach tamper station
+        # print("🎯 Step 4/7: Approaching tamper...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         tamper_approach_result = run_skill("approach_machine", "espresso_grinder", "tamper")
         if tamper_approach_result is False:
@@ -413,11 +411,11 @@ def grinder(**params) -> bool:
         print(f"   ⏰ Allowing positioning time ({positioning_time}s)...")
         time.sleep(positioning_time)
 
-        # Step 5: Mount to grinder again for consistency
-        print("⚙️ Step 5/7: Re-mounting to grinder...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 5: Mount to grinder again for consistency
+        # print("⚙️ Step 5/7: Re-mounting to grinder...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         mount_result2 = run_skill("mount_machine", "espresso_grinder", "grinder")
         if mount_result2 is False:
@@ -425,11 +423,11 @@ def grinder(**params) -> bool:
             return False
         print("   ✅ Successfully re-mounted to grinder")
         
-        # Step 6: Mount to tamper for positioning
-        print("📍 Step 6/7: Positioning at tamper...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 6: Mount to tamper for positioning
+        # print("📍 Step 6/7: Positioning at tamper...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         tamper_mount_result = run_skill("mount_machine", "espresso_grinder", "tamper")
         if tamper_mount_result is False:
@@ -498,7 +496,6 @@ def tamper(**params) -> bool:
     
     Args:
         portafilter_tool (str): Tool type ('single_portafilter' or 'double_portafilter'), defaults to 'single_portafilter'
-        espresso (dict): Espresso configuration to derive portafilter_tool from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if tamping completed successfully, False otherwise
@@ -512,12 +509,8 @@ def tamper(**params) -> bool:
             print("Coffee tamping completed successfully")
     """
     try:
-        # Normalize from espresso shot if provided
-        espresso_dict = params.get("espresso")
-        shot_cfg = _normalize_espresso_shot(espresso_dict)
-
-        # Extract and validate parameters (derived from shot when not explicitly provided)
-        portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter")
+        # Extract and validate parameters
+        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
         
         # Validate portafilter tool parameter
         if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
@@ -577,11 +570,11 @@ def tamper(**params) -> bool:
             return False
         print("   ✅ Tool lifted successfully")
         
-        # Step 4: Mount to grinder for alignment
-        print("⚙️ Step 4/6: Mounting to grinder for alignment...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 4: Mount to grinder for alignment
+        # print("⚙️ Step 4/6: Mounting to grinder for alignment...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         mount_result = run_skill("mount_machine", "espresso_grinder", "grinder")
         if mount_result is False:
@@ -589,11 +582,11 @@ def tamper(**params) -> bool:
             return False
         print("   ✅ Successfully mounted to grinder")
         
-        # Step 5: Approach grinder for final positioning
-        print("🎯 Step 5/6: Approaching grinder for final positioning...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # # Step 5: Approach grinder for final positioning
+        # print("🎯 Step 5/6: Approaching grinder for final positioning...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         approach_result = run_skill("approach_machine", "espresso_grinder", "grinder")
         if approach_result is False:
@@ -837,7 +830,6 @@ def pick_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
-        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher picked successfully, False otherwise
@@ -850,13 +842,10 @@ def pick_espresso_pitcher(**params) -> bool:
         if success:
             print("Espresso pitcher picked successfully")
     """
+    global approach_pitcher
     try:
-        # Normalize from espresso shot if provided
-        espresso_dict = params.get("espresso")
-        shot_cfg = _normalize_espresso_shot(espresso_dict)
-
-        # Extract and validate port parameter (derived from shot when not explicitly provided)
-        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+        # Extract and validate port parameter
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -892,19 +881,18 @@ def pick_espresso_pitcher(**params) -> bool:
         # Step 3: Pick espresso pitcher based on port
         print(f"🤏 Step 3/5: Picking espresso pitcher for {port}...")
         if port == 'port_1':
-            # Port 1 pitcher sequence
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            # # Port 1 pitcher sequence
+            # sync_result = run_skill("sync")
+            # if sync_result is False:
+            #     print("[WARNING] Sync operation failed - continuing...")
             
             approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
             if approach_result is False:
                 print("[ERROR] Failed to approach espresso pitcher 1")
                 return False
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            approach_pitcher = run_skill("current_angles")
             
             mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")
             if mount_result is False:
@@ -928,7 +916,7 @@ def pick_espresso_pitcher(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
+            retreat_result = run_skill("gotoJ_deg", *approach_pitcher)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat from espresso pitcher 1")
                 return False
@@ -936,9 +924,8 @@ def pick_espresso_pitcher(**params) -> bool:
                 
         elif port == 'port_2':
             # Port 2 pitcher sequence
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            approach_pitcher = run_skill("current_angles")
             
             mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")
             if mount_result is False:
@@ -962,7 +949,7 @@ def pick_espresso_pitcher(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            pos_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")
+            pos_result = run_skill("gotoJ_deg", *approach_pitcher)
             if pos_result is False:
                 print("[ERROR] Failed to position for espresso pitcher 2")
                 return False
@@ -970,18 +957,14 @@ def pick_espresso_pitcher(**params) -> bool:
                 
         elif port == 'port_3':
             # Port 3 pitcher sequence
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
             
             move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
             if move1_result is False:
                 print("[ERROR] Failed to move to espresso pitcher 3 position 1")
                 return False
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            approach_pitcher = run_skill("current_angles")
             
             move2_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")
             if move2_result is False:
@@ -1005,7 +988,7 @@ def pick_espresso_pitcher(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
+            retreat_result = run_skill("gotoJ_deg", *approach_pitcher)
             if retreat_result is False:
                 print("[ERROR] Failed to retreat with espresso pitcher 3")
                 return False
@@ -1422,7 +1405,6 @@ def return_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
-        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher returned successfully, False otherwise
@@ -1435,13 +1417,10 @@ def return_espresso_pitcher(**params) -> bool:
         if success:
             print("Espresso pitcher returned successfully")
     """
+    global approach_pitcher
     try:
-        # Normalize from espresso shot if provided
-        espresso_dict = params.get("espresso")
-        shot_cfg = _normalize_espresso_shot(espresso_dict)
-
-        # Extract and validate port parameter (derived from shot when not explicitly provided)
-        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+        # Extract and validate port parameter
+        port = params.get("port", "port_2")  # Default to port_2
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -1461,7 +1440,7 @@ def return_espresso_pitcher(**params) -> bool:
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
             
-            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
+            approach_result = run_skill("gotoJ_deg", *approach_pitcher)
             
             if approach_result is False:
                 print("[ERROR] Failed to approach espresso pitcher 1 return position")
@@ -1584,6 +1563,7 @@ def return_espresso_pitcher(**params) -> bool:
         print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
         print("[INFO] Pitcher return process terminated due to error")
         return False
+
 
 
 
