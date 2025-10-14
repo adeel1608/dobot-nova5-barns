@@ -31,8 +31,8 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
     Expected format: {'espresso_shot_single': 1.0} or {'espresso_shot_double': 2.0}
 
     Rules:
-      - 'espresso_shot_single' -> single shot → port_3, positioning_time=2.0, portafilter_tool=single_portafilter
-      - 'espresso_shot_double' -> double shot → port_1, positioning_time=3.0, portafilter_tool=double_portafilter
+      - 'espresso_shot_single' -> single shot → port_3, positioning_time=4.0, portafilter_tool=single_portafilter
+      - 'espresso_shot_double' -> double shot → port_1, positioning_time=5.0, portafilter_tool=double_portafilter
     """
     try:
         if not espresso_dict or not isinstance(espresso_dict, dict):
@@ -49,13 +49,13 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
         if 'single' in espresso_key_lower:
             return {
                 "port": "port_3",
-                "positioning_time": 2.0,
+                "positioning_time": 4.0,
                 "portafilter_tool": "single_portafilter",
             }
         elif 'double' in espresso_key_lower:
             return {
                 "port": "port_1",
-                "positioning_time": 3.0,
+                "positioning_time": 5.0,
                 "portafilter_tool": "double_portafilter",
             }
         else:
@@ -66,13 +66,13 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
                 if shots <= 1.0:
                     return {
                         "port": "port_3",
-                        "positioning_time": 2.0,
+                        "positioning_time": 4.0,
                         "portafilter_tool": "single_portafilter",
                     }
                 else:
                     return {
                         "port": "port_1",
-                        "positioning_time": 3.0,
+                        "positioning_time": 5.0,
                         "portafilter_tool": "double_portafilter",
                     }
     except Exception as e:
@@ -345,7 +345,7 @@ def grinder(**params) -> bool:
         port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         positioning_time = params.get("positioning_time")
         if positioning_time is None:
-            positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 3.0)
+            positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 5.0)
         portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter")
         if not port:
             print("[ERROR] No port parameter provided")
@@ -830,6 +830,7 @@ def pick_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher picked successfully, False otherwise
@@ -844,8 +845,13 @@ def pick_espresso_pitcher(**params) -> bool:
     """
     global approach_pitcher
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
@@ -1405,6 +1411,7 @@ def return_espresso_pitcher(**params) -> bool:
     
     Args:
         port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
         
     Returns:
         bool: True if espresso pitcher returned successfully, False otherwise
@@ -1419,8 +1426,13 @@ def return_espresso_pitcher(**params) -> bool:
     """
     global approach_pitcher
     try:
-        # Extract and validate port parameter
-        port = params.get("port", "port_2")  # Default to port_2
+        # Normalize from espresso shot if provided
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
         if not port:
             print("[ERROR] No port parameter provided")
             return False
