@@ -438,6 +438,52 @@ function OrderQueue({ connectionStatus }) {
     }
   };
 
+  const handleCalibrateOrder = async () => {
+    try {
+      // Create order using direct cups format since Calibrate is a manual item
+      const calibrateOrder = {
+        cups: [{
+          type: 'Calibrate',
+          size: '9oz',
+          addons: [],
+          ingredients: []
+        }]
+      };
+      
+      const success = await createOrder(calibrateOrder);
+      
+      if (success) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Calibrate Order Created!',
+          text: 'Calibration order has been added to the queue.',
+          timer: 2500,
+          timerProgressBar: true,
+          showConfirmButton: false,
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Failed!',
+          text: 'Could not create calibration order.',
+          timer: 2500,
+          timerProgressBar: true,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating calibrate order:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'An unexpected error occurred while creating calibration order.',
+        timer: 2500,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+    }
+  };
+
   const handleReorderOrder = async (order) => {
     try {
       const cups = (order.cups || []).map(cup => ({
@@ -936,19 +982,28 @@ const handleDeleteOrder = async (orderId) => {
             )}
           </div>
           
-          <h2
-            onClick={() => setShowNewOrder(!showNewOrder)}
-          className={`text-sm rounded font-small transition-colors duration-300  px-4 py-2 cursor-pointer
-            ${
-              showNewOrder
-                ? 'bg-gray-100 text-white hover:bg-gray-200 button-sm'
-                : 'barns-dark-bg text-white hover:barns-bg'
-            }`}
-
-            style={{'color':'white'}}
-          >
-            {showNewOrder ? 'View Orders' : 'New Order'}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2
+              onClick={handleCalibrateOrder}
+              className="text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer barns-dark-bg text-white hover:barns-bg"
+              style={{color:'white'}}
+            >
+              Calibrate
+            </h2>
+            
+            <h2
+              onClick={() => setShowNewOrder(!showNewOrder)}
+              className={`text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer
+                ${
+                  showNewOrder
+                    ? 'bg-gray-100 text-white hover:bg-gray-200 button-sm'
+                    : 'barns-dark-bg text-white hover:barns-bg'
+                }`}
+              style={{color:'white'}}
+            >
+              {showNewOrder ? 'View Orders' : 'New Order'}
+            </h2>
+          </div>
         </div>
         
         {!showNewOrder && (

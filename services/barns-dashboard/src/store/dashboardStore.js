@@ -93,6 +93,15 @@ export const useDashboardStore = create((set, get) => ({
   updateSchedulerTask: ({ cup_id, action, success, message }) => {
     const key = `${cup_id}:${action}`;
     set(state => {
+      // Don't update if order is already completed/failed (frozen state)
+      const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
+      const isFrozenOrder = currentOrder && ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
+      
+      if (isFrozenOrder) {
+        console.log(`[Store] Ignoring task update for frozen order ${state.schedulerCurrentOrderId}`);
+        return state; // Don't update frozen orders
+      }
+      
       const updateList = (list) => list.map(t => {
         if (t.cup_id === cup_id && t.action === action) {
           // Preserve terminal states - don't overwrite completed, failed, or cancelled
@@ -155,6 +164,14 @@ export const useDashboardStore = create((set, get) => ({
       };
     });
     saveSchedulerToStorage(get());
+  },
+
+  // Freeze task state when order completes/fails/stops
+  freezeSchedulerState: () => {
+    const state = get();
+    console.log(`[Store] Freezing scheduler state for order ${state.schedulerCurrentOrderId}`);
+    // Just save current state - it's already frozen by preventing updates in updateSchedulerTask
+    saveSchedulerToStorage(state);
   },
   clearError: (component) => {
     if (component) {
@@ -315,12 +332,17 @@ export const useDashboardStore = create((set, get) => ({
   startOrder: async (orderId) => {
     addLog('API', 'info', `Starting order ${orderId}...`);
     
-    // Check if there are any STOPPED orders and mark them as CANCELLED
+    // Verify no other order is currently processing
+    const state = get();
+    const processingOrder = state.orders.find(o => ['PROCESSING', 'STOPPING'].includes(o.status?.toUpperCase()));
+    if (processingOrder && processingOrder.id !== orderId) {
+      addLog('API', 'error', `Cannot start order ${orderId} - Order ${processingOrder.id} is still ${processingOrder.status}`);
+      return false;
+    }
+    
+    // Optimistic update - mark order as PROCESSING
     set(state => ({
       orders: state.orders.map(order => {
-        if (order.status === 'STOPPED' && order.id !== orderId) {
-          return { ...order, status: 'CANCELLED' };
-        }
         if (order.id === orderId) {
           return { ...order, status: 'PROCESSING', started_at: new Date().toISOString() };
         }

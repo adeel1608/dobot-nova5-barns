@@ -323,40 +323,50 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
                 logger.warning(f"⚠️ Error disconnecting RabbitMQ client: {disconnect_error}")
 
 async def arm_worker(arm_name: str):
-    """Worker thread for a robotic arm that executes tasks when they are ready."""
-    global completed_count, failed_count, order_stopped
-    logger.info(f"🤖 DEBUG: {arm_name} worker started. Total tasks to process: {tasks_total}")
+    """Worker thread for a robotic arm that executes tasks when they are ready.
+    
+    This worker is persistent and handles multiple orders sequentially without exiting.
+    It waits for new tasks when the current order completes.
+    """
+    global completed_count, failed_count, order_stopped, tasks_total
+    logger.info(f"🤖 [SCHEDULER] {arm_name} worker started and ready for orders")
     
     consecutive_no_work_count = 0
-    max_consecutive_no_work = 300  # Increased timeout for better reliability
+    max_idle_before_check = 100  # Check every 10 seconds if idle
     
     while True:
         task = None
-        should_exit = False
+        current_tasks_total = 0
         
         # Find a pending task for this arm with all dependencies satisfied (Cup-Priority Algorithm)
         with lock:
+            current_tasks_total = tasks_total
+            
             # Check if order is stopped
             if order_stopped:
                 # Don't pick up new tasks, but wait for submitted tasks to complete
                 submitted_tasks = [t for t in tasks if t["status"] == "submitted"]
                 if len(submitted_tasks) == 0:
-                    logger.info(f"🛑 {arm_name} worker stopped - no tasks in progress")
-                    should_exit = True
-                else:
-                    logger.info(f"🛑 {arm_name} worker waiting for {len(submitted_tasks)} submitted tasks to complete before stopping")
-                    # Don't pick up new tasks, but don't exit yet
+                    logger.info(f"🛑 {arm_name} worker: order stopped, no tasks in progress - waiting for next order")
                     task = None
-            # Exit when all tasks are either completed or failed (NOT just submitted)
-            elif completed_count + failed_count >= tasks_total:
-                logger.info(f"🤖 DEBUG: {arm_name} worker finished. Completed: {completed_count}, Failed: {failed_count}, Total: {tasks_total}")
-                should_exit = True
-            else:
-                # Per-Arm Cup-Priority Task Selection Algorithm
+                else:
+                    logger.debug(f"🛑 {arm_name} worker waiting for {len(submitted_tasks)} submitted tasks to complete before stopping")
+                    task = None
+            # Check if current order is complete (all tasks done or failed)
+            elif current_tasks_total > 0 and completed_count + failed_count >= current_tasks_total:
+                logger.info(f"🏁 {arm_name} worker: current order complete (Completed: {completed_count}, Failed: {failed_count}, Total: {current_tasks_total}) - waiting for next order")
+                task = None
+                consecutive_no_work_count = 0  # Reset counter when order completes
+            # Active order with tasks to process
+            elif current_tasks_total > 0:
                 task = select_task_with_per_arm_cup_priority(arm_name)
+            # No active order - wait for tasks
+            else:
+                task = None
         
-        if should_exit:
-            break
+        # Never exit - workers are persistent
+        # if should_exit:
+        #     break
             
         if task:
             consecutive_no_work_count = 0  # Reset counter when we have work
@@ -410,35 +420,16 @@ async def arm_worker(arm_name: str):
                 completed_tasks = [t for t in tasks if t["status"] == "done"]
                 failed_tasks_status = [t for t in tasks if t["status"] == "failed"]
                 
-                if consecutive_no_work_count % 50 == 0:  # Log every 5 seconds
-                    logger.info(f"🤖 DEBUG: {arm_name} waiting - Pending: {len(pending_tasks)}, Submitted: {len(submitted_tasks)}, Completed: {len(completed_tasks)}, Failed: {len(failed_tasks_status)}")
-            
-            # Prevent infinite waiting - if we've been waiting too long, check if we should exit
-            if consecutive_no_work_count >= max_consecutive_no_work:
-                with lock:
-                    total_finished = completed_count + failed_count
-                    if total_finished >= tasks_total:
-                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting after waiting - all tasks done")
-                        break
-                    
-                    # Check if there are any tasks left that could potentially be processed
-                    pending_tasks = [t for t in tasks if t["status"] == "pending"]
-                    submitted_tasks = [t for t in tasks if t["status"] == "submitted"]
-                    
-                    if not pending_tasks and not submitted_tasks:
-                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting - no pending or submitted tasks left")
-                        break
-                        
-                    # If there are submitted tasks, continue waiting for them to complete
-                    if submitted_tasks:
-                        logger.info(f"🤖 DEBUG: {arm_name} continuing to wait for {len(submitted_tasks)} submitted tasks to complete")
-                        consecutive_no_work_count = 0  # Reset counter and continue waiting
-                    elif not any(all(dep in completed[t["cup"]] for dep in t["depends_on"]) for t in pending_tasks if t["assigned_arm"] == arm_name):
-                        # No tasks for this arm can be executed due to dependencies
-                        logger.info(f"🤖 DEBUG: {arm_name} worker exiting - no executable tasks for this arm")
-                        break
+                if consecutive_no_work_count % max_idle_before_check == 0:  # Log every 10 seconds when idle
+                    if current_tasks_total > 0:
+                        logger.debug(f"🤖 {arm_name} waiting - Pending: {len(pending_tasks)}, Submitted: {len(submitted_tasks)}, Completed: {len(completed_tasks)}, Failed: {len(failed_tasks_status)}")
                     else:
-                        consecutive_no_work_count = 0  # Reset and continue
+                        logger.debug(f"🤖 {arm_name} idle - waiting for new orders")
+            
+            # Workers are persistent - reset counter periodically to prevent overflow
+            if consecutive_no_work_count >= 10000:  # Reset after ~1000 seconds (16 minutes) of idling
+                consecutive_no_work_count = 0
+                logger.debug(f"🤖 {arm_name} worker still active and waiting for orders")
             
             # Small delay to avoid busy waiting and yield control to event loop
             await asyncio.sleep(0.1)
@@ -862,6 +853,8 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                     with lock:
                         order_completion_notified = True
                     logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+                    # Reset scheduler state after successful notification
+                    await reset_scheduler_state()
                 else:
                     logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
                 
@@ -884,6 +877,35 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     except Exception as e:
         logger.error(f"[SCHEDULER] Error in feedback processing: {e}")
         raise
+
+async def reset_scheduler_state():
+    """Reset scheduler state after order completion to prepare for next order."""
+    global tasks, tasks_by_cup, completed, failed_tasks, failed_count, completed_count
+    global tasks_total, order_completion_notified, order_stopped, per_arm_current_cups, cup_completion_status, cup_data_by_cup
+    
+    with lock:
+        logger.info("🔄 [SCHEDULER] Resetting scheduler state for next order")
+        tasks.clear()
+        tasks_by_cup.clear()
+        completed.clear()
+        failed_tasks.clear()
+        failed_count = 0
+        completed_count = 0
+        tasks_total = 0
+        order_completion_notified = False
+        order_stopped = False
+        per_arm_current_cups.clear()
+        cup_completion_status.clear()
+        cup_data_by_cup.clear()
+        
+        # Keep current_status for debugging, but mark as idle
+        current_status.update({
+            "order_id": None,
+            "status": "idle",
+            "step": None,
+            "cup_index": None
+        })
+        logger.info("✅ [SCHEDULER] State reset complete - ready for next order")
 
 async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
@@ -936,6 +958,8 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+                # Reset scheduler state after successful notification
+                await reset_scheduler_state()
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
             
@@ -961,6 +985,8 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed after {attempt + 1} attempt(s)")
+                # Reset scheduler state after successful notification
+                await reset_scheduler_state()
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
             
@@ -987,6 +1013,8 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+                # Reset scheduler state after successful notification
+                await reset_scheduler_state()
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
 

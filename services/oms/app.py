@@ -914,13 +914,24 @@ async def handle_order_completed_event(data: Dict):
             logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
             return {"success": False, "acknowledged": False, "error": "Missing order_id"}
         
-        # Check if order is already completed to prevent duplicate processing
+        # Check if order exists and get current status
         order = db.get_order(order_id)
-        if order and order.get("status") == ORDER_STATUS['COMPLETED']:
+        if not order:
+            logger.error(f"❌ [OMS] Order {order_id} not found")
+            return {"success": False, "acknowledged": False, "error": f"Order {order_id} not found"}
+        
+        current_status = order.get("status", "").upper()
+        
+        # Check if order is already completed to prevent duplicate processing
+        if current_status == ORDER_STATUS['COMPLETED']:
             logger.warning(f"⚠️ [OMS] Order {order_id} is already COMPLETED. Ignoring duplicate completion event.")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
         
-        logger.info(f"✅ [OMS] Updating order {order_id} status to COMPLETED in database")
+        # Validate state transition - should be PROCESSING or STOPPING
+        if current_status not in ['PROCESSING', 'STOPPING']:
+            logger.warning(f"⚠️ [OMS] Order {order_id} has unexpected status {current_status} when completing. Completing anyway.")
+        
+        logger.info(f"✅ [OMS] Updating order {order_id} status from {current_status} to COMPLETED in database")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
         
         logger.info(f"📡 [OMS] Broadcasting order_completed event to dashboard for order {order_id}")

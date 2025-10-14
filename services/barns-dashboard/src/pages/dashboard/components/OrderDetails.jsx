@@ -43,6 +43,9 @@ export default function OrderDetails() {
   // Use processing order if available, otherwise use last finished order
   const displayedOrder = processingOrder || lastFinishedOrder;
   const isCurrentOrder = !!processingOrder;
+  
+  // Determine if task state is frozen (order completed/failed/stopped)
+  const isTasksFrozen = displayedOrder && ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(displayedOrder.status?.toUpperCase());
 
   // Show task interface if enabled, otherwise show idle message
   if (!showTaskInterface && !displayedOrder) {
@@ -93,8 +96,36 @@ export default function OrderDetails() {
 
   const displayOrder = displayedOrder ? formatOrderForDisplay(displayedOrder) : null;
 
-  // Track task timing - start times and elapsed times
+  // Calculate cup-level progress
+  const cupProgress = React.useMemo(() => {
+    if (!displayedOrder || !displayedOrder.cups) return { completed: 0, total: 0, percentage: 0 };
+    
+    const totalCups = displayedOrder.cups.length;
+    const allTasks = [...(schedulerTasks.Arm1 || []), ...(schedulerTasks.Arm2 || [])];
+    
+    // Group tasks by cup_id
+    const cupTasks = {};
+    allTasks.forEach(task => {
+      if (!cupTasks[task.cup_id]) cupTasks[task.cup_id] = [];
+      cupTasks[task.cup_id].push(task);
+    });
+    
+    // Count completed cups (all tasks for that cup are completed)
+    let completedCups = 0;
+    Object.values(cupTasks).forEach(tasks => {
+      const allCompleted = tasks.length > 0 && tasks.every(t => t.status === 'completed');
+      if (allCompleted) completedCups++;
+    });
+    
+    const percentage = totalCups > 0 ? Math.round((completedCups / totalCups) * 100) : 0;
+    
+    return { completed: completedCups, total: totalCups, percentage };
+  }, [displayedOrder, schedulerTasks]);
+
+  // Track task timing - start times and elapsed times (only for live orders)
   useEffect(() => {
+    if (isTasksFrozen) return; // Don't update timings for frozen orders
+    
     const allTasks = [...(schedulerTasks.Arm1 || []), ...(schedulerTasks.Arm2 || [])];
     const now = Date.now();
     
@@ -115,19 +146,23 @@ export default function OrderDetails() {
         updateTaskTiming(taskKey, { ...existingTiming, elapsedTime: elapsed });
       }
     });
-  }, [schedulerTasks, taskTimings, updateTaskTiming]);
+  }, [schedulerTasks, taskTimings, updateTaskTiming, isTasksFrozen]);
 
-  // Update current time every second for live timers
+  // Update current time every second for live timers (only for live orders)
   useEffect(() => {
+    if (isTasksFrozen) return; // Don't update time for frozen orders
+    
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [isTasksFrozen]);
 
-  // Auto-scroll to in-progress task when it changes (allows manual scrolling between changes)
+  // Auto-scroll to in-progress task when it changes (only for live orders)
   useEffect(() => {
+    if (isTasksFrozen) return; // Don't auto-scroll for frozen orders
+    
     try {
       const arm1 = schedulerTasks.Arm1 || [];
       const arm2 = schedulerTasks.Arm2 || [];
@@ -175,7 +210,7 @@ export default function OrderDetails() {
     } catch (error) {
       // Silently handle any errors in auto-scroll
     }
-  }, [schedulerTasks]);
+  }, [schedulerTasks, isTasksFrozen]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
@@ -204,6 +239,26 @@ export default function OrderDetails() {
 
       {/* Task Management Interface */}
       <div className="flex-1 p-2 sm:p-4 overflow-hidden flex flex-col">
+        {/* Cup Progress Bar */}
+        {cupProgress.total > 0 && (
+          <div className="mb-3 sm:mb-4 flex-shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs sm:text-sm font-medium text-gray-700">
+                Cup Progress: {cupProgress.completed}/{cupProgress.total} Completed
+              </span>
+              <span className="text-xs font-semibold text-gray-600">{cupProgress.percentage}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div 
+                className={`h-2.5 rounded-full transition-all duration-300 ${
+                  cupProgress.percentage === 100 ? 'bg-green-600' : 'bg-blue-600'
+                }`}
+                style={{ width: `${cupProgress.percentage}%` }}
+              ></div>
+            </div>
+          </div>
+        )}
+
         {schedulerStatusMessage && (
           <div className="mb-2 sm:mb-3 text-xs text-gray-500 flex-shrink-0">{schedulerStatusMessage}</div>
         )}

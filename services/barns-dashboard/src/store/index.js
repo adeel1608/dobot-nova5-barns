@@ -38,6 +38,24 @@ export const useWebSocketStore = create((set, get) => ({
             const plan = payload.plan || {};
             const orderId = payload.order_id;
             useDashboardStore.getState().setSchedulerPlan(orderId, plan);
+          } else if (data.event === 'scheduler.order_completed') {
+            // Order completed: freeze task state and refresh orders
+            addLog('WebSocket', 'info', 'Order completed - freezing task state');
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
+          } else if (data.event === 'scheduler.order_failed') {
+            // Order-level failure: mark remaining tasks as cancelled and freeze
+            const payload = data.data || {};
+            const reason = payload.error || 'Order failed';
+            addLog('WebSocket', 'info', `Order failed: ${reason} - freezing task state`);
+            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
+          } else if (data.event === 'scheduler.order_stopped') {
+            // Order stopped: freeze state
+            addLog('WebSocket', 'info', 'Order stopped - freezing task state');
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
           } else if (data.event === 'scheduler.feedback_processed') {
             const payload = data.data || {};
             useDashboardStore.getState().updateSchedulerTask({
@@ -46,11 +64,6 @@ export const useWebSocketStore = create((set, get) => ({
               success: payload.success,
               message: payload.message
             });
-          } else if (data.event === 'scheduler.order_failed') {
-            // Order-level failure: mark remaining tasks as cancelled
-            const payload = data.data || {};
-            const reason = payload.error || 'Order failed';
-            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
           } else if (data.event === 'scheduler.status_update') {
             const payload = data.data || {};
             useDashboardStore.getState().setSchedulerStatusMessage(payload.message, payload.status);

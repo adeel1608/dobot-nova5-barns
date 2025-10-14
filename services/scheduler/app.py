@@ -490,9 +490,13 @@ class SchedulerService:
             if success:
                 logger.info(f"✅ [SCHEDULER] Order {order_id} completed successfully")
                 await self.notify_status(f"Order {order_id} completed successfully")
+                # Ensure order_stopped flag is reset after successful completion
+                scheduler.order_stopped = False
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to process order {order_id}")
                 await self.notify_status(f"Failed to process order {order_id}")
+                # Ensure order_stopped flag is reset after failure
+                scheduler.order_stopped = False
                 
         except Exception as e:
             logger.error(f"SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e}")
