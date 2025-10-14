@@ -16,6 +16,7 @@ async def dispnese_hot_water(params: dict):
     target_temp = params.get("target_temp_c", 93)
     volume_ml = params.get("volume_ml", 250)
     ## Parameter: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
+    ## Parameter: {'milk': {1: 260.0}, 'syrups': {2: 5.0, 5: 16.0}, 'cups': {'cup_H12': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_double': 2.0}}
     # Simulate heating process
     await asyncio.sleep(3)
     
@@ -37,110 +38,136 @@ async def dispnese_hot_water(params: dict):
 # EX: example params: {"pump_number": 9, "amount": 15, "timeout": 300}
 # OR: {"syrups": {3: 45.0}, "timeout": 300}
 async def dispense_syrup(params: dict):
-    """Dispense syrup using MQTT communication."""
-    # example params: {"pump_number": 9, "amount": 15, "timeout": 300}
-    # OR nested format: {"syrups": {3: 45.0}, "timeout": 300} where 3 is pump number (9-23)
+    """Dispense multiple syrups using MQTT communication."""
+    # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
+    # Loops through all pumps in the syrups dictionary
     logger.info(f"Calling dispense_syrup function with params:{params}")
     
-    # Handle nested syrups dictionary format
-    if "syrups" in params and isinstance(params["syrups"], dict):
-        syrups_dict = params["syrups"]
-        # Extract the first key-value pair (pump_number: amount)
-        pump_key = list(syrups_dict.keys())[0]
-        amount = syrups_dict[pump_key]
-        # Convert pump_key to integer (handle both int and string keys)
-        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
-    else:
-        # Fallback to flat parameter format
-        pump_number = params.get("pump_number", 9)
-        amount = params.get("amount", 20)
-    
-    logger.info(f"Dispensing {amount}g from syrup pump {pump_number}")
-    response = {"data": None}
-
-    def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
-        client.subscribe("automation/response", qos=1)
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
-            response["data"] = payload
-        except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
-
-    #
-    payload = json.dumps({"pump_number": pump_number, "amount": amount})
-    logger.info("Calling MQTT")
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.username_pw_set(
-        params.get("username", "admin"), 
-        params.get("password", "admin123")
-    )
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
-    client.connect(mqtt_host, 1883, 60)
-    
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+    # Extract syrups dictionary
+    if "syrups" not in params or not isinstance(params["syrups"], dict):
+        logger.error("No syrups dictionary found in params")
         return {
             "success": False,
-            "error": "Failed to connect to MQTT broker",
-            "message": "Failed to connect to MQTT broker"
+            "error": "No syrups dictionary found in params",
+            "message": "Invalid parameters: syrups dictionary required"
         }
     
-    # Give a moment for subscription to be processed
-    time.sleep(0.5)
+    syrups_dict = params["syrups"]
     
-    # Now send the message
-    client.publish("automation_syrup", payload, qos=1)
-    logger.info(f"Sent: {payload}")
-
-    timeout = params.get("timeout", 90)  # Reduced to allow buffer for routine service
-    start_time = time.time()
-
-    while response["data"] is None and (time.time() - start_time) < timeout:
-        await asyncio.sleep(0.1)
-
-    if response["data"] is None:
-        logger.info("Timeout: No response from dispenser")
-        return {
-            "success": False,
-            "error": "Timeout: No response from dispenser",
-            "message": "Timeout: No response from dispenser"
-        }
-    client.loop_stop()
-    client.disconnect()
-
-    logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
-    
-    # Standardize the response format
-    mqtt_response = response["data"]
-    if mqtt_response.get("status") == "success":
+    if not syrups_dict:
+        logger.info("Empty syrups dictionary, nothing to dispense")
         return {
             "success": True,
-            "message": f"Successfully dispensed {amount}g from syrup pump {pump_number}",
-            "details": mqtt_response
+            "message": "No syrups to dispense",
+            "details": []
+        }
+    
+    # Prepare for loop through all syrups
+    all_results = []
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    username = params.get("username", "admin")
+    password = params.get("password", "admin123")
+    
+    # Loop through each syrup pump
+    for pump_key, amount in syrups_dict.items():
+        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
+        logger.info(f"Dispensing {amount}g from syrup pump {pump_number}")
+        
+        response = {"data": None}
+
+        def on_connect(client, userdata, flags, rc, props=None):
+            logger.info(f"Connected with code {rc}")
+            client.subscribe("automation/response", qos=1)
+
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode())
+                logger.info(f"Response: {json.dumps(payload, indent=2)}")
+                response["data"] = payload
+            except json.JSONDecodeError:
+                logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+        # Create MQTT payload
+        payload = json.dumps({"pump_number": pump_number, "amount": amount})
+        logger.info("Calling MQTT")
+        client = mqtt.Client(protocol=mqtt.MQTTv311)
+        client.username_pw_set(username, password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        
+        # Connect to RabbitMQ MQTT broker
+        logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+        client.connect(mqtt_host, 1883, 60)
+        
+        client.loop_start()
+        
+        # Wait for connection and subscription to be established
+        connection_timeout = 10
+        connection_start = time.time()
+        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+            time.sleep(0.1)
+        
+        if not client.is_connected():
+            logger.error("Failed to connect to MQTT broker")
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": "Failed to connect to MQTT broker"
+            })
+            continue
+        
+        # Give a moment for subscription to be processed
+        time.sleep(0.5)
+        
+        # Send the message
+        client.publish("automation_syrup", payload, qos=1)
+        logger.info(f"Sent: {payload}")
+
+        # Wait indefinitely for response (no timeout)
+        while response["data"] is None:
+            await asyncio.sleep(0.1)
+
+        client.loop_stop()
+        client.disconnect()
+
+        logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
+        
+        # Store result for this pump
+        mqtt_response = response["data"]
+        if mqtt_response.get("status") == "success":
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": True,
+                "message": f"Successfully dispensed {amount}g from syrup pump {pump_number}",
+                "details": mqtt_response
+            })
+        else:
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": mqtt_response.get('error', 'Unknown error'),
+                "details": mqtt_response
+            })
+    
+    # Return combined results
+    all_success = all(result["success"] for result in all_results)
+    
+    if all_success:
+        return {
+            "success": True,
+            "message": f"Successfully dispensed {len(all_results)} syrups",
+            "details": all_results
         }
     else:
+        failed_count = sum(1 for result in all_results if not result["success"])
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to dispense syrup: {mqtt_response.get('error', 'Unknown error')}",
-            "details": mqtt_response
+            "error": f"{failed_count} syrup(s) failed to dispense",
+            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} syrups",
+            "details": all_results
         }
 
 
@@ -252,110 +279,136 @@ async def dispense_ice(params: dict):
 # EX:example params: {"pump_number": 1, "amount": 150, "timeout": 300}
 # OR: {"milk": {'213411': 200.0}, "timeout": 300}
 async def dispense_milk(params: dict):
-    """Dispense milk using MQTT communication."""
-    # example params: {"pump_number": 1, "amount": 150, "timeout": 300}
-    # OR nested format: {"milk": {'213411': 200.0}, "timeout": 300} where key is pump number (1-8)
+    """Dispense multiple milk types using MQTT communication."""
+    # example params: {"milk": {1: 260.0}, ...}
+    # Loops through all pumps in the milk dictionary
     logger.info(f"Calling dispense_milk function with params:{params}")
     
-    # Handle nested milk dictionary format
-    if "milk" in params and isinstance(params["milk"], dict):
-        milk_dict = params["milk"]
-        # Extract the first key-value pair (pump_number: amount)
-        pump_key = list(milk_dict.keys())[0]
-        amount = milk_dict[pump_key]
-        # Convert pump_key to integer (handle both int and string keys)
-        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 1
-    else:
-        # Fallback to flat parameter format
-        pump_number = params.get("pump_number", 1)
-        amount = params.get("amount", 150)
-    
-    logger.info(f"Dispensing {amount}g from milk pump {pump_number}")
-    response = {"data": None}
-
-    def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
-        client.subscribe("automation/response", qos=1)
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
-            response["data"] = payload
-        except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
-
-    #
-    payload = json.dumps({"pump_number": pump_number, "amount": amount})
-    logger.info("Calling MQTT")
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.username_pw_set(
-        params.get("username", "admin"), 
-        params.get("password", "admin123")
-    )
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    # Connect to external MQTT broker for dispensing (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
-    client.connect(mqtt_host, 1883, 60)
-    
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+    # Extract milk dictionary
+    if "milk" not in params or not isinstance(params["milk"], dict):
+        logger.error("No milk dictionary found in params")
         return {
             "success": False,
-            "error": "Failed to connect to MQTT broker",
-            "message": "Failed to connect to MQTT broker"
+            "error": "No milk dictionary found in params",
+            "message": "Invalid parameters: milk dictionary required"
         }
     
-    # Give a moment for subscription to be processed
-    time.sleep(0.5)
+    milk_dict = params["milk"]
     
-    # Now send the message
-    client.publish("automation_milk", payload, qos=1)
-    logger.info(f"Sent: {payload}")
-
-    timeout = params.get("timeout", 90)  # Reduced to allow buffer for routine service
-    start_time = time.time()
-
-    while response["data"] is None and (time.time() - start_time) < timeout:
-        await asyncio.sleep(0.1)
-
-    if response["data"] is None:
-        logger.info("Timeout: No response from dispenser")
-        return {
-            "success": False,
-            "error": "Timeout: No response from dispenser",
-            "message": "Timeout: No response from dispenser"
-        }
-    client.loop_stop()
-    client.disconnect()
-
-    logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
-    
-    # Standardize the response format
-    mqtt_response = response["data"]
-    if mqtt_response.get("status") == "success":
+    if not milk_dict:
+        logger.info("Empty milk dictionary, nothing to dispense")
         return {
             "success": True,
-            "message": f"Successfully dispensed {amount}g from milk pump {pump_number}",
-            "details": mqtt_response
+            "message": "No milk to dispense",
+            "details": []
+        }
+    
+    # Prepare for loop through all milk pumps
+    all_results = []
+    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    username = params.get("username", "admin")
+    password = params.get("password", "admin123")
+    
+    # Loop through each milk pump
+    for pump_key, amount in milk_dict.items():
+        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 1
+        logger.info(f"Dispensing {amount}g from milk pump {pump_number}")
+        
+        response = {"data": None}
+
+        def on_connect(client, userdata, flags, rc, props=None):
+            logger.info(f"Connected with code {rc}")
+            client.subscribe("automation/response", qos=1)
+
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode())
+                logger.info(f"Response: {json.dumps(payload, indent=2)}")
+                response["data"] = payload
+            except json.JSONDecodeError:
+                logger.info(f"Invalid JSON: {msg.payload.decode()}")
+
+        # Create MQTT payload
+        payload = json.dumps({"pump_number": pump_number, "amount": amount})
+        logger.info("Calling MQTT")
+        client = mqtt.Client(protocol=mqtt.MQTTv311)
+        client.username_pw_set(username, password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        
+        # Connect to external MQTT broker for dispensing
+        logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+        client.connect(mqtt_host, 1883, 60)
+        
+        client.loop_start()
+        
+        # Wait for connection and subscription to be established
+        connection_timeout = 10
+        connection_start = time.time()
+        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+            time.sleep(0.1)
+        
+        if not client.is_connected():
+            logger.error("Failed to connect to MQTT broker")
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": "Failed to connect to MQTT broker"
+            })
+            continue
+        
+        # Give a moment for subscription to be processed
+        time.sleep(0.5)
+        
+        # Send the message
+        client.publish("automation_milk", payload, qos=1)
+        logger.info(f"Sent: {payload}")
+
+        # Wait indefinitely for response (no timeout)
+        while response["data"] is None:
+            await asyncio.sleep(0.1)
+
+        client.loop_stop()
+        client.disconnect()
+
+        logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
+        
+        # Store result for this pump
+        mqtt_response = response["data"]
+        if mqtt_response.get("status") == "success":
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": True,
+                "message": f"Successfully dispensed {amount}g from milk pump {pump_number}",
+                "details": mqtt_response
+            })
+        else:
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": mqtt_response.get('error', 'Unknown error'),
+                "details": mqtt_response
+            })
+    
+    # Return combined results
+    all_success = all(result["success"] for result in all_results)
+    
+    if all_success:
+        return {
+            "success": True,
+            "message": f"Successfully dispensed {len(all_results)} milk type(s)",
+            "details": all_results
         }
     else:
+        failed_count = sum(1 for result in all_results if not result["success"])
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to dispense milk: {mqtt_response.get('error', 'Unknown error')}",
-            "details": mqtt_response
+            "error": f"{failed_count} milk dispense(s) failed",
+            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} milk types",
+            "details": all_results
         }
 
 
