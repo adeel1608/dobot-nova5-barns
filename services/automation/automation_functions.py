@@ -605,21 +605,29 @@ async def slush_machine(params: dict):
 async def coffee_machine(params: dict):
     """coffee machine using MQTT communication."""
     # coffee_t is the number of the shots 1,2
+    logger.info(f"[Coffee Machine] Received params: {params}")
+    
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
         espresso_dict = params["espresso"]
+        logger.info(f"[Coffee Machine] Espresso dict found: {espresso_dict}")
         # Extract amount from first value (ignore the key name like "espresso_shot_double")
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+        logger.info(f"[Coffee Machine] Extracted coffee_t: {coffee_t} (type: {type(coffee_t)})")
     else:
         # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 1)
+        coffee_t = params.get("coffee_t", 3)
+        logger.info(f"[Coffee Machine] Using fallback coffee_t: {coffee_t}")
     
     if coffee_t == 1:
         slot_number = 3
     elif coffee_t == 2:
         slot_number = 1
+    elif coffee_t == 3:
+        coffee_t = 1
+        slot_number = 2
     else:
-         raise ValueError("Invalid triple shot not supported: {coffee_t}")
+        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
         
     # slot_number = params.get("slot_number", 1)
     logger.info(f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}")
