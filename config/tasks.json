@@ -480,11 +480,8 @@
       },
       {
         "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-        "coffee_t": 2,
-        "slot_number": 3
-         }
+        "function": "dispnese_hot_water",
+        "params": {}
       },
       {
         "type": "robot",

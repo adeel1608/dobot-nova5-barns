@@ -334,6 +334,17 @@
       }
     ]
   },
+  "Mount_Portafilter": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
   "Clean_Milk_Pitcher": {
     "steps": [
       {
@@ -469,11 +480,8 @@
       },
       {
         "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-        "coffee_t": 2,
-        "slot_number": 3
-         }
+        "function": "dispnese_hot_water",
+        "params": {}
       },
       {
         "type": "robot",
