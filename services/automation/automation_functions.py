@@ -916,7 +916,7 @@ async def automation_test(params: dict):
     """Automation test using MQTT communication."""
     # example params: {"automation_test": 1}
     logger.info("Starting automation test function")
-    time.sleep(100)
+    time.sleep(10)
     logger.info("Ending automation test function")
     return {
         "success": True,

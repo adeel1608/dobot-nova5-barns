@@ -43,7 +43,7 @@ export const useDashboardStore = create((set, get) => ({
   ordersTotal: 0,
   ordersOffset: 0,
   ordersHasMore: false,
-  ordersPageSize: 15,
+  ordersPageSize: 20,
   recipes: [],
   menuItems: [],
   ingredientsByCategory: {},

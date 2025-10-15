@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Set
 import uuid
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -265,13 +265,25 @@ async def create_order(order: OrderCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders")
-async def list_orders(status: Optional[str] = None):
+async def list_orders(
+    status: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
     """List orders with optional status filter"""
     try:
+        request_data = {}
+        if status:
+            request_data["status"] = status
+        if limit is not None:
+            request_data["limit"] = limit
+        if offset:
+            request_data["offset"] = offset
+
         response = await rabbitmq_client.send_request(
             target_service="oms",
             action="list_orders",
-            data={"status": status} if status else {},
+            data=request_data,
             timeout=30
         )
         

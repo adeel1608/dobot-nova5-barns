@@ -478,27 +478,14 @@ def register_status_callback(callback):
 
 def setup_tasks_from_order(order_id: int, drinks: List[Dict[str, Any]], recipes: Dict[str, List[Dict[str, Any]]]):
     """Create task entries for an order received through the API."""
-    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count, per_arm_current_cups, cup_completion_status, order_stopped
+    global tasks, tasks_by_cup, completed, tasks_total, current_status, failed_tasks, failed_count, order_completion_notified, completed_count, per_arm_current_cups, cup_completion_status, order_stopped, cup_data_by_cup
     
     logger.info(f"[SCHEDULER] Setting up tasks for order {order_id} with {len(drinks)} drinks")
     
-    # Reset ALL global variables for the new order to prevent race conditions
-    tasks = []
-    tasks_by_cup = {}
-    completed = {}
-    failed_tasks = []
-    failed_count = 0
-    completed_count = 0  # Reset completed count
-    tasks_total = 0
-    order_completion_notified = False  # Critical: Reset completion notification flag for new order
-    order_stopped = False  # Reset stop flag for new order
-    
-    # Reset per-arm cup priority scheduling data structures
-    per_arm_current_cups = {"Arm1": None, "Arm2": None}
-    cup_completion_status = {}
-    # Reset per-order cup mapping
-    global cup_data_by_cup
-    cup_data_by_cup = {}
+    # Reset ALL state at the START of new order setup to avoid race conditions
+    # This is done synchronously and atomically
+    with lock:
+        reset_scheduler_state_sync()
     
     # Update current status with new order info
     current_status.update({
@@ -853,8 +840,7 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                     with lock:
                         order_completion_notified = True
                     logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
-                    # Reset scheduler state after successful notification
-                    await reset_scheduler_state()
+                    # State will be reset when next order starts
                 else:
                     logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
                 
@@ -878,13 +864,18 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
         logger.error(f"[SCHEDULER] Error in feedback processing: {e}")
         raise
 
-async def reset_scheduler_state():
-    """Reset scheduler state after order completion to prepare for next order."""
+def reset_scheduler_state_sync():
+    """Reset scheduler state synchronously (called at start of new order setup).
+    
+    This function resets the scheduler state in preparation for a new order.
+    It should be called from within setup_tasks_from_order to avoid race conditions.
+    """
     global tasks, tasks_by_cup, completed, failed_tasks, failed_count, completed_count
     global tasks_total, order_completion_notified, order_stopped, per_arm_current_cups, cup_completion_status, cup_data_by_cup
     
-    with lock:
-        logger.info("🔄 [SCHEDULER] Resetting scheduler state for next order")
+    try:
+        logger.info("🔄 [SCHEDULER] Resetting scheduler state for new order")
+        # This function is called from within a lock in setup_tasks_from_order
         tasks.clear()
         tasks_by_cup.clear()
         completed.clear()
@@ -905,7 +896,11 @@ async def reset_scheduler_state():
             "step": None,
             "cup_index": None
         })
-        logger.info("✅ [SCHEDULER] State reset complete - ready for next order")
+        logger.info("✅ [SCHEDULER] State reset complete - ready for new order")
+    except Exception as e:
+        logger.error(f"❌ [SCHEDULER] Error resetting state: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
 async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
@@ -958,8 +953,7 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
-                # Reset scheduler state after successful notification
-                await reset_scheduler_state()
+                # State will be reset when next order starts
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
             
@@ -985,8 +979,7 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed after {attempt + 1} attempt(s)")
-                # Reset scheduler state after successful notification
-                await reset_scheduler_state()
+                # State will be reset when next order starts
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
             
@@ -1013,8 +1006,7 @@ async def check_and_notify_order_completion():
             if notification_success:
                 order_completion_notified = True
                 logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
-                # Reset scheduler state after successful notification
-                await reset_scheduler_state()
+                # State will be reset when next order starts
             else:
                 logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
 
