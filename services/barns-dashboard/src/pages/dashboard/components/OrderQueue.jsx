@@ -320,6 +320,7 @@ function OrderQueue({ connectionStatus }) {
     }]
   });
   const logsEndRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
   // Fetch menu items and ingredients for POS mode
   useEffect(() => {
@@ -633,6 +634,29 @@ const handleDeleteOrder = async (orderId) => {
   const retryFetchOrders = () => {
     clearError('orders');
     useStore.getState().fetchOrders();
+  };
+
+  const handleLoadMore = async () => {
+    // Save current scroll position before loading
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) {
+      await loadMoreOrders();
+      return;
+    }
+
+    const scrollTop = scrollContainer.scrollTop;
+    
+    // Load more orders
+    await loadMoreOrders();
+    
+    // Restore scroll position after React re-renders
+    // Use setTimeout to ensure DOM has fully updated
+    setTimeout(() => {
+      if (scrollContainer) {
+        // Maintain the same scroll position so user stays looking at the same content
+        scrollContainer.scrollTop = scrollTop;
+      }
+    }, 0);
   };
 
   // POS Order Functions
@@ -1056,7 +1080,7 @@ const handleDeleteOrder = async (orderId) => {
 
       {/* Scrollable content area */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto p-4">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4">
           {showNewOrder ? (
             <NewPOSOrderForm
               posOrderData={posOrderData}
@@ -1145,7 +1169,7 @@ const handleDeleteOrder = async (orderId) => {
               {!showNewOrder && filteredOrders.length > 0 && ordersHasMore && (
                 <div className="mt-4 flex justify-center">
                   <button
-                    onClick={loadMoreOrders}
+                    onClick={handleLoadMore}
                     disabled={isLoading}
                     className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
                   >

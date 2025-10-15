@@ -1085,6 +1085,37 @@ def create_order(order: models.Order):
     broadcast({"event": "order_received", "order": order_id, "status": "queued"})
     return {"order_id": order_id, "status": "queued"}
 
+# Order statistics endpoint - MUST come before /orders/{order_id} to avoid path parameter matching
+@app.get("/orders/stats/summary")
+def get_orders_statistics():
+    """Retrieve order statistics across all statuses."""
+    try:
+        stats = {
+            'total': 0,
+            'processing': 0,
+            'queued': 0,
+            'completed': 0,
+            'stopped': 0,
+            'error': 0,
+            'halted': 0,
+            'cancelled': 0,
+            'stopping': 0
+        }
+        
+        # Get counts for each status
+        for status_key, status_value in ORDER_STATUS.items():
+            result = db.get_orders(status=status_value, limit=None, offset=0)
+            count = result.get('total', 0)
+            stats[status_key.lower()] = count
+        
+        # Calculate total (sum of all statuses)
+        stats['total'] = sum(stats.values())
+        
+        return {"stats": stats}
+    except Exception as e:
+        logger.error(f"Error fetching order statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
+
 @app.get("/orders/")
 def list_orders(
     status: Optional[str] = None,

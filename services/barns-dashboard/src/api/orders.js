@@ -99,5 +99,13 @@ export const ordersAPI = {
       .then(result => ({
         ...result,
         data: result.data?.ingredients_by_category || {}
+      })),
+
+  // Fetch order statistics
+  fetchOrderStats: () =>
+    apiClient.getList('/orders/stats/summary', {}, 'order statistics')
+      .then(result => ({
+        ...result,
+        data: result.data || {}
       }))
 }; 

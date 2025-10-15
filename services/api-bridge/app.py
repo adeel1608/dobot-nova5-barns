@@ -296,6 +296,27 @@ async def list_orders(
         logger.error(f"Error listing orders: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/orders/stats/summary")
+async def get_orders_statistics():
+    """Get order statistics - proxied directly to OMS service"""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get("http://oms-service:8000/orders/stats/summary")
+            response.raise_for_status()
+            result = response.json()
+            return {
+                "success": True,
+                "data": result.get("stats", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+    except httpx.HTTPError as e:
+        logger.error(f"Error fetching order statistics from OMS: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching order statistics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/orders/{order_id}")
 async def get_order(order_id: int):
     """Get a specific order by ID"""
