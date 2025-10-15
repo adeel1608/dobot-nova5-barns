@@ -1,4 +1,13 @@
 {
+  "automation_test": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "automation_test",
+        "params": {}
+      }
+    ]
+  },
   "dispense_milk": {
     "steps": [
       {
