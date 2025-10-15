@@ -906,6 +906,7 @@ async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
     global completed_count, failed_count, tasks_total, current_status, order_completion_notified
     
+    # Read state snapshot while holding lock (minimize lock time)
     with lock:
         # Count actual task statuses instead of relying on counters (more reliable)
         completed_tasks = sum(1 for task in tasks if task["status"] == "done")
@@ -914,101 +915,114 @@ async def check_and_notify_order_completion():
         total_finished = completed_tasks + failed_tasks_count + cancelled_tasks
         
         order_id = current_status.get("order_id")
+        current_tasks_total = tasks_total
+        already_notified = order_completion_notified
         
-        logger.info(f"🔍 DEBUG: check_and_notify_order_completion called - order_id={order_id}, completed={completed_tasks}, failed={failed_tasks_count}, cancelled={cancelled_tasks}, total={tasks_total}, notified={order_completion_notified}")
+        logger.info(f"🔍 DEBUG: check_and_notify_order_completion called - order_id={order_id}, completed={completed_tasks}, failed={failed_tasks_count}, cancelled={cancelled_tasks}, total={current_tasks_total}, notified={already_notified}")
         
         # Only proceed if we have an order_id and not already notified
-        if not order_id or order_completion_notified:
-            logger.info(f"🔍 DEBUG: Early return - no order_id ({not order_id}) or already notified ({order_completion_notified})")
+        if not order_id or already_notified:
+            logger.info(f"🔍 DEBUG: Early return - no order_id ({not order_id}) or already notified ({already_notified})")
             return
             
         # If not all tasks are finished and no failures, continue waiting
-        if total_finished < tasks_total and failed_tasks_count == 0:
-            logger.info(f"🔍 DEBUG: Waiting for more tasks - finished({total_finished}) < total({tasks_total}) and no failures")
+        if total_finished < current_tasks_total and failed_tasks_count == 0:
+            logger.info(f"🔍 DEBUG: Waiting for more tasks - finished({total_finished}) < total({current_tasks_total}) and no failures")
             return
         
-        if failed_tasks_count > 0:
-            # Some tasks failed - notify failure
-            failed_task_list = [task for task in tasks if task["status"] == "failed"]
-            failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_task_list]
-            reason = f"Failed tasks: {', '.join(failed_task_names)}"
-            
+        # Get failed task details if needed
+        failed_task_list = [task.copy() for task in tasks if task["status"] == "failed"]
+    
+    # Release lock before doing async operations
+    # Now handle the three cases outside the lock
+    
+    if failed_tasks_count > 0:
+        # Some tasks failed - notify failure
+        failed_task_names = [f"{task['action']} ({task['cup']})" for task in failed_task_list]
+        reason = f"Failed tasks: {', '.join(failed_task_names)}"
+        
+        with lock:
             current_status.update({"status": "error", "step": f"{failed_tasks_count} tasks failed"})
-            await update_status(f"Order {order_id} failed: {failed_tasks_count} out of {tasks_total} tasks failed")
+        await update_status(f"Order {order_id} failed: {failed_tasks_count} out of {current_tasks_total} tasks failed")
+        
+        logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
+        
+        # Retry notification up to 3 times with exponential backoff
+        notification_success = False
+        for attempt in range(3):
+            if attempt > 0:
+                delay = 2 ** attempt  # 2, 4 seconds
+                logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                await asyncio.sleep(delay)
             
-            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} failure")
-            
-            # Retry notification up to 3 times with exponential backoff
-            notification_success = False
-            for attempt in range(3):
-                if attempt > 0:
-                    delay = 2 ** attempt  # 2, 4 seconds
-                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
-                    await asyncio.sleep(delay)
-                
-                notification_success = await notify_oms_completion(order_id, False, reason)
-                if notification_success:
-                    break
-            
+            notification_success = await notify_oms_completion(order_id, False, reason)
             if notification_success:
+                break
+        
+        if notification_success:
+            with lock:
                 order_completion_notified = True
-                logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
-                # State will be reset when next order starts
-            else:
-                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
-            
-        elif completed_tasks == tasks_total:
-            # All tasks completed successfully
-            current_status.update({"status": "completed", "step": None, "cup_index": None})
-            await update_status(f"Order {order_id} completed successfully")
-            
-            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} completion")
-            
-            # Retry notification up to 3 times with exponential backoff
-            notification_success = False
-            for attempt in range(3):
-                if attempt > 0:
-                    delay = 2 ** attempt  # 2, 4 seconds
-                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
-                    await asyncio.sleep(delay)
-                
-                notification_success = await notify_oms_completion(order_id, True)
-                if notification_success:
-                    break
-            
-            if notification_success:
-                order_completion_notified = True
-                logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed after {attempt + 1} attempt(s)")
-                # State will be reset when next order starts
-            else:
-                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
-            
+            logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+            # State will be reset when next order starts
         else:
-            # Unexpected state
-            reason = f"Unexpected state: {completed_tasks} completed, {failed_tasks_count} failed, {cancelled_tasks} cancelled out of {tasks_total} total"
-            current_status.update({"status": "error", "step": reason})
-            await update_status(f"Order {order_id} failed: {reason}")
+            logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
+        
+    elif completed_tasks == current_tasks_total:
+        # All tasks completed successfully
+        with lock:
+            current_status.update({"status": "completed", "step": None, "cup_index": None})
+        await update_status(f"Order {order_id} completed successfully")
+        
+        logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} completion")
+        
+        # Retry notification up to 3 times with exponential backoff
+        notification_success = False
+        for attempt in range(3):
+            if attempt > 0:
+                delay = 2 ** attempt  # 2, 4 seconds
+                logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                await asyncio.sleep(delay)
             
-            logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} unexpected failure")
-            
-            # Retry notification up to 3 times with exponential backoff
-            notification_success = False
-            for attempt in range(3):
-                if attempt > 0:
-                    delay = 2 ** attempt  # 2, 4 seconds
-                    logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
-                    await asyncio.sleep(delay)
-                
-                notification_success = await notify_oms_completion(order_id, False, reason)
-                if notification_success:
-                    break
-            
+            notification_success = await notify_oms_completion(order_id, True)
             if notification_success:
+                break
+        
+        if notification_success:
+            with lock:
                 order_completion_notified = True
-                logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
-                # State will be reset when next order starts
-            else:
-                logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
+            logger.info(f"✅ [SCHEDULER] Order {order_id} completion notification confirmed after {attempt + 1} attempt(s)")
+            # State will be reset when next order starts
+        else:
+            logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} completion after 3 attempts")
+        
+    else:
+        # Unexpected state
+        reason = f"Unexpected state: {completed_tasks} completed, {failed_tasks_count} failed, {cancelled_tasks} cancelled out of {current_tasks_total} total"
+        with lock:
+            current_status.update({"status": "error", "step": reason})
+        await update_status(f"Order {order_id} failed: {reason}")
+        
+        logger.info(f"[SCHEDULER] Notifying OMS of order {order_id} unexpected failure")
+        
+        # Retry notification up to 3 times with exponential backoff
+        notification_success = False
+        for attempt in range(3):
+            if attempt > 0:
+                delay = 2 ** attempt  # 2, 4 seconds
+                logger.warning(f"[SCHEDULER] Retry attempt {attempt + 1}/3 for order {order_id} notification after {delay}s delay")
+                await asyncio.sleep(delay)
+            
+            notification_success = await notify_oms_completion(order_id, False, reason)
+            if notification_success:
+                break
+        
+        if notification_success:
+            with lock:
+                order_completion_notified = True
+            logger.info(f"✅ [SCHEDULER] Order {order_id} failure notification confirmed after {attempt + 1} attempt(s)")
+            # State will be reset when next order starts
+        else:
+            logger.error(f"❌ [SCHEDULER] Failed to notify OMS of order {order_id} failure after 3 attempts")
 
 # Helper function to notify OMS of order completion
 async def notify_oms_completion(order_id: int, success: bool, reason: Optional[str] = None, rabbitmq_client=None) -> bool:

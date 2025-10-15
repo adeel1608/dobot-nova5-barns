@@ -1,7 +1,7 @@
 {
   "Calibrate":[
     {
-      "action": "Calibrate",
+      "action": "automation_test",
       "assigned_arm": "Arm1",
       "depends_on": []
     }
