@@ -18,12 +18,9 @@ Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214
 Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
 
-# -------------------------
-# Normalization helpers
-# -------------------------
-def _normalize_cup_size(cups_dict: Any) -> str:
+def _normalize_paper_cup_size(cups_dict: Any) -> str:
     """
-    Parse cup size from new JSON format.
+    Parse paper cup size from new JSON format.
     
     Expected format: {'cup_H12': 1.0} or {'cup_H7': 1.0}
     Extracts H7/H9/H12 and maps to paper cup sizes (7oz/9oz/12oz).
@@ -67,6 +64,9 @@ def _normalize_cup_size(cups_dict: Any) -> str:
         "h7": "7oz",
         "h9": "9oz",
         "h12": "12oz",
+        "7oz": "7oz",
+        "9oz": "9oz",
+        "12oz": "12oz",
     }
     return mapping.get(s, "7oz")
 
@@ -114,7 +114,7 @@ def grab_paper_cup(**params) -> bool:
         # Extract and validate size parameter
         # New format: {'cups': {'cup_H12': 1.0}}
         cups_dict = params.get("cups", params.get("size"))  # Fallback to old format for compatibility
-        size = _normalize_cup_size(cups_dict if cups_dict else "7oz")
+        size = _normalize_paper_cup_size(cups_dict if cups_dict else "7oz")
         if not size:
             print("[ERROR] No size parameter provided")
             return False
@@ -450,7 +450,7 @@ def pick_paper_cup_station(**params) -> bool:
             return False
 
         # Map H-codes to legacy sizes
-        size_mapped = _normalize_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
+        size_mapped = _normalize_paper_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
 
         # Validate parameters
         valid_stages = ('1', '2', '3', '4')
@@ -685,7 +685,7 @@ def pick_paper_cup_sauces(**params) -> bool:
     try:
         # New format: {'cups': {'cup_H12': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
-        cup_size = _normalize_cup_size(cups_dict) if cups_dict else None
+        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
@@ -745,7 +745,7 @@ def pick_paper_cup_milk(**params) -> bool:
     try:
         # New format: {'cups': {'cup_H12': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
-        cup_size = _normalize_cup_size(cups_dict) if cups_dict else None
+        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False

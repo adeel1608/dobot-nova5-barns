@@ -20,9 +20,9 @@ from oms_v1.params import (
 # -------------------------
 # Normalization helpers
 # -------------------------
-def _normalize_cup_size(cups_dict: Any) -> str:
+def _normalize_plastic_cup_size(cups_dict: Any) -> str:
     """
-    Parse cup size from new JSON format.
+    Parse plastic cup size from new JSON format.
     
     Expected format: {'cup_C16': 1.0} or {'cup_C7': 1.0}
     Extracts C7/C9/C12/C16 and maps to plastic cup sizes (7oz/9oz/12oz/16oz).
@@ -67,6 +67,10 @@ def _normalize_cup_size(cups_dict: Any) -> str:
         "c9": "9oz",
         "c12": "12oz",
         "c16": "16oz",
+        "7oz": "7oz",
+        "9oz": "9oz",
+        "12oz": "12oz",
+        "16oz": "16oz",
     }
     return mapping.get(s, DEFAULT_CUP_SIZE)
 
@@ -113,7 +117,7 @@ def dispense_plastic_cup(**params) -> bool:
         Exception: If unexpected error occurs during cup grabbing process
         
     Example:
-        success = dispense_plastic_cup(cup_size='12oz')
+        success = dispnese_plastic_cup(cup_size='12oz')
         if success:
             print("12oz plastic cup grabbed successfully")
     """
@@ -121,7 +125,7 @@ def dispense_plastic_cup(**params) -> bool:
         # Extract and validate cup size parameter
         # New format: {'cups': {'cup_C16': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
-        cup_size = _normalize_cup_size(cups_dict if cups_dict else DEFAULT_CUP_SIZE)
+        cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_CUP_SIZE)
         if not cup_size or not validate_cup_size(cup_size):
             return False
         
@@ -397,7 +401,7 @@ def get_ice(**params) -> bool:
     try:
         # New format: {'cups': {'cup_C16': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
-        cup_size = _normalize_cup_size(cups_dict)
+        cup_size = _normalize_plastic_cup_size(cups_dict)
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
@@ -679,7 +683,7 @@ def pick_plastic_cup_station(**params) -> bool:
         stage = params.get("stage")
         # New format: {'cups': {'cup_C16': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
-        cup_size = _normalize_cup_size(cups_dict)
+        cup_size = _normalize_plastic_cup_size(cups_dict)
         
         if not stage:
             print("[ERROR] No stage parameter provided")
