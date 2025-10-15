@@ -31,7 +31,7 @@ export const UI_CONFIG = {
   ALERT_REFRESH_INTERVAL: 60000,  // 1 minute
   
   // Timeouts
-  API_TIMEOUT: 10000, // 10 seconds
+  API_TIMEOUT: 5000, // 5 seconds for faster failure
   
   // Pagination
   MAX_LOGS: 1000,

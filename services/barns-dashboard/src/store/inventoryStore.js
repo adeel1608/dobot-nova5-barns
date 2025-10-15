@@ -160,8 +160,8 @@ export const useInventoryStore = create((set, get) => ({
       }));
       addLog('API', 'info', result.message);
       
-      // Also update category summary
-      await get().updateCategorySummary();
+      // Also update category summary (non-blocking)
+      get().updateCategorySummary();
     } else {
       set(state => ({ 
         inventoryStatus: {},

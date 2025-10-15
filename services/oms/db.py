@@ -106,62 +106,103 @@ def save_order(order) -> int:
     finally:
         release_connection(conn)
 
-def get_orders(status: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Retrieve orders from the database, optionally filtered by status.
+def get_orders(status: Optional[str] = None, limit: Optional[int] = None, offset: int = 0) -> Dict[str, Any]:
+    """Retrieve orders from the database, optionally filtered by status with pagination.
+    
+    Optimized with a single JOIN query to avoid N+1 problem.
     
     Args:
         status: Optional status filter
+        limit: Maximum number of orders to return (None for all)
+        offset: Number of orders to skip (for pagination)
         
     Returns:
-        List of order dictionaries
+        Dictionary with 'orders' list, 'total' count, 'limit', and 'offset'
     """
     conn = get_connection()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # First, get total count
             if status:
-                cur.execute(
-                    """
-                    SELECT id, created_at, status, started_at, completed_at, error_message
-                    FROM orders
-                    WHERE status = %s
-                    ORDER BY created_at DESC
-                    """,
-                    (status,)
-                )
+                cur.execute("SELECT COUNT(*) as total FROM orders WHERE status = %s", (status,))
             else:
-                cur.execute(
-                    """
+                cur.execute("SELECT COUNT(*) as total FROM orders")
+            total_count = cur.fetchone()['total']
+            
+            # Build query with pagination
+            pagination_clause = ""
+            params = []
+            
+            if status:
+                where_clause = "WHERE o.status = %s"
+                params.append(status)
+            else:
+                where_clause = ""
+            
+            if limit is not None:
+                pagination_clause = f"LIMIT %s OFFSET %s"
+                params.extend([limit, offset])
+            
+            # Use subquery to limit orders, then join items
+            query = f"""
+                SELECT 
+                    o.id, o.created_at, o.status, o.started_at, o.completed_at, o.error_message,
+                    oi.id as item_id, oi.cup_id, oi.sequence_index, oi.drink_type, 
+                    oi.cup_size, oi.addons, oi.ingredients
+                FROM (
                     SELECT id, created_at, status, started_at, completed_at, error_message
                     FROM orders
+                    {where_clause}
                     ORDER BY created_at DESC
-                    """
-                )
-            orders = cur.fetchall()
+                    {pagination_clause}
+                ) o
+                LEFT JOIN order_items oi ON o.id = oi.order_id
+                ORDER BY o.created_at DESC, oi.sequence_index
+            """
             
-            # Convert to regular dicts and handle datetime serialization
-            result_orders = []
-            for order in orders:
-                order_dict = dict(order)
-                # Convert datetime fields to strings
-                for key, value in order_dict.items():
-                    if isinstance(value, datetime):
-                        order_dict[key] = value.isoformat()
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            
+            # Group items by order_id
+            orders_dict = {}
+            for row in rows:
+                order_id = row['id']
                 
-                # Get order items
-                cur.execute(
-                    """
-                    SELECT id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients
-                    FROM order_items
-                    WHERE order_id = %s
-                    ORDER BY sequence_index
-                    """,
-                    (order_dict['id'],)
-                )
-                cups = cur.fetchall()
-                order_dict['cups'] = [dict(cup) for cup in cups]
-                result_orders.append(order_dict)
+                # Initialize order if not seen before
+                if order_id not in orders_dict:
+                    orders_dict[order_id] = {
+                        'id': order_id,
+                        'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                        'status': row['status'],
+                        'started_at': row['started_at'].isoformat() if row['started_at'] else None,
+                        'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None,
+                        'error_message': row['error_message'],
+                        'cups': []
+                    }
+                
+                # Add cup/item if it exists (LEFT JOIN may have NULL items for orders with no items)
+                if row['item_id'] is not None:
+                    orders_dict[order_id]['cups'].append({
+                        'id': row['item_id'],
+                        'cup_id': row['cup_id'],
+                        'sequence_index': row['sequence_index'],
+                        'drink_type': row['drink_type'],
+                        'cup_size': row['cup_size'],
+                        'addons': row['addons'],
+                        'ingredients': row['ingredients']
+                    })
             
-            return result_orders
+            # Convert to list maintaining order
+            orders_list = list(orders_dict.values())
+            
+            # Return pagination metadata along with orders
+            return {
+                'orders': orders_list,
+                'total': total_count,
+                'limit': limit,
+                'offset': offset,
+                'has_more': (offset + len(orders_list)) < total_count
+            }
     finally:
         release_connection(conn)
 

@@ -38,6 +38,86 @@ export const useWebSocketStore = create((set, get) => ({
             const plan = payload.plan || {};
             const orderId = payload.order_id;
             useDashboardStore.getState().setSchedulerPlan(orderId, plan);
+          } else if (data.event === 'scheduler.order_completed') {
+            // Order completed: freeze task state briefly, then clear for next order
+            addLog('WebSocket', 'info', 'Order completed - will clear tasks for next order');
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
+            
+            // Clear scheduler tasks after a brief delay to allow viewing completion status
+            setTimeout(() => {
+              const state = useDashboardStore.getState();
+              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
+              const isCompleted = currentOrder && 
+                ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
+              
+              if (isCompleted) {
+                addLog('WebSocket', 'info', 'Clearing completed order tasks');
+                // Clear scheduler state to allow new orders
+                useDashboardStore.setState({
+                  schedulerCurrentOrderId: null,
+                  schedulerTasks: { Arm1: [], Arm2: [] },
+                  schedulerTaskStatus: {},
+                  schedulerStatusMessage: null,
+                  taskTimings: {}
+                });
+                // Clear from localStorage
+                window.localStorage.removeItem('barns_scheduler_state_v1');
+              }
+            }, 2000); // 2 second delay
+          } else if (data.event === 'scheduler.order_failed') {
+            // Order-level failure: mark remaining tasks as cancelled and freeze
+            const payload = data.data || {};
+            const reason = payload.error || 'Order failed';
+            addLog('WebSocket', 'info', `Order failed: ${reason} - will clear tasks for next order`);
+            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
+            
+            // Clear scheduler tasks after a brief delay
+            setTimeout(() => {
+              const state = useDashboardStore.getState();
+              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
+              const isFailed = currentOrder && 
+                ['ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
+              
+              if (isFailed) {
+                addLog('WebSocket', 'info', 'Clearing failed order tasks');
+                useDashboardStore.setState({
+                  schedulerCurrentOrderId: null,
+                  schedulerTasks: { Arm1: [], Arm2: [] },
+                  schedulerTaskStatus: {},
+                  schedulerStatusMessage: null,
+                  taskTimings: {}
+                });
+                window.localStorage.removeItem('barns_scheduler_state_v1');
+              }
+            }, 2000);
+          } else if (data.event === 'scheduler.order_stopped') {
+            // Order stopped: freeze state briefly, then clear for next order
+            addLog('WebSocket', 'info', 'Order stopped - will clear tasks for next order');
+            useDashboardStore.getState().freezeSchedulerState();
+            useDashboardStore.getState().fetchOrders();
+            
+            // Clear scheduler tasks after a brief delay
+            setTimeout(() => {
+              const state = useDashboardStore.getState();
+              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
+              const isStopped = currentOrder && 
+                ['ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
+              
+              if (isStopped) {
+                addLog('WebSocket', 'info', 'Clearing stopped order tasks');
+                useDashboardStore.setState({
+                  schedulerCurrentOrderId: null,
+                  schedulerTasks: { Arm1: [], Arm2: [] },
+                  schedulerTaskStatus: {},
+                  schedulerStatusMessage: null,
+                  taskTimings: {}
+                });
+                window.localStorage.removeItem('barns_scheduler_state_v1');
+              }
+            }, 2000);
           } else if (data.event === 'scheduler.feedback_processed') {
             const payload = data.data || {};
             useDashboardStore.getState().updateSchedulerTask({
@@ -46,11 +126,6 @@ export const useWebSocketStore = create((set, get) => ({
               success: payload.success,
               message: payload.message
             });
-          } else if (data.event === 'scheduler.order_failed') {
-            // Order-level failure: mark remaining tasks as cancelled
-            const payload = data.data || {};
-            const reason = payload.error || 'Order failed';
-            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
           } else if (data.event === 'scheduler.status_update') {
             const payload = data.data || {};
             useDashboardStore.getState().setSchedulerStatusMessage(payload.message, payload.status);

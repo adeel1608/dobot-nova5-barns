@@ -273,8 +273,10 @@ async def handle_list_orders_mq(data: Dict) -> Dict:
     """Handle list orders requests via RabbitMQ"""
     try:
         status = data.get("status")
-        orders = db.get_orders(status=status)
-        return {"success": True, "orders": orders}
+        limit = data.get("limit")
+        offset = data.get("offset", 0)
+        result = db.get_orders(status=status, limit=limit, offset=offset)
+        return {"success": True, **result}
         
     except Exception as e:
         logger.error(f"Error listing orders via MQ: {e}")
@@ -914,13 +916,24 @@ async def handle_order_completed_event(data: Dict):
             logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
             return {"success": False, "acknowledged": False, "error": "Missing order_id"}
         
-        # Check if order is already completed to prevent duplicate processing
+        # Check if order exists and get current status
         order = db.get_order(order_id)
-        if order and order.get("status") == ORDER_STATUS['COMPLETED']:
+        if not order:
+            logger.error(f"❌ [OMS] Order {order_id} not found")
+            return {"success": False, "acknowledged": False, "error": f"Order {order_id} not found"}
+        
+        current_status = order.get("status", "").upper()
+        
+        # Check if order is already completed to prevent duplicate processing
+        if current_status == ORDER_STATUS['COMPLETED']:
             logger.warning(f"⚠️ [OMS] Order {order_id} is already COMPLETED. Ignoring duplicate completion event.")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
         
-        logger.info(f"✅ [OMS] Updating order {order_id} status to COMPLETED in database")
+        # Validate state transition - should be PROCESSING or STOPPING
+        if current_status not in ['PROCESSING', 'STOPPING']:
+            logger.warning(f"⚠️ [OMS] Order {order_id} has unexpected status {current_status} when completing. Completing anyway.")
+        
+        logger.info(f"✅ [OMS] Updating order {order_id} status from {current_status} to COMPLETED in database")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
         
         logger.info(f"📡 [OMS] Broadcasting order_completed event to dashboard for order {order_id}")
@@ -1067,10 +1080,14 @@ def create_order(order: models.Order):
     return {"order_id": order_id, "status": "queued"}
 
 @app.get("/orders/")
-def list_orders(status: Optional[str] = None):
-    """Retrieve orders, optionally filtered by status."""
-    orders = db.get_orders(status=status)      # fetch from DB (joined with queue info for ordering)
-    return {"orders": orders}
+def list_orders(
+    status: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Number of orders to return"),
+    offset: int = Query(0, ge=0, description="Number of orders to skip")
+):
+    """Retrieve orders with pagination support, optionally filtered by status."""
+    result = db.get_orders(status=status, limit=limit, offset=offset)
+    return result
 
 @app.get("/orders/{order_id}")
 def get_order(order_id: int = Path(..., title="The ID of the order to retrieve")):

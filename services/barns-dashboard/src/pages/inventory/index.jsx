@@ -31,10 +31,13 @@ const InventoryPage = () => {
   } = useInventoryStore();
 
   useEffect(() => {
-    fetchInventoryStatus();
-    fetchStockLevelData();
-    fetchFullStockSummaryData();
-  }, [fetchInventoryStatus]);
+    // Fetch all inventory data in parallel for faster loading
+    Promise.all([
+      fetchInventoryStatus(),
+      fetchStockLevelData(),
+      fetchFullStockSummaryData()
+    ]);
+  }, [fetchInventoryStatus, fetchStockLevelData, fetchFullStockSummaryData]);
   useEffect(() => {
     const handleConnect = () => {
       console.log('🟢 Socket connected');
