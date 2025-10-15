@@ -17,9 +17,8 @@ from oms_v1.params import MILK_FROTHING_PARAMS
 # These are used to remember positions between function calls for safe return operations
 approach_angles: Optional[Tuple[float, ...]] = None
 grab_angles: Optional[Tuple[float, ...]] = None
-# -------------------------
-# Normalization helpers
-# -------------------------
+
+
 def _normalize_stage(stage_value: Any) -> str:
     """Return stage key as '1'|'2'|'3'|'4' from flexible input (accept 1/1.0/'stage_1' etc.)."""
     if stage_value is None:
@@ -242,11 +241,11 @@ def pick_frother(**params) -> bool:
         active_frother = 'milk_frother_1'
         
         if not approach_result or elapsed_time >= 2.0:
-            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_2...")
-            active_frother = 'milk_frother_2'
-            approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
+            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_1...")
+            active_frother = 'milk_frother_1'
+            approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
             if not approach_result:
-                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_2")
+                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_1")
                 return False
         
         print(f"   ✅ Successfully approached {active_frother}")
@@ -579,16 +578,26 @@ def pour_milk(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = _normalize_stage(params.get("stage", "1"))  # Accept numeric and 'stage_N'
+        raw_stage = params.get("stage", "1")
+        # Convert to string and handle both "1" and "stage_1" formats
+        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
+            stage = raw_stage.split("_")[1]
+        else:
+            stage = str(raw_stage)
+        
         if not stage:
             print("[ERROR] No stage parameter provided")
             return False
         
-        # Validate stage parameter
-        if stage not in ('1', '2', '3', '4'):
+        # Validate stage parameter (accept both '1' and 'stage_1' formats)
+        if stage not in ('1', '2', '3', '4', 'stage_1', 'stage_2', 'stage_3', 'stage_4'):
             print(f"[ERROR] Unknown stage: {stage!r}")
-            print("[INFO] Valid stages: '1', '2', '3', '4'")
+            print("[INFO] Valid stages: '1', '2', '3', '4' or 'stage_1', 'stage_2', 'stage_3', 'stage_4'")
             return False
+        
+        # Normalize to numeric format for comparison
+        if stage.startswith('stage_'):
+            stage = stage.split('_')[1]
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
         print("=" * 50)
@@ -614,7 +623,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -626,7 +635,7 @@ def pour_milk(**params) -> bool:
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 0, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -661,7 +670,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -673,7 +682,7 @@ def pour_milk(**params) -> bool:
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 125, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 125, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -708,7 +717,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -720,7 +729,7 @@ def pour_milk(**params) -> bool:
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 250, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 250, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -755,7 +764,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -767,7 +776,7 @@ def pour_milk(**params) -> bool:
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE", 375, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 375, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
