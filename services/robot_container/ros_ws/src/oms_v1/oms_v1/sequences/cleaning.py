@@ -17,6 +17,11 @@ from oms_v1.params import (
 )
 
 
+# Predefined home positions for cleaning operations
+Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
+Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+
+
 def clean_portafilter(**params) -> bool:
     """
     Very simple cleaning flow:
@@ -37,7 +42,7 @@ def clean_portafilter(**params) -> bool:
     def ok(r):  # minimal check: treat False/None as failure
         return r not in (False, None)
 
-    # 1) Unmount - pass all params to maintain espresso context
+    # # 1) Unmount - pass all params to maintain espresso context
     if not ok(unmount(**params)):
         return False
 
@@ -52,11 +57,11 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['cleaning_motion_1'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_1'])):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['cleaning_motion_2'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_2'])):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_hard'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
         return False
 
     # 4) Soft brush
@@ -64,11 +69,11 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['cleaning_motion_1'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_1'])):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['cleaning_motion_2'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_2'])):
         return False
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
+    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_soft'])):
         return False
 
     # 5) Return to cleaning station home
@@ -76,7 +81,6 @@ def clean_portafilter(**params) -> bool:
         return False
 
     return True
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
