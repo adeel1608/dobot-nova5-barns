@@ -43,7 +43,18 @@ export const useDashboardStore = create((set, get) => ({
   ordersTotal: 0,
   ordersOffset: 0,
   ordersHasMore: false,
-  ordersPageSize: 15,
+  ordersPageSize: 20,
+  orderStats: {
+    total: 0,
+    processing: 0,
+    queued: 0,
+    completed: 0,
+    stopped: 0,
+    error: 0,
+    halted: 0,
+    cancelled: 0,
+    stopping: 0
+  },
   recipes: [],
   menuItems: [],
   ingredientsByCategory: {},
@@ -220,6 +231,19 @@ export const useDashboardStore = create((set, get) => ({
   },
 
   // Order Management
+  fetchOrderStats: async () => {
+    const result = await ordersAPI.fetchOrderStats();
+    
+    if (result.success) {
+      set({ orderStats: result.data });
+      addLog('API', 'info', 'Order statistics updated');
+    } else {
+      addLog('API', 'error', 'Failed to fetch order statistics', result.error);
+    }
+    
+    return result.data;
+  },
+
   fetchOrders: async (append = false) => {
     const state = get();
     const offset = append ? state.ordersOffset : 0;
@@ -280,6 +304,9 @@ export const useDashboardStore = create((set, get) => ({
         }
       } catch {}
       addLog('API', 'info', result.message);
+      
+      // Fetch updated statistics whenever orders are fetched
+      get().fetchOrderStats();
     } else {
       set(state => ({ 
         orders: [],

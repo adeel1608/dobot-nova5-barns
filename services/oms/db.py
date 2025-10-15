@@ -133,8 +133,9 @@ def get_orders(status: Optional[str] = None, limit: Optional[int] = None, offset
             pagination_clause = ""
             params = []
             
+            # WHERE clause for the subquery - use 'orders' table name directly
             if status:
-                where_clause = "WHERE o.status = %s"
+                where_clause = "WHERE status = %s"
                 params.append(status)
             else:
                 where_clause = ""

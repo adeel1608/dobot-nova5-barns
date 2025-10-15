@@ -13,14 +13,32 @@ export const ordersAPI = {
     if (offset > 0) params.offset = offset;
     
     return apiClient.getList('/orders', params, 'orders')
-      .then(result => ({
-        ...result,
-        data: result.data?.orders || result.data || [],
-        total: result.data?.total || 0,
-        limit: result.data?.limit,
-        offset: result.data?.offset || 0,
-        hasMore: result.data?.has_more || false
-      }));
+      .then(result => {
+        const response = result.data || {};
+        const ordersList = Array.isArray(response.orders)
+          ? response.orders
+          : Array.isArray(response)
+            ? response
+            : [];
+        const total = typeof response.total === 'number' ? response.total : ordersList.length;
+        const resolvedLimit = typeof response.limit === 'number' ? response.limit : limit;
+        const resolvedOffset = typeof response.offset === 'number' ? response.offset : offset;
+        const hasMore =
+          typeof response.has_more === 'boolean'
+            ? response.has_more
+            : typeof response.hasMore === 'boolean'
+              ? response.hasMore
+              : (resolvedOffset + ordersList.length) < total;
+
+        return {
+          ...result,
+          data: ordersList,
+          total,
+          limit: resolvedLimit,
+          offset: resolvedOffset,
+          hasMore
+        };
+      });
   },
 
   // Create new order  
@@ -81,5 +99,13 @@ export const ordersAPI = {
       .then(result => ({
         ...result,
         data: result.data?.ingredients_by_category || {}
+      })),
+
+  // Fetch order statistics
+  fetchOrderStats: () =>
+    apiClient.getList('/orders/stats/summary', {}, 'order statistics')
+      .then(result => ({
+        ...result,
+        data: result.data || {}
       }))
 }; 

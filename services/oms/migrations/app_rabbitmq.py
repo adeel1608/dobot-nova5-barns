@@ -174,8 +174,10 @@ class OMSService:
         """Handle order listing requests"""
         try:
             status = data.get("status")
-            orders = db.get_orders(status=status)
-            return {"success": True, "orders": orders}
+            limit = data.get("limit")
+            offset = data.get("offset", 0)
+            result = db.get_orders(status=status, limit=limit, offset=offset)
+            return {"success": True, **result}
         except Exception as e:
             logger.error(f"Error listing orders: {e}")
             return {"success": False, "error": str(e)}

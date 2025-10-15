@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Set
 import uuid
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -265,13 +265,25 @@ async def create_order(order: OrderCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders")
-async def list_orders(status: Optional[str] = None):
+async def list_orders(
+    status: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    offset: int = Query(0, ge=0)
+):
     """List orders with optional status filter"""
     try:
+        request_data = {}
+        if status:
+            request_data["status"] = status
+        if limit is not None:
+            request_data["limit"] = limit
+        if offset:
+            request_data["offset"] = offset
+
         response = await rabbitmq_client.send_request(
             target_service="oms",
             action="list_orders",
-            data={"status": status} if status else {},
+            data=request_data,
             timeout=30
         )
         
@@ -282,6 +294,27 @@ async def list_orders(status: Optional[str] = None):
             
     except Exception as e:
         logger.error(f"Error listing orders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/orders/stats/summary")
+async def get_orders_statistics():
+    """Get order statistics - proxied directly to OMS service"""
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get("http://oms-service:8000/orders/stats/summary")
+            response.raise_for_status()
+            result = response.json()
+            return {
+                "success": True,
+                "data": result.get("stats", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+    except httpx.HTTPError as e:
+        logger.error(f"Error fetching order statistics from OMS: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching order statistics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders/{order_id}")

@@ -56,6 +56,11 @@ export default function useStore() {
     
     // Dashboard state and actions
     orders: dashboard.orders,
+    ordersTotal: dashboard.ordersTotal,
+    ordersOffset: dashboard.ordersOffset,
+    ordersHasMore: dashboard.ordersHasMore,
+    ordersPageSize: dashboard.ordersPageSize,
+    orderStats: dashboard.orderStats,
     recipes: dashboard.recipes,
     menuItems: dashboard.menuItems,
     ingredientsByCategory: dashboard.ingredientsByCategory,
@@ -66,6 +71,8 @@ export default function useStore() {
     schedulerStatusMessage: dashboard.schedulerStatusMessage || null,
     taskTimings: dashboard.taskTimings || {},
     fetchOrders: dashboard.fetchOrders,
+    fetchOrderStats: dashboard.fetchOrderStats,
+    loadMoreOrders: dashboard.loadMoreOrders,
     fetchRecipes: dashboard.fetchRecipes,
     fetchMenuItems: dashboard.fetchMenuItems,
     fetchIngredientsByCategory: dashboard.fetchIngredientsByCategory,

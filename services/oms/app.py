@@ -245,8 +245,8 @@ def register_event_handlers():
 
 # RabbitMQ Message Handlers
 async def handle_create_order_mq(data: Dict) -> Dict:
-    logger.info(data, type(data))
     """Handle create order requests via RabbitMQ"""
+    logger.info(f"Create order data: {data}, Type: {type(data)}")
     try:
         order_data = data.get("order", {})
         order = models.Order(**order_data)  # Validate with Pydantic model
@@ -276,6 +276,7 @@ async def handle_list_orders_mq(data: Dict) -> Dict:
         limit = data.get("limit")
         offset = data.get("offset", 0)
         result = db.get_orders(status=status, limit=limit, offset=offset)
+        # db.get_orders now returns a dict with 'orders', 'total', etc.
         return {"success": True, **result}
         
     except Exception as e:
@@ -310,8 +311,10 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
-            processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
-            stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+            processing_result = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            stopping_result = db.get_orders(status=ORDER_STATUS['STOPPING'])
+            processing = processing_result.get('orders', [])
+            stopping = stopping_result.get('orders', [])
         except Exception as e:
             processing = []
             stopping = []
@@ -327,7 +330,8 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         
         # Cancel any STOPPED orders when starting a new order
         try:
-            stopped_orders = db.get_orders(status=ORDER_STATUS['STOPPED'])
+            stopped_result = db.get_orders(status=ORDER_STATUS['STOPPED'])
+            stopped_orders = stopped_result.get('orders', [])
             for stopped_order in stopped_orders:
                 stopped_id = stopped_order.get('id')
                 if stopped_id != order_id:
@@ -463,8 +467,10 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
-            processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
-            stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+            processing_result = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+            stopping_result = db.get_orders(status=ORDER_STATUS['STOPPING'])
+            processing = processing_result.get('orders', [])
+            stopping = stopping_result.get('orders', [])
         except Exception as e:
             processing = []
             stopping = []
@@ -1079,6 +1085,37 @@ def create_order(order: models.Order):
     broadcast({"event": "order_received", "order": order_id, "status": "queued"})
     return {"order_id": order_id, "status": "queued"}
 
+# Order statistics endpoint - MUST come before /orders/{order_id} to avoid path parameter matching
+@app.get("/orders/stats/summary")
+def get_orders_statistics():
+    """Retrieve order statistics across all statuses."""
+    try:
+        stats = {
+            'total': 0,
+            'processing': 0,
+            'queued': 0,
+            'completed': 0,
+            'stopped': 0,
+            'error': 0,
+            'halted': 0,
+            'cancelled': 0,
+            'stopping': 0
+        }
+        
+        # Get counts for each status
+        for status_key, status_value in ORDER_STATUS.items():
+            result = db.get_orders(status=status_value, limit=None, offset=0)
+            count = result.get('total', 0)
+            stats[status_key.lower()] = count
+        
+        # Calculate total (sum of all statuses)
+        stats['total'] = sum(stats.values())
+        
+        return {"stats": stats}
+    except Exception as e:
+        logger.error(f"Error fetching order statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
+
 @app.get("/orders/")
 def list_orders(
     status: Optional[str] = None,
@@ -1207,8 +1244,10 @@ def start_order(order_id: int, background_tasks: BackgroundTasks):
     """Mark order as processing and send it to Scheduler."""
     # Concurrency guard: allow only one processing/stopping order at a time
     try:
-        processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
-        stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+        processing_result = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        stopping_result = db.get_orders(status=ORDER_STATUS['STOPPING'])
+        processing = processing_result.get('orders', [])
+        stopping = stopping_result.get('orders', [])
     except Exception as e:
         processing = []
         stopping = []
@@ -1384,8 +1423,10 @@ async def resume_order(order_id: int = Path(..., title="The ID of the order to r
     
     # Concurrency guard: allow only one processing/stopping order at a time
     try:
-        processing = db.get_orders(status=ORDER_STATUS['PROCESSING'])
-        stopping = db.get_orders(status=ORDER_STATUS['STOPPING'])
+        processing_result = db.get_orders(status=ORDER_STATUS['PROCESSING'])
+        stopping_result = db.get_orders(status=ORDER_STATUS['STOPPING'])
+        processing = processing_result.get('orders', [])
+        stopping = stopping_result.get('orders', [])
     except Exception as e:
         processing = []
         stopping = []
