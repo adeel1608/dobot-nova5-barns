@@ -136,9 +136,7 @@
       {
           "type": "automation",
           "function": "tampering_machine",
-          "params": {
-          "tampering": 1
-          }
+          "params": {}
       },
       {
           "type": "robot",
@@ -202,9 +200,7 @@
     {
         "type": "automation",
         "function": "tampering_machine",
-        "params": {
-        "tampering": 1
-        }
+        "params": {}
     },
     {
         "type": "robot",
@@ -324,16 +320,19 @@
         "params": {}
       },
       {
+        "type": "automation",
+        "function": "rinser_machine",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "return_frother",
         "params": {}
       },
       {
         "type": "automation",
-        "function": "clean_steam_wand",
-        "params": {
-          "duration": 5
-        }
+        "function": "clean_frother",
+        "params": {}
       }
     ]
   },
@@ -342,6 +341,13 @@
       {
         "type": "robot",
         "function": "clean_portafilter",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "mount",
         "params": {
           "port": "port_2"
         }

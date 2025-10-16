@@ -7,7 +7,7 @@ services:
     container_name: barns-rabbitmq
     ports:
       - "5672:5672"    # AMQP port
-      - "15672:15672"  # Management UI
+      - "15672:15672"  # Management UIf
       - "1883:1883"    # MQTT port      
     environment:
       RABBITMQ_DEFAULT_USER: admin
