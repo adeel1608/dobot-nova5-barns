@@ -827,7 +827,10 @@ def pick_plastic_cup_sauces(**params) -> bool:
         cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
     """
     try:
-        cup_size = params.get("cup_size")
+        # Extract cup size from new format: {'cups': {'cup_C16': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
+        
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
@@ -885,7 +888,10 @@ def pick_plastic_cup_milk(**params) -> bool:
         cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
     """
     try:
-        cup_size = params.get("cup_size")
+        # Extract cup size from new format: {'cups': {'cup_C16': 1.0}}
+        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
+        
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False

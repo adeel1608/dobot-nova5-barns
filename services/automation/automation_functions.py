@@ -395,7 +395,7 @@ async def dispense_milk(params: dict):
     
     # Prepare for loop through all milk pumps
     all_results = []
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     username = params.get("username", "admin")
     password = params.get("password", "admin123")
     
@@ -939,9 +939,35 @@ async def grinding_machine(params: dict):
 # EX: example params: {"tampering": 1}
 async def tampering_machine(params: dict):
     """tampering machine using MQTT communication."""
-    # example params: {"tampering": 1} tampering is 1,2,3 for coffee shots number
-    tampering = params.get("tampering", 1)
-    logger.info("Calling tampering machine function")
+    # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
+    logger.info(f"[Tampering Machine] Received params: {params}")
+    
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        logger.info(f"[Tampering Machine] Espresso dict found: {espresso_dict}")
+        # Extract amount from first value (ignore the key name like "espresso_shot_single")
+        espresso_shots = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+        logger.info(f"[Tampering Machine] Extracted espresso_shots: {espresso_shots} (type: {type(espresso_shots)})")
+    else:
+        # Fallback to flat parameter format
+        espresso_shots = params.get("tampering", 1)
+        logger.info(f"[Tampering Machine] Using fallback espresso_shots: {espresso_shots}")
+    
+    # Map espresso shots to calibration
+    # If espresso = 1, send tampering: 1, calibration: 1
+    # If espresso = 2, send tampering: 1, calibration: 2
+    tampering = 1  # Always 1
+    if espresso_shots == 1:
+        calibration = 1
+    elif espresso_shots == 2:
+        calibration = 2
+    else:
+        # Default to calibration 1 if unknown shot count
+        logger.warning(f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1")
+        calibration = 1
+    
+    logger.info(f"Calling tampering machine function with tampering={tampering}, calibration={calibration}")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -956,7 +982,7 @@ async def tampering_machine(params: dict):
         except json.JSONDecodeError:
             logger.info(f"Invalid JSON: {msg.payload.decode()}")
 
-    payload = json.dumps({"tampering": tampering})
+    payload = json.dumps({"tampering": tampering, "calibration": calibration})
     logger.info("Calling MQTT")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
@@ -1009,13 +1035,13 @@ async def tampering_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[tampering Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    logger.info(f"[Tampering Machine] Final response: {json.dumps(response['data'], indent=2)}")
 
     mqtt_response = response["data"]
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": "Successfully completed tampering operation",
+            "message": f"Successfully completed tampering operation (calibration={calibration})",
             "details": mqtt_response
         }
     else:
@@ -1093,7 +1119,7 @@ async def froth_milk(params: dict):
     client.on_message = on_message
     
     # Connect to external MQTT broker for frother (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
     client.connect(mqtt_host, 1883, 60)
     
@@ -1185,7 +1211,7 @@ async def initialize_frother(params: dict):
     client.on_message = on_message
     
     # Connect to external MQTT broker for frother (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
     client.connect(mqtt_host, 1883, 60)
     
@@ -1469,7 +1495,7 @@ async def dispense_ingredient(params: dict):
     client.on_message = on_message
     
     # Connect to external MQTT broker for dispensing (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.233")  # Use external MQTT broker
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
     client.connect(mqtt_host, 1883, 60)
     

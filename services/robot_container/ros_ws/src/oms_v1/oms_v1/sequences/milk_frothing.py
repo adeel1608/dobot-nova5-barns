@@ -443,6 +443,10 @@ def mount_frother(**params) -> bool:
             return False
         print("   ✅ Frother successfully mounted to steam wand")
         
+        run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
+        
         # Final success summary
         print("=" * 50)
         print("✅ MILK FROTHER MOUNTING COMPLETED SUCCESSFULLY")
@@ -861,6 +865,8 @@ def clean_milk_pitcher(**params) -> bool:
             return False
         print("✅ Frother cleaning movement completed")
         return True
+        if run_skill("sync") is False:
+            print("[WARNING] Sync operation failed - continuing...")
     except Exception as e:
         print(f"[ERROR] Unexpected error during frother cleaning: {e}")
         return False

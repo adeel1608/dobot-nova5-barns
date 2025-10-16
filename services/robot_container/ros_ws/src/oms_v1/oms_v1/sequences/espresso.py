@@ -514,8 +514,17 @@ def tamper(**params) -> bool:
             print("Coffee tamping completed successfully")
     """
     try:
-        # Extract and validate parameters
-        portafilter_tool = params.get("portafilter_tool", "double_portafilter")  # Default to double_portafilter
+        # Extract and normalize parameters from espresso shot configuration
+        # New format: {'espresso': {'espresso_shot_single': 1.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+        
+        # Allow explicit overrides, else derive from shot config, else fall back to default
+        portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter")
+        
+        print(f"[DEBUG tamper] espresso_dict: {espresso_dict}")
+        print(f"[DEBUG tamper] shot_cfg: {shot_cfg}")
+        print(f"[DEBUG tamper] portafilter_tool resolved to: {portafilter_tool}")
         
         # Validate portafilter tool parameter
         if portafilter_tool not in ('single_portafilter', 'double_portafilter'):

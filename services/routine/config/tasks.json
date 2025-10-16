@@ -340,6 +340,13 @@
         "params": {
           "port": "port_2"
         }
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
       }
     ]
   },
