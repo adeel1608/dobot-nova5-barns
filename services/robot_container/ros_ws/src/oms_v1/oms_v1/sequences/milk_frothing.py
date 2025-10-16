@@ -627,7 +627,7 @@ def pour_milk(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 20, 0, 0, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
