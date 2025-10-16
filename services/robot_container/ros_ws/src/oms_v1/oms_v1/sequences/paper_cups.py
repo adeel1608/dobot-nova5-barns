@@ -302,10 +302,13 @@ def place_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = _normalize_stage(params.get("stage", "stage_1"))  # Accept numeric or prefixed
-        if not stage:
-            print("[ERROR] No stage parameter provided")
+        try:
+            stage = _normalize_stage(params.get("stage", "1"))  # Default to stage 1
+        except Exception as e:
+            print(f"[ERROR] Failed to normalize stage: {e}")
             return False
+        if not stage:
+            stage = "stage_1"  # Final fallback
             
         stage_params = PLACE_PAPER_CUP_PARAMS.get(str(stage))
         
@@ -468,10 +471,9 @@ def pick_paper_cup_station(**params) -> bool:
     """
     try:
         # Extract and validate parameters
-        raw_stage = params.get("stage")
+        raw_stage = params.get("stage", "1")  # Default to stage 1
         if raw_stage is None:
-            print("[ERROR] No stage parameter provided")
-            return False
+            raw_stage = "1"
 
         # Normalize stage to '1'..'4'
         stage = None
@@ -508,9 +510,10 @@ def pick_paper_cup_station(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
+        # Default to 12oz if no cup size provided
         if not cups_dict:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
 
         # Map H-codes to legacy sizes
         size_mapped = _normalize_paper_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
@@ -623,10 +626,9 @@ def place_paper_cup_station(**params) -> bool:
         stage (str|int|float): Target staging area ('1','2','3','4', also accepts numeric 1.0 etc.)
     """
     try:
-        raw_stage = params.get("stage")
+        raw_stage = params.get("stage", "1")  # Default to stage 1
         if raw_stage is None:
-            print("[ERROR] No stage parameter provided")
-            return False
+            raw_stage = "1"
 
         # Normalize stage to '1'..'4'
         stage = None
@@ -769,12 +771,13 @@ def pick_paper_cup_sauces(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
-        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
-        print(f"[DEBUG pick_sauces] Final normalized size: {cup_size}")
+        # Default to 12oz if no cup size provided
+        if not cups_dict:
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
         
-        if not cup_size:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+        cup_size = _normalize_paper_cup_size(cups_dict)
+        print(f"[DEBUG pick_sauces] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -851,12 +854,13 @@ def pick_paper_cup_milk(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
-        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
-        print(f"[DEBUG pick_milk] Final normalized size: {cup_size}")
+        # Default to 12oz if no cup size provided
+        if not cups_dict:
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
         
-        if not cup_size:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+        cup_size = _normalize_paper_cup_size(cups_dict)
+        print(f"[DEBUG pick_milk] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
