@@ -27,13 +27,14 @@ MILK_MAPPINGS = {
 
 SYRUP_MAPPINGS = {
     "white_chocolate": 1,
-    "caramel": 2,
+    "caramel_sauce": 2,
     "condense_milk": 3,
     "hazelnut": 4,
     "vanilla": 5,
     "peach_iced_tea": 7,
     "passion_fruit_puree": 8,
     "ice_tea": 9,
+    "caramel_syrup": 10,
 }
 
 
