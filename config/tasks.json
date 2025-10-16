@@ -99,6 +99,11 @@
   "Calibrate": {
     "steps": [
       {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "get_machine_position",
         "params": {}
@@ -471,6 +476,11 @@
   },
   "Place_Cup_Station": {
     "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
       {
         "type": "robot",
         "function": "place_plastic_cup_station",
