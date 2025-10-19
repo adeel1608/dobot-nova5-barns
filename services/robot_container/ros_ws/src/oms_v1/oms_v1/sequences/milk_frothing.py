@@ -831,7 +831,7 @@ def clean_frother(**params) -> bool:
         if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
             print("[ERROR] Failed to reach clean pose 2")
             return False
-        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+        if run_skill("gotoJ_deg", -41.573661,-76.672646,-32.795681,-69.155561,-133.040317,-170.196225) is False:
             print("[ERROR] Failed to reach clean pose 3")
             return False
         if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:

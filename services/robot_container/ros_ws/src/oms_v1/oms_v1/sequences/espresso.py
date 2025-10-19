@@ -947,13 +947,14 @@ def pick_espresso_pitcher(**params) -> bool:
                 return False
             print("   ✅ Successfully picked espresso pitcher 3")
         
-        # Step 4: Move to final position
-        print("📍 Step 4/5: Moving to final holding position...")
-        final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
-        if final_result is False:
-            print("[ERROR] Failed to move to final position")
-            return False
-        print("   ✅ Successfully moved to final holding position")
+        if port == 'port_1' or port == 'port_2':
+            # Step 4: Move to final position
+            print("📍 Step 4/5: Moving to final holding position...")
+            final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
+            if final_result is False:
+                print("[ERROR] Failed to move to final position")
+                return False
+            print("   ✅ Successfully moved to final holding position")
         
         # Final success summary
         print("=" * 50)
