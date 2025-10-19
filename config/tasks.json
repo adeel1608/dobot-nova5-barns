@@ -297,6 +297,11 @@
           "type": "robot",
           "function": "unmount_and_swirl_milk",
           "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "clean_frother",
+          "params": {}
         }
     ]
   },
@@ -308,11 +313,6 @@
         "params": {
           "stage": "1"
         }
-      },
-      {
-        "type": "automation",
-        "function": "clean_frother",
-        "params": {}
       }
     ]
   },
