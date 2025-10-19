@@ -42,9 +42,9 @@ def clean_portafilter(**params) -> bool:
     def ok(r):  # minimal check: treat False/None as failure
         return r not in (False, None)
 
-    # # 1) Unmount - pass all params to maintain espresso context
-    if not ok(unmount(**params)):
-        return False
+    # # # 1) Unmount - pass all params to maintain espresso context
+    # if not ok(unmount(**params)):
+    #     return False
 
     # 2) Go to cleaning station home
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):

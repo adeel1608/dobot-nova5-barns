@@ -340,6 +340,13 @@
     "steps": [
       {
         "type": "robot",
+        "function": "unmount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
         "function": "clean_portafilter",
         "params": {
           "port": "port_2"
@@ -369,10 +376,23 @@
     "steps": [
       {
         "type": "robot",
-        "function": "clean_milk_pitcher",
-        "params": {
-          "port": "port_2"
-        }
+        "function": "clean_frother",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "rinser_machine",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "return_frother",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "clean_frother",
+        "params": {}
       }
     ]
   },
