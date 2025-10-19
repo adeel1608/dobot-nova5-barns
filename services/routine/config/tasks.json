@@ -99,11 +99,6 @@
   "Calibrate": {
     "steps": [
       {
-        "type": "validation",
-        "function": "cup_detection",
-        "params": {}
-      },
-      {
         "type": "robot",
         "function": "get_machine_position",
         "params": {}
@@ -136,9 +131,7 @@
       {
           "type": "automation",
           "function": "tampering_machine",
-          "params": {
-          "tampering": 1
-          }
+          "params": {}
       },
       {
           "type": "robot",
@@ -202,9 +195,7 @@
     {
         "type": "automation",
         "function": "tampering_machine",
-        "params": {
-        "tampering": 1
-        }
+        "params": {}
     },
     {
         "type": "robot",
@@ -324,16 +315,19 @@
         "params": {}
       },
       {
+        "type": "automation",
+        "function": "rinser_machine",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "return_frother",
         "params": {}
       },
       {
         "type": "automation",
-        "function": "clean_steam_wand",
-        "params": {
-          "duration": 5
-        }
+        "function": "clean_frother",
+        "params": {}
       }
     ]
   },
@@ -452,7 +446,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "pick_plastic_cup_sauces",
+        "function": "pick_paper_cup_sauces",
         "params": {
           "cup_size": "7oz"
         }
@@ -463,7 +457,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "place_plastic_cup_sauces",
+        "function": "place_paper_cup_sauces",
         "params": {
           "stage": "1"
         }
@@ -474,7 +468,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "pick_plastic_cup_station",
+        "function": "pick_paper_cup_station",
         "params": {
           "cup_size": "7oz"
         }
@@ -485,7 +479,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "place_plastic_cup_station",
+        "function": "place_paper_cup_station",
         "params": {
           "stage": "1"
         }
