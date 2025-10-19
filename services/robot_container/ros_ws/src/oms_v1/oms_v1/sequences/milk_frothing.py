@@ -823,35 +823,6 @@ def pour_milk(**params) -> bool:
         print("[INFO] Milk pouring process terminated due to error")
         return False
 
-def clean_frother(**params) -> bool:
-    """
-    Perform a cleaning motion for the frother tool.
-
-    Returns:
-        bool: True on successful cleaning movement sequence, False otherwise.
-    """
-    try:
-        print("🧽 Cleaning frother motion sequence...")
-        if run_skill("gotoJ_deg", -37.858528,-39.202564,-84.331383,-67.038254,-75.938263,-12.405199) is False:
-            print("[ERROR] Failed to reach clean pose 1")
-            return False
-        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
-            print("[ERROR] Failed to reach clean pose 2")
-            return False
-        if run_skill("gotoJ_deg", -41.573661,-76.672646,-32.795681,-69.155561,-133.040317,-170.196225) is False:
-            print("[ERROR] Failed to reach clean pose 3")
-            return False
-        if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
-            print("[ERROR] Failed to execute cleaning motion")
-            return False
-        if run_skill("sync") is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        print("✅ Frother cleaning movement completed")
-        return True
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during frother cleaning: {e}")
-        return False
-
 def clean_milk_pitcher(**params) -> bool:
     """
     Perform a cleaning motion for the frother tool.
@@ -867,7 +838,7 @@ def clean_milk_pitcher(**params) -> bool:
         if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
             print("[ERROR] Failed to reach clean pose 2")
             return False
-        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+        if run_skill("gotoJ_deg", -41.573661,-76.672646,-32.795681,-69.155561,-133.040317,-170.196225) is False:
             print("[ERROR] Failed to reach clean pose 3")
             return False
         if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
@@ -941,7 +912,7 @@ SEQUENCES = {
     'pour_milk': pour_milk,
     'return_frother': return_frother,
     'mount_frother': mount_frother,
-    'clean_frother': clean_frother,
+    'clean_milk_pitcher': clean_milk_pitcher,
     'return_frother': return_frother,
     'place_frother_milk_station': place_frother_milk_station,
     'pick_frother_milk_station': pick_frother_milk_station,

@@ -308,6 +308,11 @@
         "params": {
           "stage": "1"
         }
+      },
+      {
+        "type": "automation",
+        "function": "clean_frother",
+        "params": {}
       }
     ]
   },
@@ -351,7 +356,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "clean_frother",
+        "function": "clean_milk_pitcher",
         "params": {}
       },
       {
@@ -363,12 +368,7 @@
         "type": "robot",
         "function": "return_frother",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "clean_frother",
-        "params": {}
-      }
+      }      
     ]
   },
   "Slushie": {

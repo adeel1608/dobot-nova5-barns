@@ -1328,7 +1328,11 @@ async def clean_frother(params: dict):
     # Now send the message to clean frother topic
     client.publish("automation_clean_frother", payload, qos=1)
     logger.info(f"Sent: {payload}")
-
+    return {
+            "success": True,
+            "message": "Successfully cleaned frother",
+            "details": "froth command sent"
+        }
     timeout = params.get("timeout", 120)  # Timeout for clean operation
     start_time = time.time()
 
