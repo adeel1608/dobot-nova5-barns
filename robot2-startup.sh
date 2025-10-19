@@ -333,7 +333,7 @@ start_robot() {
     export DOBOT_TYPE="$DOBOT_TYPE"
     export IP_address="$IP_ADDRESS"
     export ROS_DOMAIN_ID="$ROS_DOMAIN_ID"
-    export ROBOT_ID="$ROBOT_ID"
+    export ROBOT_ID=2
     export RABBITMQ_URL="amqp://admin:admin123@${DOCKER_HOST_IP}:5672/"
     export USBFS_MEMORY_MB="$USBFS_MEMORY_MB"
     export ORBBEC_CONNECTION_DELAY="$ORBBEC_CONNECTION_DELAY"

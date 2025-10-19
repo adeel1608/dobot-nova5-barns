@@ -420,6 +420,10 @@ def mount_frother(**params) -> bool:
         print("☁️ Starting milk frother mounting sequence...")
         print("=" * 50)
 
+        sync_result = run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
+
         # Step 1: Set slower servo timing for precise movements
         print("⚙️ Step 1/4: Setting precise servo timing...")
         timing_result = run_skill("set_speed_factor", 40)
