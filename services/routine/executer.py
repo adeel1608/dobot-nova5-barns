@@ -217,6 +217,11 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     success = True
     message = ""
     
+    # Add small staggered delay for Arm 2 to prevent RabbitMQ overload when both arms start simultaneously
+    if arm_id == 2:
+        logger.info(f"[ARM-2] Adding 1s stagger delay to prevent parallel connection overload")
+        await asyncio.sleep(1)
+    
     logger.info(f"Processing task: {function} for cup {cup_id} on arm {arm_id}")
     
     try:
@@ -240,14 +245,37 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     break  # abort on validation failure
                     
             elif step_type == "robot":
-                res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
+                # Add retry logic for robot actions to handle transient failures during parallel execution
+                max_retries = 2
+                retry_delay = 3  # seconds
+                
+                for attempt in range(max_retries):
+                    res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
+                    
+                    if res.get("success", False):
+                        break  # Success, exit retry loop
+                    
+                    # Check if it's a transient error (timeout, connection issues)
+                    error_msg = res.get('message', '').lower()
+                    is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
+                    
+                    if is_transient and attempt < max_retries - 1:
+                        logger.warning(f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}")
+                        logger.info(f"[ARM-{arm_id}] Retrying in {retry_delay}s...")
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        # Non-transient error or final retry failed
+                        message = f"Robot error: {res.get('message', '')}"
+                        logger.error(f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}")
+                        await publish_event("robot.error", 
+                                    {"arm": arm_id, "cup": cup_id,
+                                    "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
+                        success = False
+                        break  # abort on robot error
+                
                 if not res.get("success", False):
-                    message = f"Robot error: {res.get('message', '')}"
-                    await publish_event("robot.error", 
-                                {"arm": arm_id, "cup": cup_id,
-                                "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
-                    success = False
-                    break  # abort on robot error
+                    break  # Exit step loop if robot action ultimately failed
                     
             elif step_type == "automation":
                 logger.info(f"🤖 [ROUTINE] Processing automation step: {func_name} for cup {cup_id}")
