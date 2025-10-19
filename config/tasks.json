@@ -308,26 +308,6 @@
         "params": {
           "stage": "1"
         }
-      },
-      {
-        "type": "robot",
-        "function": "clean_frother",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "rinser_machine",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "return_frother",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "clean_frother",
-        "params": {}
       }
     ]
   },

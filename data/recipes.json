@@ -121,7 +121,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk, Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Cortado": [
@@ -158,7 +158,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Cappuccino": [
@@ -195,7 +195,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Caramel Macchiato": [
@@ -262,7 +262,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Flat White": [
@@ -299,7 +299,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Latte": [
@@ -336,7 +336,7 @@
     {
       "action": "Clean_Milk_Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
     }
   ],
   "Iced Latte": [
@@ -646,7 +646,7 @@
       {
         "action": "Clean_Milk_Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+        "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
       }
   ],
   "White Mocha": [
@@ -713,7 +713,7 @@
       {
         "action": "Clean_Milk_Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour_Frothed_Milk,Clean_Portafilter"]
+        "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
       }
   ],
   "Mocha Frappe": [
