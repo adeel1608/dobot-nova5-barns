@@ -127,7 +127,7 @@ async def dispnese_hot_water(params: dict):
 # params should contain "syrup_type" ("whole", "oat", "almond", etc.) and "amount" (integer)
 # EX: example params: {"pump_number": 9, "amount": 15, "timeout": 300}
 # OR: {"syrups": {3: 45.0}, "timeout": 300}
-async def dispense_syrup(params: dict):
+async def dispense_sauce(params: dict):
     """Dispense multiple syrups using MQTT communication."""
     # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
     # Loops through all pumps in the syrups dictionary
@@ -154,7 +154,7 @@ async def dispense_syrup(params: dict):
     
     # Prepare for loop through all syrups
     all_results = []
-    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker (same as milk)
     username = params.get("username", "admin")
     password = params.get("password", "admin123")
     
@@ -185,7 +185,7 @@ async def dispense_syrup(params: dict):
         client.on_connect = on_connect
         client.on_message = on_message
         
-        # Connect to RabbitMQ MQTT broker
+        # Connect to external MQTT broker for syrup dispensing (same as milk)
         logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
         client.connect(mqtt_host, 1883, 60)
         
@@ -1543,7 +1543,7 @@ async def dispense_ingredient(params: dict):
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
     "dispnese_hot_water": dispnese_hot_water,
-    "dispense_syrup": dispense_syrup,
+    "dispense_sauce": dispense_sauce,
     "dispense_milk": dispense_milk,
     "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,

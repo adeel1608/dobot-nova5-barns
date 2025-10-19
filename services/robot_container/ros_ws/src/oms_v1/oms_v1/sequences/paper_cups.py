@@ -99,7 +99,6 @@ def _normalize_stage(stage_value: str) -> str:
         pass
     return stage_value
 
-
 def grab_paper_cup(**params) -> bool:
     """
     Grab a paper cup of specified size from the paper cup dispenser.
@@ -274,7 +273,6 @@ def grab_paper_cup(**params) -> bool:
         print("[INFO] Paper cup grab process terminated due to error")
         return False
 
-
 def place_paper_cup(**params) -> bool:
     """
     Place a paper cup at the specified staging area.
@@ -302,10 +300,13 @@ def place_paper_cup(**params) -> bool:
     """
     try:
         # Extract and validate stage parameter
-        stage = _normalize_stage(params.get("stage", "stage_1"))  # Accept numeric or prefixed
-        if not stage:
-            print("[ERROR] No stage parameter provided")
+        try:
+            stage = _normalize_stage(params.get("stage", "1"))  # Default to stage 1
+        except Exception as e:
+            print(f"[ERROR] Failed to normalize stage: {e}")
             return False
+        if not stage:
+            stage = "stage_1"  # Final fallback
             
         stage_params = PLACE_PAPER_CUP_PARAMS.get(str(stage))
         
@@ -415,7 +416,6 @@ def place_paper_cup(**params) -> bool:
         print(f"[ERROR] Unexpected error during paper cup placement: {e}")
         print("[INFO] Paper cup placement process terminated due to error")
         return False
-# New combined function for grab + place
 
 def dispense_paper_cup(**params) -> bool:
     """
@@ -456,7 +456,6 @@ def dispense_paper_cup(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Unexpected error during paper cup dispensing: {e}")
         return False
-# Station functions replicated from paper cups, adapted for paper cup sizes (H7/H9/H12)
 
 def pick_paper_cup_station(**params) -> bool:
     """
@@ -468,10 +467,9 @@ def pick_paper_cup_station(**params) -> bool:
     """
     try:
         # Extract and validate parameters
-        raw_stage = params.get("stage")
+        raw_stage = params.get("stage", "1")  # Default to stage 1
         if raw_stage is None:
-            print("[ERROR] No stage parameter provided")
-            return False
+            raw_stage = "1"
 
         # Normalize stage to '1'..'4'
         stage = None
@@ -508,9 +506,10 @@ def pick_paper_cup_station(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
+        # Default to 12oz if no cup size provided
         if not cups_dict:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
 
         # Map H-codes to legacy sizes
         size_mapped = _normalize_paper_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
@@ -535,16 +534,16 @@ def pick_paper_cup_station(**params) -> bool:
 
         # Stage-specific positioning (replicated from paper station)
         stage_positions = {
-            "1": (-83.584272,-41.364897,-140.268525,-6.066052,-88.182438,-0.452527),
-            "2": (-109.701056,-42.671115,-126.342570,-19.446891,-114.040023,-4.152998),
-            "3": (-127.224669,-48.130566,-106.159965,-36.033557,-131.333571,-7.532646),
-            "4": (-138.417215,-57.668743,-80.279603,-54.777392,-142.312329,-10.796996)
+            "1": (-88.246268,-41.336257,-138.612498,-7.761506,-92.800418,-1.075949),
+            "2": (-112.183193,-43.094282,-124.253581,-21.289005,-116.494060,-4.560061),
+            "3": (-128.808820,-49.036269,-103.446187,-38.102756,-132.891871,-7.919876),
+            "4": (-139.460001,-59.117620,-76.669262,-57.246818,-143.330627,-11.182390)
         }
 
         # Paper cup gripper positions (align with 7/9/12oz used for paper)
         gripper_positions = {
             "7oz": 140,
-            "9oz": 140,
+            "9oz": 135,
             "12oz": 125,
         }
 
@@ -614,7 +613,6 @@ def pick_paper_cup_station(**params) -> bool:
         print("[INFO] Cup pickup process terminated due to error")
         return False
 
-
 def place_paper_cup_station(**params) -> bool:
     """
     Place a paper cup at specified staging area.
@@ -623,10 +621,9 @@ def place_paper_cup_station(**params) -> bool:
         stage (str|int|float): Target staging area ('1','2','3','4', also accepts numeric 1.0 etc.)
     """
     try:
-        raw_stage = params.get("stage")
+        raw_stage = params.get("stage", "1")  # Default to stage 1
         if raw_stage is None:
-            print("[ERROR] No stage parameter provided")
-            return False
+            raw_stage = "1"
 
         # Normalize stage to '1'..'4'
         stage = None
@@ -673,10 +670,10 @@ def place_paper_cup_station(**params) -> bool:
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
-            "1": (-84.970117,-43.554280,-121.972224,-22.171019,-89.560371,-0.627537),
-            "2": (-104.277487,-46.435604,-111.282653,-30.428794,-108.683397,-3.307642),
-            "3": (-119.404919,-52.323667,-93.926585,-43.043072,-123.641506,-5.854237),
-            "4": (-130.473551,-62.030224,-69.275874,-59.578707,-134.552953,-8.351190)
+            "1": (-87.555810,-44.461312,-118.261683,-24.982112,-92.123319,-0.972925),
+            "2": (-105.795646,-47.724084,-107.146702,-33.353721,-110.187785,-3.536224),
+            "3": (-120.111216,-54.092813,-89.175854,-46.102535,-124.341571,-5.992437),
+            "4": (-130.631169,-64.634756,-63.002881,-63.277542,-134.713357,-8.394235)
         }
 
         stage_result = run_skill("gotoJ_deg", *stage_positions[stage])
@@ -719,7 +716,6 @@ def place_paper_cup_station(**params) -> bool:
         print("[INFO] Cup placement process terminated due to error")
         return False
 
-#ADD NEW FUNCTION: place_paper_cup_sauces
 def place_paper_cup_sauces(**params) -> bool:
     """
     Place the paper cup at the sauces station.
@@ -738,7 +734,6 @@ def place_paper_cup_sauces(**params) -> bool:
         print(f"[ERROR] place_paper_cup_sauces failed: {e}")
         return False
 
-#ADD NEW FUNCTION: pick_paper_cup_sauces
 def pick_paper_cup_sauces(**params) -> bool:
     """
     Pick the paper cup from the sauces station.
@@ -769,12 +764,13 @@ def pick_paper_cup_sauces(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
-        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
-        print(f"[DEBUG pick_sauces] Final normalized size: {cup_size}")
+        # Default to 12oz if no cup size provided
+        if not cups_dict:
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
         
-        if not cup_size:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+        cup_size = _normalize_paper_cup_size(cups_dict)
+        print(f"[DEBUG pick_sauces] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -801,7 +797,6 @@ def pick_paper_cup_sauces(**params) -> bool:
         print(f"[ERROR] pick_paper_cup_sauces failed: {e}")
         return False
 
-#ADD NEW FUNCTION: place_paper_cup_milk
 def place_paper_cup_milk(**params) -> bool:
     """
     Place the paper cup at the milk station.
@@ -820,7 +815,6 @@ def place_paper_cup_milk(**params) -> bool:
         print(f"[ERROR] place_paper_cup_milk failed: {e}")
         return False
 
-#ADD NEW FUNCTION: pick_paper_cup_milk
 def pick_paper_cup_milk(**params) -> bool:
     """
     Pick the paper cup from the milk station.
@@ -851,12 +845,13 @@ def pick_paper_cup_milk(**params) -> bool:
         if not cups_dict:
             cups_dict = params.get("cup_size")
         
-        cup_size = _normalize_paper_cup_size(cups_dict) if cups_dict else None
-        print(f"[DEBUG pick_milk] Final normalized size: {cup_size}")
+        # Default to 12oz if no cup size provided
+        if not cups_dict:
+            print("[INFO] No cup_size parameter provided, defaulting to 12oz")
+            cups_dict = {"cup_H12": 1.0}
         
-        if not cup_size:
-            print("[ERROR] No cup_size parameter provided")
-            return False
+        cup_size = _normalize_paper_cup_size(cups_dict)
+        print(f"[DEBUG pick_milk] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -882,6 +877,7 @@ def pick_paper_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_paper_cup_milk failed: {e}")
         return False
+
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
