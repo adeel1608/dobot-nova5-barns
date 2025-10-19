@@ -534,16 +534,16 @@ def pick_paper_cup_station(**params) -> bool:
 
         # Stage-specific positioning (replicated from paper station)
         stage_positions = {
-            "1": (-84.763828,-41.352129,-139.877402,-6.467935,-89.350854,-0.610214),
-            "2": (-109.701056,-42.671115,-126.342570,-19.446891,-114.040023,-4.152998),
-            "3": (-127.224669,-48.130566,-106.159965,-36.033557,-131.333571,-7.532646),
-            "4": (-138.417215,-57.668743,-80.279603,-54.777392,-142.312329,-10.796996)
+            "1": (-88.246268,-41.336257,-138.612498,-7.761506,-92.800418,-1.075949),
+            "2": (-112.183193,-43.094282,-124.253581,-21.289005,-116.494060,-4.560061),
+            "3": (-128.808820,-49.036269,-103.446187,-38.102756,-132.891871,-7.919876),
+            "4": (-139.460001,-59.117620,-76.669262,-57.246818,-143.330627,-11.182390)
         }
 
         # Paper cup gripper positions (align with 7/9/12oz used for paper)
         gripper_positions = {
             "7oz": 140,
-            "9oz": 140,
+            "9oz": 135,
             "12oz": 125,
         }
 
@@ -877,6 +877,7 @@ def pick_paper_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_paper_cup_milk failed: {e}")
         return False
+
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
