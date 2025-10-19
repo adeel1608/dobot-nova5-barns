@@ -430,6 +430,10 @@ def mount_frother(**params) -> bool:
             print("[WARNING] Failed to set servo timing - continuing with default...")
         else:
             print("   ✅ Servo timing set for precise movements")
+
+        sync_result = run_skill("sync")
+        if sync_result is False:
+            print("[WARNING] Sync operation failed - continuing...")
         
         print("🎯 Step 3/4: Approaching steam wand (deep position)...")
         approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
@@ -438,8 +442,8 @@ def mount_frother(**params) -> bool:
             return False
         print("   ✅ Successfully approached steam wand")
 
-        # Step 4: Mount frother to steam wand
-        print("🔧 Step 4/4: Mounting frother to steam wand...")
+        # Step 4: Mount frother to steam wand with verification
+        print("🔧 Step 4/5: Mounting frother to steam wand...")
         mount_result = run_skill("mount_machine", "left_steam_wand", "deep_froth")
         if mount_result is False:
             print("[ERROR] Failed to mount frother to steam wand")
@@ -448,11 +452,14 @@ def mount_frother(**params) -> bool:
         
         sync_result = run_skill("sync")
         if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+            print("[ERROR] Final sync failed - robot state may be inconsistent")
+            return False
+        print("   ✅ Final state synchronized")
         
         # Final success summary
         print("=" * 50)
         print("✅ MILK FROTHER MOUNTING COMPLETED SUCCESSFULLY")
+        print("   ✓ All movements verified")
         print("   ✓ Precise positioning achieved")
         print("   ✓ Frother securely mounted to steam wand")
         print("   ✓ Ready for milk frothing operation")
@@ -614,7 +621,7 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 1 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", 20)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -661,7 +668,7 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 2 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", 20)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -708,7 +715,7 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 3 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", 20)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -755,7 +762,7 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 4 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", 20)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
