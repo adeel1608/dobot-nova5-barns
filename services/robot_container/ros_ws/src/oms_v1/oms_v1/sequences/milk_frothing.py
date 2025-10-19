@@ -362,7 +362,6 @@ def place_frother_milk_station(**params) -> bool:
         print(f"[ERROR] Unexpected error while placing frother at milk station: {e}")
         return False
 
-#ADD NEW FUNCTION: pick_frother_milk_station 
 def pick_frother_milk_station(**params) -> bool:
     """
     Pick the milk frother up from the milk station safely.
@@ -817,7 +816,6 @@ def pour_milk(**params) -> bool:
         print("[INFO] Milk pouring process terminated due to error")
         return False
 
-#ADD NEW FUNCTION: clean_frother
 def clean_frother(**params) -> bool:
     """
     Perform a cleaning motion for the frother tool.
@@ -847,7 +845,6 @@ def clean_frother(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother cleaning: {e}")
         return False
 
-#ADD NEW FUNCTION: clean_milk_pitcher
 def clean_milk_pitcher(**params) -> bool:
     """
     Perform a cleaning motion for the frother tool.
