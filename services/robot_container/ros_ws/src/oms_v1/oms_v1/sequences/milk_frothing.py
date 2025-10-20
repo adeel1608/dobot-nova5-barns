@@ -621,7 +621,7 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 1 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 20)
+            speed_result = run_skill("set_speed_factor", 15)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
