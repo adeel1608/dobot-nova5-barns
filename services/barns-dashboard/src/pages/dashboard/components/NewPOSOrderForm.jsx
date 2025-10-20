@@ -211,52 +211,6 @@ function NewPOSOrderForm({
                 </div>
               </div>
               
-              {/* Preparation Preferences */}
-              <div className="border-t pt-3">
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Temperature</label>
-                    <select
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Temprature', e.target.value)}
-                      value={(item.kitchen_notes.find(n => n.type === 'Drink Temprature')?.detail) || ''}
-                    >
-                      <option value="">Normal</option>
-                      <option value="Extra Hot">Extra Hot</option>
-                      <option value="Less Hot">Less Hot</option>
-                      <option value="Hot">Hot</option>
-                      <option value="Cold">Cold</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Ice Level</label>
-                    <select
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Ice', e.target.value)}
-                      value={(item.kitchen_notes.find(n => n.type === 'Drink Ice')?.detail) || ''}
-                    >
-                      <option value="">Normal</option>
-                      <option value="Extra Ice">Extra Ice</option>
-                      <option value="Light Ice">Light Ice</option>
-                      <option value="No Ice">No Ice</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Foam</label>
-                    <select
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
-                      onChange={(e) => setKitchenPreference(itemIndex, 'Drink Foam', e.target.value)}
-                      value={(item.kitchen_notes.find(n => n.type === 'Drink Foam')?.detail) || ''}
-                    >
-                      <option value="">Normal</option>
-                      <option value="Extra Foam">Extra Foam</option>
-                      <option value="Light Foam">Light Foam</option>
-                      <option value="No Foam">No Foam</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
               
               {/* Manual Kitchen Notes (qty > 0) */}
               <div className="border-t pt-3">
