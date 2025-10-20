@@ -670,7 +670,7 @@ def place_paper_cup_station(**params) -> bool:
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
-            "1": (-87.555810,-44.461312,-118.261683,-24.982112,-92.123319,-0.972925),
+            "1": (-85.817137,-44.296619,-118.904726,-24.496963,-90.400805,-0.740047),
             "2": (-105.795646,-47.724084,-107.146702,-33.353721,-110.187785,-3.536224),
             "3": (-120.111216,-54.092813,-89.175854,-46.102535,-124.341571,-5.992437),
             "4": (-130.631169,-64.634756,-63.002881,-63.277542,-134.713357,-8.394235)
@@ -725,7 +725,7 @@ def place_paper_cup_sauces(**params) -> bool:
             return False
         if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
             return False
-        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+        if run_skill("gotoJ_deg", -38.295812,-75.434312,-68.188894,-32.969245,-127.142100,-0.958200) is False:
             return False
         if run_skill("set_gripper_position", 255, 0) is False:
             return False
@@ -786,7 +786,7 @@ def pick_paper_cup_sauces(**params) -> bool:
 
         if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
             return False
-        if run_skill("gotoJ_deg", -38.389671,-76.306572,-65.615051,-34.665958,-127.237885,-0.949974) is False:
+        if run_skill("gotoJ_deg", -38.295812,-75.434312,-68.188894,-32.969245,-127.142100,-0.958200) is False:
             return False
         if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
             return False
