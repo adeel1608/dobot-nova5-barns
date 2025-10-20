@@ -507,14 +507,18 @@ def unmount_and_swirl_milk(**params) -> bool:
             print("[ERROR] Failed to approach steam wand")
             return False
         print("   ✅ Successfully approached steam wand")
+
+        run_skill("sync")
         
         # Step 2: Set precise servo timing for swirling
         print("⚙️ Step 2/4: Setting precise servo timing for swirling...")
-        timing_result = run_skill("set_speed_factor", 25)
+        timing_result = run_skill("set_speed_factor", 15)
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         else:
             print("   ✅ Servo timing adjusted for swirling")
+
+        run_skill("sync")
         
         # Step 3: Position sequence for optimal swirling location
         print("📍 Step 3/4: Moving through positioning sequence...")
@@ -621,9 +625,11 @@ def pour_milk(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 1 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 15)
+            speed_result = run_skill("set_speed_factor", 9)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
+            
+            run_skill("sync")
             
             print("   📍 Moving to stage 1 pouring position...")
             stage1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['position'])
