@@ -500,6 +500,8 @@ def unmount_and_swirl_milk(**params) -> bool:
         print("🌀 Starting milk swirling sequence")
         print("=" * 50)
 
+        time.sleep(2.5)
+
         # Step 1: Approach steam wand position
         print("🎯 Step 1/4: Approaching steam wand (deep position)...")
         approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
