@@ -512,7 +512,7 @@ def unmount_and_swirl_milk(**params) -> bool:
         
         # Step 2: Set precise servo timing for swirling
         print("⚙️ Step 2/4: Setting precise servo timing for swirling...")
-        timing_result = run_skill("set_speed_factor", 15)
+        timing_result = run_skill("set_speed_factor", 25)
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         else:
@@ -624,19 +624,22 @@ def pour_milk(**params) -> bool:
         if stage == '1':
             print("🎯 Step 4/5: Executing stage 1 milk pouring...")
             
-            print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 9)
-            if speed_result is False:
-                print("[WARNING] Failed to set pouring speed - continuing...")
-            
-            run_skill("sync")
-            
             print("   📍 Moving to stage 1 pouring position...")
             stage1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['position'])
             if stage1_result is False:
                 print("[ERROR] Failed to move to stage 1 position")
                 return False
             
+            run_skill("sync")
+
+            print("   ⚙️ Setting precise pouring speed...")
+            speed_result = run_skill("set_speed_factor", 9)
+            if speed_result is False:
+                print("[WARNING] Failed to set pouring speed - continuing...")
+            
+            run_skill("sync")
+
+
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['adjust1'])
             if adjust1_result is False:
@@ -844,7 +847,7 @@ def clean_milk_pitcher(**params) -> bool:
         if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
             print("[ERROR] Failed to reach clean pose 2")
             return False
-        if run_skill("gotoJ_deg", -41.573661,-76.672646,-32.795681,-69.155561,-133.040317,-170.196225) is False:
+        if run_skill("gotoJ_deg", -42.960231,-73.262903,-40.519041,-64.811101,-134.418391,-170.149991) is False:
             print("[ERROR] Failed to reach clean pose 3")
             return False
         if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
