@@ -2242,7 +2242,7 @@ class robot_motion(Node):
                 max_wait=10.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
-                num_samples=6,
+                num_samples=9,
             )
         finally:
             # shut down executor and destroy the node
@@ -2827,7 +2827,7 @@ class robot_motion(Node):
             angles_deg = tuple(math.degrees(float(angle)) for angle in joint_positions)
             
             self.get_logger().info(f"current_angles(): Current joint angles (deg): {angles_deg}")
-            time.sleep(0.25) #################################
+            time.sleep(0.5) #################################
             return angles_deg
             
         except (TypeError, ValueError) as e:
