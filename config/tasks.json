@@ -96,6 +96,15 @@
       }
     ]
   },
+  "Validate_Cup": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      }
+    ]
+  },
   "Calibrate": {
     "steps": [
       {
@@ -107,6 +116,7 @@
   },
   "Espresso": {
       "steps": [
+
       {
           "type": "automation",
           "function": "grinding_machine",
@@ -154,6 +164,11 @@
           "coffee_t": 2,
           "slot_number": 3
           }
+      },
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
       },
       {
         "type": "robot",
@@ -403,6 +418,11 @@
   "Dispense_Paper_Cup": {
     "steps": [
       {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "dispense_paper_cup",
         "params": {}
@@ -411,6 +431,7 @@
   },
   "Dispense_Plastic_Cup": {
     "steps": [
+
       {
         "type": "robot",
         "function": "dispnese_plastic_cup",
@@ -477,6 +498,11 @@
   },
   "Place_Cup_Station": {
     "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
       {
         "type": "robot",
         "function": "place_paper_cup_station",

@@ -60,6 +60,7 @@ class ParsedIngredient:
     temperature: Optional[str] = None
     foam: Optional[str] = None
     level: Optional[str] = None
+    cup_position: Optional[Any] = None
 
 
 @dataclass
@@ -165,46 +166,84 @@ def load_reference_data_from_db(db_file_path: str = "pos_reference.db") -> bool:
                     "default_ingredients": [],
                 }
 
-            # Map defaults
-            for row in cursor.execute(
+            # Map defaults - check if cup_position column exists
+            cursor.execute("PRAGMA table_info(menu_item_default_ingredients)")
+            columns = [col[1] for col in cursor.fetchall()]
+            has_cup_position = 'cup_position' in columns
+            
+            if has_cup_position:
+                query = """
+                    SELECT menu_item_id, ingredient_id, category, type, unit_amount, automated,
+                           temperature_sensitive, needs_validation, quantity, base_units,
+                           foam_sensitive, is_topping, cup_position
+                    FROM menu_item_default_ingredients
                 """
-                SELECT menu_item_id, ingredient_id, category, type, unit_amount, automated,
-                       temperature_sensitive, needs_validation, quantity, base_units,
-                       foam_sensitive, is_topping
-                FROM menu_item_default_ingredients
+            else:
+                query = """
+                    SELECT menu_item_id, ingredient_id, category, type, unit_amount, automated,
+                           temperature_sensitive, needs_validation, quantity, base_units,
+                           foam_sensitive, is_topping
+                    FROM menu_item_default_ingredients
                 """
-            ):
-                (
-                    menu_item_id,
-                    ingredient_id,
-                    category,
-                    type_,
-                    unit_amount,
-                    automated,
-                    temperature_sensitive,
-                    needs_validation,
-                    quantity,
-                    base_units,
-                    foam_sensitive,
-                    is_topping,
-                ) = row
+            
+            for row in cursor.execute(query):
+                if has_cup_position:
+                    (
+                        menu_item_id,
+                        ingredient_id,
+                        category,
+                        type_,
+                        unit_amount,
+                        automated,
+                        temperature_sensitive,
+                        needs_validation,
+                        quantity,
+                        base_units,
+                        foam_sensitive,
+                        is_topping,
+                        cup_position,
+                    ) = row
+                else:
+                    (
+                        menu_item_id,
+                        ingredient_id,
+                        category,
+                        type_,
+                        unit_amount,
+                        automated,
+                        temperature_sensitive,
+                        needs_validation,
+                        quantity,
+                        base_units,
+                        foam_sensitive,
+                        is_topping,
+                    ) = row
+                    cup_position = None
 
                 if menu_item_id in MENU_ITEMS:
-                    MENU_ITEMS[menu_item_id]["default_ingredients"].append(
-                        {
-                            "ingredient_id": ingredient_id,
-                            "category": category,
-                            "type": type_,
-                            "unit_amount": unit_amount,
-                            "automated": automated,
-                            "temperature_sensitive": bool(temperature_sensitive or 0),
-                            "needs_validation": bool(needs_validation or 0),
-                            "quantity": quantity,
-                            "base_units": base_units,
-                            "foam_sensitive": bool(foam_sensitive or 0),
-                            "is_topping": bool(is_topping or 0),
-                        }
-                    )
+                    ingredient_data = {
+                        "ingredient_id": ingredient_id,
+                        "category": category,
+                        "type": type_,
+                        "unit_amount": unit_amount,
+                        "automated": automated,
+                        "temperature_sensitive": bool(temperature_sensitive or 0),
+                        "needs_validation": bool(needs_validation or 0),
+                        "quantity": quantity,
+                        "base_units": base_units,
+                        "foam_sensitive": bool(foam_sensitive or 0),
+                        "is_topping": bool(is_topping or 0),
+                    }
+                    
+                    # Add cup_position if present (from dedicated column)
+                    # Or if category is 'position', use unit_amount as the position value
+                    if cup_position is not None:
+                        ingredient_data["cup_position"] = cup_position
+                    elif category == "position" and ingredient_id == "cup_position":
+                        # Fallback: use unit_amount as position value for position category
+                        ingredient_data["cup_position"] = unit_amount
+                        
+                    MENU_ITEMS[menu_item_id]["default_ingredients"].append(ingredient_data)
 
         finally:
             connection.close()
@@ -330,6 +369,10 @@ def _apply_ingredient_modifications(
                             replacement["ice_sensitive"] = True
                         if new_details.get("is_topping"):
                             replacement["is_topping"] = True
+                        
+                        # Preserve cup_position from original if present
+                        if ingredient.get("cup_position") is not None:
+                            replacement["cup_position"] = ingredient.get("cup_position")
 
                         final_ingredients[i] = replacement
                     break
@@ -361,6 +404,10 @@ def _apply_ingredient_modifications(
                     addon_ingredient["foam_sensitive"] = True
                 if addon_details.get("is_topping"):
                     addon_ingredient["is_topping"] = True
+                
+                # Add cup_position if this is a position category addon
+                if addon_details["category"] == "position":
+                    addon_ingredient["cup_position"] = addon_details.get("default_amount", 1)
 
                 final_ingredients.append(addon_ingredient)
 
@@ -384,6 +431,11 @@ def _create_ingredient_list(
             original_ingredient_id, category, ingredient_type
         )
 
+        # For position category, use unit_amount as the cup_position value
+        cup_pos_value = ingredient.get("cup_position")
+        if category == "position" and cup_pos_value is None:
+            cup_pos_value = ingredient.get("unit_amount", 1)
+        
         # Create base ingredient object
         ingredient_obj = ParsedIngredient(
             category=ingredient["category"],
@@ -397,6 +449,7 @@ def _create_ingredient_list(
             total_amount=ingredient.get("quantity", 1) * ingredient.get("unit_amount", 1),
             automated=ingredient.get("automated", True),
             needs_validation=ingredient.get("needs_validation", True),
+            cup_position=cup_pos_value
         )
 
         # Add modification flags if present

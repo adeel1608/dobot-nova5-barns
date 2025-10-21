@@ -399,7 +399,7 @@ class ValidationServiceApp:
                 self.main_validation.process_cup_detection_request, 
                 data  # Pass data directly - no conversion needed!
             )
-            self.logger.info(f"Cup detection result: {result}")
+            
             return result
             
         except Exception as e:

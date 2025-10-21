@@ -23,17 +23,28 @@ logger = logging.getLogger(__name__)
 async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitMQClient):
     """
     Calls the validation service with the given function name and parameters.
+    The function name is sent directly as the action to match validation service handlers.
     """
     try:
+        # Prepare payload with metadata expected by validation service
+        payload = {
+            "request_id": f"routine-{datetime.now().timestamp()}",
+            "client_type": "routine",
+            **params  # Merge any additional params
+        }
+        
+        logger.info(f"Calling validation service: action={func_name}, payload={payload}")
+        
+        # Send function name as action directly (e.g., "cup_detection", "check_coffee_beans")
+        # The validation service has handlers registered for specific actions, not a generic "validate"
         response = await rabbitmq_client.send_request(
             target_service="validation",
-            action="validate",
-            data={
-                "function": func_name,
-                "params": params
-            },
+            action=func_name,  # Send function name directly as action
+            data=payload,  # Send payload with metadata
             timeout=30
         )
+        
+        logger.info(f"Validation service response: {response}")
         
         if response.get("error"):
             logger.error(f"Validation service error: {response['error']}")
@@ -114,6 +125,38 @@ async def publish_event(event_name: str, data: dict, rabbitmq_client: RabbitMQCl
         logger.debug(f"Published event: {event_name}")
     except Exception as e:
         logger.error(f"Error publishing event {event_name}: {str(e)}")
+
+def find_nearest_available_position(current_position: int, detection_result: dict) -> int:
+    """
+    Find the nearest available (False) cup position to the current position.
+    
+    Args:
+        current_position: The originally intended cup position (e.g., 1)
+        detection_result: Dict with position as key and occupancy as value 
+                         (True = occupied, False = available)
+    
+    Returns:
+        The nearest available position number
+    """
+    # Get all available positions (False values)
+    available_positions = [pos for pos, occupied in detection_result.items() if not occupied]
+    
+    if not available_positions:
+        logger.warning(f"No available cup positions found in detection result: {detection_result}")
+        return current_position  # Return original if none available
+    
+    # If current position is available, use it
+    if current_position in available_positions:
+        logger.info(f"Current position {current_position} is available, no change needed")
+        return current_position
+    
+    # Find nearest available position by calculating absolute distance
+    nearest_position = min(available_positions, key=lambda pos: abs(pos - current_position))
+    
+    logger.info(f"Original position {current_position} is occupied. Using nearest available: {nearest_position}")
+    logger.info(f"Available positions: {sorted(available_positions)}")
+    
+    return nearest_position
 
 async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, rabbitmq_client: RabbitMQClient, message: str = ""):
     """Send feedback to scheduler with retry logic and fallback event notification."""
@@ -236,6 +279,51 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             
             if step_type == "validation":
                 res = await call_validation(func_name, params, rabbitmq_client)
+                
+                # Special handling for cup_detection - update cup position based on availability
+                if func_name == "cup_detection" and res.get("passed", False):
+                    # Try to get detection_result from top level first, then from details
+                    detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
+                    if detection_result:
+                        logger.info(f"🔍 Cup detection result: {detection_result}")
+                        # Get current cup_position from task ingredients
+                        current_position = None
+                        ingredients = task.get("item", {}).get("ingredients", {})
+                        
+                        # Look for cup_position in ingredients
+                        if "cup_position" in ingredients:
+                            cup_pos_data = ingredients["cup_position"]
+                            if isinstance(cup_pos_data, dict):
+                                # Extract position value from nested dict: {'cup_position': 1.0}
+                                current_position = int(list(cup_pos_data.values())[0])
+                            elif isinstance(cup_pos_data, (int, float)):
+                                current_position = int(cup_pos_data)
+                        
+                        if current_position:
+                            # Find nearest available position
+                            new_position = find_nearest_available_position(current_position, detection_result)
+                            
+                            # Update task params with new position if it changed
+                            if new_position != current_position:
+                                logger.info(f"🔄 Updating cup position from {current_position} to {new_position} for cup {cup_id}")
+                                
+                                # Update the task's ingredient data
+                                if "cup_position" in ingredients:
+                                    if isinstance(ingredients["cup_position"], dict):
+                                        # Update the nested dict format
+                                        ingredients["cup_position"]["cup_position"] = float(new_position)
+                                    else:
+                                        ingredients["cup_position"] = float(new_position)
+                                
+                                # Also update params for subsequent steps
+                                if "cup_position" in params:
+                                    if isinstance(params["cup_position"], dict):
+                                        params["cup_position"]["cup_position"] = float(new_position)
+                                    else:
+                                        params["cup_position"] = float(new_position)
+                                
+                                logger.info(f"✅ Cup position updated successfully for cup {cup_id}")
+                
                 if not res.get("passed", False):
                     message = f"Validation failed: {res.get('details', '')}"
                     await publish_event("validation.failed", 

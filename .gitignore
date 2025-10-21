@@ -13,3 +13,4 @@ __pycache__
 
 core.*
 dev.Dockerfile
+rf-detr-large.pth
