@@ -9,11 +9,10 @@ RFDETR_CONFIDENCE = 0.20           # 0..1
 ALLOWED_CLASSES = ["cup"]          # subset of model's label space
 
 # Local model paths (set to None to use default download behavior)
-import os
 RFDETR_MODEL_PATHS = {
-    "large": os.path.join(os.path.dirname(__file__), "models", "rf-detr-large.pth"),
-    "base": os.path.join(os.path.dirname(__file__), "models", "rf-detr-base.pth"),
-    "medium": os.path.join(os.path.dirname(__file__), "models", "rf-detr-medium.pth")
+    "large": "rf-detr-large.pth",      # Path to your local large model
+    "base": "rf-detr-base.pth",        # Path to your local base model  
+    "medium": "models/rf-detr-medium.pth"  # Path to your local medium model
 }
 
 # Preprocess
@@ -22,17 +21,17 @@ MAX_SIDE = 960                     # resize longest side to this (keeps aspect)
 # ROI & cups
 # Provide polygon as list of (x,y). Example below is placeholder.
 ROI_POLYGON = np.array([
-    [534, 300],
-    [583, 195],
-    [925, 303],
-    [883, 420]
+    [537, 311],
+    [592, 191],
+    [933, 295],
+    [892, 430]
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (842, 347),
-    (778, 324),
-    (711, 305),
-    (652, 292)
+    (870, 350),
+    (808, 329),
+    (736, 310),
+    (663, 292)
 ]
 
 # Filters / heuristics
