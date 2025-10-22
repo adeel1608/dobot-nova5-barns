@@ -13,13 +13,11 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.params import (
     PLASTIC_CUPS_PARAMS, VALID_CUP_SIZES, DEFAULT_CUP_SIZE, GRIPPER_OPEN, GRIPPER_FULL,
-    SPEED_CAREFUL, SPEED_FAST, validate_cup_size, log_step, log_success, log_error, log_info
+    SPEED_CAREFUL, SPEED_FAST, validate_cup_size, log_step, log_success, log_error, log_info,
+    _extract_cup_position
 )
 
 
-# -------------------------
-# Normalization helpers
-# -------------------------
 def _normalize_plastic_cup_size(cups_dict: Any) -> str:
     """
     Parse plastic cup size from new JSON format.
@@ -87,7 +85,6 @@ def _normalize_stage(stage_value: Any) -> Optional[str]:
         pass
     return None
 
-
 def dispense_plastic_cup(**params) -> bool:
     """
     Grab a plastic cup of specified size from the plastic cup dispenser.
@@ -123,251 +120,112 @@ def dispense_plastic_cup(**params) -> bool:
     """
     try:
         # Extract and validate cup size parameter
-        # New format: {'cups': {'cup_C16': 1.0}}
-        cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
+        cups_dict = params.get("cups", params.get("cup_size"))
         cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_CUP_SIZE)
         if not cup_size or not validate_cup_size(cup_size):
             return False
         
+        # Configuration for each cup size
+        CUP_CONFIG = {
+            '16oz': {
+                'home': 'west',
+                'coords': (84.577956, -37.697409, -138.003443, -0.437117, -87.483849, -0.167701),
+                'gripper': 137,
+                'extract_z': -160,
+                'tighten_grip': None
+            },
+            '12oz': {
+                'home': 'west',
+                'coords': (126.231637, -41.187070, -144.717680, 11.342104, -45.944142, -3.776550),
+                'gripper': 160,
+                'extract_z': -160,
+                'tighten_grip': None
+            },
+            '9oz': {
+                'home': 'south_west',
+                'coords': (152.791197, -23.531399, -139.766517, -5.056715, -19.589728, -10.935293),
+                'gripper': 185,
+                'extract_z': -160,
+                'tighten_grip': 145
+            },
+            '7oz': {
+                'home': 'south_west',
+                'coords': (159.034912, -31.803319, -118.708186, -12.676519, -13.522377, -16.314133),
+                'gripper': 160,
+                'extract_z': -95.0,
+                'tighten_grip': None
+            }
+        }
+        
+        if cup_size not in CUP_CONFIG:
+            print(f"[ERROR] Unknown cup size: {cup_size!r}")
+            print("[INFO] Valid cup sizes: 7oz, 9oz, 12oz, 16oz")
+            return False
+        
+        config = CUP_CONFIG[cup_size]
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)
         
-        # Step 1: Move to home position for safe approach
-        log_step(1, 7, "Moving to west home position")
-        home_result = home(position="west")
-        if home_result is False:
-            log_error("Failed to move to west home position")
+        # Step 1: Move to home position
+        log_step(1, 7, f"Moving to {config['home']} home position")
+        if not home(position=config['home']):
+            log_error(f"Failed to move to {config['home']} home position")
             return False
-        log_success("Successfully moved to west home position", indent=1)
+        log_success(f"Successfully moved to {config['home']} home position", indent=1)
         
-        # Step 2: Open gripper to prepare for plastic cup grab
-        log_step(2, 7, "Opening gripper for plastic cup grab")
-        gripper_open_result = run_skill("set_gripper_position", 255, GRIPPER_OPEN, 255, False)
-        if gripper_open_result is False:
+        # Step 2: Open gripper fully
+        log_step(2, 7, "Opening gripper fully")
+        if not run_skill("set_gripper_position", 255, 0):
             log_error("Failed to open gripper")
             return False
         log_success("Gripper opened successfully", indent=1)
-
-        if cup_size == '7oz':
-            # Step 3: Move to plastic cup dispenser area
-            print("📍 Step 3/7: Moving to plastic cup dispenser area...")
-            dispenser_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if dispenser_result is False:
-                print("[ERROR] Failed to move to plastic cup dispenser area")
-                return False
-            print("   ✅ Successfully positioned at dispenser area")
-            
-            # Step 4: Position for plastic cup grab
-            print(f"🎯 Step 4/7: Positioning for {cup_size} plastic cup grab...")
-            print("   📍 Moving to grab position...")
-            grab_position_result = run_skill("moveEE", 0, 210, 0, 0, 0, 0)
-            if grab_position_result is False:
-                print("[ERROR] Failed to move to plastic cup grab position")
-                return False
-            print("   ✅ Successfully positioned for cup grab")
-            
-            run_skill("sync")
-
-            # Step 5: Grip plastic cup
-            print("🤏 Step 5/7: Gripping plastic cup...")
-            print(f"   📏 Setting gripper width for {cup_size} cup...")
-            grip_result = run_skill("set_gripper_position", 255, 145)
-            if grip_result is False:
-                print("[ERROR] Failed to grip plastic cup")
-                return False
-            print("   ✅ Plastic cup secured successfully")
-            
-            run_skill("set_speed_factor", 25)
-            run_skill("sync")
-
-            # Step 6: Extract plastic cup from dispenser
-            print("⬇️ Step 6/7: Extracting plastic cup from dispenser...")
-            print("   📍 Moving down to extract cup...")
-            extract_result = run_skill("moveEE", 0, 0, -210, 0, 0, 0)
-            
-            if extract_result is False:
-                print("[ERROR] Failed to extract plastic cup from dispenser")
-                return False
-            print("   ✅ Cup successfully extracted from dispenser")
-
-            run_skill("sync")
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-
-            # Step 7: Return to safe position with plastic cup
-            print("📍 Step 7/7: Moving to safe position with plastic cup...")
-            safe_position_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if safe_position_result is False:
-                print("[ERROR] Failed to move to safe position with plastic cup")
-                return False
-            print("   ✅ Successfully moved to safe position")
-
-        elif cup_size == '9oz':
-            # Step 3: Move to plastic cup dispenser area
-            print("📍 Step 3/7: Moving to plastic cup dispenser area...")
-            dispenser_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if dispenser_result is False:
-                print("[ERROR] Failed to move to plastic cup dispenser area")
-                return False
-            print("   ✅ Successfully positioned at dispenser area")
-            
-            # Step 4: Position for plastic cup grab
-            print(f"🎯 Step 4/7: Positioning for {cup_size} plastic cup grab...")
-            print("   📍 Moving to grab position...")
-            grab_position_result = run_skill("moveEE", 0, 210, 0, 0, 0, 0)
-            if grab_position_result is False:
-                print("[ERROR] Failed to move to plastic cup grab position")
-                return False
-            print("   ✅ Successfully positioned for cup grab")
-            
-            run_skill("sync")
-
-            # Step 5: Grip plastic cup
-            print("🤏 Step 5/7: Gripping plastic cup...")
-            print(f"   📏 Setting gripper width for {cup_size} cup...")
-            grip_result = run_skill("set_gripper_position", 255, 145)
-            if grip_result is False:
-                print("[ERROR] Failed to grip plastic cup")
-                return False
-            print("   ✅ Plastic cup secured successfully")
-            
-            run_skill("set_speed_factor", 25)
-            run_skill("sync")
-
-            # Step 6: Extract plastic cup from dispenser
-            print("⬇️ Step 6/7: Extracting plastic cup from dispenser...")
-            print("   📍 Moving down to extract cup...")
-            extract_result = run_skill("moveEE", 0, 0, -210, 0, 0, 0)
-            
-            if extract_result is False:
-                print("[ERROR] Failed to extract plastic cup from dispenser")
-                return False
-            print("   ✅ Cup successfully extracted from dispenser")
-
-            run_skill("sync")
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-
-            # Step 7: Return to safe position with plastic cup
-            print("📍 Step 7/7: Moving to safe position with plastic cup...")
-            safe_position_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if safe_position_result is False:
-                print("[ERROR] Failed to move to safe position with plastic cup")
-                return False
-            print("   ✅ Successfully moved to safe position")
-
-        elif cup_size == '12oz':
-            # Step 3: Move to plastic cup dispenser area
-            print("📍 Step 3/7: Moving to plastic cup dispenser area...")
-            dispenser_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if dispenser_result is False:
-                print("[ERROR] Failed to move to plastic cup dispenser area")
-                return False
-            print("   ✅ Successfully positioned at dispenser area")
-            
-            # Step 4: Position for plastic cup grab
-            print(f"🎯 Step 4/7: Positioning for {cup_size} plastic cup grab...")
-            print("   📍 Moving to grab position...")
-            grab_position_result = run_skill("moveEE", 0, 210, 0, 0, 0, 0)
-            if grab_position_result is False:
-                print("[ERROR] Failed to move to plastic cup grab position")
-                return False
-            print("   ✅ Successfully positioned for cup grab")
-            
-            run_skill("sync")
-
-            # Step 5: Grip plastic cup
-            print("🤏 Step 5/7: Gripping plastic cup...")
-            print(f"   📏 Setting gripper width for {cup_size} cup...")
-            grip_result = run_skill("set_gripper_position", 255, 145)
-            if grip_result is False:
-                print("[ERROR] Failed to grip plastic cup")
-                return False
-            print("   ✅ Plastic cup secured successfully")
-            
-            run_skill("set_speed_factor", 25)
-            run_skill("sync")
-
-            # Step 6: Extract plastic cup from dispenser
-            print("⬇️ Step 6/7: Extracting plastic cup from dispenser...")
-            print("   📍 Moving down to extract cup...")
-            extract_result = run_skill("moveEE", 0, 0, -210, 0, 0, 0)
-            
-            if extract_result is False:
-                print("[ERROR] Failed to extract plastic cup from dispenser")
-                return False
-            print("   ✅ Cup successfully extracted from dispenser")
-
-            run_skill("sync")
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-
-            # Step 7: Return to safe position with plastic cup
-            print("📍 Step 7/7: Moving to safe position with plastic cup...")
-            safe_position_result = run_skill("gotoJ_deg", 128.029709,2.940671,-132.852890,-49.843658,-45.068768,-0.150343)
-            if safe_position_result is False:
-                print("[ERROR] Failed to move to safe position with plastic cup")
-                return False
-            print("   ✅ Successfully moved to safe position")
-
-        elif cup_size == '16oz':
-            # Step 3: Move to plastic cup dispenser area
-            print("📍 Step 3/7: Moving to plastic cup dispenser area...")
-            dispenser_result = run_skill("gotoJ_deg", 143.127869,-11.225266,-134.261658,-34.211472,-40.098595,-0.230271)
-            if dispenser_result is False:
-                print("[ERROR] Failed to move to plastic cup dispenser area")
-                return False
-            print("   ✅ Successfully positioned at dispenser area")
-            
-            # Step 4: Position for plastic cup grab
-            print(f"🎯 Step 4/7: Positioning for {cup_size} plastic cup grab...")
-            print("   📍 Moving to grab position...")
-            grab_position_result = run_skill("moveEE", 0, 210, 0, 0, 0, 0)
-            if grab_position_result is False:
-                print("[ERROR] Failed to move to plastic cup grab position")
-                return False
-            print("   ✅ Successfully positioned for cup grab")
-            
-            run_skill("sync")
-
-            # Step 5: Grip plastic cup
-            print("🤏 Step 5/7: Gripping plastic cup...")
-            print(f"   📏 Setting gripper width for {cup_size} cup...")
-            grip_result = run_skill("set_gripper_position", 255, 118)
-            if grip_result is False:
-                print("[ERROR] Failed to grip plastic cup")
-                return False
-            print("   ✅ Plastic cup secured successfully")
-            
-            run_skill("set_speed_factor", 25)
-            run_skill("sync")
-
-            # Step 6: Extract plastic cup from dispenser
-            print("⬇️ Step 6/7: Extracting plastic cup from dispenser...")
-            print("   📍 Moving down to extract cup...")
-            extract_result = run_skill("moveEE", 0, 0, -280, 0, 0, 0)
-            
-            if extract_result is False:
-                print("[ERROR] Failed to extract plastic cup from dispenser")
-                return False
-            print("   ✅ Cup successfully extracted from dispenser")
-
-            run_skill("sync")
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-
-            # Step 7: Return to safe position with plastic cup
-            print("📍 Step 7/7: Moving to safe position with plastic cup...")
-            safe_position_result = run_skill("gotoJ_deg", 143.127869,-11.225266,-134.261658,-34.211472,-40.098595,-0.230271)
-            if safe_position_result is False:
-                print("[ERROR] Failed to move to safe position with plastic cup")
-                return False
-            print("   ✅ Successfully moved to safe position")
-        else:
-            print(f"[ERROR] Unknown cup size: {cup_size!r}")
-            print("[INFO] Valid cup sizes: 6oz, 9oz, 12oz, 16oz")
+        
+        # Step 3: Move to plastic cup dispenser area
+        print("📍 Step 3/7: Moving to plastic cup dispenser area...")
+        if not run_skill("gotoJ_deg", *config['coords']):
+            print("[ERROR] Failed to move to plastic cup dispenser area")
             return False
-        home(position="north")
+        print("   ✅ Successfully positioned at dispenser area")
+        
+        # Step 4: Position for plastic cup grab
+        print(f"🎯 Step 4/7: Positioning for {cup_size} plastic cup grab...")
+        if not run_skill("moveEE", 0.0, 400.0, 0.0, 0, 0, 0):
+            print("[ERROR] Failed to move to plastic cup grab position")
+            return False
+        print("   ✅ Successfully positioned for cup grab")
+        
+        # Step 5: Grip plastic cup
+        print("🤏 Step 5/7: Gripping plastic cup...")
+        if not run_skill("set_gripper_position", 255, config['gripper']):
+            print("[ERROR] Failed to grip plastic cup")
+            return False
+        print("   ✅ Plastic cup secured successfully")
+        
+        run_skill("set_speed_factor", 15)
+        run_skill("sync")
+        
+        # Step 6: Extract plastic cup from dispenser
+        print("⬇️ Step 6/7: Extracting plastic cup from dispenser...")
+        if not run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0):
+            print("[ERROR] Failed to extract plastic cup from dispenser")
+            return False
+        
+        # Tighten grip if needed (9oz special case)
+        if config['tighten_grip']:
+            run_skill("set_gripper_position", 255, config['tighten_grip'])
+        print("   ✅ Cup successfully extracted from dispenser")
+        
+        run_skill("set_speed_factor", 100)
+        run_skill("sync")
+        run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+        run_skill("gotoJ_deg", *config['coords'])
+        
+        # Step 7: Return to home position
+        print(f"📍 Step 7/7: Returning to {config['home']} home position...")
+        if not home(position=config['home']):
+            print(f"[ERROR] Failed to return to {config['home']} home position")
+            return False
+        print("   ✅ Successfully moved to home position")
         
         # Final success summary
         print("=" * 50)
@@ -551,36 +409,27 @@ def place_plastic_cup_station(**params) -> bool:
     Place a plastic cup at specified staging area.
     
     This function places a previously grabbed plastic cup at a designated staging area:
-    1. Validates stage parameter
+    1. Validates cup position parameter
     2. Moves through positioning sequence
     3. Navigates to target stage position
     4. Releases cup and moves up safely
     5. Returns to home position
     
     Args:
-        stage (str): Target staging area ('1', '2', '3', or '4')
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         
     Returns:
         bool: True if cup placement completed successfully, False otherwise
         
     Example:
-        success = place_plastic_cup(stage='1')
+        success = place_plastic_cup_station(position={'cup_position': 1.0})
         if success:
             print("Plastic cup placed successfully")
     """
     try:
-        # Extract and validate stage parameter
-        stage = params.get("stage")
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-        
-        # Validate stage parameter
-        valid_stages = ('1', '2', '3', '4')
-        if stage not in valid_stages:
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
         
         print(f"🥤 Starting plastic cup placement sequence for stage {stage}")
         print("=" * 50)
@@ -920,6 +769,7 @@ def pick_plastic_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_plastic_cup_milk failed: {e}")
         return False
+
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

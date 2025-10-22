@@ -11,7 +11,7 @@ import time
 from typing import Dict, Any, Optional, Tuple
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.params import MILK_FROTHING_PARAMS
+from oms_v1.params import MILK_FROTHING_PARAMS, _extract_cup_position
 
 # Global variables to store robot positions during milk frothing operations
 # These are used to remember positions between function calls for safe return operations
@@ -583,7 +583,7 @@ def pour_milk(**params) -> bool:
     6. Returns frother to safe position
     
     Args:
-        stage (str): Target stage for pouring ('1' or '2'), defaults to '1'
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         
     Returns:
         bool: True if milk pouring completed successfully, False otherwise
@@ -592,32 +592,14 @@ def pour_milk(**params) -> bool:
         Exception: If unexpected error occurs during pouring process
         
     Example:
-        success = pour_milk(stage='1')
+        success = pour_milk(position={'cup_position': 1.0})
         if success:
             print("Milk poured successfully")
     """
     try:
-        # Extract and validate stage parameter
-        raw_stage = params.get("stage", "1")
-        # Convert to string and handle both "1" and "stage_1" formats
-        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
-            stage = raw_stage.split("_")[1]
-        else:
-            stage = str(raw_stage)
-        
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-        
-        # Validate stage parameter (accept both '1' and 'stage_1' formats)
-        if stage not in ('1', '2', '3', '4', 'stage_1', 'stage_2', 'stage_3', 'stage_4'):
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print("[INFO] Valid stages: '1', '2', '3', '4' or 'stage_1', 'stage_2', 'stage_3', 'stage_4'")
-            return False
-        
-        # Normalize to numeric format for comparison
-        if stage.startswith('stage_'):
-            stage = stage.split('_')[1]
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
         
         print(f"🥛 Starting milk pouring sequence for stage {stage}")
         print("=" * 50)
@@ -915,13 +897,14 @@ def return_frother(**params) -> bool:
         print(f"[ERROR] Unexpected error during frother return: {e}")
         return False
 
+
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_frother_position': get_frother_position,
     'pick_frother': pick_frother,
     'unmount_and_swirl_milk': unmount_and_swirl_milk,
     'pour_milk': pour_milk,
-    'return_frother': return_frother,
     'mount_frother': mount_frother,
     'clean_milk_pitcher': clean_milk_pitcher,
     'return_frother': return_frother,

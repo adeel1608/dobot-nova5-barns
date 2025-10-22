@@ -9,7 +9,10 @@ and staging area management.
 
 import time
 from typing import Dict, Any, Optional
-from oms_v1.params import GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS
+from oms_v1.params import (
+    GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS, DEFAULT_CUP_POSITION,
+    _extract_cup_position
+)
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 
@@ -285,7 +288,7 @@ def place_paper_cup(**params) -> bool:
     5. Returns to staging home position
     
     Args:
-        stage (str): Target stage for paper cup placement ('stage_1', 'stage_2', etc.), defaults to 'stage_1'
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         
     Returns:
         bool: True if paper cup placed successfully, False otherwise
@@ -294,19 +297,14 @@ def place_paper_cup(**params) -> bool:
         Exception: If unexpected error occurs during placement process
         
     Example:
-        success = place_paper_cup(stage='stage_1')
+        success = place_paper_cup(position={'cup_position': 1.0})
         if success:
             print("Paper cup placed successfully")
     """
     try:
-        # Extract and validate stage parameter
-        try:
-            stage = _normalize_stage(params.get("stage", "1"))  # Default to stage 1
-        except Exception as e:
-            print(f"[ERROR] Failed to normalize stage: {e}")
-            return False
-        if not stage:
-            stage = "stage_1"  # Final fallback
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = f"stage_{cup_position}"  # Convert to internal stage format
             
         stage_params = PLACE_PAPER_CUP_PARAMS.get(str(stage))
         
@@ -462,27 +460,13 @@ def pick_paper_cup_station(**params) -> bool:
     Pick up a paper cup from a specific stage.
 
     Args:
-        stage (str|int|float): Target stage to pick cup from ('1', '2', '3', or '4', also accepts numeric 1.0, etc.)
-        cup_size (str): One of 'H7', 'H9', 'H12' (also accepts '7oz','9oz','12oz')
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
+        cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0}
     """
     try:
-        # Extract and validate parameters
-        raw_stage = params.get("stage", "1")  # Default to stage 1
-        if raw_stage is None:
-            raw_stage = "1"
-
-        # Normalize stage to '1'..'4'
-        stage = None
-        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
-            try:
-                stage = str(int(raw_stage.split("_", 1)[1]))
-            except Exception:
-                stage = raw_stage
-        else:
-            try:
-                stage = str(int(float(raw_stage)))
-            except Exception:
-                stage = str(raw_stage)
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
 
         # Extract cup size from multiple possible formats
         cups_dict = None
@@ -618,31 +602,12 @@ def place_paper_cup_station(**params) -> bool:
     Place a paper cup at specified staging area.
 
     Args:
-        stage (str|int|float): Target staging area ('1','2','3','4', also accepts numeric 1.0 etc.)
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
     """
     try:
-        raw_stage = params.get("stage", "1")  # Default to stage 1
-        if raw_stage is None:
-            raw_stage = "1"
-
-        # Normalize stage to '1'..'4'
-        stage = None
-        if isinstance(raw_stage, str) and raw_stage.startswith("stage_"):
-            try:
-                stage = str(int(raw_stage.split("_", 1)[1]))
-            except Exception:
-                stage = raw_stage
-        else:
-            try:
-                stage = str(int(float(raw_stage)))
-            except Exception:
-                stage = str(raw_stage)
-
-        valid_stages = ('1', '2', '3', '4')
-        if stage not in valid_stages:
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
 
         print(f"🥤 Starting paper cup placement sequence for stage {stage}")
         print("=" * 50)
