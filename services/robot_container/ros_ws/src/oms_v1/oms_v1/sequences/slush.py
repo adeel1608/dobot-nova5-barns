@@ -15,7 +15,7 @@ from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cu
 from oms_v1.params import (
     SLUSH_PARAMS, VALID_STAGES, VALID_CUP_SIZES, VALID_DISPENSERS,
     validate_stage, validate_cup_size, log_step, log_success, log_error, log_info,
-    SPEED_NORMAL
+    SPEED_NORMAL, _extract_cup_position
 )
 
 
@@ -30,7 +30,7 @@ def get_slush(**params) -> bool:
     4. Positions cup under dispenser for slush dispensing
     
     Args:
-        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
         dispenser (str): Dispenser number ('1' or '2') - required parameter
         
@@ -38,13 +38,15 @@ def get_slush(**params) -> bool:
         bool: True if slush dispensing completed successfully, False otherwise
         
     Example:
-        success = get_slush(dispenser='1')  # Uses defaults for stage and cup_size
+        success = get_slush(position={'cup_position': 1.0}, dispenser='1')
         if success:
             print("Slush dispensed successfully")
     """
     try:
-        # Extract and validate parameters with defaults
-        stage = params.get("stage", "1")  # Default to stage 1
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
+        
         cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
@@ -53,14 +55,8 @@ def get_slush(**params) -> bool:
             return False
         
         # Validate parameters
-        valid_stages = ("1", "2", "3", "4")
         valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
         valid_dispensers = ("1", "2")
-        
-        if stage not in valid_stages:
-            print(f"[ERROR] Invalid stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
             
         if cup_size not in valid_cup_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -141,7 +137,7 @@ def place_slush(**params) -> bool:
     4. Places cup at designated staging area
     
     Args:
-        stage (str): Target stage ('1', '2', '3', or '4'), defaults to '1'
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
         dispenser (str): Dispenser number used ('1' or '2') - required parameter
         
@@ -149,13 +145,15 @@ def place_slush(**params) -> bool:
         bool: True if slush placement completed successfully, False otherwise
         
     Example:
-        success = place_slush(dispenser='1', stage='2')  # Uses default cup_size
+        success = place_slush(position={'cup_position': 2.0}, dispenser='1')
         if success:
             print("Slush cup placed successfully")
     """
     try:
-        # Extract and validate parameters with defaults
-        stage = params.get("stage", "1")  # Default to stage 1
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
+        
         cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
@@ -164,14 +162,8 @@ def place_slush(**params) -> bool:
             return False
         
         # Validate parameters
-        valid_stages = ("1", "2", "3", "4")
         valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
         valid_dispensers = ("1", "2")
-        
-        if stage not in valid_stages:
-            print(f"[ERROR] Invalid stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
             
         if cup_size not in valid_cup_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -217,7 +209,7 @@ def place_slush(**params) -> bool:
         
         # Step 4: Place slush cup at designated stage
         print(f"📍 Step 4/4: Placing slush cup at stage {stage}...")
-        if not place_plastic_cup_station(stage=stage):
+        if not place_plastic_cup_station(position={'cup_position': int(stage)}):
             print(f"[ERROR] Failed to place slush cup at stage {stage}")
             return False
         print(f"   ✅ Successfully placed slush cup at stage {stage}")
@@ -235,6 +227,8 @@ def place_slush(**params) -> bool:
         print(f"[ERROR] Unexpected error during slush placement: {e}")
         print("[INFO] Slush placement process terminated due to error")
         return False
+
+      
 
 
 # Register functions for CLI discovery and external access
