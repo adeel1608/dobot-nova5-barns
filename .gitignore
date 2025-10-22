@@ -14,7 +14,3 @@ __pycache__
 core.*
 dev.Dockerfile
 rf-detr-large.pth
-
-# Debug frames from validation service
-services/validation/coffee_detection/debug_frames_coffee/*.png
-services/validation/coffee_detection/debug_frames_coffee/*.jpg
