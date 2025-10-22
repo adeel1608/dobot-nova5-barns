@@ -13,6 +13,18 @@ A production-ready cup presence detection system using YOLO11 and OpenCV with HT
 - ✅ **Multi-resolution support** - Works with various camera resolutions
 - ✅ **Context manager** - Proper resource cleanup with `with` statement
 
+## Important: Output Format
+
+**The cup detection returns 1-indexed positions (1-4) with reversed/flipped values:**
+- Internal camera position 0 → Output position 4
+- Internal camera position 1 → Output position 3
+- Internal camera position 2 → Output position 2
+- Internal camera position 3 → Output position 1
+
+This means if a cup is detected at the leftmost camera position (0), it will be reported as position 4 in the output.
+
+**Example:** Camera sees cup at position 0 → API returns `{1: False, 2: False, 3: False, 4: True}`
+
 ## Quick Start
 
 ### 1. Installation
@@ -41,7 +53,7 @@ result = detector.detect()
 if "error" in result:
     print(f"Error: {result['error']}")
 else:
-    print(f"Cups detected: {result}")  # {0: True, 1: False, 2: True, 3: False}
+    print(f"Cups detected: {result}")  # {1: False, 2: False, 3: True, 4: False} (1-indexed, reversed)
 
 # Cleanup
 detector.release()
@@ -165,19 +177,20 @@ The system always returns a consistent format with detailed expected returns:
 ### Success Case:
 ```python
 {
-    0: True,   # Cup present at position 0
-    1: False,  # No cup at position 1
-    2: True,   # Cup present at position 2
-    3: False   # No cup at position 3
+    1: False,  # No cup at position 1 (reversed from internal position 3)
+    2: True,   # Cup present at position 2 (reversed from internal position 2)
+    3: False,  # No cup at position 3 (reversed from internal position 1)
+    4: True    # Cup present at position 4 (reversed from internal position 0)
 }
 ```
 
 **Expected Success Returns:**
 - **Type**: `Dict[int, bool]`
-- **Keys**: `0`, `1`, `2`, `3` (cup position indices)
+- **Keys**: `1`, `2`, `3`, `4` (1-indexed cup position, values are reversed/flipped)
 - **Values**: `True` if cup detected, `False` if no cup
 - **Detection Logic**: Based on majority vote across multiple frames
 - **Threshold**: Cup considered present if detected in ≥50% of frames (configurable)
+- **Note**: Positions are reversed (internal position 0 maps to output position 4, etc.)
 
 ### Error Case:
 ```python
@@ -271,7 +284,7 @@ Performs cup detection using settings from config.py.
 5. Returns position-based results
 
 **Returns:**
-- **Success**: `{0: bool, 1: bool, 2: bool, 3: bool}` - Cup presence at each position
+- **Success**: `{1: bool, 2: bool, 3: bool, 4: bool}` - Cup presence at each position (1-indexed, reversed)
 - **Error**: `{"error": str}` - Error message if detection fails
 
 **Detection Logic:**

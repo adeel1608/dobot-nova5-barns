@@ -19,6 +19,9 @@ DELAY_LONG = 2.0        # Long delay for settling
 
 # Valid parameter values
 VALID_PORTS = ('port_1', 'port_2', 'port_3')
+VALID_CUP_POSITIONS = (1, 2, 3, 4)
+VALID_CUP_POSITION_NAMES = ('cup_position_1', 'cup_position_2', 'cup_position_3', 'cup_position_4')
+# Legacy stage names still supported internally
 VALID_STAGES = ('1', '2', '3', '4')
 VALID_STAGE_NAMES = ('stage_1', 'stage_2', 'stage_3', 'stage_4')
 VALID_CUP_SIZES = ('7oz', '9oz', '12oz', '16oz')
@@ -28,12 +31,51 @@ VALID_HOME_POSITIONS = ('north', 'north_east', 'east', 'south_east',
 
 # Parameter defaults
 DEFAULT_PORT = 'port_2'
-DEFAULT_STAGE = '1'
+DEFAULT_CUP_POSITION = 1
+DEFAULT_STAGE = '1'  # Legacy support
 DEFAULT_CUP_SIZE = '12oz'
 DEFAULT_DISPENSER = '1'
 DEFAULT_HOME = 'north'
 
 # ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
+def _extract_cup_position(params: dict) -> int:
+    """
+    Extract cup_position from new parameter format.
+    
+    New format: {'position': {'cup_position': 1.0}}
+    Also supports legacy: {'stage': '1'} or {'stage': 1}
+    
+    Returns:
+        int: Cup position (1, 2, 3, or 4)
+    """
+    # Try new format first
+    position_dict = params.get("position", {})
+    if isinstance(position_dict, dict):
+        cup_position = position_dict.get("cup_position")
+        if cup_position is not None:
+            try:
+                pos = int(float(cup_position))
+                if pos in (1, 2, 3, 4):
+                    return pos
+            except (ValueError, TypeError):
+                pass
+    
+    # Fallback to legacy stage parameter for backward compatibility
+    stage_value = params.get("stage")
+    if stage_value is not None:
+        try:
+            if isinstance(stage_value, str) and stage_value.startswith("stage_"):
+                pos = int(stage_value.split("_")[1])
+            else:
+                pos = int(float(stage_value))
+            if pos in (1, 2, 3, 4):
+                return pos
+        except (ValueError, TypeError, IndexError):
+            pass
+    
+    # Default to position 1
+    return DEFAULT_CUP_POSITION
+
 def validate_port(port):
     """Validate port parameter"""
     if port not in VALID_PORTS:

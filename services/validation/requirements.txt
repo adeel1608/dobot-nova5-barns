@@ -10,7 +10,6 @@ psycopg2-binary==2.9.10
 pydantic==2.11.4
 fastapi==0.115.12
 urllib3==2.0.0
-urllib3==2.0.0
 
 # Computer Vision and Image Processing (for coffee + cup detection)
 opencv-python-headless==4.8.1.78
@@ -21,9 +20,11 @@ requests==2.31.0
 torch==2.8.0
 torchvision==0.23.0
 
-# YOLO Object Detection (for cup detection)
-ultralytics==8.3.203
-
 # Optional: Performance monitoring
 psutil==5.9.0
-psutil==5.9.0
+
+
+# For Cup detection
+rfdetr==1.3.0
+supervision==0.26.1
+pillow==11.3.0

@@ -96,6 +96,15 @@
       }
     ]
   },
+  "Validate_Cup": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      }
+    ]
+  },
   "Calibrate": {
     "steps": [
       {
@@ -297,6 +306,11 @@
           "type": "robot",
           "function": "unmount_and_swirl_milk",
           "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "clean_frother",
+          "params": {}
         }
     ]
   },
@@ -308,26 +322,6 @@
         "params": {
           "stage": "1"
         }
-      },
-      {
-        "type": "robot",
-        "function": "clean_frother",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "rinser_machine",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "return_frother",
-        "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "clean_frother",
-        "params": {}
       }
     ]
   },
@@ -371,7 +365,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "clean_frother",
+        "function": "clean_milk_pitcher",
         "params": {}
       },
       {
@@ -383,12 +377,7 @@
         "type": "robot",
         "function": "return_frother",
         "params": {}
-      },
-      {
-        "type": "automation",
-        "function": "clean_frother",
-        "params": {}
-      }
+      }      
     ]
   },
   "Slushie": {
@@ -497,11 +486,6 @@
   },
   "Place_Cup_Station": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "cup_detection",
-        "params": {}
-      },
       {
         "type": "robot",
         "function": "place_paper_cup_station",

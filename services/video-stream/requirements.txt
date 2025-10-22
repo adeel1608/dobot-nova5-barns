@@ -1,11 +1,6 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 opencv-python-headless==4.8.1.78
-numpy==2.2.6
-# Deep Learning Framework (for cup detection)
-torch==2.8.0
-torchvision==0.23.0
+numpy>=1.21.0,<2.0.0
 requests==2.31.0
 urllib3==2.0.0
-# YOLO Object Detection (for cup detection)
-ultralytics==8.3.203

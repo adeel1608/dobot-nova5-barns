@@ -15,7 +15,8 @@ from oms_v1.params import (
     ESPRESSO_GRINDER_HOME,
     ESPRESSO_GRINDER_PARAMS,
     ESPRESSO_PITCHER_PARAMS,
-    ESPRESSO_HOT_WATER_PARAMS
+    ESPRESSO_HOT_WATER_PARAMS,
+    _extract_cup_position
 )
 
 # Predefined home positions for espresso operations
@@ -972,16 +973,16 @@ def pick_espresso_pitcher(**params) -> bool:
 
 def pour_espresso_pitcher(**params) -> bool:
     """
-    Pour milk from espresso pitcher into cup at specified stage.
+    Pour milk from espresso pitcher into cup at specified position.
     
     This function performs the milk pouring sequence:
-    - Moves to pouring position based on stage
+    - Moves to pouring position based on cup position
     - Tilts espresso pitcher to pour milk
     - Returns to neutral position
     - Moves back to holding position
     
     Args:
-        stage (str): Target stage ('stage_1' or 'stage_2'), defaults to 'stage_1'
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         
     Returns:
         bool: True if pouring completed successfully, False otherwise
@@ -990,22 +991,14 @@ def pour_espresso_pitcher(**params) -> bool:
         Exception: If unexpected error occurs during pouring process
         
     Example:
-        success = pour_espresso_pitcher(stage='stage_1')
+        success = pour_espresso_pitcher(position={'cup_position': 1.0})
         if success:
             print("Milk poured successfully")
     """
     try:
-        # Extract and validate stage parameter (accept numeric like 1/1.0 → 'stage_1')
-        raw_stage = params.get("stage", "stage_1")
-        stage = _normalize_stage_with_prefix(raw_stage) or "stage_1"
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-        
-        if stage not in ('stage_1', 'stage_2', 'stage_3', 'stage_4'):
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print("[INFO] Available stages: stage_1, stage_2, stage_3, stage_4")
-            return False
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = f"stage_{cup_position}"  # Convert to internal stage format
         
         print(f"🥛 Starting milk pouring sequence for {stage}")
         print("=" * 50)
@@ -1492,6 +1485,7 @@ def return_espresso_pitcher(**params) -> bool:
         print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
         print("[INFO] Pitcher return process terminated due to error")
         return False
+
 
 
 

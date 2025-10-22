@@ -12,32 +12,30 @@
   "debug_frame_dir": "debug_frames",
   "max_retries": 3,
   "retry_backoff": 0.1,
-  "max_debug_frames": 10,
-  "cleanup_after_detection": true,
   "roi_points": [
     [
-      126,
-      380
+      139,
+      311
     ],
     [
-      928,
-      273
+      979,
+      242
     ],
     [
-      1876,
-      265
+      1882,
+      304
     ],
     [
-      1838,
-      872
+      1806,
+      892
     ],
     [
-      1017,
-      945
+      1004,
+      934
     ],
     [
-      221,
-      896
+      164,
+      842
     ]
   ]
 }

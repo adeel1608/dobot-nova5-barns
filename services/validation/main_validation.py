@@ -18,7 +18,17 @@ from .db_client import DatabaseClient
 # Replace dummy detector with production detector
 from .coffee_detection.camera_worker_production import ProductionCoffeeDetector, load_config
 from .config import get_db_connection_string, config
-from .cup_detection.cup_detector import CupDetector
+
+# Cup detector import - can switch between real and dummy
+USE_DUMMY_CUP_DETECTOR = os.getenv("USE_DUMMY_CUP_DETECTOR", "false").lower() == "true"
+
+if USE_DUMMY_CUP_DETECTOR:
+    from .cup_detection.dummy_detector import CupDetector
+    print("🧪 Using DUMMY Cup Detector for testing")
+else:
+    from .cup_detection.cup_detector import CupDetector
+    print("📷 Using RF-DETR Cup Detector")
+
 
 class MainValidation:
     def __init__(self):
@@ -918,11 +928,12 @@ class MainValidation:
                 return result
             
             # Check if any cups are detected
-            cups_detected = detection_result  # {0: bool, 1: bool, 2: bool, 3: bool}
+            cups_detected = detection_result  # {1: bool, 2: bool, 3: bool, 4: bool} (1-indexed, reversed)
             total_cups = len(cups_detected)
             detected_count = sum(1 for present in cups_detected.values() if present)
             
             result["passed"] = True
+            result["detection_result"] = cups_detected  # Add at top level for easy access
             result["details"] = {
                 "cups_detected": cups_detected,
                 "total_positions": total_cups,

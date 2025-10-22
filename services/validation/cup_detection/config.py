@@ -1,81 +1,66 @@
-"""
-Configuration for Cup Detection System
-Modify these settings for your setup
-"""
-
 import numpy as np
+# Production config – trimmed to only what the code actually reads
+# If your password contains '@', encode it as %40.
+RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
-# Camera Settings
-RTSP_URL = "rtsp://admin:123456@192.168.200.60:554/stream1"
+# RF-DETR local model settings
+RFDETR_VARIANT = "large"           # "base" or "large"
+RFDETR_CONFIDENCE = 0.20           # 0..1
+ALLOWED_CLASSES = ["cup"]          # subset of model's label space
 
-# Model Settings
-MODEL_PATH = "models/yolov8l.pt"
-DEVICE = "cpu"  # Use "cpu" if no GPU
-CONFIDENCE = 0.05  # Even lower confidence for better detection
-IMG_SIZE = 1920     # Larger image size for better detection
-PROCESS_SCALE = 0.5  # Reduced scale for faster processing
+# Local model paths (set to None to use default download behavior)
+import os
+RFDETR_MODEL_PATHS = {
+    "large": os.path.join(os.path.dirname(__file__), "models", "rf-detr-large.pth"),
+    "base": os.path.join(os.path.dirname(__file__), "models", "rf-detr-base.pth"),
+    "medium": os.path.join(os.path.dirname(__file__), "models", "rf-detr-medium.pth")
+}
 
-# Detection Settings - OPTIMIZED FOR SPEED
-FRAMES = 1        # Use only 1 frame for maximum speed
-THRESHOLD = 0.2   # Lower threshold for better detection
+# Preprocess
+MAX_SIDE = 960                     # resize longest side to this (keeps aspect)
 
-# Adaptive Detection Settings
-DETECTION_HISTORY_SIZE = 5     # Reduced history for faster processing
-POSITION_BOOST_RADIUS = 100    # Larger boost radius for detections near known positions (pixels)
-MIN_CUP_SIZE = 15             # Smaller minimum cup size in pixels
-MAX_CUP_SIZE = 300            # Larger maximum cup size in pixels
-ASPECT_RATIO_MIN = 0.3        # More lenient minimum aspect ratio (height/width)
-ASPECT_RATIO_MAX = 3.0        # More lenient maximum aspect ratio (height/width)
-
-# Enhanced ROI Detection Settings
-ROI_OVERLAP_THRESHOLD = 0.1  # Lower minimum overlap ratio for ROI inclusion (0.0-1.0)
-ROI_CENTER_WEIGHT = 0.7      # Weight for center point in ROI check (0.0-1.0)
-
-# Transparent Cup Detection Settings
-TRANSPARENT_BOOST_FACTOR = 1.5  # Higher boost factor for transparent cup detection
-EDGE_DETECTION_ENABLED = True   # Enable edge-based detection for transparent cups
-CONTOUR_ANALYSIS_ENABLED = True # Enable contour analysis for transparent cups
-REFLECTION_FILTER_ENABLED = True # Enable reflection filtering
-
-# Performance Optimization Settings
-FRAME_BUFFER_SIZE = 3       # Keep only last 3 frames in buffer
-SKIP_FRAMES = 1             # Skip 1 frame for faster processing (0 = no skip)
-ENABLE_FRAME_SKIPPING = True # Enable frame skipping for speed
-
-# Debug Settings
-DEBUG_MODE = True  # Set to True to enable debug output
-SAVE_FRAMES = True  # Set to True to save processed frames
-DEBUG_FOLDER = "debug_frames"  # Folder to save debug frames
-MAX_DEBUG_FRAMES = 10  # Maximum number of debug frames to keep
-CLEANUP_AFTER_DETECTION = True  # Automatically cleanup old debug frames
-
-
-
-# ROI (Region of Interest) - Adjust these coordinates for your camera
-# Default coordinates for 1920x1080 resolution
+# ROI & cups
+# Provide polygon as list of (x,y). Example below is placeholder.
 ROI_POLYGON = np.array([
-    [821, 653],
-    [1377, 442],
-    [1693, 534],
-    [1086, 842]
+    [534, 300],
+    [583, 195],
+    [925, 303],
+    [883, 420]
 ], dtype=np.int32)
-
-# Cup Positions - Adjust these coordinates for your setup
-# Default positions for 1920x1080 resolution (4 cups in a row)
+# Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (1067, 688),
-    (1232, 615),
-    (1345, 565),
-    (1427, 534)
+    (842, 347),
+    (778, 324),
+    (711, 305),
+    (652, 292)
 ]
 
-# Connection Settings
-RECONNECT_RETRIES = 999999
-RECONNECT_DELAY = 0.5
+# Filters / heuristics
+MIN_CUP_SIZE = 20                  # px (min bbox min side)
+MAX_CUP_SIZE = 300                 # px (max bbox max side)
+ASPECT_RATIO_MIN = 0.5             # w/h lower bound
+ASPECT_RATIO_MAX = 2.0             # w/h upper bound
+ROI_OVERLAP_THRESHOLD = 0.30       # IoU with ROI mask for acceptance
 
-# RTSP Connection Settings
-CONNECTION_TIMEOUT = 5.0      # Connection timeout in seconds
-FRAME_TIMEOUT = 3.0           # Frame read timeout in seconds
-RETRY_DELAY = 1.0             # Initial retry delay in seconds
-MAX_RETRY_DELAY = 10.0        # Maximum retry delay in seconds
-RETRY_BACKOFF = 1.5           # Exponential backoff multiplier
+# History / voting
+FRAMES = 1                         # detections to aggregate per result
+THRESHOLD = 1                      # min votes to accept
+DETECTION_HISTORY_SIZE = 5
+
+# Buffering / skipping
+FRAME_BUFFER_SIZE = 3
+ENABLE_FRAME_SKIPPING = True
+SKIP_FRAMES = 0
+
+# Connection & retry
+RECONNECT_RETRIES = 999999
+RECONNECT_DELAY = 0.5              # initial seconds before retry
+RETRY_BACKOFF = 1.5                # multiplier
+MAX_RETRY_DELAY = 10.0             # seconds (cap)
+CONNECTION_TIMEOUT = 5.0           # seconds for initial connect
+FRAME_TIMEOUT = 3.0                # seconds since last fresh frame before considered stale
+
+# Debug
+DEBUG_MODE = True
+SAVE_FRAMES = True
+DEBUG_FOLDER = "debug_frames"

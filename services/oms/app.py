@@ -1774,18 +1774,30 @@ async def process_pos_order(order_data: dict):
         for item in parsed_order.get("items", []):
             # Group this item's ingredients by category -> ingredient_id -> amount
             grouped = {}
+            
             for ing in item.ingredients:
                 cat = getattr(ing, "category", None)
                 ingredient_id = getattr(ing, "ingredient_id", None)
                 amount = getattr(ing, "total_amount", 0)
-                if cat not in grouped:
-                    grouped[cat] = {}
-                grouped[cat][ingredient_id] = amount
+                
+                # Include cup_position in grouped ingredients with proper structure
+                if cat and ingredient_id:
+                    if cat not in grouped:
+                        grouped[cat] = {}
+                    grouped[cat][ingredient_id] = amount
 
-            # Determine size from grouped cups (if present)
+            # Determine size from grouped cups (if present), fallback to item.size
             size = None
             if "cups" in grouped and len(grouped["cups"]) > 0:
                 size = next(iter(grouped["cups"].keys()))
+            
+            # Fallback to item size if no cup found in ingredients
+            if not size:
+                size = getattr(item, "size", "regular")
+            
+            # Ensure size is never None (fallback to "regular")
+            if size is None or size == "unknown":
+                size = "regular"
 
             # Number of identical cups to create for this item
             quantity = int(getattr(item, "ordered_qty", 1) or 1)

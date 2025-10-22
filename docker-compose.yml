@@ -87,10 +87,11 @@ services:
       context: .
       dockerfile: services/validation/Dockerfile.rabbitmq
     container_name: barns-validation
+    network_mode: host  # Use host network to access external RTSP cameras
     environment:
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      RABBITMQ_URL: amqp://admin:admin123@localhost:5672/  # Changed to localhost for host network
       # database config 
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: localhost  # Changed to localhost for host network
       POSTGRES_PORT: 5432
       POSTGRES_DB: barns_validation
       POSTGRES_USER: validation_user
@@ -113,11 +114,10 @@ services:
       # Mount debug directories so you can access debug frames on Windows
       - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
       - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
-    networks:
-      - barns-network
+    # networks removed - host mode doesn't use custom networks
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"localhost\", 5672), timeout=5)'"]
       interval: 30s
       timeout: 10s
       retries: 3

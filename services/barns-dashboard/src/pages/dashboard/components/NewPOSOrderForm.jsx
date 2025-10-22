@@ -311,14 +311,26 @@ function NewPOSOrderForm({
                     <div className="space-y-3 mt-2">
                       {/* Show ingredient categories with dropdowns */}
                       {Object.entries(ingredientsByCategory).map(([category, ingredients]) => (
-                        // Skip cups category from modification in removal/replacement, but still show current cup
+                        // Skip cups and position categories from modification - show as read-only
                         category === 'cups' ? (
                           <div key={category} className="bg-gray-50 p-3 rounded">
-                            <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">cups</label>
+                            <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">Cup Size</label>
                             {/* Show current cup (from defaults) as read-only */}
                             <div className="text-xs bg-white px-2 py-1 rounded">
                               {(item.selectedMenuItem.default_ingredients || []).filter(di => di.category === 'cups').map((di, idx) => (
                                 <div key={`cup-${idx}`}>{di.type} (fixed)</div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : category === 'position' ? (
+                          <div key={category} className="bg-gray-50 p-3 rounded">
+                            <label className="block text-xs font-medium text-gray-700 mb-1 capitalize">Cup Position</label>
+                            {/* Show current cup position (from defaults) as read-only */}
+                            <div className="text-xs bg-white px-2 py-1 rounded">
+                              {(item.selectedMenuItem.default_ingredients || []).filter(di => di.category === 'position').map((di, idx) => (
+                                <div key={`position-${idx}`}>
+                                  {di.cup_position || di.type || 'Default Position'} (fixed)
+                                </div>
                               ))}
                             </div>
                           </div>
