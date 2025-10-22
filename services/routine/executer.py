@@ -269,22 +269,30 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     
     try:
         cfg = configs[function]
+        # Get reference to task's ingredients (not a copy) so updates persist
+        task_item = task.get("item", {})
+        if "ingredients" not in task_item:
+            task_item["ingredients"] = {}
+        
         for step in cfg["steps"]:
             step_type = step["type"]
             func_name = step["function"]
-            # Use only item-specific params (e.g., ingredients) and avoid step params from tasks.json
-            # Get fresh copy of ingredients on each step to pick up any updates from previous steps
-            ingredients = task.get("item", {}).get("ingredients", {})
+            # Get reference to ingredients (not a copy) so updates persist across steps
+            ingredients = task_item["ingredients"]
+            # Create a copy for params to send to services
             params = dict(ingredients)
             
+            logger.info(f"─────────────────────────────────────────────────")
             logger.info(f"Executing step: {func_name} ({step_type}) for cup {cup_id}")
-            logger.info(f"📦 Step params: {params}")
+            logger.info(f"📦 Step params (from task ingredients): {params}")
             
             # Log cup_position specifically for debugging
             if "position" in params and "cup_position" in params["position"]:
                 logger.info(f"🎯 Cup position for this step: {params['position']['cup_position']}")
             elif "cup_position" in params:
                 logger.info(f"🎯 Cup position for this step: {params['cup_position']}")
+            else:
+                logger.info(f"🎯 No cup_position found in params")
             
             if step_type == "validation":
                 res = await call_validation(func_name, params, rabbitmq_client)
@@ -354,7 +362,8 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                         logger.info(f"✅ Updated params['position']['cup_position'] to {new_position}")
                                 
                                 logger.info(f"✅ Cup position updated successfully for cup {cup_id}")
-                                logger.info(f"📦 Updated ingredients structure: {ingredients}")
+                                logger.info(f"📦 Updated task_item['ingredients']: {task_item['ingredients']}")
+                                logger.info(f"🔗 Ingredients reference updated - changes will persist to next step")
                                 logger.info(f"📦 Current params after update: {params}")
                             else:
                                 logger.info(f"✓ Cup position {current_position} is available, no change needed")
