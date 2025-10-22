@@ -31,8 +31,8 @@ VALID_HOME_POSITIONS = ('north', 'north_east', 'east', 'south_east',
 
 # Parameter defaults
 DEFAULT_PORT = 'port_2'
-DEFAULT_CUP_POSITION = 1
-DEFAULT_STAGE = '1'  # Legacy support
+DEFAULT_CUP_POSITION = 4  # Changed from 1 to test parameter passing
+DEFAULT_STAGE = '4'  # Legacy support - changed to match
 DEFAULT_CUP_SIZE = '12oz'
 DEFAULT_DISPENSER = '1'
 DEFAULT_HOME = 'north'

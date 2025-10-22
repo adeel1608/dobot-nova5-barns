@@ -50,6 +50,44 @@ info() {
     echo -e "${BLUE}[INFO]${NC} $*"
 }
 
+# Function to reset USB device (helps with Orbbec camera initialization)
+reset_usb_device() {
+    log "Attempting USB device reset for Orbbec camera..."
+    
+    # Find the Orbbec camera USB device
+    local orbbec_device=$(lsusb | grep -i "2bc5" | head -1)
+    
+    if [ -z "$orbbec_device" ]; then
+        warn "Could not find Orbbec camera USB device, skipping USB reset"
+        return 1
+    fi
+    
+    # Extract bus and device numbers
+    local bus=$(echo "$orbbec_device" | grep -oP "Bus \K[0-9]+")
+    local dev=$(echo "$orbbec_device" | grep -oP "Device \K[0-9]+")
+    
+    if [ -n "$bus" ] && [ -n "$dev" ]; then
+        log "Found Orbbec camera at Bus $bus Device $dev"
+        
+        # Unbind and rebind the USB device
+        local usb_path="/sys/bus/usb/devices/$bus-*"
+        for device_path in $usb_path; do
+            if [ -e "$device_path/authorized" ]; then
+                log "Resetting USB device at $device_path"
+                echo 0 | sudo tee "$device_path/authorized" > /dev/null 2>&1 || true
+                sleep 1
+                echo 1 | sudo tee "$device_path/authorized" > /dev/null 2>&1 || true
+                sleep 2
+                log "USB device reset complete"
+                return 0
+            fi
+        done
+    fi
+    
+    warn "Could not reset USB device"
+    return 1
+}
+
 # Function to restart camera and perception nodes
 restart_camera_and_perception() {
     if [ "$RESTART_IN_PROGRESS" = true ]; then
@@ -68,6 +106,12 @@ restart_camera_and_perception() {
     sleep 2
     pkill -KILL -f "orbbec_camera" &>/dev/null || true
     pkill -KILL -f "aruco_perception" &>/dev/null || true
+    
+    # Try USB reset to help with camera initialization
+    reset_usb_device || true
+    
+    # Clear any device locks
+    rm -f /dev/shm/orbbec_device_lock 2>/dev/null || true
     
     log "Waiting 5 seconds before restarting camera..."
     sleep 5
@@ -98,10 +142,12 @@ wait_for_robot_stack_ready() {
         local camera_node=$(ros2 node list 2>/dev/null | grep "/camera/camera" || true)
         local aruco_node=$(ros2 node list 2>/dev/null | grep "aruco_perception_node" || true)
         local color_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/image_raw" || true)
-        local camera_info_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
+        local depth_topic=$(ros2 topic list 2>/dev/null | grep "/camera/depth/image_raw" || true)
+        local color_info_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
+        local depth_info_topic=$(ros2 topic list 2>/dev/null | grep "/camera/depth/camera_info" || true)
         
-        if [ -n "$camera_node" ] && [ -n "$aruco_node" ] && [ -n "$color_topic" ] && [ -n "$camera_info_topic" ]; then
-            log "Robot stack fully initialized and ready for monitoring"
+        if [ -n "$camera_node" ] && [ -n "$aruco_node" ] && [ -n "$color_topic" ] && [ -n "$depth_topic" ] && [ -n "$color_info_topic" ] && [ -n "$depth_info_topic" ]; then
+            log "Robot stack fully initialized with color and depth cameras ready"
             return 0
         fi
         
@@ -117,13 +163,25 @@ wait_for_robot_stack_ready() {
 # Function to monitor perception node logs for errors  
 monitor_perception_errors() {
     # First wait for the robot stack to be ready
+    local stack_ready_result
     wait_for_robot_stack_ready
+    stack_ready_result=$?
     
-    log "Starting ArUco warning monitoring..."
-    log "Only restarting when actual 'No color camera info received' warnings appear"
+    # If stack didn't initialize properly (depth camera issue), restart immediately
+    if [ $stack_ready_result -ne 0 ]; then
+        warn "Robot stack failed to initialize properly, restarting camera and perception..."
+        restart_camera_and_perception
+        # Wait again after restart
+        wait_for_robot_stack_ready
+    fi
+    
+    log "Starting camera error monitoring..."
+    log "Monitoring for: 'No color camera info received' and 'Waiting for depth camera intrinsics'"
     
     local warning_count=0
     local last_warning_time=0
+    local depth_warning_count=0
+    local last_depth_warning_time=0
     
     while true; do
         sleep 10
@@ -133,6 +191,7 @@ monitor_perception_errors() {
             warn "ArUco perception process died, restarting..."
             restart_camera_and_perception
             warning_count=0
+            depth_warning_count=0
             continue
         fi
         
@@ -140,49 +199,83 @@ monitor_perception_errors() {
             warn "Camera process died, restarting..."
             restart_camera_and_perception
             warning_count=0
+            depth_warning_count=0
             continue
         fi
         
-        # Check for actual "No color camera info received" warnings in recent logs
         local current_time=$(date +%s)
-        local found_warning="false"
         
-        # Method 1: Check recent system logs
-        if journalctl --since "30 seconds ago" 2>/dev/null | grep -q "No color camera info received"; then
-            found_warning="true"
+        # Check for "Waiting for depth camera intrinsics" warnings
+        local found_depth_warning="false"
+        if journalctl --since "30 seconds ago" 2>/dev/null | grep -q "Waiting for depth camera intrinsics"; then
+            found_depth_warning="true"
         fi
         
-        # Method 2: Check ROS log files if they exist  
-        if [ "$found_warning" = "false" ] && [ -d "$HOME/.ros/log" ]; then
-            if find "$HOME/.ros/log" -name "*.log" -newermt "30 seconds ago" -exec grep -l "No color camera info received" {} \; 2>/dev/null | head -1 | grep -q .; then
-                found_warning="true"
+        if [ "$found_depth_warning" = "false" ] && [ -d "$HOME/.ros/log" ]; then
+            if find "$HOME/.ros/log" -name "*.log" -newermt "30 seconds ago" -exec grep -l "Waiting for depth camera intrinsics" {} \; 2>/dev/null | head -1 | grep -q .; then
+                found_depth_warning="true"
             fi
         fi
         
-        if [ "$found_warning" = "true" ]; then
-            # Only count if warnings are close together (within 60 seconds)
+        if [ "$found_depth_warning" = "true" ]; then
+            # For depth warnings, restart after just 2 consecutive warnings (it's a more critical issue)
+            if [ $((current_time - last_depth_warning_time)) -lt 60 ]; then
+                depth_warning_count=$((depth_warning_count + 1))
+            else
+                depth_warning_count=1
+            fi
+            
+            last_depth_warning_time=$current_time
+            warn "Detected 'Waiting for depth camera intrinsics' warning ($depth_warning_count/2)"
+            
+            if [ $depth_warning_count -ge 2 ]; then
+                warn "Depth camera not initializing properly, restarting camera and perception..."
+                restart_camera_and_perception
+                depth_warning_count=0
+                warning_count=0
+                continue
+            fi
+        else
+            # Reset depth warning count if no warnings for a while
+            if [ $depth_warning_count -gt 0 ] && [ $((current_time - last_depth_warning_time)) -gt 120 ]; then
+                depth_warning_count=0
+                log "No depth camera warnings for 2+ minutes, count reset"
+            fi
+        fi
+        
+        # Check for "No color camera info received" warnings
+        local found_color_warning="false"
+        if journalctl --since "30 seconds ago" 2>/dev/null | grep -q "No color camera info received"; then
+            found_color_warning="true"
+        fi
+        
+        if [ "$found_color_warning" = "false" ] && [ -d "$HOME/.ros/log" ]; then
+            if find "$HOME/.ros/log" -name "*.log" -newermt "30 seconds ago" -exec grep -l "No color camera info received" {} \; 2>/dev/null | head -1 | grep -q .; then
+                found_color_warning="true"
+            fi
+        fi
+        
+        if [ "$found_color_warning" = "true" ]; then
             if [ $((current_time - last_warning_time)) -lt 60 ]; then
                 warning_count=$((warning_count + 1))
             else
-                warning_count=1  # Reset if too much time passed
+                warning_count=1
             fi
             
             last_warning_time=$current_time
             warn "Detected 'No color camera info received' warning ($warning_count/3)"
             
-            # Restart after 3 warnings within reasonable time
             if [ $warning_count -ge 3 ]; then
-                warn "Multiple camera info warnings detected, restarting camera and perception..."
+                warn "Multiple color camera info warnings detected, restarting camera and perception..."
                 restart_camera_and_perception
                 warning_count=0
+                depth_warning_count=0
             fi
         else
-            # No warnings found, gradually reduce count
+            # Reset color warning count if no warnings for a while
             if [ $warning_count -gt 0 ] && [ $((current_time - last_warning_time)) -gt 120 ]; then
-                warning_count=$((warning_count - 1))
-                if [ $warning_count -eq 0 ]; then
-                    log "No camera warnings for 2+ minutes, warning count reset"
-                fi
+                warning_count=0
+                log "No color camera warnings for 2+ minutes, count reset"
             fi
         fi
     done
@@ -433,13 +526,62 @@ start_robot() {
         
         sleep 5
 
-        # Launch Orbbec camera
+        # Launch Orbbec camera with validation
         log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
-        CAMERA_PID=$!
-        PIDS+=($CAMERA_PID)
         
-        sleep 5
+        # Function to check if camera is working properly
+        validate_camera() {
+            sleep 10  # Give camera time to initialize
+            
+            local color_info=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
+            local depth_info=$(ros2 topic list 2>/dev/null | grep "/camera/depth/camera_info" || true)
+            
+            if [ -n "$color_info" ] && [ -n "$depth_info" ]; then
+                log "Camera validation passed - both color and depth info topics available"
+                return 0
+            else
+                log "Camera validation failed - missing topics (color: $color_info, depth: $depth_info)"
+                return 1
+            fi
+        }
+        
+        # Try launching camera up to 3 times
+        camera_launch_attempts=0
+        camera_success=false
+        
+        while [ $camera_launch_attempts -lt 3 ] && [ "$camera_success" = false ]; do
+            camera_launch_attempts=$((camera_launch_attempts + 1))
+            
+            if [ $camera_launch_attempts -gt 1 ]; then
+                log "Camera launch attempt $camera_launch_attempts of 3..."
+                
+                # Kill previous camera process
+                pkill -KILL -f "orbbec_camera" &>/dev/null || true
+                sleep 2
+                
+                # Try USB reset
+                log "Attempting USB reset before retry..."
+                echo 0 | sudo tee /sys/bus/usb/devices/*/authorized > /dev/null 2>&1 || true
+                sleep 1
+                echo 1 | sudo tee /sys/bus/usb/devices/*/authorized > /dev/null 2>&1 || true
+                sleep 3
+            fi
+            
+            ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+            CAMERA_PID=$!
+            PIDS+=($CAMERA_PID)
+            
+            if validate_camera; then
+                camera_success=true
+                log "Camera launched successfully"
+            else
+                log "Camera failed to initialize properly"
+            fi
+        done
+        
+        if [ "$camera_success" = false ]; then
+            log "WARNING: Camera failed to initialize after 3 attempts, but continuing..."
+        fi
 
         # Check if ROS2 is working properly
         log "Checking ROS2 connectivity..."
