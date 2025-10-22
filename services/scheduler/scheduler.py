@@ -730,6 +730,61 @@ def get_current_status():
     """Get the current processing status."""
     return current_status
 
+async def update_cup_position(cup_id: str, new_position: float) -> bool:
+    """
+    Update the cup position for all pending tasks of a given cup.
+    Called when cup_detection finds a better position.
+    
+    Args:
+        cup_id: The cup ID to update
+        new_position: The new cup position (1-4)
+    
+    Returns:
+        True if update successful, False if cup not found
+    """
+    global cup_data_by_cup, tasks
+    
+    logger.info(f"[SCHEDULER] 🔄 Updating cup position for {cup_id} to {new_position}")
+    
+    with lock:
+        # Update in cup_data_by_cup (master data for this cup)
+        if cup_id not in cup_data_by_cup:
+            logger.warning(f"[SCHEDULER] Cup {cup_id} not found in cup_data_by_cup")
+            return False
+        
+        cup_data = cup_data_by_cup[cup_id]
+        
+        # Update position in ingredients
+        if "ingredients" in cup_data:
+            if "position" in cup_data["ingredients"]:
+                old_position = cup_data["ingredients"]["position"].get("cup_position")
+                cup_data["ingredients"]["position"]["cup_position"] = new_position
+                logger.info(f"[SCHEDULER] Updated cup_data_by_cup[{cup_id}]['ingredients']['position']['cup_position']: {old_position} → {new_position}")
+            else:
+                # Create position dict if it doesn't exist
+                cup_data["ingredients"]["position"] = {"cup_position": new_position}
+                logger.info(f"[SCHEDULER] Created position entry in cup_data_by_cup[{cup_id}]")
+        else:
+            logger.warning(f"[SCHEDULER] No ingredients found in cup_data for {cup_id}")
+        
+        # Update all pending tasks for this cup
+        updated_task_count = 0
+        for task in tasks:
+            if task["cup"] == cup_id and task["status"] == "pending":
+                # Update position in task's item data
+                if "item" in task and "ingredients" in task["item"]:
+                    if "position" in task["item"]["ingredients"]:
+                        task["item"]["ingredients"]["position"]["cup_position"] = new_position
+                        updated_task_count += 1
+                    else:
+                        task["item"]["ingredients"]["position"] = {"cup_position": new_position}
+                        updated_task_count += 1
+        
+        logger.info(f"[SCHEDULER] ✅ Updated {updated_task_count} pending tasks for {cup_id}")
+        logger.info(f"[SCHEDULER] 🎯 Future tasks for {cup_id} will use position {new_position}")
+        
+        return True
+
 async def handle_routine_feedback(cup_id: str, action: str, success: bool):
     """
     Handle feedback from the routine service about task completion.

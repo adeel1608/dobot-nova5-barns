@@ -67,6 +67,7 @@ class SchedulerService:
         logger.info("🔧 [SCHEDULER] Registering RabbitMQ message handlers...")
         self.rabbitmq_client.register_handler("process_order", self.handle_process_order)
         self.rabbitmq_client.register_handler("feedback", self.handle_feedback)
+        self.rabbitmq_client.register_handler("update_cup_position", self.handle_update_cup_position)
         self.rabbitmq_client.register_handler("get_status", self.handle_get_status)
         self.rabbitmq_client.register_handler("subscribe_status", self.handle_subscribe_status)
         self.rabbitmq_client.register_handler("health", self.handle_health)
@@ -239,6 +240,46 @@ class SchedulerService:
             raise  # This will trigger service restart
         except Exception as e:
             logger.error(f"[SCHEDULER] Feedback handler error: {e}")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_update_cup_position(self, data: Dict) -> Dict:
+        """Handle cup position update from routine service (after cup_detection)."""
+        try:
+            cup_id = data.get("cup_id")
+            new_position = data.get("new_position")
+            old_position = data.get("old_position")
+            
+            logger.info(f"[SCHEDULER] 📍 Received position update for {cup_id}: {old_position} → {new_position}")
+            
+            if not cup_id or new_position is None:
+                logger.error(f"[SCHEDULER] Missing cup_id or new_position in update request")
+                return {"success": False, "error": "Missing required parameters"}
+            
+            # Update position in scheduler's internal data structures
+            updated = await scheduler.update_cup_position(cup_id, float(new_position))
+            
+            if updated:
+                logger.info(f"[SCHEDULER] ✅ Successfully updated position for {cup_id} to {new_position}")
+                logger.info(f"[SCHEDULER] 🎯 All future tasks for {cup_id} will use position {new_position}")
+                
+                # Send event to notify about position update
+                try:
+                    await self.rabbitmq_client.send_event("scheduler.cup_position_updated", {
+                        "cup_id": cup_id,
+                        "new_position": new_position,
+                        "old_position": old_position,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                except Exception as e:
+                    logger.warning(f"Failed to send position update event: {e}")
+                
+                return {"success": True, "message": f"Position updated to {new_position}"}
+            else:
+                logger.warning(f"[SCHEDULER] ⚠️ Could not update position for {cup_id} (cup not found in active orders)")
+                return {"success": False, "error": f"Cup {cup_id} not found in active orders"}
+            
+        except Exception as e:
+            logger.error(f"[SCHEDULER] Error updating cup position: {e}")
             return {"success": False, "error": str(e)}
     
     async def handle_get_status(self, data: Dict) -> Dict:

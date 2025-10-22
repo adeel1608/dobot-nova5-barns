@@ -138,7 +138,7 @@ def find_nearest_available_position(current_position: int, detection_result: dic
     Returns:
         The nearest available position number
     """
-     Ensure current_position is an integer
+    # Ensure current_position is an integer
     current_position = int(current_position)
     
     # Get all available positions (False values) and ensure they're integers
@@ -367,6 +367,28 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 logger.info(f"📦 Updated task_item['ingredients']: {task_item['ingredients']}")
                                 logger.info(f"🔗 Ingredients reference updated - changes will persist to next step")
                                 logger.info(f"📦 Current params after update: {params}")
+                                
+                                # CRITICAL: Notify scheduler about position change so ALL future tasks use updated position
+                                try:
+                                    logger.info(f"📢 Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}")
+                                    position_update_response = await rabbitmq_client.send_request(
+                                        target_service="scheduler",
+                                        action="update_cup_position",
+                                        data={
+                                            "cup_id": cup_id,
+                                            "new_position": float(new_position),
+                                            "old_position": float(current_position),
+                                            "timestamp": datetime.now().isoformat()
+                                        },
+                                        timeout=5
+                                    )
+                                    if position_update_response and position_update_response.get("success"):
+                                        logger.info(f"✅ Scheduler acknowledged position update for cup {cup_id}")
+                                    else:
+                                        logger.warning(f"⚠️ Scheduler did not acknowledge position update: {position_update_response}")
+                                except Exception as e:
+                                    logger.error(f"❌ Failed to notify scheduler about position change: {e}")
+                                    logger.warning(f"⚠️ Position change applied locally but may not persist to future tasks")
                             else:
                                 logger.info(f"✓ Cup position {current_position} is available, no change needed")
                         else:
