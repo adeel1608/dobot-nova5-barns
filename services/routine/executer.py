@@ -138,9 +138,11 @@ def find_nearest_available_position(current_position: int, detection_result: dic
     Returns:
         The nearest available position number
     """
-    # Get all available positions (False values)
-    available_positions = [pos for pos, occupied in detection_result.items() if not occupied]
+     Ensure current_position is an integer
+    current_position = int(current_position)
     
+    # Get all available positions (False values) and ensure they're integers
+    available_positions = [int(pos) for pos, occupied in detection_result.items() if not occupied]
     if not available_positions:
         logger.warning(f"No available cup positions found in detection result: {detection_result}")
         return current_position  # Return original if none available
