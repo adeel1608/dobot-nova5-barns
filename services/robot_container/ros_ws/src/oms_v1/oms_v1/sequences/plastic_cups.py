@@ -14,7 +14,7 @@ from oms_v1.sequences.home import home
 from oms_v1.params import (
     PLASTIC_CUPS_PARAMS, VALID_CUP_SIZES, DEFAULT_CUP_SIZE, GRIPPER_OPEN, GRIPPER_FULL,
     SPEED_CAREFUL, SPEED_FAST, validate_cup_size, log_step, log_success, log_error, log_info,
-    _extract_cup_position
+    _extract_cup_position,
 )
 
 
@@ -129,31 +129,27 @@ def dispense_plastic_cup(**params) -> bool:
         CUP_CONFIG = {
             '16oz': {
                 'home': 'west',
-                'coords': (84.577956, -37.697409, -138.003443, -0.437117, -87.483849, -0.167701),
-                'gripper': 137,
+                'coords': (86.091174,-38.559416,-137.820425,0.249348,-85.974565,-0.271408),
+                'gripper': 136,
                 'extract_z': -160,
-                'tighten_grip': None
             },
             '12oz': {
                 'home': 'west',
                 'coords': (126.231637, -41.187070, -144.717680, 11.342104, -45.944142, -3.776550),
                 'gripper': 160,
                 'extract_z': -160,
-                'tighten_grip': None
             },
             '9oz': {
                 'home': 'south_west',
-                'coords': (152.791197, -23.531399, -139.766517, -5.056715, -19.589728, -10.935293),
-                'gripper': 185,
+                'coords': (147.070245,-21.439266,-130.331893,-19.117116,-25.228377,-8.200656),
+                'gripper': 120,
                 'extract_z': -160,
-                'tighten_grip': 145
             },
             '7oz': {
                 'home': 'south_west',
-                'coords': (159.034912, -31.803319, -118.708186, -12.676519, -13.522377, -16.314133),
-                'gripper': 160,
-                'extract_z': -95.0,
-                'tighten_grip': None
+                'coords': (158.864438,-31.888748,-118.469490,-13.032610,-13.686490,-16.105547),
+                'gripper': 161,
+                'extract_z': -100.0,
             }
         }
         
@@ -209,11 +205,6 @@ def dispense_plastic_cup(**params) -> bool:
         if not run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0):
             print("[ERROR] Failed to extract plastic cup from dispenser")
             return False
-        
-        # Tighten grip if needed (9oz special case)
-        if config['tighten_grip']:
-            run_skill("set_gripper_position", 255, config['tighten_grip'])
-        print("   ✅ Cup successfully extracted from dispenser")
         
         run_skill("set_speed_factor", 100)
         run_skill("sync")
@@ -454,18 +445,18 @@ def place_plastic_cup_station(**params) -> bool:
         
         if stage == "1":
             print("   📍 Positioning for stage 1...")
-            stage_result = run_skill("gotoJ_deg", -80.221687,-43.867016,-125.338081,-18.518541,-84.856163,0.006812)
+            stage_result = run_skill("gotoJ_deg", -87.693741,-44.670253,-121.345483,-21.690320,-92.259001,-0.994262)
         elif stage == "2":
             print("   📍 Positioning for stage 2...")
-            stage_result = run_skill("gotoJ_deg", -100.830803,-45.966148,-116.024010,-26.002304,-105.266800,-2.802466)
+            stage_result = run_skill("gotoJ_deg", -106.609709,-47.304585,-111.218162,-29.742663,-110.987446,-3.660784)
         elif stage == "3":
             print("   📍 Positioning for stage 3...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -117.226875,-50.948524,-99.833191,-38.283516,-121.485474,-5.440053)
+            stage_result = run_skill("gotoJ_deg", -122.196826,-53.987263,-91.310199,-44.315117,-126.392533,-6.411539)
         elif stage == "4":
             print("   📍 Positioning for stage 4...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -129.165802,-59.506020,-76.980766,-54.155602,-133.259628,-8.007045)
+            stage_result = run_skill("gotoJ_deg", -131.750384,-63.383616,-67.416760,-60.325379,-135.803904,-8.692966)
         
         if not stage_result:
             print(f"[ERROR] Failed to move to stage {stage} position")
@@ -516,41 +507,33 @@ def pick_plastic_cup_station(**params) -> bool:
     and moves it to the ice dispensing station for ice addition.
     
     Args:
-        stage (str): Target stage to pick cup from ('1', '2', '3', or '4')
-        cup_size (str): Size of cup ('7oz', '9oz', '12oz', or '16oz')
+        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
+        cups (dict): Cup size dictionary, e.g., {'cup_C12': 1.0}
         
     Returns:
         bool: True if cup picked and ice added successfully, False otherwise
         
     Example:
-        success = pick_plastic_cup_for_ice(stage='1', cup_size='12oz')
+        success = pick_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C12': 1.0})
         if success:
             print("Cup picked and ice added successfully")
     """
     try:
-        # Extract and validate parameters
-        stage = params.get("stage")
+        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
+        cup_position = _extract_cup_position(params)
+        stage = str(cup_position)  # Convert to string for internal use
+        
         # New format: {'cups': {'cup_C16': 1.0}}
         cups_dict = params.get("cups", params.get("cup_size"))  # Fallback to old format for compatibility
         cup_size = _normalize_plastic_cup_size(cups_dict)
         
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-            
         if not cup_size:
             print("[ERROR] No cup_size parameter provided")
             return False
         
         # Validate parameters
-        valid_stages = ('1', '2', '3', '4')
         valid_sizes = ('7oz', '9oz', '12oz', '16oz')
         
-        if stage not in valid_stages:
-            print(f"[ERROR] Invalid stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
-            
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
             print(f"[INFO] Valid sizes: {', '.join(valid_sizes)}")
@@ -561,17 +544,17 @@ def pick_plastic_cup_station(**params) -> bool:
         
         # Stage-specific positioning
         stage_positions = {
-            "1": (-75.801956, -43.247288, -144.295563, -0.250561, -80.475777, 0.593474),
-            "2": (-104.642982, -42.934860, -132.064575, -13.168961, -109.036461, -3.372526),
-            "3": (-124.200401, -46.766388, -113.365036, -29.749237, -128.354553, -6.845194),
-            "4": (-136.622299, -54.745396, -89.557060, -47.935513, -140.554718, -10.175223)
+            "1": (-86.736873,-42.694084,-139.481187,-5.526080,-91.306231,-0.876971),
+            "2": (-111.873309,-43.726202,-126.359794,-18.529009,-116.187576,-4.511501),
+            "3": (-129.476135,-49.513914,-104.372032,-36.817109,-133.546833,-8.091070),
+            "4": (-139.873113,-57.852132,-81.476933,-53.832194,-143.728644,-11.340573)
         }
         
         # Cup size specific gripper positions
         gripper_positions = {
             "7oz": 145,
             "9oz": 145, 
-            "12oz": 145,
+            "12oz": 140,
             "16oz": 118
         }
         
@@ -620,6 +603,11 @@ def pick_plastic_cup_station(**params) -> bool:
             return False
         print("   ✅ Cup gripped successfully")
         
+        if cup_position == 3 or cup_position == 4:
+            if not home(position="south_east"):
+                print("[ERROR] Failed to move to south_east home")
+                return False
+                
         # Step 5: Return to safe position
         print("🏠 Step 5/6: Returning to safe position...")
         if not home(position="east"):
@@ -769,7 +757,6 @@ def pick_plastic_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_plastic_cup_milk failed: {e}")
         return False
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
