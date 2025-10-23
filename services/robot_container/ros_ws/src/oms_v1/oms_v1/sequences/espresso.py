@@ -1249,8 +1249,8 @@ def get_hot_water(**params) -> bool:
             return False
         print("   ✅ Successfully positioned under hot water outlet")
 
-        run_skill("moveEE_movJ", -40, 0, 0, 0, 0, 0)
-        run_skill("sync")
+        run_skill("moveEE_movJ", -35, 0, 0, 0, 0, 0)
+        # run_skill("sync")
         
         # Final success summary
         print("=" * 50)
@@ -1300,7 +1300,7 @@ def with_hot_water(**params) -> bool:
         #     return False
         # print("   ✅ Successfully moved away from outlet")
 
-        run_skill("sync")
+        run_skill("set_speed_factor", 50)
         
         # Step 2: Return to holding position
         print("🏠 Step 2/2: Returning to holding position...")

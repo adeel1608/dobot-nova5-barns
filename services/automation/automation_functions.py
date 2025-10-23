@@ -267,7 +267,13 @@ async def dispense_ice(params: dict):
     # example params: {"ice": 8, "timeout": 300}
     # OR nested format: {"ice": {"ice_cubes_16oz": 11.0}, "timeout": 300}
     logger.info(f"Calling dispense_ice function with params:{params}")
-    
+    logger.info("dispensing imaginary ice")
+    time.sleep(5)
+    return {
+        "success": True,
+        "message": f"Successfully dispensed ice",
+        "details": "Imaginary ice dispensed"
+    }
     # Handle nested ice dictionary format
     if "ice" in params and isinstance(params["ice"], dict):
         ice_dict = params["ice"]
