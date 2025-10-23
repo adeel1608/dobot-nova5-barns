@@ -10,8 +10,8 @@ ALLOWED_CLASSES = ["cup"]          # subset of model's label space
 
 # Local model paths (set to None to use default download behavior)
 RFDETR_MODEL_PATHS = {
-    "large": "rf-detr-large.pth",      # Path to your local large model
-    "base": "rf-detr-base.pth",        # Path to your local base model  
+    "large": "models/rf-detr-large.pth",      # Path to your local large model
+    "base": "models/rf-detr-base.pth",        # Path to your local base model  
     "medium": "models/rf-detr-medium.pth"  # Path to your local medium model
 }
 

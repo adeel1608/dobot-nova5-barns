@@ -63,6 +63,9 @@ class Config:
         # Local model paths
         model_paths = g.get("RFDETR_MODEL_PATHS", {})
         self.model_path = model_paths.get(self.rfdetr_variant)
+        # Resolve relative paths against this directory
+        if self.model_path and not os.path.isabs(self.model_path):
+            self.model_path = os.path.join(os.path.dirname(__file__), self.model_path)
 
         # Preprocess sizing
         self.max_side = int(g.get("MAX_SIDE", 960))
