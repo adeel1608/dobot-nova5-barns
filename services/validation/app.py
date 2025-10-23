@@ -400,6 +400,37 @@ class ValidationServiceApp:
                 data  # Pass data directly - no conversion needed!
             )
             
+            # If detection succeeded, check occupancy
+            cups = result.get("detection_result") or result.get("details", {}).get("cups_detected")
+            if isinstance(cups, dict) and len(cups) >= 4:
+                all_occupied = all(bool(v) for v in cups.values())
+                if all_occupied:
+                    self.logger.warning("All cup stations occupied. Retrying in 10 seconds before alerting...")
+                    # Wait 10 seconds and retry once
+                    await asyncio.sleep(10)
+                    retry_result = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        self.main_validation.process_cup_detection_request,
+                        data
+                    )
+                    retry_cups = retry_result.get("detection_result") or retry_result.get("details", {}).get("cups_detected")
+                    if isinstance(retry_cups, dict) and len(retry_cups) >= 4:
+                        any_free = any(not bool(v) for v in retry_cups.values())
+                        if any_free:
+                            return retry_result
+                        # Still all occupied → send alert to dashboard via OMS
+                        try:
+                            if hasattr(self, "send_alert_to_oms") and self.rabbitmq_client:
+                                alert_payload = {
+                                    "ingredient": "cup_stations",
+                                    "severity": "critical"
+                                }
+                                await self.rabbitmq_client.send_event("validation.threshold_warning", alert_payload)
+                                self.logger.info("Sent critical alert: all cup stations occupied")
+                        except Exception as alert_err:
+                            self.logger.error(f"Failed to send occupied-stations alert: {alert_err}")
+                        return retry_result
+            
             return result
             
         except Exception as e:
