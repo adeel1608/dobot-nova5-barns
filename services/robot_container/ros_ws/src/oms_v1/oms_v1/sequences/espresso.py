@@ -1235,7 +1235,7 @@ def get_hot_water(**params) -> bool:
         
         # Step 1: Move to hot water dispenser approach position
         print("🎯 Step 1/2: Approaching hot water dispenser...")
-        approach_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['approach'])
+        approach_result = run_skill("approach_machine", "three_group_espresso", "hot_water")
         if approach_result is False:
             print("[ERROR] Failed to approach hot water dispenser")
             return False
@@ -1243,11 +1243,14 @@ def get_hot_water(**params) -> bool:
         
         # Step 2: Position espresso pitcher under hot water outlet
         print("📍 Step 2/2: Positioning espresso pitcher under hot water outlet...")
-        position_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['position'])
+        position_result = run_skill("mount_machine", "three_group_espresso", "hot_water")
         if position_result is False:
             print("[ERROR] Failed to position espresso pitcher under hot water outlet")
             return False
         print("   ✅ Successfully positioned under hot water outlet")
+
+        run_skill("moveEE_movJ", -35, 0, 0, 0, 0, 0)
+        # run_skill("sync")
         
         # Final success summary
         print("=" * 50)
@@ -1289,17 +1292,19 @@ def with_hot_water(**params) -> bool:
         print("🚰 Completing hot water dispensing sequence")
         print("=" * 50)
         
-        # Step 1: Move away from hot water outlet
-        print("⬆️ Step 1/2: Moving away from hot water outlet...")
-        retreat_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['retreat'])
-        if retreat_result is False:
-            print("[ERROR] Failed to move away from hot water outlet")
-            return False
-        print("   ✅ Successfully moved away from outlet")
+        # # Step 1: Move away from hot water outlet
+        # print("⬆️ Step 1/2: Moving away from hot water outlet...")
+        # retreat_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['retreat'])
+        # if retreat_result is False:
+        #     print("[ERROR] Failed to move away from hot water outlet")
+        #     return False
+        # print("   ✅ Successfully moved away from outlet")
+
+        run_skill("set_speed_factor", 50)
         
         # Step 2: Return to holding position
         print("🏠 Step 2/2: Returning to holding position...")
-        final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
+        final_result = run_skill("moveEE_movJ", -150, 0, 0, 0, 0, 0)
         if final_result is False:
             print("[ERROR] Failed to return to holding position")
             return False

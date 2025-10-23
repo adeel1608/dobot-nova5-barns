@@ -88,7 +88,7 @@ def get_slush(**params) -> bool:
         
         # Step 3: Move to slush area
         print("🧊 Step 3/4: Moving to slush dispensing area...")
-        pos2_result = run_skill("gotoJ_deg", 45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864)
+        pos2_result = run_skill("gotoJ_deg", 33.380177,-65.448544,-125.305906,18.179613,-139.723057,1.841451)
         if not pos2_result:
             print("[ERROR] Failed to move to slush area")
             return False
@@ -101,11 +101,11 @@ def get_slush(**params) -> bool:
             dispenser_result = run_skill("gotoJ_deg", 53.272518, -67.612831, -88.370926, -23.156694, -119.473190, -0.214796)
         else:  # dispenser == "2"
             print("   📍 Moving to dispenser 2...")
-            pos3_result = run_skill("gotoJ_deg", 22.607571, -74.011971, -51.206032, -51.210812, -148.363144, 0.484628)
+            pos3_result = run_skill("gotoJ_deg", 17.117330,-72.397126,-55.180654,-48.179137,-153.839501,1.256867)
             if not pos3_result:
                 print("[ERROR] Failed to move to dispenser 2 intermediate position")
                 return False
-            dispenser_result = run_skill("gotoJ_deg", 39.953514, -80.013031, -46.382458, -53.143692, -129.994720, -0.156480)
+            dispenser_result = run_skill("gotoJ_deg", 39.080325,-80.227702,-48.030111,-51.277060,-130.866959,-0.148558)
         
         if not dispenser_result:
             print(f"[ERROR] Failed to position at dispenser {dispenser}")
@@ -193,7 +193,7 @@ def place_slush(**params) -> bool:
             retreat_result = run_skill("gotoJ_deg", 45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864)
         else:  # dispenser == "2"
             print("   📍 Moving away from dispenser 2...")
-            retreat_result = run_skill("gotoJ_deg", 22.607571, -74.011971, -51.206032, -51.210812, -148.363144, 0.484628)
+            retreat_result = run_skill("gotoJ_deg", 22.607694,-78.770437,-48.740179,-48.922226,-148.368363,0.479901)
         
         if not retreat_result:
             print(f"[ERROR] Failed to move away from dispenser {dispenser}")

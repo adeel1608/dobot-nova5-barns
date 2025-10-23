@@ -91,6 +91,7 @@ reset_usb_device() {
 # Function to restart camera and perception nodes
 restart_camera_and_perception() {
     if [ "$RESTART_IN_PROGRESS" = true ]; then
+        warn "Restart already in progress, skipping duplicate restart request"
         return
     fi
     
@@ -116,19 +117,49 @@ restart_camera_and_perception() {
     log "Waiting 5 seconds before restarting camera..."
     sleep 5
     
-    # Restart camera
+    # Restart camera and track PID
     log "Restarting Orbbec camera..."
     ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+    local NEW_CAMERA_PID=$!
+    log "Camera restarted with PID: $NEW_CAMERA_PID"
     
-    log "Waiting 5 seconds before restarting perception..."
-    sleep 5
+    # Wait and validate camera started
+    log "Waiting 10 seconds for camera to initialize..."
+    sleep 10
     
-    # Restart perception
+    # Validate camera is publishing topics
+    local camera_ok=false
+    local color_topic=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
+    local depth_topic=$(ros2 topic list 2>/dev/null | grep "/camera/depth/camera_info" || true)
+    
+    if [ -n "$color_topic" ] && [ -n "$depth_topic" ]; then
+        log "✓ Camera validation passed - both topics available"
+        camera_ok=true
+    else
+        warn "⚠ Camera topics not fully available yet, but continuing"
+    fi
+    
+    # Restart perception and track PID
     log "Restarting ArUco perception..."
     ros2 run pickn_place aruco_perception __log_level:=fatal &
+    local NEW_PERCEPTION_PID=$!
+    log "Perception restarted with PID: $NEW_PERCEPTION_PID"
     
-    log "Camera and perception nodes restarted successfully"
+    # Give perception time to start
+    sleep 3
+    
+    # Check if processes are still running
+    if kill -0 $NEW_CAMERA_PID 2>/dev/null && kill -0 $NEW_PERCEPTION_PID 2>/dev/null; then
+        log "✓ Camera and perception nodes restarted successfully"
+    else
+        warn "⚠ Some processes may have died after restart"
+    fi
+    
+    # Reset flag AFTER a delay to prevent rapid restart loops
+    log "Waiting 30 seconds before allowing another restart..."
+    sleep 30
     RESTART_IN_PROGRESS=false
+    log "Restart cooldown completed, monitoring resumed"
 }
 
 # Function to wait for robot stack to be fully initialized
@@ -218,18 +249,19 @@ monitor_perception_errors() {
         fi
         
         if [ "$found_depth_warning" = "true" ]; then
-            # For depth warnings, restart after just 2 consecutive warnings (it's a more critical issue)
-            if [ $((current_time - last_depth_warning_time)) -lt 60 ]; then
+            # For depth warnings, restart after 4 consecutive warnings within 2 minutes
+            # (increased from 2 to reduce false positives during normal operation)
+            if [ $((current_time - last_depth_warning_time)) -lt 120 ]; then
                 depth_warning_count=$((depth_warning_count + 1))
             else
                 depth_warning_count=1
             fi
             
             last_depth_warning_time=$current_time
-            warn "Detected 'Waiting for depth camera intrinsics' warning ($depth_warning_count/2)"
+            warn "Detected 'Waiting for depth camera intrinsics' warning ($depth_warning_count/4)"
             
-            if [ $depth_warning_count -ge 2 ]; then
-                warn "Depth camera not initializing properly, restarting camera and perception..."
+            if [ $depth_warning_count -ge 4 ]; then
+                warn "Depth camera not initializing properly after $depth_warning_count warnings, restarting..."
                 restart_camera_and_perception
                 depth_warning_count=0
                 warning_count=0
@@ -237,9 +269,9 @@ monitor_perception_errors() {
             fi
         else
             # Reset depth warning count if no warnings for a while
-            if [ $depth_warning_count -gt 0 ] && [ $((current_time - last_depth_warning_time)) -gt 120 ]; then
+            if [ $depth_warning_count -gt 0 ] && [ $((current_time - last_depth_warning_time)) -gt 180 ]; then
                 depth_warning_count=0
-                log "No depth camera warnings for 2+ minutes, count reset"
+                log "No depth camera warnings for 3+ minutes, count reset"
             fi
         fi
         
