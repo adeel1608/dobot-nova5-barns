@@ -35,7 +35,7 @@
       }
     ]
   },
-  "dispnse_coffee": {
+  "dispensese_coffee": {
     "steps": [
       {
         "type": "automation",
@@ -434,7 +434,7 @@
 
       {
         "type": "robot",
-        "function": "dispnese_plastic_cup",
+        "function": "dispense_plastic_cup",
         "params": {
           "cup_size": "7oz"
         }
@@ -564,7 +564,7 @@
       },
       {
         "type": "automation",
-        "function": "dispnese_hot_water",
+        "function": "dispense_hot_water",
         "params": {}
       },
       {

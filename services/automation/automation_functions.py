@@ -11,7 +11,7 @@ import time
 import paho.mqtt.client as mqtt
 import json
 
-async def dispnese_hot_water(params: dict):
+async def dispense_hot_water(params: dict):
     """Dispense hot water using MQTT communication."""
     # Parameter example: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
     logger.info(f"Calling dispense_hot_water function with params:{params}")
@@ -1552,7 +1552,7 @@ async def dispense_ingredient(params: dict):
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
-    "dispnese_hot_water": dispnese_hot_water,
+    "dispense_hot_water": dispense_hot_water,
     "dispense_sauce": dispense_sauce,
     "dispense_milk": dispense_milk,
     "dispense_ingredient": dispense_ingredient,
