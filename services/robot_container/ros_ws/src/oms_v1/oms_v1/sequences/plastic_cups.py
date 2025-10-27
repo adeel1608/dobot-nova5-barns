@@ -232,7 +232,7 @@ def dispense_plastic_cup(**params) -> bool:
         print("[INFO] Plastic cup grab process terminated due to error")
         return False
 
-def get_ice(**params) -> bool:
+def go_to_ice(**params) -> bool:
     """
     Get ice for the specified cup size.
     
@@ -761,7 +761,7 @@ def pick_plastic_cup_milk(**params) -> bool:
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'dispense_plastic_cup': dispense_plastic_cup,
-    'get_ice': get_ice,
+    'go_to_ice': go_to_ice,
     'go_home_with_ice': go_home_with_ice,
     'place_plastic_cup_station': place_plastic_cup_station,
     'pick_plastic_cup_station': pick_plastic_cup_station,
