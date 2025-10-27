@@ -965,9 +965,9 @@ async def tampering_machine(params: dict):
     # If espresso = 2, send tampering: 1, calibration: 2
     tampering = 1  # Always 1
     if espresso_shots == 1:
-        calibration = 1
+        calibration = 2000        ##set values here in ms
     elif espresso_shots == 2:
-        calibration = 2
+        calibration = 1900        ##set values here in ms
     else:
         # Default to calibration 1 if unknown shot count
         logger.warning(f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1")
