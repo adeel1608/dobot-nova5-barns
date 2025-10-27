@@ -441,7 +441,7 @@
       }
     ]
   },
-  "Pick_Cup_Milk": {
+  "Pick_Plastic_Cup_Milk": {
     "steps": [
       {
         "type": "robot",
@@ -452,7 +452,7 @@
       }
     ]
   },
-  "Place_Cup_Milk": {
+  "Place_Plastic_Cup_Milk": {
     "steps": [
       {
         "type": "robot",
@@ -463,7 +463,7 @@
       }
     ]
   },
-  "Pick_Cup_Sauces": {
+  "Pick_Paper_Cup_Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -474,7 +474,34 @@
       }
     ]
   },
-  "Place_Cup_Sauces": {
+  "Pick_Plastic_Cup_Sauces": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_plastic_cup_sauces",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Place_Plastic_Cup_Sauces": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_sauces",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Place_Paper_Cup_Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -485,7 +512,7 @@
       }
     ]
   },
-  "Pick_Cup_Station": {
+  "Pick_Paper_Cup_Station": {
     "steps": [
       {
         "type": "robot",
@@ -496,7 +523,7 @@
       }
     ]
   },
-  "Place_Cup_Station": {
+  "Place_Paper_Cup_Station": {
     "steps": [
       {
         "type": "validation",
@@ -506,6 +533,22 @@
       {
         "type": "robot",
         "function": "place_paper_cup_station",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Place_Plastic_Cup_Station": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_station",
         "params": {
           "stage": "1"
         }

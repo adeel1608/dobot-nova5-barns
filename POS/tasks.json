@@ -1,4 +1,13 @@
 {
+  "automation_test": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "automation_test",
+        "params": {}
+      }
+    ]
+  },
   "dispense_milk": {
     "steps": [
       {
@@ -87,6 +96,15 @@
       }
     ]
   },
+  "Validate_Cup": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      }
+    ]
+  },
   "Calibrate": {
     "steps": [
       {
@@ -98,6 +116,7 @@
   },
   "Espresso": {
       "steps": [
+
       {
           "type": "automation",
           "function": "grinding_machine",
@@ -122,9 +141,7 @@
       {
           "type": "automation",
           "function": "tampering_machine",
-          "params": {
-          "tampering": 1
-          }
+          "params": {}
       },
       {
           "type": "robot",
@@ -149,18 +166,14 @@
           }
       },
       {
-          "type": "robot",
-          "function": "grab_paper_cup",
-          "params": {
-          "size": "7oz"
-          }
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
       },
       {
-          "type": "robot",
-          "function": "place_paper_cup",
-          "params": {
-          "stage": "stage_1"
-          }
+        "type": "robot",
+        "function": "dispense_paper_cup",
+        "params": {}
       },
       {
           "type": "robot",
@@ -197,9 +210,7 @@
     {
         "type": "automation",
         "function": "tampering_machine",
-        "params": {
-        "tampering": 1
-        }
+        "params": {}
     },
     {
         "type": "robot",
@@ -283,17 +294,30 @@
   "Froth_Milk": {
     "steps": [
         {
-            "type": "robot",
-            "function": "mount_frother",
-            "params": {}
-          },
-          {
-            "type": "robot",
-            "function": "froth_milk",
-            "params": {
-              "duration": 5
-            }
-          }
+          "type": "automation",
+          "function": "initialize_frother",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "mount_frother",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "froth_milk",
+          "params": {}
+        },
+        {
+          "type": "robot",
+          "function": "unmount_and_swirl_milk",
+          "params": {}
+        },
+        {
+          "type": "automation",
+          "function": "clean_frother",
+          "params": {}
+        }
     ]
   },
   "Pour_Frothed_Milk": {
@@ -304,23 +328,6 @@
         "params": {
           "stage": "1"
         }
-      },
-      {
-        "type": "robot",
-        "function": "clean_frother",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "return_frother",
-        "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "clean_steam_wand",
-        "params": {
-          "duration": 5
-        }
       }
     ]
   },
@@ -328,7 +335,32 @@
     "steps": [
       {
         "type": "robot",
+        "function": "unmount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
         "function": "clean_portafilter",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
+  "Mount_Portafilter": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "mount",
         "params": {
           "port": "port_2"
         }
@@ -340,10 +372,18 @@
       {
         "type": "robot",
         "function": "clean_milk_pitcher",
-        "params": {
-          "port": "port_2"
-        }
-      }
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "rinser_machine",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "return_frother",
+        "params": {}
+      }      
     ]
   },
   "Slushie": {
@@ -378,6 +418,11 @@
   "Dispense_Paper_Cup": {
     "steps": [
       {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "dispense_paper_cup",
         "params": {}
@@ -386,6 +431,7 @@
   },
   "Dispense_Plastic_Cup": {
     "steps": [
+
       {
         "type": "robot",
         "function": "dispnese_plastic_cup",
@@ -395,7 +441,7 @@
       }
     ]
   },
-  "Pick_Cup_Milk": {
+  "Pick_Plastic_Cup_Milk": {
     "steps": [
       {
         "type": "robot",
@@ -406,7 +452,7 @@
       }
     ]
   },
-  "Place_Cup_Milk": {
+  "Place_Plastic_Cup_Milk": {
     "steps": [
       {
         "type": "robot",
@@ -417,7 +463,18 @@
       }
     ]
   },
-  "Pick_Cup_Sauces": {
+  "Pick_Paper_Cup_Sauces": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_paper_cup_sauces",
+        "params": {
+          "cup_size": "7oz"
+        }
+      }
+    ]
+  },
+  "Pick_Plastic_Cup_Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -428,8 +485,13 @@
       }
     ]
   },
-  "Place_Cup_Sauces": {
+  "Place_Plastic_Cup_Sauces": {
     "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
       {
         "type": "robot",
         "function": "place_plastic_cup_sauces",
@@ -439,44 +501,54 @@
       }
     ]
   },
-  "Pick_Cup_Station": {
+  "Place_Paper_Cup_Sauces": {
     "steps": [
       {
         "type": "robot",
-        "function": "pick_plastic_cup_station",
-        "params": {
-          "cup_size": "7oz"
-        }
-      }
-    ]
-  },
-  "Place_Cup_Station": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "place_plastic_cup_station",
+        "function": "place_paper_cup_sauces",
         "params": {
           "stage": "1"
         }
       }
     ]
   },
-  "Pick_Cup_Station_Arm1": {
+  "Pick_Paper_Cup_Station": {
     "steps": [
       {
         "type": "robot",
-        "function": "pick_plastic_cup_station_arm1",
+        "function": "pick_paper_cup_station",
         "params": {
           "cup_size": "7oz"
         }
       }
     ]
   },
-  "Place_Cup_Station_Arm1": {
+  "Place_Paper_Cup_Station": {
     "steps": [
       {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
         "type": "robot",
-        "function": "place_plastic_cup_station_arm1",
+        "function": "place_paper_cup_station",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Place_Plastic_Cup_Station": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "cup_detection",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_plastic_cup_station",
         "params": {
           "stage": "1"
         }
@@ -492,11 +564,8 @@
       },
       {
         "type": "automation",
-        "function": "coffee_machine",
-        "params": {
-        "coffee_t": 2,
-        "slot_number": 3
-         }
+        "function": "dispnese_hot_water",
+        "params": {}
       },
       {
         "type": "robot",
@@ -518,7 +587,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "place_plastic_cup_with_ice",
+        "function": "go_home_with_ice",
         "params": {}
       }
     ]
