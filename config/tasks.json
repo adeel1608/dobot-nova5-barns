@@ -47,21 +47,11 @@
   "dispense_ice": {
     "steps": [
       {
-        "type": "robot",
-        "function": "go_to_ice",
-        "params": {}
-      },
-      {
         "type": "automation",
         "function": "dispense_ice",
         "params": {
           "cup_size": "7oz"
         }
-      },
-      {
-        "type": "robot",
-        "function": "return_to_home",
-        "params": {}
       }
     ]
   },
