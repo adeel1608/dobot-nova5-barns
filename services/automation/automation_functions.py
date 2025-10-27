@@ -374,41 +374,48 @@ async def dispense_ice(params: dict):
 
 # EX:example params: {"pump_number": 1, "amount": 150, "timeout": 300}
 # OR: {"milk": {'213411': 200.0}, "timeout": 300}
+# OR: {"water": {5: 100.0}, "timeout": 300}  # Water uses pump 5
 async def dispense_milk(params: dict):
-    """Dispense multiple milk types using MQTT communication."""
-    # example params: {"milk": {1: 260.0}, ...}
-    # Loops through all pumps in the milk dictionary
+    """Dispense multiple milk types or water using MQTT communication."""
+    # example params: {"milk": {1: 260.0}, ...} or {"water": {5: 100.0}, ...}
+    # Loops through all pumps in the milk/water dictionary
+    # Both use the same milk dispenser hardware
     logger.info(f"Calling dispense_milk function with params:{params}")
     
-    # Extract milk dictionary
-    if "milk" not in params or not isinstance(params["milk"], dict):
-        logger.error("No milk dictionary found in params")
-        return {
-            "success": False,
-            "error": "No milk dictionary found in params",
-            "message": "Invalid parameters: milk dictionary required"
-        }
-    
-    milk_dict = params["milk"]
+    # Extract milk or water dictionary (both use milk dispenser hardware)
+    milk_dict = None
+    if "milk" in params and isinstance(params["milk"], dict):
+        milk_dict = params["milk"]
+    elif "water" in params and isinstance(params["water"], dict):
+        milk_dict = params["water"]
+        logger.info("Water detected - using milk dispenser hardware (pump 5)")
     
     if not milk_dict:
-        logger.info("Empty milk dictionary, nothing to dispense")
+        logger.error("No milk or water dictionary found in params")
+        return {
+            "success": False,
+            "error": "No milk or water dictionary found in params",
+            "message": "Invalid parameters: milk or water dictionary required"
+        }
+    
+    if not milk_dict:
+        logger.info("Empty milk/water dictionary, nothing to dispense")
         return {
             "success": True,
-            "message": "No milk to dispense",
+            "message": "No milk or water to dispense",
             "details": []
         }
     
-    # Prepare for loop through all milk pumps
+    # Prepare for loop through all milk/water pumps
     all_results = []
     mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     username = params.get("username", "admin")
     password = params.get("password", "admin123")
     
-    # Loop through each milk pump
+    # Loop through each pump (milk or water)
     for pump_key, amount in milk_dict.items():
         pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 1
-        logger.info(f"Dispensing {amount}g from milk pump {pump_number}")
+        logger.info(f"Dispensing {amount}g from pump {pump_number}")
         
         response = {"data": None}
 
@@ -477,7 +484,7 @@ async def dispense_milk(params: dict):
                 "pump_number": pump_number,
                 "amount": amount,
                 "success": True,
-                "message": f"Successfully dispensed {amount}g from milk pump {pump_number}",
+                "message": f"Successfully dispensed {amount}g from pump {pump_number}",
                 "details": mqtt_response
             })
         else:
@@ -495,15 +502,15 @@ async def dispense_milk(params: dict):
     if all_success:
         return {
             "success": True,
-            "message": f"Successfully dispensed {len(all_results)} milk type(s)",
+            "message": f"Successfully dispensed {len(all_results)} item(s)",
             "details": all_results
         }
     else:
         failed_count = sum(1 for result in all_results if not result["success"])
         return {
             "success": False,
-            "error": f"{failed_count} milk dispense(s) failed",
-            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} milk types",
+            "error": f"{failed_count} dispense(s) failed",
+            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} items",
             "details": all_results
         }
 

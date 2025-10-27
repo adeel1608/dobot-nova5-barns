@@ -22,7 +22,9 @@ MILK_MAPPINGS = {
     "almond": 2,
     "oat": 3,
     "soy": 4,
+    "normal_water": 5,  # Water uses milk pump 5
     "lactose_free": 6,
+    "low_fat": 7,
 }
 
 SYRUP_MAPPINGS = {
@@ -271,12 +273,16 @@ def _get_ingredient_details(ingredient_id: str) -> Dict[str, Any]:
 
 def _map_ingredient_id(ingredient_id: str, category: str, ingredient_type: str) -> Any:
     """
-    Map ingredient ID to numeric value for milk and syrups categories.
+    Map ingredient ID to numeric value for milk, water, and syrups categories.
     For other categories, return the original ingredient_id.
     """
     if category == "milk":
         # Try to map using type or id
         mapped_id = MILK_MAPPINGS.get(ingredient_type) or MILK_MAPPINGS.get(ingredient_id)
+        return mapped_id if mapped_id is not None else ingredient_id
+    elif category == "water":
+        # Map water to pump 5 (using milk dispenser hardware)
+        mapped_id = MILK_MAPPINGS.get(ingredient_type) or MILK_MAPPINGS.get(ingredient_id) or 5
         return mapped_id if mapped_id is not None else ingredient_id
     elif category == "syrups":
         # Try to map using type or id

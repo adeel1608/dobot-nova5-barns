@@ -54,7 +54,7 @@
     {
       "action": "Go_to_Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
+      "depends_on": ["Dispense_Plastic_Cup"]
     },
     {
       "action": "dispense_ice",
@@ -79,7 +79,7 @@
     {
       "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only,Place_Plastic_Cup_Station"]
+      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
     },
     {
       "action": "Clean_Portafilter",
@@ -237,7 +237,7 @@
     {
       "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Place_Paper_Cup_Station","Espresso_Only"]
+      "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
     },
     {
       "action": "Clean_Portafilter",
@@ -388,7 +388,7 @@
     {
       "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only","Place_Plastic_Cup_Station"]
+      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
     },
     {
       "action": "Clean_Portafilter",
@@ -574,7 +574,7 @@
     {
       "action": "Pour_Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only","Place_Plastic_Cup_Station"]
+      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
     },
     {
       "action": "Clean_Portafilter",
@@ -621,7 +621,7 @@
       {
         "action": "Pour_Espresso",
         "assigned_arm": "Arm1",
-        "depends_on": ["Place_Paper_Cup_Station","Espresso_Only"]
+        "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
       },
       {
         "action": "Clean_Portafilter",
@@ -688,7 +688,7 @@
       {
         "action": "Pour_Espresso",
         "assigned_arm": "Arm1",
-        "depends_on": ["Place_Paper_Cup_Station","Espresso_Only"]
+        "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
       },
       {
         "action": "Clean_Portafilter",
