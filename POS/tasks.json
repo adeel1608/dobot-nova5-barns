@@ -578,7 +578,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "get_ice",
+        "function": "go_to_ice",
         "params": {}
       }
     ]
