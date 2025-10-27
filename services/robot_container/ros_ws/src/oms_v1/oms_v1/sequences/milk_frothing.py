@@ -671,6 +671,15 @@ def pour_milk(**params) -> bool:
                 print("[ERROR] Failed to move to stage 2 position")
                 return False
             
+            run_skill("sync")
+
+            print("   ⚙️ Setting precise pouring speed...")
+            speed_result = run_skill("set_speed_factor", 9)
+            if speed_result is False:
+                print("[WARNING] Failed to set pouring speed - continuing...")
+            
+            run_skill("sync")
+            
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['adjust1'])
             if adjust1_result is False:
@@ -718,6 +727,15 @@ def pour_milk(**params) -> bool:
                 print("[ERROR] Failed to move to stage 3 position")
                 return False
             
+            run_skill("sync")
+
+            print("   ⚙️ Setting precise pouring speed...")
+            speed_result = run_skill("set_speed_factor", 9)
+            if speed_result is False:
+                print("[WARNING] Failed to set pouring speed - continuing...")
+            
+            run_skill("sync")
+            
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['adjust1'])
             if adjust1_result is False:
@@ -764,6 +782,15 @@ def pour_milk(**params) -> bool:
             if stage4_result is False:
                 print("[ERROR] Failed to move to stage 4 position")
                 return False
+            
+            run_skill("sync")
+
+            print("   ⚙️ Setting precise pouring speed...")
+            speed_result = run_skill("set_speed_factor", 9)
+            if speed_result is False:
+                print("[WARNING] Failed to set pouring speed - continuing...")
+            
+            run_skill("sync")
             
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['adjust1'])
