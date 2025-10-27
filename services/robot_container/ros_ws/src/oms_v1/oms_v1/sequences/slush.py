@@ -32,7 +32,8 @@ def get_slush(**params) -> bool:
     Args:
         position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
-        dispenser (str): Dispenser number ('1' or '2') - required parameter
+        dispenser (str): Dispenser number ('1' or '2') - optional, will be inferred from premixes if not provided
+        premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
         
     Returns:
         bool: True if slush dispensing completed successfully, False otherwise
@@ -50,9 +51,23 @@ def get_slush(**params) -> bool:
         cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
+        # If no dispenser is provided, try to infer from premixes or use default
         if not dispenser:
-            print("[ERROR] Missing required parameter: dispenser")
-            return False
+            premixes = params.get("premixes", {})
+            if premixes:
+                # Map premix types to dispensers
+                premix_name = list(premixes.keys())[0] if premixes else ""
+                # Default mapping: most premixes go to dispenser 1
+                # You can extend this mapping as needed
+                if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
+                    dispenser = "2"
+                else:
+                    dispenser = "1"
+                print(f"[INFO] No dispenser specified, inferred dispenser '{dispenser}' from premix '{premix_name}'")
+            else:
+                # Default to dispenser 1 if no premix info
+                dispenser = "1"
+                print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
         valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
@@ -139,7 +154,8 @@ def place_slush(**params) -> bool:
     Args:
         position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
         cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
-        dispenser (str): Dispenser number used ('1' or '2') - required parameter
+        dispenser (str): Dispenser number used ('1' or '2') - optional, will be inferred from premixes if not provided
+        premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
         
     Returns:
         bool: True if slush placement completed successfully, False otherwise
@@ -157,9 +173,21 @@ def place_slush(**params) -> bool:
         cup_size = params.get("cup_size", "16oz")  # Default to 16oz
         dispenser = params.get("dispenser")
         
+        # If no dispenser is provided, try to infer from premixes or use default
         if not dispenser:
-            print("[ERROR] Missing required parameter: dispenser")
-            return False
+            premixes = params.get("premixes", {})
+            if premixes:
+                # Map premix types to dispensers (same logic as get_slush)
+                premix_name = list(premixes.keys())[0] if premixes else ""
+                if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
+                    dispenser = "2"
+                else:
+                    dispenser = "1"
+                print(f"[INFO] No dispenser specified, inferred dispenser '{dispenser}' from premix '{premix_name}'")
+            else:
+                # Default to dispenser 1 if no premix info
+                dispenser = "1"
+                print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
         valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
