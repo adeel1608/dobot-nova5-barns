@@ -558,62 +558,11 @@ start_robot() {
         
         sleep 5
 
-        # Launch Orbbec camera with validation
+        # Launch Orbbec camera
         log "=== Launching Orbbec camera ==="
-        
-        # Function to check if camera is working properly
-        validate_camera() {
-            sleep 10  # Give camera time to initialize
-            
-            local color_info=$(ros2 topic list 2>/dev/null | grep "/camera/color/camera_info" || true)
-            local depth_info=$(ros2 topic list 2>/dev/null | grep "/camera/depth/camera_info" || true)
-            
-            if [ -n "$color_info" ] && [ -n "$depth_info" ]; then
-                log "Camera validation passed - both color and depth info topics available"
-                return 0
-            else
-                log "Camera validation failed - missing topics (color: $color_info, depth: $depth_info)"
-                return 1
-            fi
-        }
-        
-        # Try launching camera up to 3 times
-        camera_launch_attempts=0
-        camera_success=false
-        
-        while [ $camera_launch_attempts -lt 3 ] && [ "$camera_success" = false ]; do
-            camera_launch_attempts=$((camera_launch_attempts + 1))
-            
-            if [ $camera_launch_attempts -gt 1 ]; then
-                log "Camera launch attempt $camera_launch_attempts of 3..."
-                
-                # Kill previous camera process
-                pkill -KILL -f "orbbec_camera" &>/dev/null || true
-                sleep 2
-                
-                # Try USB reset
-                log "Attempting USB reset before retry..."
-                echo 0 | sudo tee /sys/bus/usb/devices/*/authorized > /dev/null 2>&1 || true
-                sleep 1
-                echo 1 | sudo tee /sys/bus/usb/devices/*/authorized > /dev/null 2>&1 || true
-                sleep 3
-            fi
-            
-            ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
-            CAMERA_PID=$!
-            PIDS+=($CAMERA_PID)
-            
-            if validate_camera; then
-                camera_success=true
-                log "Camera launched successfully"
-            else
-                log "Camera failed to initialize properly"
-            fi
-        done
-        
-        if [ "$camera_success" = false ]; then
-            log "WARNING: Camera failed to initialize after 3 attempts, but continuing..."
-        fi
+        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        CAMERA_PID=$!
+        PIDS+=($CAMERA_PID)
 
         # Check if ROS2 is working properly
         log "Checking ROS2 connectivity..."
