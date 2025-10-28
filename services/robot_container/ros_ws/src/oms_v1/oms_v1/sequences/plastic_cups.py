@@ -348,23 +348,7 @@ def go_to_ice(**params) -> bool:
         return False
 
 def go_home_with_ice(**params) -> bool:
-    try:
-        # Extract and validate stage parameter
-        stage = params.get("stage")
-        if not stage:
-            print("[ERROR] No stage parameter provided")
-            return False
-        
-        # Validate stage parameter
-        valid_stages = ('1', '2', '3', '4')
-        if stage not in valid_stages:
-            print(f"[ERROR] Unknown stage: {stage!r}")
-            print(f"[INFO] Valid stages: {', '.join(valid_stages)}")
-            return False
-        
-        print(f"🧊 Starting plastic cup with ice placement sequence for stage {stage}")
-        print("=" * 50)
-        
+    try:        
         # Step 1: Initial positioning
         print("📍 Step 1/6: Moving to initial position...")
         pos1_result = run_skill("gotoJ_deg", -34.285637,-96.143585,-85.111305,-52.668182,-77.955963,40.874359)
@@ -382,11 +366,9 @@ def go_home_with_ice(**params) -> bool:
         
         # Final success summary
         print("=" * 50)
-        print(f"✅ PLASTIC CUP WITH ICE PLACEMENT COMPLETED FOR STAGE {stage}")
-        print("   ✓ Cup positioned at designated staging area")
-        print("   ✓ Safe release and clearance achieved")
+        print(f"✅ RETURNED HOME WITH ICE SUCCESSFULLY")
         print("   ✓ Robot returned to home position")
-        print("   🧊 Iced beverage station ready!")
+        print("   🧊 Ready for next operation")
         print("=" * 50)
         return True
         
