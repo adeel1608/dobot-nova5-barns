@@ -193,22 +193,17 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
             </button>
           )}
 
-          {/* Details Button */}
+          {/* Details Button - Always enabled so users can view completed orders */}
           <button 
             type="button"
             onClick={() => onViewDetails(order)}
-            disabled={isDisabled}
-            className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
-              isDisabled 
-                ? 'border-gray-300 text-gray-500 cursor-not-allowed'
-                : 'border-green-600 text-green-600 hover:bg-green-50'
-            }`}
+            className="px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors border-green-600 text-green-600 hover:bg-green-50"
             style={{
               borderWidth: '2px',
               borderStyle: 'solid',
-              borderColor: isDisabled ? '#d1d5db' : '#059669'
+              borderColor: '#059669'
             }}
-            title={isDisabled ? "Action not available" : "View order details"}
+            title="View order details"
           >
             Details
           </button>

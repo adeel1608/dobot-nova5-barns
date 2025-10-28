@@ -52,14 +52,14 @@ class RobotArmService:
         # Retry connection logic for RabbitMQ
         while True:
             try:
-                log("INFO", "Action", service="robot_arm")
+                log("INFO", "Connecting to RabbitMQ...", service="robot_arm")
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
                 log("INFO", "RabbitMQ connections established", service="robot_arm")
                 break
             except Exception as e:
-                log("ERROR", "RabbitMQ connection failed", service="robot_arm", error=str(e)[:100])
-                log("INFO", "Retrying RabbitMQ connection in 10 seconds", service="robot_arm")
+                log("ERROR", f"RabbitMQ connection failed: {str(e)[:100]}", service="robot_arm")
+                log("INFO", "Retrying RabbitMQ connection in 10 seconds...", service="robot_arm")
                 await asyncio.sleep(10)
         
         # Register message handlers
