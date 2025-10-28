@@ -5,46 +5,46 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
-RFDETR_CONFIDENCE = 0.20           # 0..1
-ALLOWED_CLASSES = ["cup"]          # subset of model's label space
+RFDETR_CONFIDENCE = 0.1          # 0..1
+ALLOWED_CLASSES = [0,2,3,4,5]          # subset of model's label space
 
 # Local model paths (set to None to use default download behavior)
 RFDETR_MODEL_PATHS = {
-    "large": "../models/rf-detr-large.pth",      # Path to your local large model
-    "base": "../models/rf-detr-base.pth",        # Path to your local base model  
-    "medium": "../models/rf-detr-medium.pth"  # Path to your local medium model
+    "large": "rf-detr-large.pth",      # Path to your local large model
+    "base": "rf-detr-base.pth",        # Path to your local base model  
+    "medium": "models/rf-detr-medium.pth"  # Path to your local medium model
 }
 
 # Preprocess
-MAX_SIDE = 960                     # resize longest side to this (keeps aspect)
+MAX_SIDE = 1920                 # resize longest side to this (keeps aspect)
 
 # ROI & cups
 # Provide polygon as list of (x,y). Example below is placeholder.
 ROI_POLYGON = np.array([
-    [537, 311],
-    [592, 191],
-    [933, 295],
-    [892, 430]
+    [518, 675],
+    [636, 358],
+    [755, 372],
+    [651, 707]
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (870, 350),
-    (808, 329),
-    (736, 310),
-    (663, 292)
+    (599, 663),
+    (624, 604),
+    (647, 542),
+    (667, 481)
 ]
 
 # Filters / heuristics
 MIN_CUP_SIZE = 20                  # px (min bbox min side)
 MAX_CUP_SIZE = 300                 # px (max bbox max side)
-ASPECT_RATIO_MIN = 0.5             # w/h lower bound
+ASPECT_RATIO_MIN = 0.1           # w/h lower bound
 ASPECT_RATIO_MAX = 2.0             # w/h upper bound
 ROI_OVERLAP_THRESHOLD = 0.30       # IoU with ROI mask for acceptance
 
 # History / voting
 FRAMES = 1                         # detections to aggregate per result
 THRESHOLD = 1                      # min votes to accept
-DETECTION_HISTORY_SIZE = 5
+DETECTION_HISTORY_SIZE = 20
 
 # Buffering / skipping
 FRAME_BUFFER_SIZE = 3
@@ -63,3 +63,34 @@ FRAME_TIMEOUT = 3.0                # seconds since last fresh frame before consi
 DEBUG_MODE = True
 SAVE_FRAMES = True
 DEBUG_FOLDER = "debug_frames"
+
+
+# --- Per-dispenser ROI & cup positions (edited by roi_selector.py) ---
+# Milk dispenser configuration
+MILK_ROI_POLYGON = np.array([
+    [560, 196],
+    [596, 131],
+    [670, 144],
+    [649, 204]
+], dtype=np.int32)
+
+MILK_CUP_POSITIONS = [
+    (622, 173)
+]
+
+# Sauce dispenser configuration  
+SAUCE_ROI_POLYGON = np.array([
+    [642, 207],
+    [674, 146],
+    [743, 154],
+    [720, 230]
+], dtype=np.int32)
+
+SAUCE_CUP_POSITIONS = [
+    (686, 181)
+]
+
+# --- Per-dispenser debug folders ---
+MILK_DEBUG_FOLDER = "debug_frames/milk"
+SAUCE_DEBUG_FOLDER = "debug_frames/sauce"
+
