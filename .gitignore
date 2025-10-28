@@ -13,11 +13,12 @@ __pycache__
 
 core.*
 dev.Dockerfile
-<<<<<<< HEAD
 
 # Debug frames from validation service
 services/validation/coffee_detection/debug_frames_coffee/*.png
 services/validation/coffee_detection/debug_frames_coffee/*.jpg
-=======
+services/validation/cup_detection/debug_frames_cup/*.png
+services/validation/cup_detection/debug_frames_cup/*.jpg
+services/validation/cup_detection/debug_frames/*.png
+services/validation/cup_detection/debug_frames/*.jpg
 rf-detr-large.pth
->>>>>>> 25d94c6524ba2c1cbcbc05b27a52bded34ee4486
