@@ -1,6 +1,10 @@
 # services/automation/automation_functions.py
 """Automation functions for BARNS coffee brewing system."""
 import logging
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+from shared.logger import log
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -14,7 +18,7 @@ import json
 async def dispense_hot_water(params: dict):
     """Dispense hot water using MQTT communication."""
     # Parameter example: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
-    logger.info(f"Calling dispense_hot_water function with params:{params}")
+    log("INFO", f"Calling dispense_hot_water function with params:{params}", service="automation")
     
     # Handle nested cups dictionary format
     if "cups" in params and isinstance(params["cups"], dict):
@@ -29,29 +33,29 @@ async def dispense_hot_water(params: dict):
             calibration = 1
         else:
             # Default to calibration 2 if unknown cup type
-            logger.warning(f"Unknown cup type: {cup_type}, defaulting to calibration 2")
+            log("ERROR", f"Unknown cup type: {cup_type}, defaulting to calibration 2", service="automation")
             calibration = 2
     else:
         # Fallback to flat parameter format
         calibration = params.get("calibration", 2)
     
-    logger.info(f"Dispensing hot water with calibration={calibration}")
+    log("INFO", f"Dispensing hot water with calibration={calibration}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"calibration": calibration})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -62,7 +66,7 @@ async def dispense_hot_water(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -74,7 +78,7 @@ async def dispense_hot_water(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -85,7 +89,7 @@ async def dispense_hot_water(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_coffee_machine_hot_water", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -94,7 +98,7 @@ async def dispense_hot_water(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from coffee machine")
+        log("INFO", "Timeout: No response from coffee machine", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from coffee machine",
@@ -103,7 +107,7 @@ async def dispense_hot_water(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Hot Water Dispense] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Hot Water Dispense] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -131,11 +135,11 @@ async def dispense_sauce(params: dict):
     """Dispense multiple syrups using MQTT communication."""
     # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
     # Loops through all pumps in the syrups dictionary
-    logger.info(f"Calling dispense_syrup function with params:{params}")
+    log("INFO", f"Calling dispense_syrup function with params:{params}", service="automation")
     
     # Extract syrups dictionary
     if "syrups" not in params or not isinstance(params["syrups"], dict):
-        logger.error("No syrups dictionary found in params")
+        log("ERROR", "No syrups dictionary found in params", service="automation")
         return {
             "success": False,
             "error": "No syrups dictionary found in params",
@@ -145,7 +149,7 @@ async def dispense_sauce(params: dict):
     syrups_dict = params["syrups"]
     
     if not syrups_dict:
-        logger.info("Empty syrups dictionary, nothing to dispense")
+        log("INFO", "Empty syrups dictionary, nothing to dispense", service="automation")
         return {
             "success": True,
             "message": "No syrups to dispense",
@@ -161,32 +165,32 @@ async def dispense_sauce(params: dict):
     # Loop through each syrup pump
     for pump_key, amount in syrups_dict.items():
         pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
-        logger.info(f"Dispensing {amount}g from syrup pump {pump_number}")
+        log("INFO", f"Dispensing {amount}g from syrup pump {pump_number}", service="automation")
         
         response = {"data": None}
 
         def on_connect(client, userdata, flags, rc, props=None):
-            logger.info(f"Connected with code {rc}")
+            log("INFO", f"Connected with code {rc}", service="automation")
             client.subscribe("automation/response", qos=1)
 
         def on_message(client, userdata, msg):
             try:
                 payload = json.loads(msg.payload.decode())
-                logger.info(f"Response: {json.dumps(payload, indent=2)}")
+                log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
                 response["data"] = payload
             except json.JSONDecodeError:
-                logger.info(f"Invalid JSON: {msg.payload.decode()}")
+                log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
         # Create MQTT payload
         payload = json.dumps({"pump_number": pump_number, "amount": amount})
-        logger.info("Calling MQTT")
+        log("INFO", "Calling MQTT", service="automation")
         client = mqtt.Client(protocol=mqtt.MQTTv311)
         client.username_pw_set(username, password)
         client.on_connect = on_connect
         client.on_message = on_message
         
         # Connect to external MQTT broker for syrup dispensing (same as milk)
-        logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+        log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
         client.connect(mqtt_host, 1883, 60)
         
         client.loop_start()
@@ -198,7 +202,7 @@ async def dispense_sauce(params: dict):
             time.sleep(0.1)
         
         if not client.is_connected():
-            logger.error("Failed to connect to MQTT broker")
+            log("ERROR", "Failed to connect to MQTT broker", service="automation")
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -212,7 +216,7 @@ async def dispense_sauce(params: dict):
         
         # Send the message
         client.publish("automation_syrup", payload, qos=1)
-        logger.info(f"Sent: {payload}")
+        log("INFO", f"Sent: {payload}", service="automation")
 
         # Wait indefinitely for response (no timeout)
         while response["data"] is None:
@@ -221,7 +225,7 @@ async def dispense_sauce(params: dict):
         client.loop_stop()
         client.disconnect()
 
-        logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
+        log("INFO", f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
         
         # Store result for this pump
         mqtt_response = response["data"]
@@ -266,8 +270,8 @@ async def dispense_ice(params: dict):
     """Dispense ice using MQTT communication."""
     # example params: {"ice": 8, "timeout": 300}
     # OR nested format: {"ice": {"ice_cubes_16oz": 11.0}, "timeout": 300}
-    logger.info(f"Calling dispense_ice function with params:{params}")
-    logger.info("dispensing imaginary ice")
+    log("INFO", f"Calling dispense_ice function with params:{params}", service="automation")
+    log("INFO", "dispensing imaginary ice", service="automation")
     time.sleep(5)
     return {
         "success": True,
@@ -283,24 +287,24 @@ async def dispense_ice(params: dict):
         # Fallback to flat parameter format (direct integer value)
         ice = params.get("ice", 1)
     
-    logger.info(f"Dispensing {ice} ice cubes")
+    log("INFO", f"Dispensing {ice} ice cubes", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     #
     payload = json.dumps({"ice": ice})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -311,7 +315,7 @@ async def dispense_ice(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -323,7 +327,7 @@ async def dispense_ice(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -335,7 +339,7 @@ async def dispense_ice(params: dict):
     
     # Now send the message
     client.publish("automation_ice", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 90)  # Reduced to allow buffer for routine service
     start_time = time.time()
@@ -344,7 +348,7 @@ async def dispense_ice(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from dispenser")
+        log("INFO", "Timeout: No response from dispenser", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from dispenser",
@@ -353,7 +357,7 @@ async def dispense_ice(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Dispenser] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", "[Dispenser] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -527,23 +531,23 @@ async def slush_machine(params: dict):
     slush_type = params.get("slush_type", "slush_2")
     cup_size = params.get("cup", "C12")
     
-    print("Calling Slush mach function")
+    log("DEBUG", "Calling Slush mach function", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"slush_type": slush_type, "cup": cup_size})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -554,7 +558,7 @@ async def slush_machine(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -566,7 +570,7 @@ async def slush_machine(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -577,7 +581,7 @@ async def slush_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_slush", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -586,7 +590,7 @@ async def slush_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        print("Timeout: No response from dispenser")
+        log("DEBUG", "Timeout: No response from dispenser", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from dispenser",
@@ -595,7 +599,7 @@ async def slush_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    print(f"[Slush Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("DEBUG", f"[Slush Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -619,19 +623,19 @@ async def coffee_machine(params: dict):
 
     """coffee machine using MQTT communication."""
     # coffee_t is the number of the shots 1,2
-    logger.info(f"[Coffee Machine] Received params: {params}")
+    log("INFO", f"[Coffee Machine] Received params: {params}", service="automation")
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
         espresso_dict = params["espresso"]
-        logger.info(f"[Coffee Machine] Espresso dict found: {espresso_dict}")
+        log("INFO", f"[Coffee Machine] Espresso dict found: {espresso_dict}", service="automation")
         # Extract amount from first value (ignore the key name like "espresso_shot_double")
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
-        logger.info(f"[Coffee Machine] Extracted coffee_t: {coffee_t} (type: {type(coffee_t)})")
+        log("INFO", f"[Coffee Machine] Extracted coffee_t: {coffee_t} (type: {type(coffee_t)})", service="automation")
     else:
         # Fallback to flat parameter format
         coffee_t = params.get("coffee_t", 3)
-        logger.info(f"[Coffee Machine] Using fallback coffee_t: {coffee_t}")
+        log("INFO", f"[Coffee Machine] Using fallback coffee_t: {coffee_t}", service="automation")
     
     if coffee_t == 1:
         slot_number = 3
@@ -644,23 +648,23 @@ async def coffee_machine(params: dict):
         raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
         
     # slot_number = params.get("slot_number", 1)
-    logger.info(f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}")
+    log("INFO", f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        print(f"Connected with code {rc}")
+        log("DEBUG", f"Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            print(f"Response: {json.dumps(payload, indent=2)}")
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            print(f"Invalid JSON: {msg.payload.decode()}")
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -671,7 +675,7 @@ async def coffee_machine(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -683,7 +687,7 @@ async def coffee_machine(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -694,7 +698,7 @@ async def coffee_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_coffee_machine", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     # timeout = params.get("timeout", 120)
     # start_time = time.time()
@@ -707,7 +711,7 @@ async def coffee_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from dispenser")
+        log("INFO", "Timeout: No response from dispenser", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from dispenser",
@@ -716,7 +720,7 @@ async def coffee_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Coffee Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Coffee Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -737,19 +741,19 @@ async def coffee_machine(params: dict):
 async def coffee_machine_wait(params: dict):
     """coffee machine using MQTT communication."""
     # coffee_t is the number of the shots 1,2
-    logger.info(f"[Coffee Machine] Received params: {params}")
+    log("INFO", f"[Coffee Machine] Received params: {params}", service="automation")
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
         espresso_dict = params["espresso"]
-        logger.info(f"[Coffee Machine] Espresso dict found: {espresso_dict}")
+        log("INFO", f"[Coffee Machine] Espresso dict found: {espresso_dict}", service="automation")
         # Extract amount from first value (ignore the key name like "espresso_shot_double")
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
-        logger.info(f"[Coffee Machine] Extracted coffee_t: {coffee_t} (type: {type(coffee_t)})")
+        log("INFO", f"[Coffee Machine] Extracted coffee_t: {coffee_t} (type: {type(coffee_t)})", service="automation")
     else:
         # Fallback to flat parameter format
         coffee_t = params.get("coffee_t", 3)
-        logger.info(f"[Coffee Machine] Using fallback coffee_t: {coffee_t}")
+        log("INFO", f"[Coffee Machine] Using fallback coffee_t: {coffee_t}", service="automation")
     
     if coffee_t == 1:
         slot_number = 3
@@ -762,23 +766,23 @@ async def coffee_machine_wait(params: dict):
         raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
         
     # slot_number = params.get("slot_number", 1)
-    logger.info(f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}")
+    log("INFO", f"Calling Coffee machine function with coffee_t: {coffee_t}, slot_number: {slot_number}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        print(f"Connected with code {rc}")
+        log("DEBUG", f"Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            print(f"Response: {json.dumps(payload, indent=2)}")
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            print(f"Invalid JSON: {msg.payload.decode()}")
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -789,7 +793,7 @@ async def coffee_machine_wait(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -801,7 +805,7 @@ async def coffee_machine_wait(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -812,7 +816,7 @@ async def coffee_machine_wait(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_coffee_machine", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -820,7 +824,7 @@ async def coffee_machine_wait(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from dispenser")
+        log("INFO", "Timeout: No response from dispenser", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from dispenser",
@@ -829,7 +833,7 @@ async def coffee_machine_wait(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Coffee Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Coffee Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -863,23 +867,23 @@ async def grinding_machine(params: dict):
         # Fallback to flat parameter format
         shots_number = params.get("shots_number", 1)
     
-    logger.info(f"Calling grinding machine function with shots_number: {shots_number}")
+    log("INFO", f"Calling grinding machine function with shots_number: {shots_number}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"shots_number": shots_number})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -890,7 +894,7 @@ async def grinding_machine(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -902,7 +906,7 @@ async def grinding_machine(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -913,7 +917,7 @@ async def grinding_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_grinding", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -922,7 +926,7 @@ async def grinding_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from grinder")
+        log("INFO", "Timeout: No response from grinder", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from grinder",
@@ -931,7 +935,7 @@ async def grinding_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Grinding Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Grinding Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -953,50 +957,50 @@ async def grinding_machine(params: dict):
 async def tampering_machine(params: dict):
     """tampering machine using MQTT communication."""
     # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
-    logger.info(f"[Tampering Machine] Received params: {params}")
+    log("INFO", f"[Tampering Machine] Received params: {params}", service="automation")
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
         espresso_dict = params["espresso"]
-        logger.info(f"[Tampering Machine] Espresso dict found: {espresso_dict}")
+        log("INFO", f"[Tampering Machine] Espresso dict found: {espresso_dict}", service="automation")
         # Extract amount from first value (ignore the key name like "espresso_shot_single")
         espresso_shots = int(list(espresso_dict.values())[0])  # Get first value, convert to int
-        logger.info(f"[Tampering Machine] Extracted espresso_shots: {espresso_shots} (type: {type(espresso_shots)})")
+        log("INFO", f"[Tampering Machine] Extracted espresso_shots: {espresso_shots} (type: {type(espresso_shots)})", service="automation")
     else:
         # Fallback to flat parameter format
         espresso_shots = params.get("tampering", 1)
-        logger.info(f"[Tampering Machine] Using fallback espresso_shots: {espresso_shots}")
+        log("INFO", f"[Tampering Machine] Using fallback espresso_shots: {espresso_shots}", service="automation")
     
     # Map espresso shots to calibration
     # If espresso = 1, send tampering: 1, calibration: 1
     # If espresso = 2, send tampering: 1, calibration: 2
     tampering = 1  # Always 1
     if espresso_shots == 1:
-        calibration = 1730        ##set values here in ms
+        calibration = 2000        ##set values here in ms
     elif espresso_shots == 2:
-        calibration = 1730        ##set values here in ms
+        calibration = 1900        ##set values here in ms
     else:
         # Default to calibration 1 if unknown shot count
-        logger.warning(f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1")
+        log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")
         calibration = 1
     
-    logger.info(f"Calling tampering machine function with tampering={tampering}, calibration={calibration}")
+    log("INFO", f"Calling tampering machine function with tampering={tampering}, calibration={calibration}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"tampering": tampering, "calibration": calibration})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"),
@@ -1006,7 +1010,7 @@ async def tampering_machine(params: dict):
     client.on_message = on_message
 
     mqtt_host = params.get("mqtt_host", "rabbitmq")
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
 
     client.loop_start()
@@ -1018,7 +1022,7 @@ async def tampering_machine(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1029,7 +1033,7 @@ async def tampering_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_tampering", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -1038,7 +1042,7 @@ async def tampering_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from tampering machine")
+        log("INFO", "Timeout: No response from tampering machine", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from tampering machine",
@@ -1048,7 +1052,7 @@ async def tampering_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Tampering Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Tampering Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
 
     mqtt_response = response["data"]
     if mqtt_response.get("status") == "success":
@@ -1068,9 +1072,9 @@ async def tampering_machine(params: dict):
 async def automation_test(params: dict):
     """Automation test using MQTT communication."""
     # example params: {"automation_test": 1}
-    logger.info("Starting automation test function")
+    log("INFO", "Starting automation test function", service="automation")
     time.sleep(60)
-    logger.info("Ending automation test function")
+    log("INFO", "Ending automation test function", service="automation")
     return {
         "success": True,
         "message": "Successfully completed automation test",
@@ -1081,7 +1085,7 @@ async def froth_milk(params: dict):
     """Froth milk using MQTT communication."""
     # example params: {"temperature": "standard", "timeout": 300}
     # OR nested format: {"temperature": {"regular_temperature": 73.0}, "timeout": 300}
-    logger.info(f"Calling froth_milk function with params:{params}")
+    log("INFO", f"Calling froth_milk function with params:{params}", service="automation")
     
     # Handle nested temperature dictionary format
     if "temperature" in params and isinstance(params["temperature"], dict):
@@ -1105,24 +1109,24 @@ async def froth_milk(params: dict):
         # Fallback to flat parameter format
         temperature = params.get("temperature", "standard")
     
-    logger.info(f"Frothing milk at temperature: {temperature}")
+    log("INFO", f"Frothing milk at temperature: {temperature}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     # Send temperature to frother
     payload = json.dumps({"temperature": temperature})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1133,7 +1137,7 @@ async def froth_milk(params: dict):
     
     # Connect to external MQTT broker for frother (your Arduino setup)
     mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -1145,7 +1149,7 @@ async def froth_milk(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1157,7 +1161,7 @@ async def froth_milk(params: dict):
     
     # Now send the message to frother topic
     client.publish("automation_frother", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 210)  # Extended timeout for frothing (200s + buffer)
     start_time = time.time()
@@ -1166,7 +1170,7 @@ async def froth_milk(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from frother")
+        log("INFO", "Timeout: No response from frother", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from frother",
@@ -1175,7 +1179,7 @@ async def froth_milk(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Frother] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -1197,24 +1201,24 @@ async def initialize_frother(params: dict):
     """Initialize frother using MQTT communication."""
     # This function doesn't use any parameters from params dict
     # It just sends a frother_init command to the MQTT broker
-    logger.info("Calling frother_init function")
+    log("INFO", "Calling frother_init function", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     # Fixed payload for frother initialization
     payload = json.dumps({"frother_init": 1})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1225,7 +1229,7 @@ async def initialize_frother(params: dict):
     
     # Connect to external MQTT broker for frother (your Arduino setup)
     mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -1237,7 +1241,7 @@ async def initialize_frother(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1249,7 +1253,7 @@ async def initialize_frother(params: dict):
     
     # Now send the message to frother init topic
     client.publish("automation_frother_init", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 90)  # Timeout for frother init
     start_time = time.time()
@@ -1258,7 +1262,7 @@ async def initialize_frother(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from frother")
+        log("INFO", "Timeout: No response from frother", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from frother",
@@ -1267,7 +1271,7 @@ async def initialize_frother(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Frother] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -1288,24 +1292,24 @@ async def initialize_frother(params: dict):
 async def clean_frother(params: dict):
     """Clean frother using MQTT communication."""
     # This function ignores params and sends a fixed payload
-    logger.info("Calling clean_frother function")
+    log("INFO", "Calling clean_frother function", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     # Fixed payload for cleaning frother
     payload = json.dumps({"clean_frother": 1})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1316,7 +1320,7 @@ async def clean_frother(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -1328,7 +1332,7 @@ async def clean_frother(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1340,7 +1344,7 @@ async def clean_frother(params: dict):
     
     # Now send the message to clean frother topic
     client.publish("automation_clean_frother", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
     return {
             "success": True,
             "message": "Successfully cleaned frother",
@@ -1353,7 +1357,7 @@ async def clean_frother(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from frother cleaning")
+        log("INFO", "Timeout: No response from frother cleaning", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from frother cleaning",
@@ -1362,7 +1366,7 @@ async def clean_frother(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Clean Frother] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Clean Frother] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
     
     # Standardize the response format
     mqtt_response = response["data"]
@@ -1386,23 +1390,23 @@ async def rinser_machine(params: dict):
     rinser_state = params.get("rinser", 1)
     timer = params.get("timer", 0)
     
-    logger.info(f"Calling rinser machine function with rinser_state: {rinser_state}, timer: {timer}")
+    log("INFO", f"Calling rinser machine function with rinser_state: {rinser_state}, timer: {timer}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     payload = json.dumps({"rinser": rinser_state, "timer": timer})
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1413,7 +1417,7 @@ async def rinser_machine(params: dict):
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -1425,7 +1429,7 @@ async def rinser_machine(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1436,7 +1440,7 @@ async def rinser_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_rinser", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
@@ -1445,7 +1449,7 @@ async def rinser_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        logger.info("Timeout: No response from rinser machine")
+        log("INFO", "Timeout: No response from rinser machine", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from rinser machine",
@@ -1455,7 +1459,7 @@ async def rinser_machine(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"[Rinser Machine] Final response: {json.dumps(response['data'], indent=2)}")
+    log("INFO", f"[Rinser Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
 
     mqtt_response = response["data"]
     if mqtt_response.get("status") == "success":
@@ -1478,20 +1482,20 @@ async def dispense_ingredient(params: dict):
     weight = params.get("weight", 10)
     motor = params.get("motor", "sauce1")
     
-    logger.info("Calling dispense_ingredient function")
+    log("INFO", "Calling dispense_ingredient function", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
-        logger.info(f"Connected with code {rc}")
+        log("INFO", "Connected with code {rc}", service="automation")
         client.subscribe("automation/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
             payload = json.loads(msg.payload.decode())
-            logger.info(f"Response: {json.dumps(payload, indent=2)}")
+            log("INFO", f"Response: {json.dumps(payload, indent=2)}", service="automation")
             response["data"] = payload
         except json.JSONDecodeError:
-            logger.info(f"Invalid JSON: {msg.payload.decode()}")
+            log("INFO", f"Invalid JSON: {msg.payload.decode()}", service="automation")
 
     # Format command for dispensing system: ingredient_weight
     command = f"{ingredient}_{weight}"
@@ -1502,7 +1506,7 @@ async def dispense_ingredient(params: dict):
         "command": command
     })
     
-    logger.info("Calling MQTT")
+    log("INFO", "Calling MQTT", service="automation")
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1513,7 +1517,7 @@ async def dispense_ingredient(params: dict):
     
     # Connect to external MQTT broker for dispensing (your Arduino setup)
     mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
-    logger.info(f"Connecting to MQTT broker at {mqtt_host}:1883")
+    log("INFO", f"Connecting to MQTT broker at {mqtt_host}:1883", service="automation")
     client.connect(mqtt_host, 1883, 60)
     
     client.loop_start()
@@ -1525,7 +1529,7 @@ async def dispense_ingredient(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        logger.error("Failed to connect to MQTT broker")
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1537,7 +1541,7 @@ async def dispense_ingredient(params: dict):
     
     # Now send the message to dispensing topic
     client.publish("automation_dispensing", payload, qos=1)
-    logger.info(f"Sent: {payload}")
+    log("INFO", f"Sent: {payload}", service="automation")
 
     # Give a moment for the message to be sent
     await asyncio.sleep(0.5)
@@ -1545,7 +1549,7 @@ async def dispense_ingredient(params: dict):
     client.loop_stop()
     client.disconnect()
 
-    logger.info(f"✅ Dispensed {weight}g of {ingredient}")
+    log("INFO", "Success", service="automation")
     return {
         "success": True,
         "message": f"Dispensed {weight}g of {ingredient} via {motor}",
@@ -1559,7 +1563,6 @@ async def dispense_ingredient(params: dict):
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
-    "dispense_hot_water": dispense_hot_water,
     "dispense_sauce": dispense_sauce,
     "dispense_milk": dispense_milk,
     "dispense_ingredient": dispense_ingredient,

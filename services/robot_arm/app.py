@@ -14,6 +14,7 @@ from typing import Dict
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from .robot_actions import ROBOT_ACTIONS, execute_robot_action, get_robot_container_actions
 
@@ -37,12 +38,12 @@ class RobotArmService:
                 # If we get here, the service was interrupted
                 break
             except KeyboardInterrupt:
-                logger.info("Shutting down robot arm service...")
+                log("INFO", "Shutting down robot arm service...", service="robot_arm")
                 await self.stop()
                 break
             except Exception as e:
-                logger.error(f"Service error: {e}")
-                logger.info("Restarting service in 10 seconds...")
+                log("ERROR", f"Service error: {e}", service="robot_arm")
+                log("INFO", "Restarting service in 10 seconds...", service="robot_arm")
                 await self._cleanup()
                 await asyncio.sleep(10)
 
@@ -51,14 +52,14 @@ class RobotArmService:
         # Retry connection logic for RabbitMQ
         while True:
             try:
-                logger.info("🤖 [ROBOT-ARM] Attempting to connect to RabbitMQ...")
+                log("INFO", "Action", service="robot_arm")
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
-                logger.info("✅ [ROBOT-ARM] Successfully connected to RabbitMQ")
+                log("INFO", "RabbitMQ connections established", service="robot_arm")
                 break
             except Exception as e:
-                logger.error(f"❌ [ROBOT-ARM] Failed to connect to RabbitMQ: {e}")
-                logger.info("Retrying connection in 10 seconds...")
+                log("ERROR", "RabbitMQ connection failed", service="robot_arm", error=str(e)[:100])
+                log("INFO", "Retrying RabbitMQ connection in 10 seconds", service="robot_arm")
                 await asyncio.sleep(10)
         
         # Register message handlers
@@ -75,12 +76,12 @@ class RobotArmService:
         self.event_listener.register_event_handler("robot.emergency_stop", self.handle_emergency_stop_event)
         
         mode = "SIMULATION" if self.simulation_mode else "HARDWARE"
-        logger.info(f"Robot Arm service started in {mode} mode and listening for messages")
+        log("INFO", f"Robot Arm service started in {mode} mode and listening for messages", service="robot_arm")
         
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
-            logger.info("Shutting down robot arm service...")
+            log("INFO", "Shutting down robot arm service...", service="robot_arm")
             raise
 
     async def _cleanup(self):
@@ -98,12 +99,12 @@ class RobotArmService:
                 pass
                 
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            log("ERROR", f"Error during cleanup: {e}", service="robot_arm")
 
     async def stop(self):
         """Stop the robot arm service."""
         await self._cleanup()
-        logger.info("Robot arm service stopped")
+        log("INFO", "Robot arm service stopped", service="robot_arm")
     
     async def handle_robot_action(self, data: Dict) -> Dict:
         """Handle robot action requests."""
@@ -133,7 +134,7 @@ class RobotArmService:
                     "timestamp": datetime.now().isoformat()
                 })
             except ConnectionError as e:
-                logger.error(f"Connection error sending action started event: {e}")
+                log("ERROR", f"Connection error sending action started event: {e}", service="robot_arm")
                 # Continue with action execution but note the connection issue
             
             # Execute robot action (this will route to robot container for non-test actions)
@@ -148,15 +149,15 @@ class RobotArmService:
                     "timestamp": datetime.now().isoformat()
                 })
             except ConnectionError as e:
-                logger.error(f"Connection error sending action completed event: {e}")
+                log("ERROR", f"Connection error sending action completed event: {e}", service="robot_arm")
             
             return result
             
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_robot_action: {e}")
+            log("ERROR", f"Connection error in handle_robot_action: {e}", service="robot_arm")
             raise  # This will trigger service restart
         except Exception as e:
-            logger.error(f"Error in robot action: {e}")
+            log("ERROR", f"Error in robot action: {e}", service="robot_arm")
             
             # Send error event
             try:
@@ -167,9 +168,9 @@ class RobotArmService:
                     "timestamp": datetime.now().isoformat()
                 })
             except ConnectionError as conn_error:
-                logger.error(f"Connection error sending action error event: {conn_error}")
+                log("ERROR", f"Connection error sending action error event: {conn_error}", service="robot_arm")
             except Exception as event_error:
-                logger.error(f"Error sending action error event: {event_error}")
+                log("ERROR", f"Error sending action error event: {event_error}", service="robot_arm")
             
             return {
                 "success": False,
@@ -199,7 +200,7 @@ class RobotArmService:
                 try:
                     robot_container_actions = await get_robot_container_actions()
                 except Exception as e:
-                    logger.warning(f"Could not get robot container actions: {e}")
+                    log("ERROR", f"Could not get robot container actions: {e}", service="robot_arm")
             
             # Combine actions
             all_actions = test_actions + robot_container_actions
@@ -213,7 +214,7 @@ class RobotArmService:
                 "success": True
             }
         except Exception as e:
-            logger.error(f"Error listing actions: {e}")
+            log("ERROR", f"Error listing actions: {e}", service="robot_arm")
             return {
                 "actions": list(ROBOT_ACTIONS.keys()),
                 "count": len(ROBOT_ACTIONS),
@@ -235,7 +236,7 @@ class RobotArmService:
             
             # Here you would implement actual emergency stop logic
             # For now, we'll just log and respond
-            logger.warning(f"Emergency stop activated for arm {arm_id}")
+            log("ERROR", f"Emergency stop activated for arm {arm_id}", service="robot_arm")
             
             return {
                 "success": True,
@@ -243,7 +244,7 @@ class RobotArmService:
             }
             
         except Exception as e:
-            logger.error(f"Error during emergency stop: {e}")
+            log("ERROR", f"Error during emergency stop: {e}", service="robot_arm")
             return {
                 "success": False,
                 "error": str(e)
@@ -289,7 +290,7 @@ class RobotArmService:
             return result
             
         except Exception as e:
-            logger.error(f"Error during calibration: {e}")
+            log("ERROR", f"Error during calibration: {e}", service="robot_arm")
             return {
                 "success": False,
                 "error": str(e)
@@ -320,7 +321,7 @@ class RobotArmService:
             }
             
         except Exception as e:
-            logger.error(f"Error getting robot status: {e}")
+            log("ERROR", f"Error getting robot status: {e}", service="robot_arm")
             return {
                 "success": False,
                 "error": str(e)
@@ -328,12 +329,12 @@ class RobotArmService:
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        logger.info("Received shutdown event, stopping robot arm service...")
+        log("INFO", "Received shutdown event, stopping robot arm service...", service="robot_arm")
         await self.stop()
     
     async def handle_emergency_stop_event(self, data: Dict):
         """Handle emergency stop events."""
-        logger.warning("Emergency stop event received!")
+        log("ERROR", "Emergency stop event received!", service="robot_arm")
         arm_id = data.get("arm_id", "all")
         await self.handle_emergency_stop({"arm_id": arm_id})
 
@@ -343,7 +344,7 @@ async def main():
     try:
         await service.start()
     except KeyboardInterrupt:
-        logger.info("Received interrupt signal, shutting down...")
+        log("INFO", "Received interrupt signal, shutting down...", service="robot_arm")
         await service.stop()
 
 if __name__ == "__main__":

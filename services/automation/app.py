@@ -14,6 +14,7 @@ from typing import Dict
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from .automation_functions import AUTOMATION_FUNCTIONS
 
@@ -47,12 +48,12 @@ class AutomationService:
         # Subscribe to events
         await self.event_listener.subscribe_to_events(["system.*", "automation.*"])
         
-        logger.info("🚀 [AUTOMATION] Service started and listening for messages")
+        log("INFO", "Starting", service="automation")
         
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
-            logger.info("Shutting down automation service...")
+            log("INFO", "Shutting down automation service...", service="automation")
         finally:
             await self.stop()
     
@@ -60,7 +61,7 @@ class AutomationService:
         """Stop the automation service."""
         await self.rabbitmq_client.disconnect()
         await self.event_listener.disconnect()
-        logger.info("Automation service stopped")
+        log("INFO", "Automation service stopped", service="automation")
     
     async def handle_automate(self, data: Dict) -> Dict:
         """Handle automation requests."""
@@ -68,17 +69,17 @@ class AutomationService:
             function = data.get("function")
             params = data.get("params", {})
             
-            logger.info(f"🤖 [AUTOMATION] Received automation request: function='{function}', params={params}")
+            log("INFO", "Action", service="automation")
             
             if function not in AUTOMATION_FUNCTIONS:
-                logger.error(f"❌ [AUTOMATION] Unknown function '{function}'. Available: {list(AUTOMATION_FUNCTIONS.keys())}")
+                log("ERROR", "Unknown automation function", service="automation", function=function)
                 return {
                     "success": False,
                     "error": f"No such automation function '{function}'",
                     "message": f"Available functions: {list(AUTOMATION_FUNCTIONS.keys())}"
                 }
             
-            logger.info(f"🚀 [AUTOMATION] Starting execution of '{function}'")
+            log("INFO", "Starting", service="automation")
             
             # Send start event
             await self.rabbitmq_client.send_event("automation.started", {
@@ -90,7 +91,7 @@ class AutomationService:
             # Execute automation function
             result = await AUTOMATION_FUNCTIONS[function](params)
             
-            logger.info(f"✅ [AUTOMATION] Function '{function}' completed successfully: {result}")
+            log("INFO", "Success", service="automation")
             
             # Send completion event
             await self.rabbitmq_client.send_event("automation.completed", {
@@ -102,7 +103,7 @@ class AutomationService:
             return result
             
         except Exception as e:
-            logger.error(f"💥 [AUTOMATION] Error executing function '{function}': {e}")
+            log("ERROR", "Error", service="automation")
             
             # Send error event
             await self.rabbitmq_client.send_event("automation.error", {
@@ -148,7 +149,7 @@ class AutomationService:
             }
             
         except Exception as e:
-            logger.error(f"Error stopping automation: {e}")
+            log("ERROR", f"Error stopping automation: {e}", service="automation")
             return {
                 "success": False,
                 "error": str(e)
@@ -156,12 +157,12 @@ class AutomationService:
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        logger.info("Received shutdown event, stopping automation service...")
+        log("INFO", "Received shutdown event, stopping automation service...", service="automation")
         await self.stop()
     
     async def handle_emergency_stop(self, data: Dict):
         """Handle emergency stop events."""
-        logger.warning("Emergency stop received!")
+        log("ERROR", "Emergency stop received!", service="automation")
         await self.rabbitmq_client.send_event("automation.emergency_stopped", {
             "timestamp": datetime.now().isoformat(),
             "reason": data.get("reason", "Emergency stop triggered")

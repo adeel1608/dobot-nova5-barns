@@ -21,6 +21,7 @@ import socketio
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 
 # Configure logging
@@ -131,10 +132,10 @@ async def startup_event():
         event_listener.register_event_handler("validation.stock_level_updated", handle_stock_level_event)
         event_listener.register_event_handler("validation.category_summary_updated", handle_category_summary_event)
 
-        logger.info("API Bridge service started successfully")
+        log("INFO", "API Bridge service started successfully", service="api_bridge")
         
     except Exception as e:
-        logger.error(f"Failed to start API Bridge service: {e}")
+        log("ERROR", f"Failed to start API Bridge service: {e}", service="api_bridge")
         raise
 
 @app.on_event("shutdown")
@@ -147,12 +148,12 @@ async def shutdown_event():
     if event_listener:
         await event_listener.disconnect()
     
-    logger.info("API Bridge service stopped")
+    log("INFO", "API Bridge service stopped", service="api_bridge")
 
 # Event handlers for real-time updates
 async def handle_order_event(data: Dict):
     """Handle order-related events and broadcast to WebSocket clients"""
-    logger.info(f"📡 Broadcasting order event to {len(active_websockets)} WebSocket clients: {data}")
+    log("DEBUG", "Broadcasting", service="api_bridge")
     await broadcast_to_websockets({
         "type": "order_update",
         "event": data.get("event_type", "unknown"),
@@ -187,7 +188,7 @@ async def handle_scheduler_feedback_processed_event(data: Dict):
 
 async def handle_inventory_event(data: Dict):
     """Handle inventory-related events and broadcast to WebSocket clients"""
-    logger.info(f"📡 Broadcasting inventory event to {len(active_websockets)} WebSocket clients: {data}")
+    log("DEBUG", "Broadcasting", service="api_bridge")
     
     message = {
         "type": "inventory_update",
@@ -206,22 +207,22 @@ async def handle_inventory_event(data: Dict):
 async def broadcast_to_websockets(message: Dict):
     """Broadcast message to all connected WebSocket clients"""
     if active_websockets:
-        logger.info(f"📡 Broadcasting to {len(active_websockets)} WebSocket clients: {message.get('type', 'unknown')}")
+        log("DEBUG", "Broadcasting", service="api_bridge")
         disconnected = []
         for websocket in active_websockets:
             try:
                 await websocket.send_text(json.dumps(message))
             except Exception as e:
-                logger.warning(f"Failed to send WebSocket message: {e}")
+                log("ERROR", f"Failed to send WebSocket message: {e}", service="api_bridge")
                 disconnected.append(websocket)
         
         # Remove disconnected clients
         for ws in disconnected:
             if ws in active_websockets:
                 active_websockets.remove(ws)
-                logger.info(f"Removed disconnected WebSocket client. {len(active_websockets)} clients remaining.")
+                log("INFO", "Removed disconnected WebSocket client. {len(active_websockets)} clients remaining.", service="api_bridge")
     else:
-        logger.debug("No active WebSocket clients to broadcast to")
+        log("DEBUG", "No active WebSocket clients to broadcast to", service="api_bridge")
 
 # HTTP API Endpoints (translating to RabbitMQ)
 
@@ -261,7 +262,7 @@ async def create_order(order: OrderCreate):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to create order"))
             
     except Exception as e:
-        logger.error(f"Error creating order: {e}")
+        log("ERROR", f"Error creating order: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders")
@@ -293,7 +294,7 @@ async def list_orders(
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to list orders"))
             
     except Exception as e:
-        logger.error(f"Error listing orders: {e}")
+        log("ERROR", f"Error listing orders: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders/stats/summary")
@@ -311,10 +312,10 @@ async def get_orders_statistics():
                 "timestamp": datetime.now().isoformat()
             }
     except httpx.HTTPError as e:
-        logger.error(f"Error fetching order statistics from OMS: {e}")
+        log("ERROR", f"Error fetching order statistics from OMS: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error fetching order statistics: {e}")
+        log("ERROR", f"Unexpected error fetching order statistics: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/orders/{order_id}")
@@ -334,14 +335,14 @@ async def get_order(order_id: int):
             raise HTTPException(status_code=404, detail=response.get("error", "Order not found"))
             
     except Exception as e:
-        logger.error(f"Error getting order {order_id}: {e}")
+        log("ERROR", f"Error getting order {order_id}: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/orders/{order_id}/start")
 async def start_order(order_id: int):
     """Start processing an order"""
     try:
-        logger.info(f"🚀 Starting order {order_id} - sending RabbitMQ request to OMS")
+        log("INFO", "Starting", service="api_bridge")
         
         response = await rabbitmq_client.send_request(
             target_service="oms",
@@ -350,17 +351,17 @@ async def start_order(order_id: int):
             timeout=30
         )
         
-        logger.info(f"📨 Received response from OMS for order {order_id}: {response}")
+        log("INFO", f"📨 Received response from OMS for order {order_id}: {response}", service="api_bridge")
         
         if response.get("success"):
-            logger.info(f"✅ Order {order_id} started successfully")
+            log("INFO", f"Order {order_id} start successful", service="api_bridge")
             return response
         else:
-            logger.error(f"❌ Order {order_id} start failed: {response.get('error')}")
+            log("ERROR", f"Order {order_id} start failed: {response.get('error', 'Unknown')[:50]}", service="api_bridge")
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to start order"))
             
     except Exception as e:
-        logger.error(f"💥 Exception starting order {order_id}: {e}")
+        log("ERROR", "Error", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.patch("/api/orders/{order_id}/status")
@@ -384,7 +385,7 @@ async def update_order_status(order_id: int, update: OrderUpdate):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to update order"))
             
     except Exception as e:
-        logger.error(f"Error updating order {order_id}: {e}")
+        log("ERROR", f"Error updating order {order_id}: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/orders/{order_id}")
@@ -404,7 +405,7 @@ async def delete_order(order_id: int):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to delete order"))
             
     except Exception as e:
-        logger.error(f"Error deleting order {order_id}: {e}")
+        log("ERROR", f"Error deleting order {order_id}: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/orders/{order_id}/halt")
@@ -424,14 +425,14 @@ async def halt_order(order_id: int, reason: str = None):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to halt order"))
             
     except Exception as e:
-        logger.error(f"Error halting order {order_id}: {e}")
+        log("ERROR", f"Error halting order {order_id}: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/orders/{order_id}/stop")
 async def stop_order(order_id: int):
     """Stop a processing order"""
     try:
-        logger.info(f"🛑 API Bridge received stop request for order {order_id}")
+        log("INFO", "Stop", service="api_bridge")
         
         response = await rabbitmq_client.send_request(
             target_service="oms",
@@ -440,24 +441,24 @@ async def stop_order(order_id: int):
             timeout=30
         )
         
-        logger.info(f"🛑 API Bridge received response from OMS for stop order {order_id}: {response}")
+        log("INFO", "Stop", service="api_bridge")
         
         if response.get("success"):
-            logger.info(f"✅ Order {order_id} stopped successfully")
+            log("INFO", f"Order {order_id} stop successful", service="api_bridge")
             return response
         else:
-            logger.error(f"❌ Order {order_id} stop failed: {response.get('error')}")
+            log("ERROR", f"Order {order_id} stop failed: {response.get('error', 'Unknown')[:50]}", service="api_bridge")
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to stop order"))
             
     except Exception as e:
-        logger.error(f"💥 Exception stopping order {order_id}: {e}")
+        log("ERROR", "Error", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/orders/{order_id}/resume")
 async def resume_order(order_id: int):
     """Resume a stopped/halted order"""
     try:
-        logger.info(f"🔄 API Bridge received resume request for order {order_id}")
+        log("INFO", "Resume", service="api_bridge")
         
         response = await rabbitmq_client.send_request(
             target_service="oms",
@@ -466,17 +467,17 @@ async def resume_order(order_id: int):
             timeout=30
         )
         
-        logger.info(f"🔄 API Bridge received response from OMS for resume order {order_id}: {response}")
+        log("INFO", "Resume", service="api_bridge")
         
         if response.get("success"):
-            logger.info(f"✅ Order {order_id} resumed successfully")
+            log("INFO", f"Order {order_id} resume successful", service="api_bridge")
             return response
         else:
-            logger.error(f"❌ Order {order_id} resume failed: {response.get('error')}")
+            log("ERROR", f"Order {order_id} resume failed: {response.get('error', 'Unknown')[:50]}", service="api_bridge")
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to resume order"))
             
     except Exception as e:
-        logger.error(f"💥 Exception resuming order {order_id}: {e}")
+        log("ERROR", "Error", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Queue Management Endpoints
@@ -497,7 +498,7 @@ async def get_queue():
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to get queue"))
             
     except Exception as e:
-        logger.error(f"Error getting queue: {e}")
+        log("ERROR", f"Error getting queue: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/queue/reorder")
@@ -517,7 +518,7 @@ async def reorder_queue(order_data: dict):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to reorder queue"))
             
     except Exception as e:
-        logger.error(f"Error reordering queue: {e}")
+        log("ERROR", f"Error reordering queue: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 # System Status Endpoints
@@ -548,7 +549,7 @@ async def get_system_status():
         }
         
     except Exception as e:
-        logger.error(f"Error getting system status: {e}")
+        log("ERROR", f"Error getting system status: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/system/stop")
@@ -569,7 +570,7 @@ async def stop_system(request: dict):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to stop system"))
             
     except Exception as e:
-        logger.error(f"Error stopping system: {e}")
+        log("ERROR", f"Error stopping system: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/system/resume")
@@ -589,7 +590,7 @@ async def resume_system():
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to resume system"))
             
     except Exception as e:
-        logger.error(f"Error resuming system: {e}")
+        log("ERROR", f"Error resuming system: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 # POS Integration Endpoints
@@ -606,10 +607,10 @@ async def process_pos_order(order_data: dict):
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
-        logger.error(f"Error proxying POS order to OMS: {e}")
+        log("ERROR", f"Error proxying POS order to OMS: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Failed to process POS order: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error processing POS order: {e}")
+        log("ERROR", f"Unexpected error processing POS order: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/pos/menu-items")
@@ -622,10 +623,10 @@ async def get_menu_items():
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
-        logger.error(f"Error fetching menu items from OMS: {e}")
+        log("ERROR", f"Error fetching menu items from OMS: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Failed to fetch menu items: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error fetching menu items: {e}")
+        log("ERROR", f"Unexpected error fetching menu items: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/pos/ingredients")
@@ -638,10 +639,10 @@ async def get_ingredients():
             response.raise_for_status()
             return response.json()
     except httpx.HTTPError as e:
-        logger.error(f"Error fetching ingredients from OMS: {e}")
+        log("ERROR", f"Error fetching ingredients from OMS: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Failed to fetch ingredients: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error fetching ingredients: {e}")
+        log("ERROR", f"Unexpected error fetching ingredients: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Recipe Management Endpoints
@@ -652,7 +653,7 @@ async def get_recipes():
         recipes_file = os.path.join('/app', 'data', 'recipes.json')
         
         if not os.path.exists(recipes_file):
-            logger.error(f"Recipes file not found at {recipes_file}")
+            log("ERROR", f"Recipes file not found at {recipes_file}", service="api_bridge")
             raise HTTPException(status_code=500, detail="Recipes file not found")
         
         with open(recipes_file, 'r', encoding='utf-8') as f:
@@ -669,7 +670,7 @@ async def get_recipes():
                 "steps": len(recipes_data[recipe_name])
             })
         
-        logger.info(f"Successfully loaded {len(recipe_names)} recipes from file")
+        log("INFO", "Successfully loaded {len(recipe_names)} recipes from file", service="api_bridge")
         return {
             "success": True,
             "data": recipe_names,  # Use 'data' field for consistency with dashboard API client
@@ -679,7 +680,7 @@ async def get_recipes():
         }
         
     except Exception as e:
-        logger.error(f"Error loading recipes: {e}")
+        log("ERROR", f"Error loading recipes: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Failed to load recipes: {str(e)}")
 
 # Inventory Management Endpoints
@@ -699,13 +700,13 @@ async def test_summary():
             await handle_category_summary_event(response.get("details", {}))
         else:
             error_msg = response.get("error", "Failed to get category summary from validation service")
-            logger.error(f"Validation service returned error: {error_msg}")
+            log("ERROR", f"Validation service returned error: {error_msg}", service="api_bridge")
             raise HTTPException(status_code=503, detail=error_msg)
             
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error(f"Error getting inventory category summary: {e}")
+        log("ERROR", f"Error getting inventory category summary: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
@@ -734,7 +735,7 @@ async def get_inventory_status(ingredient_type: Optional[str] = None, subtype: O
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory status"))
             
     except Exception as e:
-        logger.error(f"Error getting inventory status: {e}")
+        log("ERROR", f"Error getting inventory status: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/api/inventory/category-info")
@@ -754,7 +755,7 @@ async def get_inventory_category_info():
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory category info"))
             
     except Exception as e:
-        logger.error(f"Error getting inventory category info: {e}")
+        log("ERROR", f"Error getting inventory category info: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -776,7 +777,7 @@ async def refill_inventory(ingredient_type: Optional[str] = None, subtype: Optio
             return response
         else:
             # Return success for mock data
-            logger.warning(f"Validation service not available, simulating refill")
+            log("ERROR", "Validation service not available, simulating refill", service="api_bridge")
             return {
                 "passed": False,
                 "details": {},
@@ -785,7 +786,7 @@ async def refill_inventory(ingredient_type: Optional[str] = None, subtype: Optio
             }
             
     except Exception as e:
-        logger.error(f"Error refilling inventory: {e}")
+        log("ERROR", f"Error refilling inventory: {e}", service="api_bridge")
         # Return success for mock data
         return {
             "passed": False,
@@ -813,13 +814,13 @@ async def get_inventory_category_summary():
             }
         else:
             error_msg = response.get("error", "Failed to get category summary from validation service")
-            logger.error(f"Validation service returned error: {error_msg}")
+            log("ERROR", f"Validation service returned error: {error_msg}", service="api_bridge")
             raise HTTPException(status_code=503, detail=error_msg)
             
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error(f"Error getting inventory category summary: {e}")
+        log("ERROR", f"Error getting inventory category summary: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/api/inventory/stock-level")
@@ -843,7 +844,7 @@ async def get_inventory_stock_level():
             raise HTTPException(status_code=400, detail="Failed to get severity statistics")
             
     except Exception as e:
-        logger.error(f"Error getting inventory severity: {e}")
+        log("ERROR", f"Error getting inventory severity: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.get("/api/inventory/category-count")
@@ -868,7 +869,7 @@ async def get_inventory_category_count():
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to get inventory category count"))
             
     except Exception as e:
-        logger.error(f"Error getting inventory category count: {e}")
+        log("ERROR", f"Error getting inventory category count: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -909,7 +910,7 @@ async def get_inventory_by_stock_level(stock_level: str):
     except HTTPException:
         raise  # Re-raise HTTP exceptions
     except Exception as e:
-        logger.error(f"Error getting {stock_level} stock ingredients: {e}")
+        log("ERROR", f"Error getting {stock_level} stock ingredients: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")           
 
 # Alert Management Endpoints
@@ -919,7 +920,7 @@ async def get_active_alerts():
     try:
         # Check if rabbitmq_client is available
         if rabbitmq_client is None:
-            logger.warning("RabbitMQ client not initialized, returning empty alerts")
+            log("ERROR", "RabbitMQ client not initialized, returning empty alerts", service="api_bridge")
             return {
                 "success": True,
                 "alerts": [],
@@ -937,7 +938,7 @@ async def get_active_alerts():
             return response
         else:
             # Return empty alerts if OMS doesn't have this endpoint yet
-            logger.warning(f"OMS service doesn't have get_active_alerts endpoint or returned error: {response}")
+            log("ERROR", f"OMS service doesn't have get_active_alerts endpoint or returned error: {response}", service="api_bridge")
             return {
                 "success": True,
                 "alerts": [],
@@ -945,14 +946,14 @@ async def get_active_alerts():
             }
             
     except TimeoutError as e:
-        logger.warning(f"Timeout getting active alerts from OMS: {e}")
+        log("ERROR", f"Timeout getting active alerts from OMS: {e}", service="api_bridge")
         return {
             "success": True,
             "alerts": [],
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        logger.error(f"Error getting active alerts: {type(e).__name__}: {str(e)}")
+        log("ERROR", "Error getting active alerts: {type(e).__name__}: {str(e)}", service="api_bridge")
         # Return empty alerts on error
         return {
             "success": True,
@@ -966,7 +967,7 @@ async def get_acknowledged_alerts():
     try:
         # Check if rabbitmq_client is available
         if rabbitmq_client is None:
-            logger.warning("RabbitMQ client not initialized, returning empty acknowledged alerts")
+            log("ERROR", "RabbitMQ client not initialized, returning empty acknowledged alerts", service="api_bridge")
             return {
                 "success": True,
                 "alerts": [],
@@ -984,7 +985,7 @@ async def get_acknowledged_alerts():
             return response
         else:
             # Return empty alerts if OMS doesn't have this endpoint yet
-            logger.warning(f"OMS service doesn't have get_acknowledged_alerts endpoint or returned error: {response}")
+            log("ERROR", f"OMS service doesn't have get_acknowledged_alerts endpoint or returned error: {response}", service="api_bridge")
             return {
                 "success": True,
                 "alerts": [],
@@ -992,14 +993,14 @@ async def get_acknowledged_alerts():
             }
             
     except TimeoutError as e:
-        logger.warning(f"Timeout getting acknowledged alerts from OMS: {e}")
+        log("ERROR", f"Timeout getting acknowledged alerts from OMS: {e}", service="api_bridge")
         return {
             "success": True,
             "alerts": [],
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:
-        logger.error(f"Error getting acknowledged alerts: {type(e).__name__}: {str(e)}")
+        log("ERROR", "Error getting acknowledged alerts: {type(e).__name__}: {str(e)}", service="api_bridge")
         # Return empty alerts on error
         return {
             "success": True,
@@ -1024,7 +1025,7 @@ async def acknowledge_alert(alert_id: int):
             raise HTTPException(status_code=400, detail=response.get("error", "Failed to acknowledge alert"))
             
     except Exception as e:
-        logger.error(f"Error acknowledging alert {alert_id}: {e}")
+        log("ERROR", f"Error acknowledging alert {alert_id}: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1041,7 +1042,7 @@ async def connect(sid, environ):
     stats["total_connections"] += 1
     stats["active_connections"] += 1
     
-    logger.info(f"🔌 Socket.IO client connected: {sid}")
+    log("DEBUG", "Connecting", service="api_bridge")
     
     # Send welcome message
     await sio.emit('connected', {
@@ -1055,7 +1056,7 @@ async def connect(sid, environ):
 async def disconnect(sid):
     """Handle client disconnection"""
     stats["active_connections"] -= 1
-    logger.info(f"🔌 Socket.IO client disconnected: {sid}")
+    log("DEBUG", "Connecting", service="api_bridge")
 
 @sio.event
 async def ping(sid):
@@ -1081,7 +1082,7 @@ async def emit_inventory_update(category: str, inventory_data: Dict):
         "timestamp": datetime.now().isoformat()
     })
     
-    logger.info(f"📡 Emitted inventory.update.{category}")
+    log("DEBUG", "Broadcasting", service="api_bridge")
 
 async def emit_stock_level_update(stock_data: Dict):
     """Emit stock level statistics update"""
@@ -1091,7 +1092,7 @@ async def emit_stock_level_update(stock_data: Dict):
         "timestamp": datetime.now().isoformat()
     })
     
-    logger.info("📡 Emitted inventory.stock_level")
+    log("DEBUG", "Broadcasting", service="api_bridge")
 
 async def emit_inventory_summary(summary_data: Dict):
     """Emit inventory category summary update"""
@@ -1101,7 +1102,7 @@ async def emit_inventory_summary(summary_data: Dict):
         "timestamp": datetime.now().isoformat()
     })
     
-    logger.info("📡 Emitted inventory.summary")
+    log("DEBUG", "Broadcasting", service="api_bridge")
 
 # Replace your existing event handlers with these:
 async def handle_inventory_updated_event(data: Dict):
@@ -1109,27 +1110,27 @@ async def handle_inventory_updated_event(data: Dict):
     category = data.get("category")
     inventory_data = data.get("inventory", {})
     
-    logger.info(f"📦 Received inventory update for category: {category}")    
+    log("INFO", f"📦 Received inventory update for category: {category}", service="api_bridge")    
     # Emit to Socket.IO clients
     await emit_inventory_update(category, inventory_data)
 
 async def handle_stock_level_event(data: Dict):
     """Handle stock level summary update events"""
-    logger.info(f"📊 Received stock level update")
+    log("INFO", "📊 Received stock level update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_stock_level_update(data)
 
 async def handle_category_summary_event(data: Dict):
     """Handle category summary update events"""
-    logger.info(f"📋 Received category summary update")
+    log("INFO", "📋 Received category summary update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_inventory_summary(data)
 
 async def handle_inventory_updated_event_all(data: Dict):
     """Handle all inventory update events"""
-    logger.info(f"📦 Received all inventory update")
+    log("INFO", "📦 Received all inventory update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_inventory_update_all(data)
@@ -1161,7 +1162,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     active_websockets.append(websocket)
     client_id = f"{websocket.client.host}:{websocket.client.port}" if websocket.client else "unknown"
-    logger.info(f"🔌 WebSocket client connected: {client_id}. Total clients: {len(active_websockets)}")
+    log("DEBUG", "Connecting", service="api_bridge")
     
     # Send welcome message
     await websocket.send_text(json.dumps({
@@ -1201,9 +1202,9 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         if websocket in active_websockets:
             active_websockets.remove(websocket)
-        logger.info(f"🔌 WebSocket client disconnected: {client_id}. Total clients: {len(active_websockets)}")
+        log("DEBUG", "Connecting", service="api_bridge")
     except Exception as e:
-        logger.error(f"🔌 WebSocket error for {client_id}: {e}")
+        log("ERROR", f"🔌 WebSocket error for {client_id}: {e}", service="api_bridge")
         if websocket in active_websockets:
             active_websockets.remove(websocket)
 

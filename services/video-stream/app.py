@@ -6,6 +6,10 @@ import numpy as np
 import time
 from typing import Dict
 import logging
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+from shared.logger import log
 import math
 
 app = FastAPI(title="BARNS Video Stream Service")
@@ -46,7 +50,7 @@ class Camera:
         """Try to initialize camera, fallback to test pattern or error frame."""
         if self.source is not None:
             try:
-                logger.info(f"Attempting to initialize camera {self.name} with source {self.source}")
+                log("INFO", "Attempting to initialize camera {self.name} with source {self.source}", service="video_stream")
                 self.cap = cv2.VideoCapture(self.source)
                 
                 # Set some properties for better webcam compatibility
@@ -59,23 +63,23 @@ class Camera:
                     ret, frame = self.cap.read()
                     if ret and frame is not None:
                         self.active = True
-                        logger.info(f"Camera {self.name} initialized successfully - Frame size: {frame.shape}")
+                        log("INFO", "Camera {self.name} initialized successfully - Frame size: {frame.shape}", service="video_stream")
                         return
                     else:
-                        logger.warning(f"Camera {self.name} opened but failed to read frame")
+                        log("ERROR", "Camera {self.name} opened but failed to read frame", service="video_stream")
                 else:
-                    logger.warning(f"Camera {self.name} failed to open")
+                    log("ERROR", "Camera {self.name} failed to open", service="video_stream")
                     
             except Exception as e:
-                logger.error(f"Camera {self.name} failed to initialize: {e}")
+                log("ERROR", "Camera {self.name} failed to initialize: {e}", service="video_stream")
         
         # Create test pattern or error frame
         self.active = False
         if self.use_test_pattern:
-            logger.info(f"Camera {self.name} using test pattern")
+            log("INFO", "Camera {self.name} using test pattern", service="video_stream")
         else:
             self._create_error_frame()
-            logger.info(f"Camera {self.name} using error frame")
+            log("INFO", "Camera {self.name} using error frame", service="video_stream")
     
     def _create_error_frame(self):
         """Create a simple error frame."""
@@ -121,7 +125,7 @@ class Camera:
                     if success:
                         return jpeg.tobytes()
             except Exception as e:
-                logger.error(f"Error reading from {self.name}: {e}")
+                log("ERROR", "Error reading from {self.name}: {e}", service="video_stream")
                 self.active = False
         
         if self.use_test_pattern:
@@ -137,7 +141,7 @@ class Camera:
         if self.cap:
             self.cap.release()
         self.active = False
-        logger.info(f"Camera {self.name} stopped")
+        log("INFO", "Camera {self.name} stopped", service="video_stream")
 
 # Initialize cameras with test patterns for demonstration
 cameras: Dict[str, Camera] = {
@@ -149,11 +153,11 @@ cameras: Dict[str, Camera] = {
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info(f"BARNS Video service starting with {len(cameras)} cameras")
+    log("INFO", "BARNS Video service starting with {len(cameras)} cameras", service="video_stream")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("BARNS Video service shutting down")
+    log("INFO", "BARNS Video service shutting down", service="video_stream")
     for camera in cameras.values():
         camera.stop()
 
@@ -171,7 +175,7 @@ def gen_frames(camera_id: str):
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
             time.sleep(0.1)  # ~10 FPS - reduced for lower CPU usage
         except Exception as e:
-            logger.error(f"Error streaming {camera_id}: {e}")
+            log("ERROR", "Error streaming {camera_id}: {e}", service="video_stream")
             break
 
 @app.get("/cameras")

@@ -16,6 +16,7 @@ from dataclasses import asdict
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from .pos_core import parse_transaction, load_reference_data_from_db
 
@@ -103,18 +104,18 @@ async def lifespan(app: FastAPI):
         pos_db_path = os.environ.get("POS_DB_PATH", "pos_reference.db")
         success = load_reference_data_from_db(pos_db_path)
         if not success:
-            logger.warning("Could not load POS reference data. Running with empty references.")
+            log("ERROR", "Could not load POS reference data. Running with empty references.", service="oms")
         else:
-            logger.info("POS reference data loaded successfully")
+            log("INFO", "POS reference data loaded successfully", service="oms")
     except Exception as e:
-        logger.error(f"Failed to load POS reference data: {e}")
+        log("ERROR", f"Failed to load POS reference data: {e}", service="oms")
     
     # Mark any processing orders as failed due to container restart
-    print("Marking processing orders as failed due to container restart...")
+    log("DEBUG", "Marking processing orders as failed due to container restart...", service="oms")
     try:
         failed_count = db.mark_processing_orders_as_failed()
         if failed_count > 0:
-            print(f"✅ Marked {failed_count} processing orders as failed due to container restart")
+            log("DEBUG", f"Marked {failed_count} processing orders as failed due to container restart", service="oms")
             # Broadcast the failure events to any connected clients
             for i in range(failed_count):
                 broadcast({
@@ -123,16 +124,16 @@ async def lifespan(app: FastAPI):
                     "timestamp": "now"
                 })
         else:
-            print("✅ No processing orders found to mark as failed")
+            log("DEBUG", "No processing orders found to mark as failed", service="oms")
     except Exception as e:
-        print(f"⚠️ Error marking processing orders as failed: {e}")
+        log("DEBUG", f"Error marking processing orders as failed: {e}", service="oms")
     
     # Mark any intermediate state orders as cancelled due to container restart
-    print("Marking intermediate state orders (stopping, stopped, halted) as cancelled...")
+    log("DEBUG", "Marking intermediate state orders (stopping, stopped, halted) as cancelled...", service="oms")
     try:
         cancelled_count = db.mark_intermediate_orders_as_cancelled()
         if cancelled_count > 0:
-            print(f"✅ Marked {cancelled_count} intermediate orders as cancelled due to container restart")
+            log("DEBUG", f"Marked {cancelled_count} intermediate orders as cancelled due to container restart", service="oms")
             # Broadcast the cancellation events to any connected clients
             for i in range(cancelled_count):
                 broadcast({
@@ -141,12 +142,12 @@ async def lifespan(app: FastAPI):
                     "timestamp": "now"
                 })
         else:
-            print("✅ No intermediate orders found to mark as cancelled")
+            log("DEBUG", "No intermediate orders found to mark as cancelled", service="oms")
     except Exception as e:
-        print(f"⚠️ Error marking intermediate orders as cancelled: {e}")
+        log("DEBUG", f"Error marking intermediate orders as cancelled: {e}", service="oms")
     
     # Sync queue with database on startup
-    print("Syncing queue with database on startup...")
+    log("DEBUG", "Syncing queue with database on startup...", service="oms")
     queue.sync_with_database()
     
     # Initialize RabbitMQ clients
@@ -166,10 +167,10 @@ async def lifespan(app: FastAPI):
         ])
         register_event_handlers()
         
-        logger.info("OMS service started with RabbitMQ integration")
+        log("INFO", "OMS service started with RabbitMQ integration", service="oms")
         
     except Exception as e:
-        logger.error(f"Failed to initialize RabbitMQ: {e}")
+        log("ERROR", f"Failed to initialize RabbitMQ: {e}", service="oms")
         # Continue without RabbitMQ if it fails
     
     yield
@@ -224,7 +225,7 @@ def register_rabbitmq_handlers():
     rabbitmq_client.register_handler("mark_processing_orders_failed", handle_mark_processing_orders_failed_mq)
     rabbitmq_client.register_handler("health", handle_health_mq)
     
-    logger.info("Registered all RabbitMQ message handlers")
+    log("INFO", "Registered all RabbitMQ message handlers", service="oms")
 
 def register_event_handlers():
     """Register event handlers"""
@@ -241,12 +242,12 @@ def register_event_handlers():
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
-    logger.info("Registered all event handlers")
+    log("INFO", "Registered all event handlers", service="oms")
 
 # RabbitMQ Message Handlers
 async def handle_create_order_mq(data: Dict) -> Dict:
     """Handle create order requests via RabbitMQ"""
-    logger.info(f"Create order data: {data}, Type: {type(data)}")
+    log("INFO", f"Create order data: {data}, Type: {type(data)}", service="oms")
     try:
         order_data = data.get("order", {})
         order = models.Order(**order_data)  # Validate with Pydantic model
@@ -266,7 +267,7 @@ async def handle_create_order_mq(data: Dict) -> Dict:
         return {"success": True, "order_id": order_id, "status": "queued"}
         
     except Exception as e:
-        logger.error(f"Error creating order via MQ: {e}")
+        log("ERROR", f"Error creating order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_list_orders_mq(data: Dict) -> Dict:
@@ -280,7 +281,7 @@ async def handle_list_orders_mq(data: Dict) -> Dict:
         return {"success": True, **result}
         
     except Exception as e:
-        logger.error(f"Error listing orders via MQ: {e}")
+        log("ERROR", f"Error listing orders via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_get_order_mq(data: Dict) -> Dict:
@@ -297,7 +298,7 @@ async def handle_get_order_mq(data: Dict) -> Dict:
         return {"success": True, "order": order}
         
     except Exception as e:
-        logger.error(f"Error getting order via MQ: {e}")
+        log("ERROR", f"Error getting order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_start_order_mq(data: Dict) -> Dict:
@@ -307,7 +308,7 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        logger.info(f"🚀 OMS received start_order request for order {order_id}")
+        log("INFO", "Starting", service="oms")
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
@@ -318,14 +319,14 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         except Exception as e:
             processing = []
             stopping = []
-            logger.error(f"Error checking processing/stopping orders: {e}")
+            log("ERROR", f"Error checking processing/stopping orders: {e}", service="oms")
         
         if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
-            logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is already processing")
+            log("ERROR", f"OMS rejecting start_order for {order_id}: another order is already processing", service="oms")
             return {"success": False, "error": "Another order is currently processing. Please wait."}
         
         if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
-            logger.warning(f"🔒 OMS rejecting start_order for {order_id}: another order is currently stopping")
+            log("ERROR", f"OMS rejecting start_order for {order_id}: another order is currently stopping", service="oms")
             return {"success": False, "error": "Another order is currently stopping. Please wait."}
         
         # Cancel any STOPPED orders when starting a new order
@@ -335,11 +336,11 @@ async def handle_start_order_mq(data: Dict) -> Dict:
             for stopped_order in stopped_orders:
                 stopped_id = stopped_order.get('id')
                 if stopped_id != order_id:
-                    logger.info(f"🚫 Cancelling stopped order {stopped_id} due to new order starting")
+                    log("INFO", f"Cancelling stopped order {stopped_id} due to new order starting", service="oms")
                     db.update_order_status(stopped_id, ORDER_STATUS['CANCELLED'], "Cancelled due to new order starting")
                     broadcast({"event": "order_cancelled", "order": stopped_id})
         except Exception as e:
-            logger.error(f"Error cancelling stopped orders: {e}")
+            log("ERROR", f"Error cancelling stopped orders: {e}", service="oms")
         
         order = db.get_order(order_id)
         if not order:
@@ -362,11 +363,11 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         # Send order to Scheduler for processing (async to avoid blocking response)
         asyncio.create_task(send_to_scheduler(order))
         
-        logger.info(f"✅ OMS successfully started processing order {order_id}")
+        log("INFO", "Success", service="oms")
         return {"success": True, "message": "order_sent_to_scheduler", "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"💥 Error starting order via MQ: {e}")
+        log("ERROR", "Error", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_stop_order_mq(data: Dict) -> Dict:
@@ -376,28 +377,28 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        logger.info(f"🛑 [OMS-MQ] Received stop_order request for order {order_id}")
+        log("INFO", "Stop", service="oms")
         
         # Call the HTTP endpoint logic
         order = db.get_order(order_id)
         if not order:
-            logger.error(f"🛑 [OMS-MQ] Order {order_id} not found")
+            log("ERROR", f"[OMS-MQ] Order {order_id} not found", service="oms")
             return {"success": False, "error": f"Order {order_id} not found"}
         
         current_status = order.get("status")
-        logger.info(f"🛑 [OMS-MQ] Order {order_id} current status: {current_status}")
+        log("INFO", "Stop", service="oms")
         
         # If order is already in a terminal state, return success (idempotent)
         if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
-            logger.info(f"🛑 [OMS-MQ] Order {order_id} is already in terminal state: {current_status}")
+            log("INFO", "Stop", service="oms")
             return {"success": True, "message": "order_already_stopped", "order_id": order_id, "status": current_status}
         
         # If order is in ERROR state, we can still mark it as STOPPED
         if current_status not in [ORDER_STATUS['PROCESSING'], ORDER_STATUS['ERROR'], ORDER_STATUS['HALTED']]:
-            logger.error(f"🛑 [OMS-MQ] Cannot stop order {order_id} in {current_status} state")
+            log("ERROR", f"Cannot stop order {order_id} in {current_status} state", service="oms")
             return {"success": False, "error": f"Cannot stop order in {current_status} state"}
         
-        logger.info(f"🛑 [OMS-MQ] Proceeding to stop order {order_id}")
+        log("INFO", "Stop", service="oms")
         
         # Update status to stopping first
         db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
@@ -413,7 +414,7 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
         # Scheduler will wait for current tasks to complete before responding
         if rabbitmq_client:
             try:
-                logger.info(f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...")
+                log("INFO", f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...", service="oms")
                 response = await rabbitmq_client.send_request(
                     target_service="scheduler",
                     action="stop_order",
@@ -422,16 +423,16 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
                 )
                 
                 if response.get("success"):
-                    logger.info(f"✅ Scheduler confirmed order {order_id} has stopped - all tasks completed")
+                    log("INFO", f"Scheduler stop request successful for order {order_id}", service="oms")
                 else:
-                    logger.error(f"❌ Scheduler failed to stop order {order_id}: {response.get('error')}")
+                    log("ERROR", f"Scheduler stop request failed for order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
                     # Continue with database update anyway
             except asyncio.TimeoutError:
-                logger.error(f"⚠️ Scheduler stop request timed out for order {order_id} - forcing stop")
+                log("ERROR", f"Scheduler stop request timed out for order {order_id} - forcing stop", service="oms")
                 # Continue with database update
             except Exception as e:
-                logger.error(f"❌ Error sending stop request to scheduler: {e}")
-                # Continue with database update anyway
+                log("ERROR", f"Scheduler stop request exception for order {order_id}: {str(e)[:100]}", service="oms")
+                    # Continue with database update anyway
         
         # Update status to stopped after scheduler confirmed or timed out
         db.update_order_status(order_id, ORDER_STATUS['STOPPED'], "Manually stopped by user")
@@ -449,11 +450,11 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
             "timestamp": "now"
         })
         
-        logger.info(f"✅ [OMS-MQ] Successfully stopped order {order_id}")
+        log("INFO", "Success", service="oms")
         return {"success": True, "message": "order_stopped", "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"💥 [OMS-MQ] Error stopping order via MQ: {e}")
+        log("ERROR", "Error", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_resume_order_mq(data: Dict) -> Dict:
@@ -463,7 +464,7 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        logger.info(f"🔄 [OMS-MQ] Received resume_order request for order {order_id}")
+        log("INFO", "Resume", service="oms")
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
@@ -474,29 +475,29 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         except Exception as e:
             processing = []
             stopping = []
-            logger.error(f"Error checking processing/stopping orders: {e}")
+            log("ERROR", f"Error checking processing/stopping orders: {e}", service="oms")
         
         if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
-            logger.warning(f"🔒 OMS rejecting resume_order for {order_id}: another order is already processing")
+            log("ERROR", f"OMS rejecting resume_order for {order_id}: another order is already processing", service="oms")
             return {"success": False, "error": "Another order is currently processing. Please wait."}
         
         if stopping and any(o.get('status') == ORDER_STATUS['STOPPING'] for o in stopping):
-            logger.warning(f"🔒 OMS rejecting resume_order for {order_id}: another order is currently stopping")
+            log("ERROR", f"OMS rejecting resume_order for {order_id}: another order is currently stopping", service="oms")
             return {"success": False, "error": "Another order is currently stopping. Please wait."}
         
         order = db.get_order(order_id)
         if not order:
-            logger.error(f"🔄 [OMS-MQ] Order {order_id} not found")
+            log("ERROR", f"Order {order_id} not found", service="oms")
             return {"success": False, "error": f"Order {order_id} not found"}
         
         current_status = order.get("status")
-        logger.info(f"🔄 [OMS-MQ] Order {order_id} current status: {current_status}")
+        log("INFO", "Resume", service="oms")
         
         if current_status not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
-            logger.error(f"🔄 [OMS-MQ] Cannot resume order {order_id} in {current_status} state")
+            log("ERROR", f"Cannot resume order {order_id} in {current_status} state", service="oms")
             return {"success": False, "error": f"Order is not in stopped or halted state"}
         
-        logger.info(f"🔄 [OMS-MQ] Proceeding to resume order {order_id}")
+        log("INFO", "Resume", service="oms")
         
         # Update status back to processing
         db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
@@ -516,11 +517,11 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         # Re-send order to scheduler to resume processing (restarts from beginning)
         await send_to_scheduler(order)
         
-        logger.info(f"✅ [OMS-MQ] Successfully resumed order {order_id}")
+        log("INFO", "Success", service="oms")
         return {"success": True, "message": "order_resumed", "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"💥 [OMS-MQ] Error resuming order via MQ: {e}")
+        log("ERROR", "Error", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_halt_order_mq(data: Dict) -> Dict:
@@ -558,7 +559,7 @@ async def handle_halt_order_mq(data: Dict) -> Dict:
         return {"success": True, "message": "order_halted", "order_id": order_id, "alert_id": alert_id}
         
     except Exception as e:
-        logger.error(f"Error halting order via MQ: {e}")
+        log("ERROR", f"Error halting order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_update_order_status_mq(data: Dict) -> Dict:
@@ -603,7 +604,7 @@ async def handle_update_order_status_mq(data: Dict) -> Dict:
         return {"success": True, "message": "status_updated", "order_id": order_id, "status": status}
         
     except Exception as e:
-        logger.error(f"Error updating order status via MQ: {e}")
+        log("ERROR", f"Error updating order status via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_delete_order_mq(data: Dict) -> Dict:
@@ -628,9 +629,9 @@ async def handle_delete_order_mq(data: Dict) -> Dict:
                         data={"order_id": order_id},
                         timeout=15
                     )
-                    logger.info(f"OMS cancel request response (scheduler): {cancel_resp}")
+                    log("INFO", f"OMS cancel request response (scheduler): {cancel_resp}", service="oms")
             except Exception as e:
-                logger.error(f"OMS failed to request scheduler cancel for order {order_id}: {e}")
+                log("ERROR", f"OMS failed to request scheduler cancel for order {order_id}: {e}", service="oms")
         
         # Remove from queue if still queued
         if order.get("status") == ORDER_STATUS['QUEUED']:
@@ -659,7 +660,7 @@ async def handle_delete_order_mq(data: Dict) -> Dict:
         return {"success": True, "message": "order_deleted", "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"Error deleting order via MQ: {e}")
+        log("ERROR", f"Error deleting order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_halt_order_mq(data: Dict) -> Dict:
@@ -697,7 +698,7 @@ async def handle_halt_order_mq(data: Dict) -> Dict:
         return {"success": True, "message": "order_halted", "order_id": order_id, "alert_id": alert_id}
         
     except Exception as e:
-        logger.error(f"Error halting order via MQ: {e}")
+        log("ERROR", f"Error halting order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_resume_order_mq(data: Dict) -> Dict:
@@ -732,7 +733,7 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         return {"success": True, "message": "order_resumed", "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"Error resuming order via MQ: {e}")
+        log("ERROR", f"Error resuming order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_bulk_reorder_queue_mq(data: Dict) -> Dict:
@@ -751,7 +752,7 @@ async def handle_bulk_reorder_queue_mq(data: Dict) -> Dict:
         return {"success": True, "message": "queue_reordered", "order_count": len(order_ids)}
         
     except Exception as e:
-        logger.error(f"Error bulk reordering queue via MQ: {e}")
+        log("ERROR", f"Error bulk reordering queue via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_sync_queue_mq(data: Dict) -> Dict:
@@ -770,7 +771,7 @@ async def handle_sync_queue_mq(data: Dict) -> Dict:
             return {"success": False, "message": "Failed to sync queue with database"}
             
     except Exception as e:
-        logger.error(f"Error syncing queue via MQ: {e}")
+        log("ERROR", f"Error syncing queue via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_emergency_stop_mq(data: Dict) -> Dict:
@@ -801,7 +802,7 @@ async def handle_emergency_stop_mq(data: Dict) -> Dict:
         }
         
     except Exception as e:
-        logger.error(f"Error stopping system via MQ: {e}")
+        log("ERROR", f"Error stopping system via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_resume_operations_mq(data: Dict) -> Dict:
@@ -822,7 +823,7 @@ async def handle_resume_operations_mq(data: Dict) -> Dict:
         }
         
     except Exception as e:
-        logger.error(f"Error resuming system via MQ: {e}")
+        log("ERROR", f"Error resuming system via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_get_active_alerts_mq(data: Dict) -> Dict:
@@ -832,7 +833,7 @@ async def handle_get_active_alerts_mq(data: Dict) -> Dict:
         return {"success": True, "alerts": alerts}
         
     except Exception as e:
-        logger.error(f"Error getting active alerts via MQ: {e}")
+        log("ERROR", f"Error getting active alerts via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_get_acknowledged_alerts_mq(data: Dict) -> Dict:
@@ -842,7 +843,7 @@ async def handle_get_acknowledged_alerts_mq(data: Dict) -> Dict:
         return {"success": True, "alerts": alerts}
         
     except Exception as e:
-        logger.error(f"Error getting acknowledged alerts via MQ: {e}")
+        log("ERROR", f"Error getting acknowledged alerts via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_acknowledge_alert_mq(data: Dict) -> Dict:
@@ -860,7 +861,7 @@ async def handle_acknowledge_alert_mq(data: Dict) -> Dict:
         return {"success": True, "message": "alert_acknowledged", "alert_id": alert_id}
         
     except Exception as e:
-        logger.error(f"Error acknowledging alert via MQ: {e}")
+        log("ERROR", f"Error acknowledging alert via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_mark_processing_orders_failed_mq(data: Dict) -> Dict:
@@ -894,7 +895,7 @@ async def handle_mark_processing_orders_failed_mq(data: Dict) -> Dict:
             }
         
     except Exception as e:
-        logger.error(f"Error marking processing orders as failed via MQ: {e}")
+        log("ERROR", f"Error marking processing orders as failed via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_health_mq(data: Dict) -> Dict:
@@ -908,96 +909,96 @@ async def handle_health_mq(data: Dict) -> Dict:
             "rabbitmq_connected": rabbitmq_client is not None
         }
     except Exception as e:
-        logger.error(f"Error in health check via MQ: {e}")
+        log("ERROR", f"Error in health check via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 # Event Handlers
 async def handle_order_completed_event(data: Dict):
     """Handle order completion events from scheduler"""
     order_id = data.get("order_id")
-    logger.info(f"🎉 [OMS] Received order_completed event from scheduler for order {order_id}")
+    log("INFO", f"🎉 [OMS] Received order_completed event from scheduler for order {order_id}", service="oms")
     
     try:
         if not order_id:
-            logger.error(f"❌ [OMS] Received order_completed event but no order_id provided: {data}")
+            log("ERROR", "Order completion event missing order_id", service="oms")
             return {"success": False, "acknowledged": False, "error": "Missing order_id"}
         
         # Check if order exists and get current status
         order = db.get_order(order_id)
         if not order:
-            logger.error(f"❌ [OMS] Order {order_id} not found")
+            log("ERROR", f"Order {order_id} not found for completion", service="oms")
             return {"success": False, "acknowledged": False, "error": f"Order {order_id} not found"}
         
         current_status = order.get("status", "").upper()
         
         # Check if order is already completed to prevent duplicate processing
         if current_status == ORDER_STATUS['COMPLETED']:
-            logger.warning(f"⚠️ [OMS] Order {order_id} is already COMPLETED. Ignoring duplicate completion event.")
+            log("ERROR", "Warning", service="oms")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
         
         # Validate state transition - should be PROCESSING or STOPPING
         if current_status not in ['PROCESSING', 'STOPPING']:
-            logger.warning(f"⚠️ [OMS] Order {order_id} has unexpected status {current_status} when completing. Completing anyway.")
+            log("ERROR", "Warning", service="oms")
         
-        logger.info(f"✅ [OMS] Updating order {order_id} status from {current_status} to COMPLETED in database")
+        log("INFO", "Success", service="oms")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
         
-        logger.info(f"📡 [OMS] Broadcasting order_completed event to dashboard for order {order_id}")
+        log("DEBUG", "Broadcasting", service="oms")
         broadcast({
             "event": "order_completed",
             "order": order_id,
             "timestamp": "now"
         })
-        logger.info(f"✅ [OMS] Successfully processed order completion for order {order_id}")
+        log("INFO", f"Order {order_id} marked as completed", service="oms")
         
         # Return acknowledgment for send_event_with_ack
         return {"success": True, "acknowledged": True, "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"❌ [OMS] Error processing order_completed event for order {order_id}: {e}")
+        log("ERROR", f"Order completion handler exception for order {order_id}: {str(e)[:100]}", service="oms")
         return {"success": False, "acknowledged": False, "error": str(e)}
 
 async def handle_order_failed_event(data: Dict):
     """Handle order failure events from scheduler"""
     order_id = data.get("order_id")
     error = data.get("error", "Unknown error")
-    logger.info(f"❌ [OMS] Received order_failed event from scheduler for order {order_id}, error: {error}")
+    log("ERROR", f"Received order_failed event from scheduler for order {order_id}, error: {error}", service="oms")
     
     try:
         if not order_id:
-            logger.error(f"❌ [OMS] Received order_failed event but no order_id provided: {data}")
+            log("ERROR", "Order failure missing order_id", service="oms")
             return {"success": False, "acknowledged": False, "error": "Missing order_id"}
         
         # Check if order is already in error state to prevent duplicate processing
         order = db.get_order(order_id)
         if order and order.get("status") == ORDER_STATUS['ERROR']:
-            logger.warning(f"⚠️ [OMS] Order {order_id} is already in ERROR state. Ignoring duplicate failure event.")
+            log("ERROR", f"Order {order_id} already in error state", service="oms")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already in error state"}
         
-        logger.info(f"❌ [OMS] Updating order {order_id} status to ERROR in database")
+        log("INFO", f"Updating order {order_id} to ERROR status", service="oms")
         db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
         
-        logger.info(f"📡 [OMS] Broadcasting order_failed event to dashboard for order {order_id}")
+        log("DEBUG", f"Broadcasting order {order_id} failure", service="oms")
         broadcast({
             "event": "order_failed",
             "order": order_id,
             "error": error,
             "timestamp": "now"
         })
-        logger.info(f"❌ [OMS] Successfully processed order failure for order {order_id}")
+        log("INFO", f"Order {order_id} failure processed", service="oms")
         
         # Return acknowledgment for send_event_with_ack
         return {"success": True, "acknowledged": True, "order_id": order_id}
         
     except Exception as e:
-        logger.error(f"❌ [OMS] Error processing order_failed event for order {order_id}: {e}")
+        log("ERROR", f"Order failure handler exception for order {order_id}: {str(e)[:100]}", service="oms")
         return {"success": False, "acknowledged": False, "error": str(e)}
 
 async def handle_order_heartbeat_event(data: Dict):
     """Handle order heartbeat events from scheduler"""
     order_id = data.get("order_id")
     status = data.get("status")
-    logger.info(f"💓 [OMS] Received order_heartbeat event from scheduler for order {order_id}, status: {status}")
+    log("DEBUG", "Heartbeat", service="oms")
     
     if order_id:
         order = db.get_order(order_id)
@@ -1005,7 +1006,7 @@ async def handle_order_heartbeat_event(data: Dict):
             # Update order status if it's not already completed or failed
             if order.get("status") not in [ORDER_STATUS['COMPLETED'], ORDER_STATUS['ERROR']]:
                 db.update_order_status(order_id, status)
-                logger.info(f"✅ [OMS] Updated order {order_id} status to {status} in database")
+                log("DEBUG", f"Heartbeat status updated for order {order_id}: {status}", service="oms")
                 broadcast({
                     "event": "order_heartbeat",
                     "order": order_id,
@@ -1013,11 +1014,11 @@ async def handle_order_heartbeat_event(data: Dict):
                     "timestamp": "now"
                 })
             else:
-                logger.warning(f"⚠️ [OMS] Order {order_id} is already in final state ({order['status']}). Ignoring heartbeat.")
+                log("DEBUG", f"Heartbeat ignored for order {order_id} - order already terminal", service="oms")
         else:
-            logger.warning(f"⚠️ [OMS] Order {order_id} not found in database. Ignoring heartbeat.")
+            log("ERROR", f"Heartbeat received for non-existent order {order_id}", service="oms")
     else:
-        logger.error(f"❌ [OMS] Received order_heartbeat event but no order_id provided: {data}")
+        log("ERROR", "Heartbeat event missing order_id", service="oms")
 
 # Forward detailed scheduler task events to dashboard via WebSocket broadcast
 async def handle_scheduler_plan_built(data: Dict):
@@ -1071,7 +1072,7 @@ async def handle_threshold_warning_event(data: Dict):
 
 async def handle_shutdown_event(data: Dict):
     """Handle system shutdown events"""
-    logger.info("Received shutdown event, stopping OMS service...")
+    log("INFO", "Received shutdown event, stopping OMS service...", service="oms")
 
 # Order Endpoints
 
@@ -1113,7 +1114,7 @@ def get_orders_statistics():
         
         return {"stats": stats}
     except Exception as e:
-        logger.error(f"Error fetching order statistics: {e}")
+        log("ERROR", f"Error fetching order statistics: {e}", service="oms")
         raise HTTPException(status_code=500, detail=f"Failed to fetch order statistics: {str(e)}")
 
 @app.get("/orders/")
@@ -1207,7 +1208,7 @@ def get_order(order_id: int = Path(..., title="The ID of the order to retrieve")
             })
             
     except Exception as e:
-        print(f"Error fetching task details for order {order_id}: {e}")
+        log("DEBUG", f"Error fetching task details for order {order_id}: {e}", service="oms")
         order['tasks'] = []
         order['task_summary'] = {'total_tasks': 0, 'completed_tasks': 0, 'failed_tasks': 0, 'running_tasks': 0, 'halted_tasks': 0}
         order['timeline'] = []
@@ -1251,7 +1252,7 @@ def start_order(order_id: int, background_tasks: BackgroundTasks):
     except Exception as e:
         processing = []
         stopping = []
-        logger.error(f"Error checking processing/stopping orders: {e}")
+        log("ERROR", f"Error checking processing/stopping orders: {e}", service="oms")
     
     if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
         raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
@@ -1342,27 +1343,27 @@ def halt_order(
 @app.post("/orders/{order_id}/stop")
 async def stop_order(order_id: int = Path(..., title="The ID of the order to stop")):
     """Manually stop a processing order."""
-    logger.info(f"🛑 [OMS] Received stop request for order {order_id}")
+    log("INFO", "Stop", service="oms")
     
     order = db.get_order(order_id)
     if not order:
-        logger.error(f"🛑 [OMS] Order {order_id} not found")
+        log("ERROR", f"[OMS] Order {order_id} not found", service="oms")
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
     
     current_status = order.get("status")
-    logger.info(f"🛑 [OMS] Order {order_id} current status: {current_status}")
+    log("INFO", "Stop", service="oms")
     
     # If order is already in a terminal state, return success (idempotent)
     if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
-        logger.info(f"🛑 [OMS] Order {order_id} is already in terminal state: {current_status}")
+        log("INFO", "Stop", service="oms")
         return {"msg": "order_already_stopped", "order": order_id, "status": current_status}
     
     # If order is in ERROR state, we can still mark it as STOPPED
     if current_status not in [ORDER_STATUS['PROCESSING'], ORDER_STATUS['ERROR'], ORDER_STATUS['HALTED']]:
-        logger.error(f"🛑 [OMS] Cannot stop order {order_id} in {current_status} state")
+        log("ERROR", f"Cannot stop order {order_id} in {current_status} state", service="oms")
         raise HTTPException(status_code=400, detail=f"Cannot stop order in {current_status} state")
     
-    logger.info(f"🛑 [OMS] Proceeding to stop order {order_id}")
+    log("INFO", "Stop", service="oms")
     
     # Update status to stopping first
     db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
@@ -1378,7 +1379,7 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
     # Scheduler will wait for current tasks to complete before responding
     if rabbitmq_client:
         try:
-            logger.info(f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...")
+            log("INFO", f"Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...", service="oms")
             response = await rabbitmq_client.send_request(
                 target_service="scheduler",
                 action="stop_order",
@@ -1387,15 +1388,15 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
             )
             
             if response.get("success"):
-                logger.info(f"✅ Scheduler confirmed order {order_id} has stopped - all tasks completed")
+                log("INFO", f"Scheduler stop successful for cancel of order {order_id}", service="oms")
             else:
-                logger.error(f"❌ Scheduler failed to stop order {order_id}: {response.get('error')}")
+                log("ERROR", f"Scheduler stop failed for cancel of order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
                 # Continue with database update anyway
         except asyncio.TimeoutError:
-            logger.error(f"⚠️ Scheduler stop request timed out for order {order_id} - forcing stop")
+            log("ERROR", f"Scheduler stop timed out for cancel of order {order_id} - forcing", service="oms")
             # Continue with database update
         except Exception as e:
-            logger.error(f"❌ Error sending stop request to scheduler: {e}")
+            log("ERROR", f"Scheduler stop exception for cancel of order {order_id}: {str(e)[:100]}", service="oms")
             # Continue with database update anyway
     
     # Update status to stopped after scheduler confirmed or timed out
@@ -1414,7 +1415,7 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
         "timestamp": "now"
     })
     
-    logger.info(f"✅ [OMS] Successfully stopped order {order_id}")
+    log("INFO", "Success", service="oms")
     return {"msg": "order_stopped", "order": order_id}
 
 @app.post("/orders/{order_id}/resume")
@@ -1430,7 +1431,7 @@ async def resume_order(order_id: int = Path(..., title="The ID of the order to r
     except Exception as e:
         processing = []
         stopping = []
-        logger.error(f"Error checking processing/stopping orders: {e}")
+        log("ERROR", f"Error checking processing/stopping orders: {e}", service="oms")
     
     if processing and any(o.get('status') == ORDER_STATUS['PROCESSING'] for o in processing):
         raise HTTPException(status_code=409, detail="Another order is currently processing. Please wait.")
@@ -1508,7 +1509,7 @@ def delete_order(order_id: int = Path(..., title="The ID of the order to delete"
                     timeout=10
                 ))
         except Exception as e:
-            logger.error(f"Error requesting cancel before delete for order {order_id}: {e}")
+            log("ERROR", f"Error requesting cancel before delete for order {order_id}: {e}", service="oms")
     
     # Remove from queue if it's still queued
     if order.get("status") == ORDER_STATUS['QUEUED']:
@@ -2028,10 +2029,10 @@ def refill_inventory(refill: InventoryRefill):
             except RuntimeError:
                 # No running loop, create a new one
                 validation_response = asyncio.run(send_refill_to_validation())
-                print(f"✅ Validation Service response: {validation_response}")
+                log("DEBUG", f"✅ Validation Service response: {validation_response}", service="oms")
             
         except Exception as validation_error:
-            print(f"⚠️ Warning: Could not reach Validation Service: {validation_error}")
+            log("DEBUG", f"⚠️ Warning: Could not reach Validation Service: {validation_error}", service="oms")
             # Continue anyway - the refill might be manual
         
         # Broadcast the refill event to dashboard
@@ -2073,7 +2074,7 @@ def get_inventory_status():
 async def send_to_scheduler(order_data: dict):
     """Send order to Scheduler service via RabbitMQ."""
     
-    logger.info(f"🔍 DEBUG: send_to_scheduler called with order_data: {order_data}")
+    log("INFO", f"🔍 DEBUG: send_to_scheduler called with order_data: {order_data}", service="oms")
     
     # Create a clean payload with only the data scheduler needs
     # Convert database format (drink_type) to scheduler format (type)
@@ -2091,12 +2092,11 @@ async def send_to_scheduler(order_data: dict):
         "cups": cups
     }
     
-    logger.info(f"🔍 DEBUG: scheduler_payload: {scheduler_payload}")
+    log("INFO", f"Scheduler_payload: {scheduler_payload}", service="oms")
     
     try:
         if rabbitmq_client:
-            logger.info(f"📤 OMS sending order {order_data.get('id')} to scheduler via RabbitMQ")
-            logger.info(f"🔍 DEBUG: RabbitMQ client available, sending request...")
+            log("INFO", f"OMS sending order {order_data.get('id')} to scheduler via RabbitMQ", service="oms")
             
             response = await rabbitmq_client.send_request(
                 target_service="scheduler",
@@ -2105,29 +2105,28 @@ async def send_to_scheduler(order_data: dict):
                 timeout=180
             )
             
-            logger.info(f"🔍 DEBUG: Scheduler response: {response}")
+            log("INFO", f"🔍 DEBUG: Scheduler response: {response}", service="oms")
             
             if response.get("success"):
-                logger.info(f"✅ Order {order_data.get('id')} successfully sent to scheduler")
+                log("INFO", f"Scheduler accepted order {order_data.get('id')}", service="oms")
             else:
                 error_msg = f"Scheduler rejected order: {response.get('error', 'Unknown error')}"
-                logger.error(f"❌ {error_msg}")
+                log("ERROR", f"Scheduler rejected order {order_data.get('id')}: {response.get('error', 'Unknown')[:50]}", service="oms")
                 raise Exception(error_msg)
         else:
             error_msg = "RabbitMQ client not available"
-            logger.error(f"❌ {error_msg}")
+            log("ERROR", f"RabbitMQ client unavailable for order {order_data.get('id')}", service="oms")
             raise Exception(error_msg)
               
     except Exception as e:
         # Handle error (e.g., log, retry, or publish an "order.failed" event)
-        logger.error(f"💥 Error sending order to scheduler: {e}")
-        logger.error(f"🔍 DEBUG: Exception type: {type(e)}, args: {e.args}")
+        log("ERROR", f"Exception type: {type(e)}, args: {e.args}", service="oms")
         # Update order status to error
         try:
             db.update_order_status(order_data["id"], "error", str(e))
             broadcast({"event": "order_failed", "order": order_data["id"], "error": str(e)})
         except Exception as db_error:
-            logger.error(f"💥 Additional error updating order status: {db_error}")
+            log("ERROR", "Error", service="oms")
 
 # WebSocket endpoint for real-time order updates
 @app.websocket("/ws/orders")
@@ -2170,7 +2169,7 @@ def broadcast(message: dict):
             try:
                 await ws.send_text(message_str)
             except Exception as e:
-                print(f"WebSocket send error: {e}")
+                log("DEBUG", f"WebSocket send error: {e}", service="oms")
                 disconnected_orders.append(ws)
         
         # Remove disconnected WebSockets
@@ -2185,7 +2184,7 @@ def broadcast(message: dict):
                 try:
                     await ws.send_text(message_str)
                 except Exception as e:
-                    print(f"Alert WebSocket send error: {e}")
+                    log("DEBUG", f"Alert WebSocket send error: {e}", service="oms")
                     disconnected_alerts.append(ws)
             
             # Remove disconnected alert WebSockets
@@ -2198,11 +2197,11 @@ def broadcast(message: dict):
         loop = asyncio.get_running_loop()
         # Create a task to run the async function
         loop.create_task(send_to_connections())
-        print(f"WebSocket broadcast scheduled: {message.get('event', 'unknown')}")
+        log("DEBUG", f"WebSocket broadcast scheduled: {message.get('event', 'unknown')}", service="oms")
     except RuntimeError:
         # No running loop, create a new one
         asyncio.run(send_to_connections())
-        print(f"WebSocket broadcast sent: {message.get('event', 'unknown')}")
+        log("DEBUG", f"WebSocket broadcast sent: {message.get('event', 'unknown')}", service="oms")
 
 if __name__ == "__main__":
     import uvicorn

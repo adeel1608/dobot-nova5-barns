@@ -16,6 +16,7 @@ import time
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient, EventListener
 from .executer import process_task
 
@@ -45,8 +46,8 @@ class RoutineService:
             try:
                 await self._start_service()
             except Exception as e:
-                logger.error(f"Service error: {e}")
-                logger.info("Restarting service in 10 seconds...")
+                log("ERROR", "Service error: {e}", service="routine")
+                log("INFO", "Restarting service in 10 seconds...", service="routine")
                 await asyncio.sleep(10)
                 # Clean up any existing connections
                 await self._cleanup()
@@ -56,14 +57,14 @@ class RoutineService:
         # Retry connection logic for RabbitMQ
         while True:
             try:
-                logger.info("Attempting to connect to RabbitMQ...")
+                log("INFO", "Attempting to connect to RabbitMQ...", service="routine")
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
-                logger.info("Successfully connected to RabbitMQ")
+                log("INFO", "Successfully connected to RabbitMQ", service="routine")
                 break
             except Exception as e:
-                logger.error(f"Failed to connect to RabbitMQ: {e}")
-                logger.info("Retrying connection in 10 seconds...")
+                log("ERROR", "Failed to connect to RabbitMQ: {e}", service="routine")
+                log("INFO", "Retrying connection in 10 seconds...", service="routine")
                 await asyncio.sleep(10)
         
         # Load task configurations
@@ -85,12 +86,12 @@ class RoutineService:
             task = asyncio.create_task(self.worker(arm_id, task_queues[arm_id]))
             self.worker_tasks.append(task)
         
-        logger.info("Routine service started and listening for messages")
+        log("INFO", "Routine service started and listening for messages", service="routine")
         
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
-            logger.info("Shutting down routine service...")
+            log("INFO", "Shutting down routine service...", service="routine")
             raise
     
     async def _cleanup(self):
@@ -120,12 +121,12 @@ class RoutineService:
                 pass
                 
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            log("ERROR", "Error during cleanup: {e}", service="routine")
 
     async def stop(self):
         """Stop the routine service."""
         await self._cleanup()
-        logger.info("Routine service stopped")
+        log("INFO", "Routine service stopped", service="routine")
     
     async def _load_task_configs(self):
         """Load task configurations from file."""
@@ -135,13 +136,13 @@ class RoutineService:
         try:
             with open(cfg_path) as f:
                 task_configs = json.load(f)
-            logger.info(f"Loaded task configurations from {cfg_path}")
+            log("INFO", "Loaded task configurations from {cfg_path}", service="routine")
         except FileNotFoundError:
-            logger.info("Task Configs not found")
+            log("INFO", "Task Configs not found", service="routine")
     
     async def worker(self, arm_id: int, q: asyncio.Queue):
         """Continuously process tasks assigned to this arm."""
-        logger.info(f"Worker started for Arm {arm_id}")
+        log("INFO", "Worker started for Arm {arm_id}", service="routine")
         
         while True:
             try:
@@ -153,7 +154,7 @@ class RoutineService:
                     await self._send_task_event("routine.task_completed", task_data, arm_id)
                     
                 except Exception as e:
-                    logger.error(f"[Routine][Arm{arm_id}] error: {e}")
+                    log("ERROR", "[Routine][Arm{arm_id}] error: {e}", service="routine")
                     
                     # Send error event
                     await self._send_task_event("routine.task_failed", task_data, arm_id, str(e))
@@ -161,14 +162,14 @@ class RoutineService:
                     q.task_done()
                     
             except asyncio.CancelledError:
-                logger.info(f"Worker for Arm {arm_id} cancelled")
+                log("INFO", "Worker for Arm {arm_id} cancelled", service="routine")
                 break
             except ConnectionError as e:
-                logger.error(f"[Routine][Arm{arm_id}] RabbitMQ connection error: {e}")
+                log("ERROR", "[Routine][Arm{arm_id}] RabbitMQ connection error: {e}", service="routine")
                 # This will trigger service restart
                 raise
             except Exception as e:
-                logger.error(f"[Routine][Arm{arm_id}] unexpected error: {e}")
+                log("ERROR", "[Routine][Arm{arm_id}] unexpected error: {e}", service="routine")
     
     async def _send_task_event(self, event_type: str, task_data: Dict, arm_id: int, error: str = None):
         """Send task completion or failure event."""
@@ -188,11 +189,11 @@ class RoutineService:
                 
             await self.rabbitmq_client.send_event(event_type, event_data)
         except ConnectionError as e:
-            logger.error(f"Connection error sending event: {e}")
+            log("ERROR", "Connection error sending event: {e}", service="routine")
             # Re-raise to trigger service restart
             raise
         except Exception as e:
-            logger.error(f"Error sending task event: {e}")
+            log("ERROR", "Error sending task event: {e}", service="routine")
             # Don't re-raise other exceptions as they shouldn't cause reconnection
     
     async def handle_submit_task(self, data: Dict) -> Dict:
@@ -227,7 +228,7 @@ class RoutineService:
                     "queue_size": task_queues[arm_id].qsize()
                 })
             except ConnectionError as e:
-                logger.error(f"Connection error sending task queued event: {e}")
+                log("ERROR", "Connection error sending task queued event: {e}", service="routine")
                 # Still return success as task was queued, but log the connection issue
                 
             return {
@@ -239,10 +240,10 @@ class RoutineService:
             }
             
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_submit_task: {e}")
+            log("ERROR", "Connection error in handle_submit_task: {e}", service="routine")
             raise  # This will trigger service restart
         except Exception as e:
-            logger.error(f"Error submitting task: {e}")
+            log("ERROR", "Error submitting task: {e}", service="routine")
             return {"error": str(e), "success": False}
     
     async def handle_health(self, data: Dict) -> Dict:
@@ -277,7 +278,7 @@ class RoutineService:
                 }
                 
         except Exception as e:
-            logger.error(f"Error getting queue status: {e}")
+            log("ERROR", "Error getting queue status: {e}", service="routine")
             return {"error": str(e), "success": False}
     
     async def handle_clear_queue(self, data: Dict) -> Dict:
@@ -300,7 +301,7 @@ class RoutineService:
                         "timestamp": datetime.now().isoformat()
                     })
                 except ConnectionError as e:
-                    logger.error(f"Connection error sending queue cleared event: {e}")
+                    log("ERROR", "Connection error sending queue cleared event: {e}", service="routine")
                 
                 return {"arm_id": arm_id, "cleared": True, "success": True}
             else:
@@ -321,15 +322,15 @@ class RoutineService:
                         "timestamp": datetime.now().isoformat()
                     })
                 except ConnectionError as e:
-                    logger.error(f"Connection error sending all queues cleared event: {e}")
+                    log("ERROR", "Connection error sending all queues cleared event: {e}", service="routine")
                 
                 return {"cleared_arms": cleared_arms, "success": True}
                 
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_clear_queue: {e}")
+            log("ERROR", "Connection error in handle_clear_queue: {e}", service="routine")
             raise  # This will trigger service restart
         except Exception as e:
-            logger.error(f"Error clearing queue: {e}")
+            log("ERROR", "Error clearing queue: {e}", service="routine")
             return {"error": str(e), "success": False}
     
     async def handle_cancel_order(self, data: Dict) -> Dict:
@@ -376,16 +377,16 @@ class RoutineService:
                     "timestamp": datetime.now().isoformat()
                 })
             except Exception as e:
-                logger.error(f"Error sending routine.order_cancelled event: {e}")
+                log("ERROR", "Error sending routine.order_cancelled event: {e}", service="routine")
             
             return {"success": True, "removed": removed}
         except Exception as e:
-            logger.error(f"Error cancelling order in routine: {e}")
+            log("ERROR", "Error cancelling order in routine: {e}", service="routine")
             return {"success": False, "error": str(e)}
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        logger.info("Received shutdown event, stopping routine service...")
+        log("INFO", "Received shutdown event, stopping routine service...", service="routine")
         await self.stop()
 
 async def main():
@@ -394,7 +395,7 @@ async def main():
     try:
         await service.start()
     except KeyboardInterrupt:
-        logger.info("Received interrupt signal, shutting down...")
+        log("INFO", "Received interrupt signal, shutting down...", service="routine")
         await service.stop()
 
 if __name__ == "__main__":

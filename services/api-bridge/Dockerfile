@@ -15,11 +15,11 @@ COPY data/ /app/data/
 # Copy service code
 COPY services/api-bridge/ /app/services/api-bridge/
 
-# Set working directory to service
-WORKDIR /app/services/api-bridge
+# Set Python path (keep /app as root)
+ENV PYTHONPATH=/app
 
 # Expose port
 EXPOSE 8000
 
-# Run the service
-CMD ["python", "app.py"] 
+# Run the service (using module path instead of direct script)
+CMD ["python", "-m", "services.api-bridge.app"] 

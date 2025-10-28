@@ -16,9 +16,10 @@ from typing import Dict, List
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.rabbitmq_client import RabbitMQClient, EventListener
+from shared.logger import log
 from . import scheduler
 
-# Configure logging
+# Configure logging (keep for any remaining stdlib logs)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -46,25 +47,25 @@ class SchedulerService:
                 # If we get here, the service was interrupted
                 break
             except KeyboardInterrupt:
-                logger.info("Shutting down scheduler service...")
+                log("INFO", "Shutting down", service="scheduler")
                 await self.stop()
                 break
             except Exception as e:
-                logger.error(f"Service error: {e}")
-                logger.info("Restarting service in 10 seconds...")
+                log("ERROR", "Service error", service="scheduler", error=str(e))
+                log("DEBUG", "Restarting in 10s", service="scheduler")
                 await self._cleanup()
                 await asyncio.sleep(10)
 
     async def _start_service(self):
         """Internal method to start the service components."""
-        logger.info("🚀 [SCHEDULER] Starting scheduler service...")
+        log("INFO", "Scheduler starting", service="scheduler")
         
         # Load recipes first
-        logger.info("📖 [SCHEDULER] Loading recipes...")
+        log("DEBUG", "Loading recipes", service="scheduler")
         await self._load_recipes()
         
         # Register message handlers BEFORE connecting to prevent race conditions
-        logger.info("🔧 [SCHEDULER] Registering RabbitMQ message handlers...")
+        log("DEBUG", "Registering handlers", service="scheduler")
         self.rabbitmq_client.register_handler("process_order", self.handle_process_order)
         self.rabbitmq_client.register_handler("feedback", self.handle_feedback)
         self.rabbitmq_client.register_handler("update_cup_position", self.handle_update_cup_position)
@@ -74,7 +75,7 @@ class SchedulerService:
         self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
         self.rabbitmq_client.register_handler("stop_order", self.handle_stop_order)
         self.rabbitmq_client.register_handler("resume_order", self.handle_resume_order)
-        logger.info("✅ [SCHEDULER] All RabbitMQ message handlers registered successfully")
+        log("DEBUG", "Handlers registered", service="scheduler")
         
         # Register event handlers for the event listener
         self.event_listener.register_event_handler("routine.task_completed", self.handle_task_completed_event)
@@ -85,34 +86,34 @@ class SchedulerService:
         # Retry connection logic for RabbitMQ
         while True:
             try:
-                logger.info("🔌 [SCHEDULER] Attempting to connect to RabbitMQ...")
+                log("DEBUG", "Connecting to RabbitMQ", service="scheduler")
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
-                logger.info("✅ [SCHEDULER] RabbitMQ connections established")
+                log("INFO", "RabbitMQ connected", service="scheduler")
                 
                 # Set the global RabbitMQ client in the scheduler module
-                logger.info("🔗 [SCHEDULER] Setting global RabbitMQ client in scheduler module...")
+                log("DEBUG", "Setting RabbitMQ client", service="scheduler")
                 scheduler.set_rabbitmq_client(self.rabbitmq_client)
                 
                 break
             except Exception as e:
-                logger.error(f"❌ [SCHEDULER] Failed to connect to RabbitMQ: {e}")
-                logger.info("Retrying connection in 10 seconds...")
+                log("ERROR", "RabbitMQ connect failed", service="scheduler", error=str(e))
+                log("DEBUG", "Retrying in 10s", service="scheduler")
                 await asyncio.sleep(10)
         
         # Subscribe to events AFTER connecting
         await self.event_listener.subscribe_to_events(["routine.*", "system.*", "oms.*"])
         
         # Register status callback with scheduler module
-        logger.info("🔗 [SCHEDULER] Registering status callback with scheduler module...")
+        log("DEBUG", "Registering status callback", service="scheduler")
         scheduler.register_status_callback(self.notify_status)
         
-        logger.info("Scheduler service ready and listening for messages")
+        log("INFO", "Scheduler ready", service="scheduler")
         
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
-            logger.info("Shutting down scheduler service...")
+            log("INFO", "Shutting down", service="scheduler")
             raise
 
     async def _cleanup(self):
@@ -130,12 +131,12 @@ class SchedulerService:
                 pass
                 
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            log("ERROR", "Cleanup failed", service="scheduler", error=str(e))
 
     async def stop(self):
         """Stop the scheduler service."""
         await self._cleanup()
-        logger.info("Scheduler service stopped")
+        log("INFO", "Scheduler stopped", service="scheduler")
     
     async def _load_recipes(self):
         """Load drink recipes from file."""
@@ -143,10 +144,10 @@ class SchedulerService:
         try:
             recipe_file = Path("/app/data/recipes.json")
             recipes = scheduler.load_recipes(str(recipe_file))
-            logger.info(f"Loaded {len(recipes)} recipes: {list(recipes.keys())}")
+            log("INFO", "Recipes loaded", service="scheduler", count=len(recipes))
                 
         except Exception as e:
-            logger.error(f"Failed to load recipes: {e}")
+            log("ERROR", "Recipe load failed", service="scheduler", error=str(e))
             recipes = {}
     
     async def handle_process_order(self, data: Dict) -> Dict:
@@ -155,10 +156,10 @@ class SchedulerService:
             order_id = data.get("id")
             drinks = data.get("cups", [])
             
-            logger.info(f"[SCHEDULER] Processing order {order_id} with {len(drinks)} drinks")
+            log("INFO", f"Order {order_id} received with {len(drinks)} drinks", service="scheduler")
             
             if not order_id:
-                logger.error(f"[SCHEDULER] Missing order ID in request")
+                log("ERROR", "Missing order ID", service="scheduler")
                 return {"success": False, "error": "Missing order ID"}
             
             # Send acknowledgment event
@@ -169,7 +170,7 @@ class SchedulerService:
                     "timestamp": datetime.now().isoformat()
                 })
             except ConnectionError as e:
-                logger.error(f"Connection error sending order received event: {e}")
+                log("ERROR", "Order received event send failed", service="scheduler", error="CONNECTION")
                 # Still continue processing but note the connection issue
             
             # Start processing order asynchronously
@@ -181,14 +182,14 @@ class SchedulerService:
                 "order_id": order_id
             }
             
-            logger.info(f"[SCHEDULER] Order {order_id} accepted for processing")
+            log("INFO", f"Order {order_id} accepted", service="scheduler")
             return response
             
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_process_order: {e}")
+            log("ERROR", f"RabbitMQ connection lost in process_order for order {order_id}", service="scheduler")
             raise  # This will trigger service restart
         except Exception as e:
-            logger.error(f"[SCHEDULER] Error processing order: {e}")
+            log("ERROR", f"Order {order_id} processing exception: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_feedback(self, data: Dict) -> Dict:
@@ -199,14 +200,14 @@ class SchedulerService:
             success = data.get("success")
             message = data.get("message", "")
             
-            logger.info(f"[SCHEDULER] Feedback: {action} for {cup_id} - {'SUCCESS' if success else 'FAILED'}")
+            log("DEBUG", f"Feedback received: {action} for cup {cup_id} - {'success' if success else 'failed'}", service="scheduler")
             
             # Process the feedback through the scheduler
             try:
                 await scheduler.handle_routine_feedback(cup_id, action, success)
-                logger.info(f"[SCHEDULER] Feedback processed for {action} on {cup_id}")
+                log("DEBUG", f"Feedback processed: {action} for cup {cup_id}", service="scheduler")
             except Exception as feedback_error:
-                logger.error(f"[SCHEDULER] Error processing feedback: {feedback_error}")
+                log("ERROR", "Feedback processing failed", service="scheduler", error=str(feedback_error))
                 # Still continue to send response
             
             # Notify status subscribers
@@ -217,7 +218,7 @@ class SchedulerService:
             try:
                 await self.notify_status(status_message)
             except Exception as status_error:
-                logger.error(f"Error notifying status subscribers: {status_error}")
+                log("ERROR", "Status notify failed", service="scheduler", error=str(status_error))
             
             # Send feedback event
             try:
@@ -229,17 +230,17 @@ class SchedulerService:
                     "timestamp": datetime.now().isoformat()
                 })
             except ConnectionError as e:
-                logger.error(f"Connection error sending feedback processed event: {e}")
+                log("ERROR", "Feedback processed event send failed", service="scheduler", error="CONNECTION")
             except Exception as event_error:
-                logger.error(f"Error sending feedback processed event: {event_error}")
+                log("ERROR", "Feedback processed event error", service="scheduler", error=str(event_error)[:100])
             
             return {"success": True, "status": "received"}
             
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_feedback: {e}")
+            log("ERROR", f"RabbitMQ connection lost in handle_feedback for cup {cup_id}", service="scheduler")
             raise  # This will trigger service restart
         except Exception as e:
-            logger.error(f"[SCHEDULER] Feedback handler error: {e}")
+            log("ERROR", f"Feedback handler exception for cup {cup_id}: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_update_cup_position(self, data: Dict) -> Dict:
@@ -249,18 +250,18 @@ class SchedulerService:
             new_position = data.get("new_position")
             old_position = data.get("old_position")
             
-            logger.info(f"[SCHEDULER] 📍 Received position update for {cup_id}: {old_position} → {new_position}")
+            log("DEBUG", f"Position update received for cup {cup_id}: {new_position}", service="scheduler")
             
             if not cup_id or new_position is None:
-                logger.error(f"[SCHEDULER] Missing cup_id or new_position in update request")
+                log("ERROR", "Cup position update missing cup_id or position", service="scheduler")
                 return {"success": False, "error": "Missing required parameters"}
             
             # Update position in scheduler's internal data structures
             updated = await scheduler.update_cup_position(cup_id, float(new_position))
             
             if updated:
-                logger.info(f"[SCHEDULER] ✅ Successfully updated position for {cup_id} to {new_position}")
-                logger.info(f"[SCHEDULER] 🎯 All future tasks for {cup_id} will use position {new_position}")
+                log("INFO", f"Position updated for cup {cup_id} to {new_position}", service="scheduler")
+                log("DEBUG", f"All future tasks for cup {cup_id} will use position {new_position}", service="scheduler")
                 
                 # Send event to notify about position update
                 try:
@@ -271,15 +272,15 @@ class SchedulerService:
                         "timestamp": datetime.now().isoformat()
                     })
                 except Exception as e:
-                    logger.warning(f"Failed to send position update event: {e}")
+                    log("ERROR", "Cup position updated event send failed", service="scheduler", error=str(e)[:50])
                 
                 return {"success": True, "message": f"Position updated to {new_position}"}
             else:
-                logger.warning(f"[SCHEDULER] ⚠️ Could not update position for {cup_id} (cup not found in active orders)")
+                log("ERROR", f"Cup {cup_id} not found in active orders", service="scheduler")
                 return {"success": False, "error": f"Cup {cup_id} not found in active orders"}
             
         except Exception as e:
-            logger.error(f"[SCHEDULER] Error updating cup position: {e}")
+            log("ERROR", f"Cup position update exception for cup {cup_id}: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_get_status(self, data: Dict) -> Dict:
@@ -292,7 +293,7 @@ class SchedulerService:
                 "timestamp": datetime.now().isoformat()
             }
         except Exception as e:
-            logger.error(f"Error getting status: {e}")
+            log("ERROR", "Status get failed", service="scheduler", error=str(e))
             return {"success": False, "error": str(e)}
     
     async def handle_subscribe_status(self, data: Dict) -> Dict:
@@ -301,12 +302,12 @@ class SchedulerService:
             service_name = data.get("service_name")
             if service_name and service_name not in self.status_subscribers:
                 self.status_subscribers.append(service_name)
-                logger.info(f"Service {service_name} subscribed to status updates")
+                log("DEBUG", "Status subscription", service="scheduler")
             
             return {"success": True, "subscribed": True}
             
         except Exception as e:
-            logger.error(f"Error handling status subscription: {e}")
+            log("ERROR", "Subscription failed", service="scheduler", error=str(e))
             return {"success": False, "error": str(e)}
     
     async def handle_health(self, data: Dict) -> Dict:
@@ -326,7 +327,7 @@ class SchedulerService:
                 "recipes_loaded": len(recipes) if recipes else 0
             }
         except Exception as e:
-            logger.error(f"Error in health check: {e}")
+            log("ERROR", "Health check failed", service="scheduler", error=str(e))
             return {"success": False, "error": str(e)}
     
     async def handle_cancel_order(self, data: Dict) -> Dict:
@@ -362,9 +363,9 @@ class SchedulerService:
                     data={"order_id": order_id, "cup_ids": cup_ids},
                     timeout=10
                 )
-                logger.info(f"[SCHEDULER] Routine cancel response: {resp}")
+                log("DEBUG", "Cancel response", service="scheduler")
             except Exception as e:
-                logger.error(f"[SCHEDULER] Error requesting routine cancel: {e}")
+                log("ERROR", f"Routine cancel request failed for order {order_id}: {str(e)[:100]}", service="scheduler")
             
             # Stop heartbeat by changing current_status order_id
             with core.lock:
@@ -374,11 +375,11 @@ class SchedulerService:
             try:
                 await core.notify_oms_completion(order_id, False, "Order cancelled by user", self.rabbitmq_client)
             except Exception as e:
-                logger.error(f"[SCHEDULER] Error notifying OMS of cancellation: {e}")
+                log("ERROR", f"OMS cancellation notification failed for order {order_id}: {str(e)[:100]}", service="scheduler")
             
             return {"success": True, "cancelled_tasks": cancelled}
         except Exception as e:
-            logger.error(f"[SCHEDULER] cancel_order handler error: {e}")
+            log("ERROR", f"Cancel order handler exception for order {order_id}: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_stop_order(self, data: Dict) -> Dict:
@@ -397,7 +398,7 @@ class SchedulerService:
                 # Set stop flag to signal workers (they'll finish current task then stop)
                 core.order_stopped = True
                 core.current_status["status"] = "stopping"
-                logger.info(f"🛑 [SCHEDULER] Order {order_id} stopping signal sent - workers will finish current tasks then halt")
+                log("INFO", f"Order {order_id} stopping signal sent", service="scheduler")
             
             # Send stopping status to dashboard
             try:
@@ -406,7 +407,7 @@ class SchedulerService:
                     "timestamp": datetime.now().isoformat()
                 })
             except Exception as e:
-                logger.warning(f"Failed to send stopping event: {e}")
+                log("ERROR", f"Order {order_id} stopping event send failed: {str(e)[:50]}", service="scheduler")
             
             # Wait for submitted tasks to complete (poll with timeout)
             max_wait_time = 90  # Maximum 90 seconds to wait
@@ -417,10 +418,10 @@ class SchedulerService:
                 with core.lock:
                     submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
                     if len(submitted_tasks) == 0:
-                        logger.info(f"✅ [SCHEDULER] All submitted tasks completed for order {order_id}")
+                        log("INFO", f"All submitted tasks completed for stop of order {order_id}", service="scheduler")
                         break
                     else:
-                        logger.debug(f"⏳ [SCHEDULER] Waiting for {len(submitted_tasks)} submitted tasks to complete...")
+                        log("DEBUG", f"Waiting for {len(submitted_tasks)} submitted tasks to complete for order {order_id}", service="scheduler")
                 
                 await asyncio.sleep(wait_interval)
                 elapsed += wait_interval
@@ -429,7 +430,7 @@ class SchedulerService:
             with core.lock:
                 submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
                 if len(submitted_tasks) > 0:
-                    logger.warning(f"⚠️ [SCHEDULER] Stop timed out with {len(submitted_tasks)} tasks still submitted")
+                    log("ERROR", f"Stop order {order_id} timed out with {len(submitted_tasks)} tasks still submitted", service="scheduler")
             
             # Send stopped event when actually stopped
             try:
@@ -438,12 +439,12 @@ class SchedulerService:
                     "timestamp": datetime.now().isoformat()
                 })
             except Exception as e:
-                logger.warning(f"Failed to send stopped event: {e}")
+                log("ERROR", f"Order {order_id} stopped event send failed: {str(e)[:50]}", service="scheduler")
             
-            logger.info(f"✅ [SCHEDULER] Order {order_id} fully stopped")
+            log("INFO", f"Order {order_id} stop complete", service="scheduler")
             return {"success": True, "message": "Order stopped - all tasks completed or halted"}
         except Exception as e:
-            logger.error(f"[SCHEDULER] Error stopping order: {e}")
+            log("ERROR", f"Stop order handler exception for order {order_id}: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_resume_order(self, data: Dict) -> Dict:
@@ -462,11 +463,11 @@ class SchedulerService:
                 # Clear stop flag
                 core.order_stopped = False
                 core.current_status["status"] = "in_progress"
-                logger.info(f"🔄 [SCHEDULER] Order {order_id} resume signal sent")
+                log("INFO", f"Order {order_id} resumed", service="scheduler")
             
             return {"success": True, "message": "Order resumed"}
         except Exception as e:
-            logger.error(f"[SCHEDULER] Error resuming order: {e}")
+            log("ERROR", f"Resume order handler exception for order {order_id}: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):
@@ -490,12 +491,12 @@ class SchedulerService:
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        logger.info("Received shutdown event, stopping scheduler service...")
+        log("INFO", "Shutdown received", service="scheduler")
         await self.stop()
     
     async def _process_order_async(self, order_id: int, drinks: List[Dict]):
         """Background coroutine to process each drink using the scheduler."""
-        logger.info(f"🔄 [SCHEDULER] Background processing started for order {order_id} with {len(drinks)} drinks")
+        log("INFO", f"Background processing started for order {order_id} with {len(drinks)} drinks", service="scheduler")
         
         
         try:
@@ -510,9 +511,9 @@ class SchedulerService:
             # Log per-arm lists [[step, cup_id], ...] before processing
             try:
                 lists = scheduler._format_per_arm_lists()
-                logger.info(lists)
+                log("DEBUG", f"Per-arm task lists for order {order_id}", service="scheduler")
             except Exception as e:
-                logger.warning(f"[SCHEDULER] Could not log per-arm lists pre-run: {e}")
+                log("DEBUG", f"Per-arm list format failed for order {order_id}: {str(e)[:50]}", service="scheduler")
 
             success = await scheduler.process_order_async(order_id, drinks, recipes)
             
@@ -525,22 +526,22 @@ class SchedulerService:
                     "timestamp": datetime.now().isoformat()
                 })
             except Exception as plan_err:
-                logger.warning(f"[SCHEDULER] Could not emit plan_built event: {plan_err}")
+                log("ERROR", f"Plan built event send failed for order {order_id}: {str(plan_err)[:50]}", service="scheduler")
 
             # Send status notifications (events are already sent by scheduler module)
             if success:
-                logger.info(f"✅ [SCHEDULER] Order {order_id} completed successfully")
+                log("INFO", f"Order {order_id} processing completed successfully", service="scheduler")
                 await self.notify_status(f"Order {order_id} completed successfully")
                 # Ensure order_stopped flag is reset after successful completion
                 scheduler.order_stopped = False
             else:
-                logger.error(f"❌ [SCHEDULER] Failed to process order {order_id}")
+                log("ERROR", f"Order {order_id} processing failed", service="scheduler")
                 await self.notify_status(f"Failed to process order {order_id}")
                 # Ensure order_stopped flag is reset after failure
                 scheduler.order_stopped = False
                 
         except Exception as e:
-            logger.error(f"SCHEDULER ASYNC PROCESSING ERROR FOR ORDER {order_id}: {e}")
+            log("ERROR", f"Async order processing exception for order {order_id}: {str(e)[:100]}", service="scheduler")
             
             # Send error event
             await self.rabbitmq_client.send_event("scheduler.order_error", {
@@ -562,10 +563,10 @@ class SchedulerService:
                 "timestamp": datetime.now().isoformat()
             })
             
-            logger.debug(f"Status update sent: {message}")
+            log("DEBUG", "Status update event sent", service="scheduler")
             
         except Exception as e:
-            logger.error(f"Error sending status update: {e}")
+            log("ERROR", "Status update event send failed", service="scheduler", error=str(e)[:100])
 
 async def main():
     """Main service entry point."""
@@ -573,7 +574,7 @@ async def main():
     try:
         await service.start()
     except KeyboardInterrupt:
-        logger.info("Received interrupt signal, shutting down...")
+        log("INFO", "Interrupt received", service="scheduler")
         await service.stop()
 
 if __name__ == "__main__":

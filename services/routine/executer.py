@@ -8,10 +8,12 @@ import sys
 import logging
 from datetime import datetime
 import asyncio
+import json
 
 # Add parent directory to path for shared imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
 
 # Configure logging
@@ -33,7 +35,7 @@ async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitM
             **params  # Merge any additional params
         }
         
-        logger.info(f"Calling validation service: action={func_name}, payload={payload}")
+        log("INFO", f"Calling validation service: action={func_name}, payload={payload}", service="routine")
         
         # Send function name as action directly (e.g., "cup_detection", "check_coffee_beans")
         # The validation service has handlers registered for specific actions, not a generic "validate"
@@ -44,16 +46,16 @@ async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitM
             timeout=30
         )
         
-        logger.info(f"Validation service response: {response}")
+        log("INFO", f"Validation service response: {response}", service="routine")
         
         if response.get("error"):
-            logger.error(f"Validation service error: {response['error']}")
+            log("ERROR", f"Validation service error: {response['error']}", service="routine")
             return {"passed": False, "details": f"Validation service error: {response['error']}"}
         
         return response
         
     except Exception as e:
-        logger.error(f"Error calling validation service: {str(e)}")
+        log("ERROR", f"Error calling validation service: {str(e)}", service="routine")
         return {"passed": False, "details": f"Error calling validation service: {str(e)}"}
 
 async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitMQClient):
@@ -61,7 +63,7 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
     Calls the automation service with the given function name and parameters.
     """
     try:
-        logger.info(f"📞 [ROUTINE] Sending automation request: function='{func_name}', params={params}")
+        log("INFO", f"Sending automation request: function='{func_name}', params={params}", service="routine")
         
         response = await rabbitmq_client.send_request(
             target_service="automation",
@@ -73,18 +75,17 @@ async def call_automation(func_name: str, params: dict, rabbitmq_client: RabbitM
             timeout=80  # 80 second timeout for automation functions
         )
         
-        logger.info(f"📨 [ROUTINE] Received automation response: {response}")
+        log("INFO", f"Automation response received for {func_name}", service="routine")
         
         if response.get("error"):
-            logger.error(f"❌ [ROUTINE] Automation service error: {response['error']}")
+            log("ERROR", f"Automation returned error for {func_name}: {response.get('error', '')[:50]}", service="routine")
             return {"success": False, "message": f"Automation service error: {response['error']}"}
         
-        logger.info(f"✅ [ROUTINE] Automation request completed successfully")
+        log("INFO", f"Automation completed successfully: {func_name}", service="routine")
         return response
         
     except Exception as e:
-        logger.error(f"❌ [ROUTINE] Error calling automation service: {str(e)}")
-        logger.error(f"❌ [ROUTINE] Exception details: {type(e).__name__}: {str(e)}")
+        log("ERROR", f"Automation call exception for {func_name}: {str(e)[:100]}", service="routine")
         return {"success": False, "message": f"Error calling automation service: {str(e)}"}
 
 async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client: RabbitMQClient):
@@ -107,13 +108,13 @@ async def call_robot(func_name: str, params: dict, arm_id: int, rabbitmq_client:
         )
         
         if response.get("error"):
-            logger.error(f"Robot service error: {response['error']}")
+            log("ERROR", f"Robot service error: {response['error']}", service="routine")
             return {"success": False, "message": f"Robot service error: {response['error']}"}
         
         return response
         
     except Exception as e:
-        logger.error(f"Error calling robot service: {str(e)}")
+        log("ERROR", f"Error calling robot service: {str(e)}", service="routine")
         return {"success": False, "message": f"Error calling robot service: {str(e)}"}
 
 async def publish_event(event_name: str, data: dict, rabbitmq_client: RabbitMQClient):
@@ -122,9 +123,9 @@ async def publish_event(event_name: str, data: dict, rabbitmq_client: RabbitMQCl
     """
     try:
         await rabbitmq_client.send_event(event_name, data)
-        logger.debug(f"Published event: {event_name}")
+        log("DEBUG", f"Published event: {event_name}", service="routine")
     except Exception as e:
-        logger.error(f"Error publishing event {event_name}: {str(e)}")
+        log("ERROR", f"Error publishing event {event_name}: {str(e)}", service="routine")
 
 def find_nearest_available_position(current_position: int, detection_result: dict) -> int:
     """
@@ -144,25 +145,25 @@ def find_nearest_available_position(current_position: int, detection_result: dic
     # Get all available positions (False values) and ensure they're integers
     available_positions = [int(pos) for pos, occupied in detection_result.items() if not occupied]
     if not available_positions:
-        logger.warning(f"No available cup positions found in detection result: {detection_result}")
+        log("ERROR", f"No available cup positions found in detection result: {detection_result}", service="routine")
         return current_position  # Return original if none available
     
     # If current position is available, use it
     if current_position in available_positions:
-        logger.info(f"Current position {current_position} is available, no change needed")
+        log("INFO", f"Current position {current_position} is available, no change needed", service="routine")
         return current_position
     
     # Find nearest available position by calculating absolute distance
     nearest_position = min(available_positions, key=lambda pos: abs(pos - current_position))
     
-    logger.info(f"Original position {current_position} is occupied. Using nearest available: {nearest_position}")
-    logger.info(f"Available positions: {sorted(available_positions)}")
+    log("INFO", f"Original position {current_position} is occupied. Using nearest available: {nearest_position}", service="routine")
+    log("INFO", f"Available positions: {sorted(available_positions)}", service="routine")
     
     return nearest_position
 
 async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, rabbitmq_client: RabbitMQClient, message: str = ""):
     """Send feedback to scheduler with retry logic and fallback event notification."""
-    logger.info(f"Sending feedback to scheduler: {action} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}")
+    log("INFO", f"Sending feedback to scheduler: {action} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
     
     feedback_data = {
         "cup_id": cup_id,
@@ -177,7 +178,7 @@ async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, ra
     
     for attempt in range(max_retries):
         try:
-            logger.info(f"Sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {feedback_data}")
+            log("INFO", f"Sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {feedback_data}", service="routine")
             
             # Send feedback to scheduler
             response = await rabbitmq_client.send_request(
@@ -188,50 +189,50 @@ async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, ra
             )
             
             if response and response.get("success"):
-                logger.info(f"Feedback sent to scheduler for {action} on cup {cup_id}: success")
+                log("INFO", f"Feedback sent to scheduler for {action} on cup {cup_id}: success", service="routine")
                 return True
             else:
-                logger.warning(f"Scheduler returned error for feedback (attempt {attempt + 1}): {response}")
+                log("ERROR", f"Scheduler returned error for feedback (attempt {attempt + 1}): {response}", service="routine")
                 if attempt < max_retries - 1:
-                    logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                    log("INFO", f"Retrying feedback in {retry_delay} seconds...", service="routine")
                     await asyncio.sleep(retry_delay)
                     continue
                 else:
-                    logger.error(f"Failed to send feedback after {max_retries} attempts: {response}")
+                    log("ERROR", f"Failed to send feedback after {max_retries} attempts: {response}", service="routine")
                     break
                     
         except asyncio.TimeoutError:
-            logger.error(f"Timeout sending feedback to scheduler (attempt {attempt + 1}/{max_retries})")
+            log("ERROR", f"Timeout sending feedback to scheduler (attempt {attempt + 1}/{max_retries})", service="routine")
             if attempt < max_retries - 1:
-                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                log("INFO", f"Retrying feedback in {retry_delay} seconds...", service="routine")
                 await asyncio.sleep(retry_delay)
                 continue
             else:
-                logger.error(f"Failed to send feedback after {max_retries} timeout attempts")
+                log("ERROR", f"Failed to send feedback after {max_retries} timeout attempts", service="routine")
                 break
                 
         except ConnectionError as e:
-            logger.error(f"Connection error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}")
+            log("ERROR", f"Connection error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}", service="routine")
             if attempt < max_retries - 1:
-                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                log("INFO", f"Retrying feedback in {retry_delay} seconds...", service="routine")
                 await asyncio.sleep(retry_delay)
                 continue
             else:
-                logger.error(f"Failed to send feedback after {max_retries} connection error attempts")
+                log("ERROR", f"Failed to send feedback after {max_retries} connection error attempts", service="routine")
                 break
                 
         except Exception as e:
-            logger.error(f"Unexpected error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}")
+            log("ERROR", f"Unexpected error sending feedback to scheduler (attempt {attempt + 1}/{max_retries}): {e}", service="routine")
             if attempt < max_retries - 1:
-                logger.info(f"Retrying feedback in {retry_delay} seconds...")
+                log("INFO", f"Retrying feedback in {retry_delay} seconds...", service="routine")
                 await asyncio.sleep(retry_delay)
                 continue
             else:
-                logger.error(f"Failed to send feedback after {max_retries} attempts due to error: {e}")
+                log("ERROR", f"Failed to send feedback after {max_retries} attempts due to error: {e}", service="routine")
                 break
     
     # If all retries failed, use event-based fallback notification
-    logger.warning(f"All feedback retries failed. Using event-based fallback for {action} on cup {cup_id}")
+    log("ERROR", f"All feedback retries failed. Using event-based fallback for {action} on cup {cup_id}", service="routine")
     try:
         # Send event as fallback - this uses a different RabbitMQ mechanism that may be more resilient
         event_name = "routine.task_completed" if success else "routine.task_failed"
@@ -246,11 +247,11 @@ async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, ra
             event_data["error"] = message or "Task execution failed"
             
         await rabbitmq_client.send_event(event_name, event_data)
-        logger.info(f"Fallback event sent: {event_name} for {action} on cup {cup_id}")
+        log("INFO", f"Fallback event sent: {event_name} for {action} on cup {cup_id}", service="routine")
         return True
         
     except Exception as fallback_error:
-        logger.error(f"Fallback event notification also failed for {action} on cup {cup_id}: {fallback_error}")
+        log("ERROR", f"Fallback event notification also failed for {action} on cup {cup_id}: {fallback_error}", service="routine")
         return False
 
 async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: RabbitMQClient):
@@ -264,10 +265,10 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     
     # Add small staggered delay for Arm 2 to prevent RabbitMQ overload when both arms start simultaneously
     if arm_id == 2:
-        logger.info(f"[ARM-2] Adding 1s stagger delay to prevent parallel connection overload")
+        log("INFO", "[ARM-2] Adding 1s stagger delay to prevent parallel connection overload", service="routine")
         await asyncio.sleep(1)
     
-    logger.info(f"Processing task: {function} for cup {cup_id} on arm {arm_id}")
+    log("INFO", f"Processing task: {function} for cup {cup_id} on arm {arm_id}", service="routine")
     
     try:
         cfg = configs[function]
@@ -284,17 +285,15 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             # Create a copy for params to send to services
             params = dict(ingredients)
             
-            logger.info(f"─────────────────────────────────────────────────")
-            logger.info(f"Executing step: {func_name} ({step_type}) for cup {cup_id}")
-            logger.info(f"📦 Step params (from task ingredients): {params}")
+            log("INFO", f"Executing step: {func_name} ({step_type}) for cup {cup_id}", service="routine")
             
             # Log cup_position specifically for debugging
             if "position" in params and "cup_position" in params["position"]:
-                logger.info(f"🎯 Cup position for this step: {params['position']['cup_position']}")
+                log("INFO", f"Cup position for this step: {params['position']['cup_position']}", service="routine")
             elif "cup_position" in params:
-                logger.info(f"🎯 Cup position for this step: {params['cup_position']}")
+                log("INFO", f"Cup position for this step: {params['cup_position']}", service="routine")
             else:
-                logger.info(f"🎯 No cup_position found in params")
+                log("INFO", "No cup_position found in params", service="routine")
             
             if step_type == "validation":
                 res = await call_validation(func_name, params, rabbitmq_client)
@@ -304,7 +303,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     # Try to get detection_result from top level first, then from details
                     detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
                     if detection_result:
-                        logger.info(f"🔍 Cup detection result: {detection_result}")
+                        log("INFO", f"🔍 Cup detection result: {detection_result}", service="routine")
                         # Get current cup_position from task ingredients (already retrieved on line 277)
                         current_position = None
                         
@@ -325,14 +324,14 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                     current_position = int(cup_pos_value)
                         
                         if current_position:
-                            logger.info(f"📍 Current cup position from task: {current_position}")
+                            log("INFO", f"📍 Current cup position from task: {current_position}", service="routine")
                             
                             # Find nearest available position
                             new_position = find_nearest_available_position(current_position, detection_result)
                             
                             # Update task params with new position if it changed
                             if new_position != current_position:
-                                logger.info(f"🔄 Updating cup position from {current_position} to {new_position} for cup {cup_id}")
+                                log("INFO", "Resume", service="routine")
                                 
                                 # Update the task's ingredient data
                                 # Update direct 'cup_position' key if exists
@@ -348,7 +347,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                     if "cup_position" in ingredients["position"]:
                                         old_val = ingredients["position"]["cup_position"]
                                         ingredients["position"]["cup_position"] = float(new_position)
-                                        logger.info(f"✅ Updated ingredients['position']['cup_position']: {old_val} → {new_position}")
+                                        log("INFO", "Success", service="routine")
                                 
                                 # Also update params for subsequent steps (will be used in line 276)
                                 if "cup_position" in params:
@@ -361,16 +360,16 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 if "position" in params and isinstance(params["position"], dict):
                                     if "cup_position" in params["position"]:
                                         params["position"]["cup_position"] = float(new_position)
-                                        logger.info(f"✅ Updated params['position']['cup_position'] to {new_position}")
+                                        log("INFO", "Success", service="routine")
                                 
-                                logger.info(f"✅ Cup position updated successfully for cup {cup_id}")
-                                logger.info(f"📦 Updated task_item['ingredients']: {task_item['ingredients']}")
-                                logger.info(f"🔗 Ingredients reference updated - changes will persist to next step")
-                                logger.info(f"📦 Current params after update: {params}")
+                                log("INFO", "Success", service="routine")
+                                log("INFO", f"Updated task_item['ingredients']: {json.dumps(task_item['ingredients'])}", service="routine")
+                                log("DEBUG", "Linking", service="routine")
+                                log("INFO", f"Current params after update: {json.dumps(params)}", service="routine")
                                 
                                 # CRITICAL: Notify scheduler about position change so ALL future tasks use updated position
                                 try:
-                                    logger.info(f"📢 Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}")
+                                    log("INFO", f"📢 Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}", service="routine")
                                     position_update_response = await rabbitmq_client.send_request(
                                         target_service="scheduler",
                                         action="update_cup_position",
@@ -383,16 +382,15 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                         timeout=5
                                     )
                                     if position_update_response and position_update_response.get("success"):
-                                        logger.info(f"✅ Scheduler acknowledged position update for cup {cup_id}")
+                                        log("INFO", f"Scheduler acknowledged position update for cup {cup_id} to {new_position}", service="routine")
                                     else:
-                                        logger.warning(f"⚠️ Scheduler did not acknowledge position update: {position_update_response}")
+                                        log("ERROR", f"⚠️ Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
                                 except Exception as e:
-                                    logger.error(f"❌ Failed to notify scheduler about position change: {e}")
-                                    logger.warning(f"⚠️ Position change applied locally but may not persist to future tasks")
+                                    log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
                             else:
-                                logger.info(f"✓ Cup position {current_position} is available, no change needed")
+                                log("INFO", f"Cup position {current_position} is available for cup {cup_id}, no change needed", service="routine")
                         else:
-                            logger.warning(f"⚠️ Could not extract cup_position from ingredients: {ingredients}")
+                            log("ERROR", f"Invalid position detected in validation response for cup {cup_id}", service="routine")
                 
                 if not res.get("passed", False):
                     message = f"Validation failed: {res.get('details', '')}"
@@ -418,14 +416,14 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
                     
                     if is_transient and attempt < max_retries - 1:
-                        logger.warning(f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}")
-                        logger.info(f"[ARM-{arm_id}] Retrying in {retry_delay}s...")
+                        log("ERROR", f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}", service="routine")
+                        log("INFO", f"[ARM-{arm_id}] Retrying in {retry_delay}s...", service="routine")
                         await asyncio.sleep(retry_delay)
                         continue
                     else:
                         # Non-transient error or final retry failed
                         message = f"Robot error: {res.get('message', '')}"
-                        logger.error(f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}")
+                        log("ERROR", f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}", service="routine")
                         await publish_event("robot.error", 
                                     {"arm": arm_id, "cup": cup_id,
                                     "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
@@ -436,18 +434,18 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     break  # Exit step loop if robot action ultimately failed
                     
             elif step_type == "automation":
-                logger.info(f"🤖 [ROUTINE] Processing automation step: {func_name} for cup {cup_id}")
+                log("INFO", "Action", service="routine")
                 res = await call_automation(func_name, params, rabbitmq_client)
                 if not res.get("success", False):
                     message = f"Automation error: {res.get('message', '')}"
-                    logger.error(f"❌ [ROUTINE] Automation step failed: {func_name} - {message}")
+                    log("ERROR", f"Automation execution failed for {func_name} on cup {cup_id}: {res.get('message', '')[:50]}", service="routine")
                     await publish_event("automation.error", 
                                 {"arm": arm_id, "cup": cup_id,
                                 "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
                     success = False
                     break  # abort on automation error
                 else:
-                    logger.info(f"✅ [ROUTINE] Automation step completed: {func_name} for cup {cup_id}")
+                    log("INFO", "Success", service="routine")
                     
             # publish a step-completed event
             await publish_event("routine.step_completed", 
@@ -457,16 +455,16 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     except Exception as e:
         success = False
         message = f"Exception in routine: {str(e)}"
-        logger.error(f"Error processing task: {e}")
+        log("ERROR", f"Error processing task: {e}", service="routine")
     
     # Send feedback to scheduler
-    logger.info(f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}")
+    log("INFO", f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
     await send_feedback_to_scheduler(cup_id, function, success, rabbitmq_client, message)
     
     # all steps done
     if success:
-        logger.info(f"Task completed successfully: {function} for cup {cup_id}")
+        log("INFO", f"Task completed successfully: {function} for cup {cup_id}", service="routine")
         await publish_event("routine.completed", 
                     {"arm": arm_id, "cup": cup_id, "function": function}, rabbitmq_client)
     else:
-        logger.error(f"Task failed: {function} for cup {cup_id} - {message}")
+        log("ERROR", f"Task failed: {function} for cup {cup_id} - {message}", service="routine")
