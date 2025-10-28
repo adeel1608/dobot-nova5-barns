@@ -354,6 +354,8 @@ async def arm_worker(arm_name: str):
                         log("INFO", f"{arm_name} worker stopped - no submitted tasks", service="scheduler")
                         order_stopped_logged = True
                     task = None
+                    # Exit the worker when stopped and no tasks are pending
+                    break
                 else:
                     log("DEBUG", f"{arm_name} waiting for {len(submitted_tasks)} submitted tasks to complete", service="scheduler")
                     task = None
@@ -365,16 +367,14 @@ async def arm_worker(arm_name: str):
                     order_completion_logged = True
                 task = None
                 consecutive_no_work_count = 0  # Reset counter when order completes
+                # Exit the worker when order completes so process_order_async can finish
+                break
             # Active order with tasks to process
             elif current_tasks_total > 0:
                 task = select_task_with_per_arm_cup_priority(arm_name)
             # No active order - wait for tasks
             else:
                 task = None
-        
-        # Never exit - workers are persistent
-        # if should_exit:
-        #     break
             
         if task:
             consecutive_no_work_count = 0  # Reset counter when we have work
@@ -594,9 +594,9 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         arm2 = asyncio.create_task(arm_worker("Arm2"))
         
         # Calculate dynamic timeout based on number of cups
-        # Base timeout (2 minutes) + per-cup timeout (1 minute per cup)
-        base_timeout = 120.0  # 2 minutes base
-        per_cup_timeout = 400.0  # 1 minute per cup
+        # Base timeout (2 minutes) + per-cup timeout (6.67 minutes per cup)
+        base_timeout = 60.0  # 1 minute base
+        per_cup_timeout = 240.0  # 4 minutes per cup (240 seconds)
         num_cups = len(drinks)
         dynamic_timeout = base_timeout + (per_cup_timeout * num_cups)
         
@@ -610,6 +610,12 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
             )
             log("INFO", f"Both arm workers completed for order {order_id}", service="scheduler")
         except asyncio.TimeoutError:
+            # Check if order was already completed before sending timeout error
+            with lock:
+                if order_completion_notified:
+                    log("INFO", f"Order {order_id} was already completed/failed before timeout, ignoring timeout", service="scheduler")
+                    return completed_count == tasks_total and failed_count == 0
+            
             log("ERROR", f"Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes", service="scheduler")
             # Cancel both arms
             arm1.cancel()

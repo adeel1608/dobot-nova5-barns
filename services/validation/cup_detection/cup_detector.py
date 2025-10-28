@@ -58,7 +58,17 @@ class Config:
         # You can set RFDETR_VARIANT="base" or "large" in config.py if you like.
         self.rfdetr_variant = str(g.get("RFDETR_VARIANT", "base")).lower()
         self.confidence = float(g.get("RFDETR_CONFIDENCE", 0.30))
-        self.allowed_classes = set(map(str, g.get("ALLOWED_CLASSES", ["cup"])))  # default to "cup" only
+        
+        # ALLOWED_CLASSES can be either class IDs (integers) or class names (strings)
+        allowed_classes_raw = g.get("ALLOWED_CLASSES", [41])  # default to cup class ID (41 in COCO)
+        if allowed_classes_raw and isinstance(allowed_classes_raw[0], int):
+            # If integer class IDs provided, use them directly
+            self.allowed_classes = set(allowed_classes_raw)
+            self.allowed_classes_are_ids = True
+        else:
+            # If class names provided, convert to lowercase for lookup
+            self.allowed_classes = set(map(str, allowed_classes_raw))
+            self.allowed_classes_are_ids = False
         
         # Local model paths
         model_paths = g.get("RFDETR_MODEL_PATHS", {})
@@ -243,7 +253,7 @@ def _build_roi_integral(h: int, w: int, roi_poly: np.ndarray):
 # Main detector
 # ------------------------------
 
-class RFDETRDetector:
+class CupDetector:
     def __init__(self, config_path: str = "config.py"):
         mod = _load_config_module(config_path)
         self.config = Config(mod)
@@ -315,10 +325,16 @@ class RFDETRDetector:
 
         self.target_ids = set()
         if self.config.allowed_classes:
-            missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
-            if missing:
-                log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
-            self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
+            if self.config.allowed_classes_are_ids:
+                # Using integer class IDs directly
+                self.target_ids = self.config.allowed_classes
+                log.info(f"Using class IDs for filtering: {sorted(self.target_ids)}")
+            else:
+                # Using class names - need to map to IDs
+                missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
+                if missing:
+                    log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
+                self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
 
     def get_connection_status(self):
         return self.reader.status()

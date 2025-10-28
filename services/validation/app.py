@@ -60,27 +60,27 @@ class ValidationServiceApp:
                 await self.main_validation.start_periodic_detection()
                 
                 self.is_running = True
-                self.log("INFO", "Validation service started. Listening on service: {self.service_name}", service="validation")
-                self.log("INFO", "Available actions: pre_check, update_inventory, ingredient_status, refill_inventory", service="validation")
+                log("INFO", f"Validation service started. Listening on service: {self.service_name}", service="validation")
+                log("INFO", "Available actions: pre_check, update_inventory, ingredient_status, refill_inventory", service="validation")
                 
                 # Run forever
                 try:
                     await asyncio.Future()
                 except KeyboardInterrupt:
-                    self.log("INFO", "Received interrupt signal, stopping service...", service="validation")
+                    log("INFO", "Received interrupt signal, stopping service...", service="validation")
                     await self.stop()
                 
                 # Break the loop if connection is successful
                 break
                     
             except Exception as e:
-                self.log("ERROR", "Failed to start validation service (attempt {attempt + 1}/{max_retries}): {e}", service="validation")
+                log("ERROR", f"Failed to start validation service (attempt {attempt + 1}/{max_retries}): {e}", service="validation")
                 if attempt < max_retries - 1:
-                    self.log("INFO", "Retrying in {retry_delay} seconds...", service="validation")
+                    log("INFO", f"Retrying in {retry_delay} seconds...", service="validation")
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                 else:
-                    self.log("ERROR", "Max retries reached. Could not start validation service.", service="validation")
+                    log("ERROR", "Max retries reached. Could not start validation service.", service="validation")
                     await self.stop()
                     raise
     
@@ -105,7 +105,7 @@ class ValidationServiceApp:
         # System handlers
         self.rabbitmq_client.register_handler("health", self.handle_health)
         
-        self.log("INFO", "All message handlers registered", service="validation")
+        log("INFO", "All message handlers registered", service="validation")
     
     # =============================================================================
     # INVENTORY HANDLERS
@@ -114,8 +114,8 @@ class ValidationServiceApp:
     async def handle_pre_check(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle pre-check requests - validate ingredient availability before order processing"""
         try:
-            # self.log("INFO", "Processing pre_check request: {data.get('request_id', 'no-id')}", service="validation")
-            log("DEBUG", "Processing pre_check request: {data}", service="validation")
+            # log("INFO", f"Processing pre_check request: {data.get('request_id', 'no-id')}", service="validation")
+            log("DEBUG", f"Processing pre_check request: {data}", service="validation")
             # Convert new format to your existing format
             # request_data = self.convert_to_validation_format(data, "pre_check")
             
@@ -125,7 +125,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in pre_check: {e}", service="validation")
+            log("ERROR", f"Error in pre_check: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -135,7 +135,7 @@ class ValidationServiceApp:
     async def handle_update_inventory(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle inventory update requests - update ingredient levels after consumption"""
         try:
-            self.log("INFO", "Processing update_inventory request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing update_inventory request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Convert new format to your existing format
             request_data = self.convert_to_validation_format(data, "update_inventory")
@@ -164,7 +164,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in update_inventory: {e}", service="validation")
+            log("ERROR", f"Error in update_inventory: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -196,9 +196,9 @@ class ValidationServiceApp:
     async def handle_ingredient_status(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle ingredient status requests - get current inventory status and levels"""
         try:
-            self.log("INFO", "Processing ingredient_status request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing ingredient_status request: {data.get('request_id', 'no-id')}", service="validation")
             log("DEBUG", "###################################", service="validation")
-            log("DEBUG", "Ingredient status request: {data}", service="validation")
+            log("DEBUG", f"Ingredient status request: {data}", service="validation")
             log("DEBUG", "###################################", service="validation")
             # Convert new format to your existing format
             request_data = {
@@ -211,15 +211,15 @@ class ValidationServiceApp:
                 }
             }
             log("DEBUG", "###################################", service="validation")
-            log("DEBUG", "Ingredient status request: {json.dumps(request_data, indent=2)}", service="validation")
+            log("DEBUG", f"Ingredient status request: {json.dumps(request_data, indent=2)}", service="validation")
             log("DEBUG", "###################################", service="validation")
             result = self.main_validation.process_ingredient_status_request(request_data)
             
-            log("DEBUG", "Ingredient status result: {json.dumps(result, indent=2)}", service="validation")
+            log("DEBUG", f"Ingredient status result: {json.dumps(result, indent=2)}", service="validation")
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in ingredient_status: {e}", service="validation")
+            log("ERROR", f"Error in ingredient_status: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -239,7 +239,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in category_info: {e}", service="validation")
+            log("ERROR", f"Error in category_info: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -271,7 +271,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in inventory_by_stock_level: {e}", service="validation")
+            log("ERROR", f"Error in inventory_by_stock_level: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -281,7 +281,7 @@ class ValidationServiceApp:
     async def handle_refill_inventory(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle inventory refill requests - refill inventory to maximum levels"""
         try:
-            self.log("INFO", "Processing refill_inventory request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing refill_inventory request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Convert new format to your existing format
             # request_data = self.convert_to_validation_format(data, "refill_ingredient")
@@ -292,9 +292,9 @@ class ValidationServiceApp:
             ingredient_type = data.get("payload", {}).get("ingredient_type")
             subtype = data.get("payload", {}).get("subtype")
             function_name = data.get("payload", {}).get("function_name")
-            log("DEBUG", "inside handle_refill_inventory: function_name: {function_name}", service="validation")
+            log("DEBUG", f"inside handle_refill_inventory: function_name: {function_name}", service="validation")
 
-            log("DEBUG", "inside handle_refill_inventory: ingredient_type: {ingredient_type}, subtype: {subtype}", service="validation")
+            log("DEBUG", f"inside handle_refill_inventory: ingredient_type: {ingredient_type}, subtype: {subtype}", service="validation")
             
             if ingredient_type:
                 affected_categories.add(ingredient_type)
@@ -313,7 +313,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in refill_inventory: {e}", service="validation")
+            log("ERROR", f"Error in refill_inventory: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -334,7 +334,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in category_summary: {e}", service="validation")
+            log("ERROR", f"Error in category_summary: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -355,7 +355,7 @@ class ValidationServiceApp:
             return result
             
         except Exception as e:
-            self.log("ERROR", "Error in stock_level: {e}", service="validation")
+            log("ERROR", f"Error in stock_level: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -371,13 +371,13 @@ class ValidationServiceApp:
                 "function_name": "category_count",
                 "payload": {}
             }
-            log("DEBUG", "Category count request: {request_data}", service="validation")
+            log("DEBUG", f"Category count request: {request_data}", service="validation")
             result = self.main_validation.process_category_count_request(request_data)
-            log("DEBUG", "Category count result: {result}", service="validation")
+            log("DEBUG", f"Category count result: {result}", service="validation")
             return result
         
         except Exception as e:
-            self.log("ERROR", "Error in category_count: {e}", service="validation")
+            log("ERROR", f"Error in category_count: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -392,7 +392,7 @@ class ValidationServiceApp:
     async def handle_cup_detection(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle cup detection requests"""
         try:
-            self.log("INFO", "Processing cup_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing cup_detection request: {data.get('request_id', 'no-id')}", service="validation")
             
             alert_sent = False
             while True:
@@ -422,15 +422,15 @@ class ValidationServiceApp:
                         }
                         await self.rabbitmq_client.send_event("validation.threshold_warning", alert_payload)
                         alert_sent = True
-                        self.log("ERROR", "All cup stations occupied. Alert sent. Will keep retrying every 10s.", service="validation")
+                        log("ERROR", "All cup stations occupied. Alert sent. Will keep retrying every 10s.", service="validation")
                     except Exception as alert_err:
-                        self.log("ERROR", "Failed to send occupied-stations alert: {alert_err}", service="validation")
+                        log("ERROR", f"Failed to send occupied-stations alert: {alert_err}", service="validation")
 
                 # Wait 10 seconds and retry
                 await asyncio.sleep(10)
             
         except Exception as e:
-            self.log("ERROR", "Error in cup_detection: {e}", service="validation")
+            log("ERROR", f"Error in cup_detection: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -482,7 +482,7 @@ class ValidationServiceApp:
             )
             
         except Exception as e:
-            self.log("ERROR", "Error sending all inventory status to API Bridge: {e}", service="validation")
+            log("ERROR", f"Error sending all inventory status to API Bridge: {e}", service="validation")
 
 
 
@@ -512,13 +512,13 @@ class ValidationServiceApp:
                 # CHECK FOR ALERTS - NEW CODE
                 await self.check_and_send_alerts(category, category_status)
                 
-                self.log("INFO", "Sent inventory update for category: {category}", service="validation")
+                log("INFO", f"Sent inventory update for category: {category}", service="validation")
             
             # Also send summary updates
             await self.send_summary_events()
             
         except Exception as e:
-            self.log("ERROR", "Error sending inventory status to API Bridge: {e}", service="validation")
+            log("ERROR", f"Error sending inventory status to API Bridge: {e}", service="validation")
 
     async def send_summary_events(self):
         """Send stock level and category summary events"""
@@ -546,7 +546,7 @@ class ValidationServiceApp:
                 category_summary.get("details", {}))
                 
         except Exception as e:
-            self.log("ERROR", "Error sending summary events: {e}", service="validation")
+            log("ERROR", f"Error sending summary events: {e}", service="validation")
 
 
     async def check_and_send_alerts(self, category: str, category_status: dict):
@@ -554,7 +554,7 @@ class ValidationServiceApp:
         try:
             # Get the inventory details for this category
             inventory_details = category_status.get("details", {}).get(category, {})
-            log("DEBUG", "inside check_and_send_alerts: inventory_details: {json.dumps( inventory_details, indent=2)}", service="validation")
+            log("DEBUG", f"inside check_and_send_alerts: inventory_details: {json.dumps( inventory_details, indent=2)}", service="validation")
             
             # Loop through each subtype in the category
             for subtype, item_data in inventory_details.items():
@@ -570,7 +570,7 @@ class ValidationServiceApp:
                     await self.send_resolution_to_oms(status, category, subtype)
                 
         except Exception as e:
-            self.log("ERROR", "Error checking status for alerts: {e}", service="validation")
+            log("ERROR", f"Error checking status for alerts: {e}", service="validation")
     
 
     async def send_alert_to_oms(self, severity: str, ingredient_type: str, subtype: str):
@@ -585,10 +585,10 @@ class ValidationServiceApp:
             # Send alert event to OMS using same pattern as threshold warnings
             await self.rabbitmq_client.send_event("validation.threshold_warning", alert_event)
             
-            self.log("INFO", "Sent {severity} threshold warning to OMS for {ingredient_type}:{subtype}", service="validation")
+            log("INFO", f"Sent {severity} threshold warning to OMS for {ingredient_type}:{subtype}", service="validation")
             
         except Exception as e:
-            self.log("ERROR", "Error sending alert to OMS: {e}", service="validation")
+            log("ERROR", f"Error sending alert to OMS: {e}", service="validation")
 
     async def send_resolution_to_oms(self, severity: str, ingredient_type: str, subtype: str):
         """Send resolution event to OMS"""
@@ -602,16 +602,16 @@ class ValidationServiceApp:
             # Send resolution event to OMS
             await self.rabbitmq_client.send_event("validation.threshold_resolved", resolution_event)
             
-            self.log("INFO", "Sent {severity} threshold resolution to OMS for {ingredient_type}:{subtype}", service="validation")
+            log("INFO", f"Sent {severity} threshold resolution to OMS for {ingredient_type}:{subtype}", service="validation")
             
         except Exception as e:
-            self.log("ERROR", "Error sending resolution to OMS: {e}", service="validation")
+            log("ERROR", f"Error sending resolution to OMS: {e}", service="validation")
 
 
     def convert_to_validation_format(self, new_data: Dict[Any, Any], function_name: str) -> Dict[Any, Any]:
         # Check if data is nested (from RabbitMQClient wrapper)
         actual_data = new_data.get("data", new_data)
-        log("DEBUG", "Actual data: {actual_data}", service="validation")
+        log("DEBUG", f"Actual data: {actual_data}", service="validation")
         
         return {
             "request_id": new_data.get("request_id", f"async-{datetime.now().timestamp()}"),
@@ -671,16 +671,16 @@ class ValidationServiceApp:
                 await self.rabbitmq_client.disconnect()
             
                 
-            self.log("INFO", "Validation service stopped successfully", service="validation")
+            log("INFO", "Validation service stopped successfully", service="validation")
             
         except Exception as e:
-            self.log("ERROR", "Error stopping service: {e}", service="validation")
+            log("ERROR", f"Error stopping service: {e}", service="validation")
 
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully"""
     logger = logging.getLogger("ValidationApp")
-    log("INFO", "Received signal {signum}, shutting down...", service="validation")
+    log("INFO", f"Received signal {signum}, shutting down...", service="validation")
     sys.exit(0)
 
 
@@ -698,16 +698,16 @@ async def main():
         
     except Exception as e:
         logger = logging.getLogger("ValidationApp")
-        log("ERROR", "Failed to start validation service: {e}", service="validation")
+        log("ERROR", f"Failed to start validation service: {e}", service="validation")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    log("DEBUG", "🚀 Starting Validation Service with Async RabbitMQ", service="validation")
-    log("DEBUG", "📋 Available actions:", service="validation")
+    log("DEBUG", "Starting Validation Service with Async RabbitMQ", service="validation")
+    log("DEBUG", "Available actions:", service="validation")
     log("DEBUG", "  Inventory: pre_check, update_inventory, inventory_status, inventory_refill", service="validation")
-    log("DEBUG", "  Computer Vision: cup_detection, check_coffee_beans", service="validation")  # CHANGE THIS LINE
+    log("DEBUG", "  Computer Vision: cup_detection, check_coffee_beans", service="validation")
     log("DEBUG", "  System: health", service="validation")
-    log("DEBUG", "🔧 Simple request-response pattern with live inventory updates", service="validation")
+    log("DEBUG", "Simple request-response pattern with live inventory updates", service="validation")
     
     asyncio.run(main())

@@ -351,7 +351,7 @@ async def start_order(order_id: int):
             timeout=30
         )
         
-        log("INFO", f"📨 Received response from OMS for order {order_id}: {response}", service="api_bridge")
+        log("INFO", f"Received response from OMS for order {order_id}: {response}", service="api_bridge")
         
         if response.get("success"):
             log("INFO", f"Order {order_id} start successful", service="api_bridge")
@@ -1110,27 +1110,27 @@ async def handle_inventory_updated_event(data: Dict):
     category = data.get("category")
     inventory_data = data.get("inventory", {})
     
-    log("INFO", f"📦 Received inventory update for category: {category}", service="api_bridge")    
+    log("INFO", f"Received inventory update for category: {category}", service="api_bridge")    
     # Emit to Socket.IO clients
     await emit_inventory_update(category, inventory_data)
 
 async def handle_stock_level_event(data: Dict):
     """Handle stock level summary update events"""
-    log("INFO", "📊 Received stock level update", service="api_bridge")
+    log("INFO", "Received stock level update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_stock_level_update(data)
 
 async def handle_category_summary_event(data: Dict):
     """Handle category summary update events"""
-    log("INFO", "📋 Received category summary update", service="api_bridge")
+    log("INFO", "Received category summary update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_inventory_summary(data)
 
 async def handle_inventory_updated_event_all(data: Dict):
     """Handle all inventory update events"""
-    log("INFO", "📦 Received all inventory update", service="api_bridge")
+    log("INFO", "Received all inventory update", service="api_bridge")
     
     # Emit to Socket.IO clients
     await emit_inventory_update_all(data)
@@ -1204,7 +1204,7 @@ async def websocket_endpoint(websocket: WebSocket):
             active_websockets.remove(websocket)
         log("DEBUG", "Connecting", service="api_bridge")
     except Exception as e:
-        log("ERROR", f"🔌 WebSocket error for {client_id}: {e}", service="api_bridge")
+        log("ERROR", f"WebSocket error for {client_id}: {e}", service="api_bridge")
         if websocket in active_websockets:
             active_websockets.remove(websocket)
 

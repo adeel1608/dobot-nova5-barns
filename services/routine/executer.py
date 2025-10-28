@@ -324,7 +324,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                     current_position = int(cup_pos_value)
                         
                         if current_position:
-                            log("INFO", f"📍 Current cup position from task: {current_position}", service="routine")
+                            log("INFO", f"Current cup position from task: {current_position}", service="routine")
                             
                             # Find nearest available position
                             new_position = find_nearest_available_position(current_position, detection_result)
@@ -369,7 +369,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 
                                 # CRITICAL: Notify scheduler about position change so ALL future tasks use updated position
                                 try:
-                                    log("INFO", f"📢 Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}", service="routine")
+                                    log("INFO", f"Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}", service="routine")
                                     position_update_response = await rabbitmq_client.send_request(
                                         target_service="scheduler",
                                         action="update_cup_position",
@@ -384,7 +384,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                     if position_update_response and position_update_response.get("success"):
                                         log("INFO", f"Scheduler acknowledged position update for cup {cup_id} to {new_position}", service="routine")
                                     else:
-                                        log("ERROR", f"⚠️ Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
+                                        log("ERROR", f"Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
                                 except Exception as e:
                                     log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
                             else:

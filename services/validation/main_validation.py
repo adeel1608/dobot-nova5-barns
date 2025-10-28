@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.logger import log
 from .inventory_manager import InventoryManager
 from .db_client import DatabaseClient
 # Replace dummy detector with production detector
@@ -24,10 +25,10 @@ USE_DUMMY_CUP_DETECTOR = os.getenv("USE_DUMMY_CUP_DETECTOR", "false").lower() ==
 
 if USE_DUMMY_CUP_DETECTOR:
     from .cup_detection.dummy_detector import CupDetector
-    print("🧪 Using DUMMY Cup Detector for testing")
+    log("INFO", "Using DUMMY Cup Detector for testing", service="validation")
 else:
     from .cup_detection.cup_detector import CupDetector
-    print("📷 Using RF-DETR Cup Detector")
+    log("INFO", "Using RF-DETR Cup Detector", service="validation")
 
 
 class MainValidation:
@@ -59,13 +60,13 @@ class MainValidation:
             detection_config.debug_frame_dir = debug_dir
             
             self._coffee_beans_detector = ProductionCoffeeDetector(detection_config)
-            logging.info(f"Production coffee detector initialized successfully. Debug frames will be saved to: {debug_dir}")
+            log("INFO", f"Production coffee detector initialized successfully. Debug frames will be saved to: {debug_dir}", service="validation")
         except Exception as e:
-            logging.error(f"Failed to initialize production coffee detector: {e}")
+            log("ERROR", f"Failed to initialize production coffee detector: {e}", service="validation")
             # Fallback to dummy detector if production detector fails
             from .coffee_beans_detector import CoffeeBeansDetector
             self._coffee_beans_detector = CoffeeBeansDetector()
-            logging.warning("Falling back to dummy coffee detector")
+            log("WARNING", "Falling back to dummy coffee detector", service="validation")
 
         # Initialize cup detector - ADD THIS BLOCK
         try:
@@ -80,24 +81,24 @@ class MainValidation:
             if self._cup_detector.config.debug_mode or self._cup_detector.config.save_frames:
                 os.makedirs(debug_dir, exist_ok=True)
             
-            logging.info(f"Cup detector initialized successfully. Debug frames will be saved to: {debug_dir}")
+            log("INFO", f"Cup detector initialized successfully. Debug frames will be saved to: {debug_dir}", service="validation")
             
             # TEST CUP DETECTION - COMMENT OUT LATER
             try:
-                self.logger.debug("🔍 Testing cup detection on initialization...")
+                log("DEBUG", "Testing cup detection on initialization...", service="validation")
                 test_result = self._cup_detector.detect()
-                self.logger.debug(f"Cup detection test result: {test_result}")
+                log("DEBUG", f"Cup detection test result: {test_result}", service="validation")
                 if "error" not in test_result:
                     detected_count = sum(1 for present in test_result.values() if present)
-                    self.logger.debug(f"✅ Cup detection working! Detected {detected_count} cups")
+                    log("DEBUG", f"Cup detection working! Detected {detected_count} cups", service="validation")
                 else:
-                    self.logger.debug(f"❌ Cup detection error: {test_result['error']}")
+                    log("DEBUG", f"Cup detection error: {test_result['error']}", service="validation")
             except Exception as test_e:
-                self.logger.debug(f"❌ Cup detection test failed: {test_e}")
+                log("DEBUG", f"Cup detection test failed: {test_e}", service="validation")
             # END TEST CODE
             
         except Exception as e:
-            logging.error(f"Failed to initialize cup detector: {e}")
+            log("ERROR", f"Failed to initialize cup detector: {e}", service="validation")
             self._cup_detector = None
 
         # # Queues to receive requests and process responses
@@ -202,7 +203,7 @@ class MainValidation:
             return result
             
         except Exception as e:
-            logging.error(f"Error processing update inventory request: {e}")
+            log("ERROR", f"Error processing update inventory request: {e}", service="validation")
             error_result = {
                 "request_id": payload["request_id"],
                 "client_type": payload["client_type"],
@@ -366,7 +367,7 @@ class MainValidation:
             return result
 
         except Exception as e:
-            logging.error(f"Error processing pre-check request: {e}")
+            log("ERROR", f"Error processing pre-check request: {e}", service="validation")
             error_result = {
                 "request_id": payload["request_id"],
                 "client_type": payload["client_type"],
@@ -496,13 +497,13 @@ class MainValidation:
             # Final result
             result["passed"] = coffee_detection_success and normal_refill_success
 
-            self.logger.info(f"Refill ingredient request result: {json.dumps(result, indent=2)}")
+            log("INFO", f"Refill ingredient request result: {json.dumps(result, indent=2)}", service="validation")
             # self._response_queue.put(result)
             # self._response_event.set()
             return result
             
         except Exception as e:
-            logging.error(f"Error processing refill ingredient request: {e}")
+            log("ERROR", f"Error processing refill ingredient request: {e}", service="validation")
             error_result = {
                 "request_id": payload["request_id"],
                 "client_type": payload["client_type"],
@@ -545,7 +546,7 @@ class MainValidation:
             return final_result
             
         except Exception as e:
-            logging.error(f"Error processing inventory status request: {e}")
+            log("ERROR", f"Error processing inventory status request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -571,7 +572,7 @@ class MainValidation:
             return final_result
         
         except Exception as e:
-            logging.error(f"Error processing category info request: {e}")
+            log("ERROR", f"Error processing category info request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -604,7 +605,7 @@ class MainValidation:
             return final_result
             
         except Exception as e:
-            logging.error(f"Error processing category summary request: {e}")
+            log("ERROR", f"Error processing category summary request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -632,7 +633,7 @@ class MainValidation:
             return final_result
         
         except Exception as e:
-            logging.error(f"Error processing category count request: {e}")
+            log("ERROR", f"Error processing category count request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -661,7 +662,7 @@ class MainValidation:
             return final_result
             
         except Exception as e:
-            logging.error(f"Error processing inventory severity request: {e}")
+            log("ERROR", f"Error processing inventory severity request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -700,7 +701,7 @@ class MainValidation:
             return final_result
             
         except Exception as e:
-            logging.error(f"Error processing inventory by stock level request: {e}")
+            log("ERROR", f"Error processing inventory by stock level request: {e}", service="validation")
             error_result = {
                 "passed": False,
                 "request_id": payload["request_id"],
@@ -747,13 +748,13 @@ class MainValidation:
     async def start_periodic_detection(self):
         """Start the periodic coffee beans detection task"""
         if not config.detection.enable_periodic_detection:
-            self.logger.info("Periodic detection disabled by configuration")
+            log("INFO", "Periodic detection disabled by configuration", service="validation")
             return
         
         if self._detection_task is None or self._detection_task.done():
             self._detection_running = True
             self._detection_task = asyncio.create_task(self._periodic_detection_loop())
-            self.logger.info(f"Started periodic coffee beans detection (every {config.detection.periodic_interval_minutes} minutes)")
+            log("INFO", f"Started periodic coffee beans detection (every {config.detection.periodic_interval_minutes} minutes)", service="validation")
 
     async def stop_periodic_detection(self):
         """Stop the periodic coffee beans detection task"""
@@ -764,13 +765,13 @@ class MainValidation:
                 await self._detection_task
             except asyncio.CancelledError:
                 pass
-        self.logger.info("Stopped periodic coffee beans detection")
+        log("INFO", "Stopped periodic coffee beans detection", service="validation")
 
     async def _periodic_detection_loop(self):
         """Main loop for periodic coffee beans detection"""
         while self._detection_running:
             try:
-                self.logger.info("Starting coffee beans detection...")
+                log("INFO", "Starting coffee beans detection...", service="validation")
                 
                 # Run the blocking detection in thread pool
                 loop = asyncio.get_event_loop()
@@ -781,20 +782,20 @@ class MainValidation:
                 
                 # Log the result
                 if detection_result.get("updated"):
-                    self.logger.info(f"Periodic detection updated inventory: {detection_result['percentage']}%")
+                    log("INFO", f"Periodic detection updated inventory: {detection_result['percentage']}%", service="validation")
                 else:
-                    self.logger.info(f"Periodic detection completed without update: {detection_result['message']}")
+                    log("INFO", f"Periodic detection completed without update: {detection_result['message']}", service="validation")
                 
             except asyncio.CancelledError:
-                self.logger.info("Coffee beans detection task cancelled")
+                log("INFO", "Coffee beans detection task cancelled", service="validation")
                 break
             except Exception as e:
-                self.logger.error(f"Error in coffee beans detection: {e}")
+                log("ERROR", f"Error in coffee beans detection: {e}", service="validation")
             
             # Wait for 10 minutes before next detection
             try:
                 interval = config.detection.periodic_interval_seconds
-                self.logger.debug(f"Waiting {interval} seconds ({config.detection.periodic_interval_minutes} minutes) until next detection")
+                log("DEBUG", f"Waiting {interval} seconds ({config.detection.periodic_interval_minutes} minutes) until next detection", service="validation")
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
@@ -805,7 +806,7 @@ class MainValidation:
             # Use the production detector's detect_coffee method
             cv_result = self._coffee_beans_detector.detect_coffee()
             print(f"cv_result: {cv_result}") # convert to logger
-            self.logger.info(f"cv_result: {cv_result}")
+            log("INFO", f"cv_result: {cv_result}", service="validation")
             
             # Check if there was an error in detection
             if cv_result.get("error"):
@@ -877,7 +878,7 @@ class MainValidation:
                 
         except Exception as e:
             # Unexpected exception during detection call
-            self.logger.error(f"Unexpected error in coffee beans detection: {e}")
+            log("ERROR", f"Unexpected error in coffee beans detection: {e}", service="validation")
             
             if function_name == "inventory_refill":
                 # Case 4: Unexpected error during refill - alert to reconnect camera
@@ -906,7 +907,7 @@ class MainValidation:
         
         # Shutdown the thread pool
         self._thread_pool.shutdown(wait=True)
-        self.logger.info("MainValidation cleanup completed")
+        log("INFO", "MainValidation cleanup completed", service="validation")
 
     def process_cup_detection_request(self, payload):
         """Process cup detection requests"""
@@ -922,7 +923,7 @@ class MainValidation:
 
             # Run cup detection
             detection_result = self._cup_detector.detect()
-            self.logger.debug(f"detection_result: {detection_result}")
+            log("INFO", f"detection_result: {detection_result}", service="validation")
             if "error" in detection_result:
                 result["error"] = detection_result["error"]
                 return result
@@ -934,6 +935,7 @@ class MainValidation:
             
             result["passed"] = True
             result["detection_result"] = cups_detected  # Add at top level for easy access
+
             result["details"] = {
                 "cups_detected": cups_detected,
                 "total_positions": total_cups,
@@ -944,7 +946,7 @@ class MainValidation:
             return result
             
         except Exception as e:
-            logging.error(f"Error in cup detection: {e}")
+            log("ERROR", f"Error in cup detection: {e}", service="validation")
             return {
                 "request_id": payload.get("request_id"),
                 "client_type": payload.get("client_type"),

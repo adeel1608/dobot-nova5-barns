@@ -916,7 +916,7 @@ async def handle_health_mq(data: Dict) -> Dict:
 async def handle_order_completed_event(data: Dict):
     """Handle order completion events from scheduler"""
     order_id = data.get("order_id")
-    log("INFO", f"🎉 [OMS] Received order_completed event from scheduler for order {order_id}", service="oms")
+    log("INFO", f"Received order_completed event from scheduler for order {order_id}", service="oms")
     
     try:
         if not order_id:
@@ -969,11 +969,18 @@ async def handle_order_failed_event(data: Dict):
             log("ERROR", "Order failure missing order_id", service="oms")
             return {"success": False, "acknowledged": False, "error": "Missing order_id"}
         
-        # Check if order is already in error state to prevent duplicate processing
+        # Check if order is already in a final state to prevent duplicate/incorrect processing
         order = db.get_order(order_id)
-        if order and order.get("status") == ORDER_STATUS['ERROR']:
+        current_status = order.get("status", "").upper() if order else None
+        
+        if order and current_status == ORDER_STATUS['ERROR']:
             log("ERROR", f"Order {order_id} already in error state", service="oms")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already in error state"}
+        
+        # Don't overwrite completed orders with error state (race condition protection)
+        if order and current_status == ORDER_STATUS['COMPLETED']:
+            log("ERROR", f"Order {order_id} already completed, ignoring failure event (likely timeout race condition)", service="oms")
+            return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
         
         log("INFO", f"Updating order {order_id} to ERROR status", service="oms")
         db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
@@ -2029,10 +2036,10 @@ def refill_inventory(refill: InventoryRefill):
             except RuntimeError:
                 # No running loop, create a new one
                 validation_response = asyncio.run(send_refill_to_validation())
-                log("DEBUG", f"✅ Validation Service response: {validation_response}", service="oms")
+                log("WARNING", f"Validation Service response: {validation_response}", service="oms")
             
         except Exception as validation_error:
-            log("DEBUG", f"⚠️ Warning: Could not reach Validation Service: {validation_error}", service="oms")
+            log("WARNING", f"Could not reach Validation Service: {validation_error}", service="oms")
             # Continue anyway - the refill might be manual
         
         # Broadcast the refill event to dashboard
@@ -2074,7 +2081,7 @@ def get_inventory_status():
 async def send_to_scheduler(order_data: dict):
     """Send order to Scheduler service via RabbitMQ."""
     
-    log("INFO", f"🔍 DEBUG: send_to_scheduler called with order_data: {order_data}", service="oms")
+    log("INFO", f"Sending order to Scheduler: {order_data}", service="oms")
     
     # Create a clean payload with only the data scheduler needs
     # Convert database format (drink_type) to scheduler format (type)
@@ -2105,7 +2112,7 @@ async def send_to_scheduler(order_data: dict):
                 timeout=180
             )
             
-            log("INFO", f"🔍 DEBUG: Scheduler response: {response}", service="oms")
+            log("INFO", f"Scheduler response: {response}", service="oms")
             
             if response.get("success"):
                 log("INFO", f"Scheduler accepted order {order_data.get('id')}", service="oms")
