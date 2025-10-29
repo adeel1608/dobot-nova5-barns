@@ -9,9 +9,10 @@ RFDETR_CONFIDENCE = 0.20        # 0..1 (lowered to catch more cups at milk dispe
 ALLOWED_CLASSES = ["cup", "bowl"]     # Include bowl (cups sometimes detected as bowls)
 
 # Local model paths (set to None to use default download behavior)
+# Paths are relative to the config.py file location
 RFDETR_MODEL_PATHS = {
-    "large": "rf-detr-large.pth",      # Path to your local large model
-    "base": "rf-detr-base.pth",        # Path to your local base model  
+    "large": "models/rf-detr-large.pth",      # Path to your local large model
+    "base": "models/rf-detr-base.pth",        # Path to your local base model  
     "medium": "models/rf-detr-medium.pth"  # Path to your local medium model
 }
 

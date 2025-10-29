@@ -251,6 +251,7 @@ class RFDETRDetector:
     def __init__(self, config_path: str = "config.py"):
         mod = _load_config_module(config_path)
         self.config = Config(mod)
+        self.config_path = config_path  # Store for path resolution
 
         self._validate_config()
 
@@ -266,10 +267,19 @@ class RFDETRDetector:
         log.info("Initializing RF-DETR model...")
         
         # Use local model path if specified and file exists
+        # Resolve model path relative to config file's directory
         model_kwargs = {}
-        if self.config.model_path and os.path.exists(self.config.model_path):
-            model_kwargs["pretrain_weights"] = self.config.model_path
-            log.info(f"Using local model: {self.config.model_path}")
+        if self.config.model_path:
+            # Make path absolute relative to config file's directory
+            config_dir = os.path.dirname(os.path.abspath(self.config_path))
+            abs_model_path = os.path.join(config_dir, self.config.model_path)
+            
+            if os.path.exists(abs_model_path):
+                model_kwargs["pretrain_weights"] = abs_model_path
+                log.info(f"Using local model: {abs_model_path}")
+            else:
+                log.warning(f"Model file not found at {abs_model_path}, will download default model")
+                log.info(f"Using default model (will download if needed)")
         else:
             log.info(f"Using default model (will download if needed)")
         
@@ -682,3 +692,7 @@ class RFDETRDetector:
             return_dict=False,
             num_positions=1
         )
+
+
+# Alias for backward compatibility with imports
+CupDetector = RFDETRDetector
