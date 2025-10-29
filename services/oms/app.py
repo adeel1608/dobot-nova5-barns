@@ -712,11 +712,34 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         if not order:
             return {"success": False, "error": f"Order {order_id} not found"}
         
-        if order.get("status") != ORDER_STATUS['HALTED']:
-            return {"success": False, "error": "Order is not in halted state"}
+        current_status = order.get("status")
+        # Allow resuming orders that are STOPPED or HALTED
+        if current_status not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
+            return {"success": False, "error": f"Order is not in stopped or halted state (current: {current_status})"}
         
         # Update status back to processing
         db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
+        
+        # Send resume request to scheduler via RabbitMQ to clear stop flag
+        if rabbitmq_client:
+            try:
+                log("INFO", f"Sending resume request to scheduler for order {order_id}...", service="oms")
+                response = await rabbitmq_client.send_request(
+                    target_service="scheduler",
+                    action="resume_order",
+                    data={"order_id": order_id},
+                    timeout=10
+                )
+                
+                if response.get("success"):
+                    log("INFO", f"Scheduler resume successful for order {order_id}", service="oms")
+                else:
+                    log("ERROR", f"Scheduler resume failed for order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
+                    # Continue with resume anyway - workers will pick up when they can
+            except asyncio.TimeoutError:
+                log("ERROR", f"Scheduler resume request timed out for order {order_id}", service="oms")
+            except Exception as e:
+                log("ERROR", f"Scheduler resume request exception for order {order_id}: {str(e)[:100]}", service="oms")
         
         # Log resume event
         db.log_event("order_resumed", {
@@ -981,6 +1004,11 @@ async def handle_order_failed_event(data: Dict):
         if order and current_status == ORDER_STATUS['COMPLETED']:
             log("ERROR", f"Order {order_id} already completed, ignoring failure event (likely timeout race condition)", service="oms")
             return {"success": True, "acknowledged": True, "order_id": order_id, "note": "Already completed"}
+        
+        # Don't overwrite stopped/stopping orders with error state (race condition protection)
+        if order and current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['STOPPING']]:
+            log("WARNING", f"Order {order_id} is {current_status}, ignoring failure event (likely stop race condition)", service="oms")
+            return {"success": True, "acknowledged": True, "order_id": order_id, "note": f"Already {current_status.lower()}"}
         
         log("INFO", f"Updating order {order_id} to ERROR status", service="oms")
         db.update_order_status(order_id, ORDER_STATUS['ERROR'], error)
@@ -1456,6 +1484,27 @@ async def resume_order(order_id: int = Path(..., title="The ID of the order to r
     # Update status back to processing
     db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
     
+    # Send resume request to scheduler via RabbitMQ to clear stop flag
+    if rabbitmq_client:
+        try:
+            log("INFO", f"Sending resume request to scheduler for order {order_id}...", service="oms")
+            response = await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="resume_order",
+                data={"order_id": order_id},
+                timeout=10
+            )
+            
+            if response.get("success"):
+                log("INFO", f"Scheduler resume successful for order {order_id}", service="oms")
+            else:
+                log("ERROR", f"Scheduler resume failed for order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
+                # Continue with resume anyway - workers will pick up when they can
+        except asyncio.TimeoutError:
+            log("ERROR", f"Scheduler resume request timed out for order {order_id}", service="oms")
+        except Exception as e:
+            log("ERROR", f"Scheduler resume request exception for order {order_id}: {str(e)[:100]}", service="oms")
+    
     # Log the resume event
     db.log_event("order_resumed", {
         "order_id": order_id,
@@ -1467,9 +1516,6 @@ async def resume_order(order_id: int = Path(..., title="The ID of the order to r
         "event": "order_resumed",
         "order": order_id
     })
-    
-    # Re-send order to scheduler to resume processing (restarts from beginning)
-    await send_to_scheduler(order)
     
     return {"msg": "order_resumed", "order": order_id}
 

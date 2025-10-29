@@ -460,10 +460,20 @@ class SchedulerService:
                 if core.current_status.get("order_id") != order_id:
                     return {"success": False, "error": f"Order {order_id} was not stopped"}
                 
-                # Clear stop flag
+                # Clear stop flags
                 core.order_stopped = False
+                core.order_stopped_logged = False  # Reset flag so it can log again if stopped again
                 core.current_status["status"] = "in_progress"
-                log("INFO", f"Order {order_id} resumed", service="scheduler")
+                log("INFO", f"Order {order_id} resumed - workers will continue processing", service="scheduler")
+            
+            # Send resume event
+            try:
+                await self.rabbitmq_client.send_event("scheduler.order_resumed", {
+                    "order_id": order_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                log("ERROR", f"Order {order_id} resumed event send failed: {str(e)[:50]}", service="scheduler")
             
             return {"success": True, "message": "Order resumed"}
         except Exception as e:

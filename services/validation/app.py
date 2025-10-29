@@ -61,7 +61,7 @@ class ValidationServiceApp:
                 
                 self.is_running = True
                 log("INFO", f"Validation service started. Listening on service: {self.service_name}", service="validation")
-                log("INFO", "Available actions: pre_check, update_inventory, ingredient_status, refill_inventory", service="validation")
+                log("INFO", "Available actions: pre_check, update_inventory, ingredient_status, refill_inventory, cup_detection, milk_detection, sauce_detection", service="validation")
                 
                 # Run forever
                 try:
@@ -98,8 +98,10 @@ class ValidationServiceApp:
         self.rabbitmq_client.register_handler("category_info", self.handle_category_info)
         self.rabbitmq_client.register_handler("inventory_by_stock_level", self.handle_inventory_by_stock_level)
         
-        # Computer vision handlers - CHANGE THIS LINE
+        # Computer vision handlers
         self.rabbitmq_client.register_handler("cup_detection", self.handle_cup_detection)
+        self.rabbitmq_client.register_handler("milk_detection", self.handle_milk_detection)
+        self.rabbitmq_client.register_handler("sauce_detection", self.handle_sauce_detection)
         self.rabbitmq_client.register_handler("check_coffee_beans", self.handle_check_coffee_beans)
         
         # System handlers
@@ -196,23 +198,28 @@ class ValidationServiceApp:
     async def handle_ingredient_status(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle ingredient status requests - get current inventory status and levels"""
         try:
-            log("INFO", f"Processing ingredient_status request: {data.get('request_id', 'no-id')}", service="validation")
-            log("DEBUG", "###################################", service="validation")
-            log("DEBUG", f"Ingredient status request: {data}", service="validation")
-            log("DEBUG", "###################################", service="validation")
+            # Extract meaningful info for logging
+            ingredient_type = data.get("payload", {}).get("ingredient_type", "unknown")
+            subtype = data.get("payload", {}).get("subtype", "")
+            
+            if subtype:
+                log("INFO", f"Checking ingredient status: {ingredient_type} ({subtype})", service="validation")
+            else:
+                log("INFO", f"Checking ingredient status: {ingredient_type}", service="validation")
+            
+            log("DEBUG", f"Ingredient status request details: {data}", service="validation")
+            
             # Convert new format to your existing format
             request_data = {
                 "request_id": data.get("request_id", f"async-{datetime.now().timestamp()}"),
                 "client_type": "api_bridge",
                 "function_name": "ingredient_status",
                 "payload": {
-                    "ingredient_type": data.get("payload", {}).get("ingredient_type"),
-                    "subtype": data.get("payload", {}).get("subtype")
+                    "ingredient_type": ingredient_type,
+                    "subtype": subtype
                 }
             }
-            log("DEBUG", "###################################", service="validation")
-            log("DEBUG", f"Ingredient status request: {json.dumps(request_data, indent=2)}", service="validation")
-            log("DEBUG", "###################################", service="validation")
+            
             result = self.main_validation.process_ingredient_status_request(request_data)
             
             log("DEBUG", f"Ingredient status result: {json.dumps(result, indent=2)}", service="validation")
@@ -437,6 +444,50 @@ class ValidationServiceApp:
                 "error": f"Cup detection failed: {str(e)}"
             }
     
+    async def handle_milk_detection(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle milk dispenser cup detection requests"""
+        try:
+            log("INFO", f"Processing milk_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            
+            # Run detection in thread to avoid blocking async loop
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, 
+                self.main_validation.process_milk_detection_request, 
+                data
+            )
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in milk_detection: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Milk detection failed: {str(e)}"
+            }
+    
+    async def handle_sauce_detection(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle sauce dispenser cup detection requests"""
+        try:
+            log("INFO", f"Processing sauce_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            
+            # Run detection in thread to avoid blocking async loop
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, 
+                self.main_validation.process_sauce_detection_request, 
+                data
+            )
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in sauce_detection: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Sauce detection failed: {str(e)}"
+            }
+    
     async def handle_check_coffee_beans(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle coffee beans validation requests"""
         return {
@@ -457,7 +508,7 @@ class ValidationServiceApp:
             "timestamp": datetime.now().isoformat(),
             "capabilities": [
                 "pre_check", "update_inventory", "inventory_status", "inventory_refill",
-                "cup_detection", "check_coffee_beans"  # CHANGE THIS LINE
+                "cup_detection", "milk_detection", "sauce_detection", "check_coffee_beans"
             ]
         }
     
@@ -706,7 +757,7 @@ if __name__ == "__main__":
     log("DEBUG", "Starting Validation Service with Async RabbitMQ", service="validation")
     log("DEBUG", "Available actions:", service="validation")
     log("DEBUG", "  Inventory: pre_check, update_inventory, inventory_status, inventory_refill", service="validation")
-    log("DEBUG", "  Computer Vision: cup_detection, check_coffee_beans", service="validation")
+    log("DEBUG", "  Computer Vision: cup_detection, milk_detection, sauce_detection, check_coffee_beans", service="validation")
     log("DEBUG", "  System: health", service="validation")
     log("DEBUG", "Simple request-response pattern with live inventory updates", service="validation")
     

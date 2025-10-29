@@ -152,13 +152,13 @@ export const useInventoryStore = create((set, get) => ({
     }));
 
     const result = await inventoryAPI.fetchInventoryStatus();
-    // //console.log('🧠 Inventory status fetched:', result);
     if (result.success) {
+      const itemCount = Object.keys(result.data || {}).length;
       set(state => ({ 
         inventoryStatus: result.data, 
         isLoading: false
       }));
-      addLog('API', 'info', result.message);
+      addLog('API', 'info', `Inventory refreshed: ${itemCount} items loaded`);
       
       // Also update category summary (non-blocking)
       get().updateCategorySummary();
@@ -168,7 +168,7 @@ export const useInventoryStore = create((set, get) => ({
         isLoading: false,
         errors: { ...state.errors, inventory: result.error }
       }));
-      addLog('API', 'error', result.error, result.details);
+      addLog('API', 'error', `Inventory fetch failed: ${result.error}`, result.details);
     }
 
     return result.data;
@@ -178,15 +178,22 @@ export const useInventoryStore = create((set, get) => ({
   
   updateCategorySummary: async () => {
     const result = await inventoryAPI.getCategorySummary();
-  //console.log('🧠 bilal:', result);
     if (result.success) {
+      const lowCategories = Object.entries(result.data || {})
+        .filter(([_, data]) => data.level === 'low')
+        .map(([name]) => name);
         
       set(state => ({
         categorySummary: { ...state.categorySummary, ...result.data }
       }));
-      addLog('API', 'info', result.message);
+      
+      if (lowCategories.length > 0) {
+        addLog('API', 'warning', `Category summary updated - ${lowCategories.length} categories low: ${lowCategories.join(', ')}`);
+      } else {
+        addLog('API', 'info', 'Category summary updated - all categories OK');
+      }
     } else {
-      addLog('API', 'error', result.error, result.details);
+      addLog('API', 'error', `Category summary update failed: ${result.error}`, result.details);
     }
     
     return result.data;

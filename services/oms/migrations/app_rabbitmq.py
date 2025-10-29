@@ -452,6 +452,19 @@ class OMSService:
             if not order:
                 return {"success": False, "error": f"Order {order_id} not found"}
             
+            # Check if order is already in a final state to prevent duplicate/incorrect processing
+            current_status = order.get("status", "").upper() if order else None
+            
+            # Don't overwrite completed orders with error state (race condition protection)
+            if current_status == ORDER_STATUS['COMPLETED']:
+                logger.warning(f"Order {order_id} already completed, ignoring failure event")
+                return {"success": True, "message": "already_completed", "order": order_id}
+            
+            # Don't overwrite stopped/stopping orders with error state (race condition protection)
+            if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['STOPPING']]:
+                logger.warning(f"Order {order_id} is {current_status}, ignoring failure event (stop race condition)")
+                return {"success": True, "message": f"already_{current_status.lower()}", "order": order_id}
+            
             # Update status to error
             db.update_order_status(order_id, ORDER_STATUS['ERROR'], reason)
             

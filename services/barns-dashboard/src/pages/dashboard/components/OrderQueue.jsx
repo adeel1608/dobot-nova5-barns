@@ -248,10 +248,20 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
                 console.log('🗑️ Delete button clicked for order:', order.id);
                 onDeleteOrder && onDeleteOrder(order.id);
               }}
-              disabled={isDeleting}
-              className={`text-xs px-2 py-1 rounded flex items-center justify-center  text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed shadow-none`}
-              title={isDeleting ? 'Deleting...' : 'Delete order'}
-              aria-label={isDeleting ? 'Deleting...' : 'Delete order'}
+              disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
+              className={`text-xs px-2 py-1 rounded flex items-center justify-center  text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none transition-all`}
+              title={
+                isDeleting ? 'Deleting...' 
+                : order.status === 'STOPPING' ? 'Cannot delete while stopping' 
+                : order.status === 'PROCESSING' ? 'Cannot delete while processing'
+                : 'Delete order'
+              }
+              aria-label={
+                isDeleting ? 'Deleting...' 
+                : order.status === 'STOPPING' ? 'Cannot delete while stopping'
+                : order.status === 'PROCESSING' ? 'Cannot delete while processing'
+                : 'Delete order'
+              }
               style={{height:'2rem',boxShadow:'none'}}
             >
               {isDeleting ? (
@@ -328,6 +338,25 @@ function OrderQueue({ connectionStatus }) {
       }
     }
   }, [showNewOrder, menuItems.length, ingredientsByCategory, fetchMenuItems, fetchIngredientsByCategory]);
+
+  // Auto-refresh when there's a STOPPING order to ensure UI updates quickly
+  useEffect(() => {
+    const stoppingOrders = orders.filter(o => o.status === 'STOPPING' || o.status === 'PROCESSING');
+    
+    if (stoppingOrders.length > 0) {
+      console.log('📡 Active STOPPING/PROCESSING orders detected, enabling fast polling');
+      // Poll every 2 seconds while there are active stopping/processing orders
+      const interval = setInterval(() => {
+        console.log('🔄 Polling for order updates (STOPPING/PROCESSING active)');
+        useStore.getState().fetchOrders();
+      }, 2000);
+      
+      return () => {
+        console.log('📡 Stopping fast polling');
+        clearInterval(interval);
+      };
+    }
+  }, [orders]);
 
   const displayOrders = orders;
 
@@ -1013,18 +1042,25 @@ const handleDeleteOrder = async (orderId) => {
               Calibrate
             </h2>
             
-            <h2
+            <button
               onClick={() => setShowNewOrder(!showNewOrder)}
-              className={`text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer
+              className={`text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-2
                 ${
                   showNewOrder
-                    ? 'bg-gray-100 text-white hover:bg-gray-200 button-sm'
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
                     : 'barns-dark-bg text-white hover:barns-bg'
                 }`}
               style={{color:'white'}}
             >
-              {showNewOrder ? 'View Orders' : 'New Order'}
-            </h2>
+              {showNewOrder ? (
+                <>
+                  <img src={backarrow} alt="Back" className="w-4 h-4" />
+                  <span>Back</span>
+                </>
+              ) : (
+                'New Order'
+              )}
+            </button>
           </div>
         </div>
         

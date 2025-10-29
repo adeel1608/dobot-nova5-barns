@@ -37,87 +37,47 @@ export const useWebSocketStore = create((set, get) => ({
             const payload = data.data || {};
             const plan = payload.plan || {};
             const orderId = payload.order_id;
+            console.log(`[WebSocket] Received plan_built for order ${orderId}`, plan);
             useDashboardStore.getState().setSchedulerPlan(orderId, plan);
-          } else if (data.event === 'scheduler.order_completed') {
-            // Order completed: freeze task state briefly, then clear for next order
-            addLog('WebSocket', 'info', 'Order completed - will clear tasks for next order');
-            useDashboardStore.getState().freezeSchedulerState();
-            useDashboardStore.getState().fetchOrders();
-            
-            // Clear scheduler tasks after a brief delay to allow viewing completion status
-            setTimeout(() => {
-              const state = useDashboardStore.getState();
-              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
-              const isCompleted = currentOrder && 
-                ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
-              
-              if (isCompleted) {
-                addLog('WebSocket', 'info', 'Clearing completed order tasks');
-                // Clear scheduler state to allow new orders
-                useDashboardStore.setState({
-                  schedulerCurrentOrderId: null,
-                  schedulerTasks: { Arm1: [], Arm2: [] },
-                  schedulerTaskStatus: {},
-                  schedulerStatusMessage: null,
-                  taskTimings: {}
-                });
-                // Clear from localStorage
-                window.localStorage.removeItem('barns_scheduler_state_v1');
-              }
-            }, 2000); // 2 second delay
-          } else if (data.event === 'scheduler.order_failed') {
-            // Order-level failure: mark remaining tasks as cancelled and freeze
-            const payload = data.data || {};
-            const reason = payload.error || 'Order failed';
-            addLog('WebSocket', 'info', `Order failed: ${reason} - will clear tasks for next order`);
-            useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
-            useDashboardStore.getState().freezeSchedulerState();
-            useDashboardStore.getState().fetchOrders();
-            
-            // Clear scheduler tasks after a brief delay
-            setTimeout(() => {
-              const state = useDashboardStore.getState();
-              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
-              const isFailed = currentOrder && 
-                ['ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
-              
-              if (isFailed) {
-                addLog('WebSocket', 'info', 'Clearing failed order tasks');
-                useDashboardStore.setState({
-                  schedulerCurrentOrderId: null,
-                  schedulerTasks: { Arm1: [], Arm2: [] },
-                  schedulerTaskStatus: {},
-                  schedulerStatusMessage: null,
-                  taskTimings: {}
-                });
-                window.localStorage.removeItem('barns_scheduler_state_v1');
-              }
-            }, 2000);
-          } else if (data.event === 'scheduler.order_stopped') {
-            // Order stopped: freeze state briefly, then clear for next order
-            addLog('WebSocket', 'info', 'Order stopped - will clear tasks for next order');
-            useDashboardStore.getState().freezeSchedulerState();
-            useDashboardStore.getState().fetchOrders();
-            
-            // Clear scheduler tasks after a brief delay
-            setTimeout(() => {
-              const state = useDashboardStore.getState();
-              const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
-              const isStopped = currentOrder && 
-                ['ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
-              
-              if (isStopped) {
-                addLog('WebSocket', 'info', 'Clearing stopped order tasks');
-                useDashboardStore.setState({
-                  schedulerCurrentOrderId: null,
-                  schedulerTasks: { Arm1: [], Arm2: [] },
-                  schedulerTaskStatus: {},
-                  schedulerStatusMessage: null,
-                  taskTimings: {}
-                });
-                window.localStorage.removeItem('barns_scheduler_state_v1');
-              }
-            }, 2000);
+        } else if (data.event === 'scheduler.order_completed') {
+          // Order completed: freeze task state and keep it visible until new order or deletion
+          const payload = data.data || {};
+          const orderId = payload.order_id;
+          console.log(`[WebSocket] Order ${orderId} completed - freezing task state`);
+          addLog('WebSocket', 'info', `Order ${orderId} completed - task state frozen`);
+          useDashboardStore.getState().freezeSchedulerState();
+          useDashboardStore.getState().fetchOrders();
+        } else if (data.event === 'scheduler.order_failed') {
+          // Order-level failure: mark remaining tasks as cancelled and freeze
+          const payload = data.data || {};
+          const reason = payload.error || 'Order failed';
+          addLog('WebSocket', 'info', `Order failed: ${reason} - task state frozen`);
+          useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
+          useDashboardStore.getState().freezeSchedulerState();
+          useDashboardStore.getState().fetchOrders();
+        } else if (data.event === 'order_stopping' || data.event === 'scheduler.order_stopping') {
+          // Order is stopping: refresh orders to show STOPPING status
+          const payload = data.data || {};
+          const orderId = payload.order_id || payload.order;
+          console.log(`[WebSocket] Order ${orderId} stopping - refreshing orders`);
+          addLog('WebSocket', 'info', `Order ${orderId} stopping - updating status`);
+          useDashboardStore.getState().fetchOrders();
+        } else if (data.event === 'scheduler.order_stopped' || data.event === 'order_stopped') {
+          // Order stopped: freeze state and keep it visible until new order or deletion
+          // Handle both scheduler event (immediate) and OMS event (after DB update)
+          const payload = data.data || {};
+          const orderId = payload.order_id || payload.order;
+          console.log(`[WebSocket] Order ${orderId} stopped - freezing and refreshing`);
+          addLog('WebSocket', 'info', `Order ${orderId} stopped - task state frozen`);
+          useDashboardStore.getState().freezeSchedulerState();
+          useDashboardStore.getState().fetchOrders();
+        } else if (data.event === 'order_resumed') {
+          // Order resumed: refresh orders to update status
+          const payload = data.data || {};
+          const orderId = payload.order_id || payload.order;
+          console.log(`[WebSocket] Order ${orderId} resumed - refreshing orders`);
+          addLog('WebSocket', 'info', `Order ${orderId} resumed - refreshing orders`);
+          useDashboardStore.getState().fetchOrders();
           } else if (data.event === 'scheduler.feedback_processed') {
             const payload = data.data || {};
             useDashboardStore.getState().updateSchedulerTask({
@@ -134,13 +94,15 @@ export const useWebSocketStore = create((set, get) => ({
             useDashboardStore.getState().fetchOrders();
           }
         } else if (data.type === 'inventory_update') {
-          addLog('WebSocket', 'info', 'Inventory update received', data);
+          addLog('WebSocket', 'info', 'Inventory update received - refreshing inventory', data);
           // Refresh inventory when we get updates
           useInventoryStore.getState().fetchInventoryStatus();
         } else if (data.type === 'connection') {
-          addLog('WebSocket', 'info', data.message || 'WebSocket connection established');
+          // Connection messages are already logged in onOpen, skip duplicate logging
+          return;
         } else {
-          addLog('WebSocket', 'info', 'WebSocket message received', data);
+          // Log unexpected message types for debugging
+          addLog('WebSocket', 'info', `Unknown WebSocket message type: ${data.type || 'undefined'}`, data);
         }
       },
       onClose: () => {

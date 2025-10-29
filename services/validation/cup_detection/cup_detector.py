@@ -8,6 +8,7 @@
 import os
 import cv2
 import time
+import sys
 
 import types
 import numpy as np
@@ -16,12 +17,9 @@ import threading
 import importlib.util
 from collections import deque
 
-# ---- Logging (simple; swap with your logger_config if desired) ----
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-log = logging.getLogger("rfdetr-app")
+# ---- Import shared logger for BARNS ----
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.logger import log
 
 # ---- RF-DETR + Supervision ----
 from PIL import Image
@@ -168,7 +166,7 @@ class RTSPStreamReader:
                         time.sleep(0.05)
                     self.connected = self._cap.isOpened()
                     if not self.connected:
-                        log.warning(f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s")
+                        log("WARNING", f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s", service="validation")
                         time.sleep(delay)
                         delay = min(self.cfg.max_retry_delay, delay * self.cfg.retry_backoff)
                         continue
@@ -191,9 +189,9 @@ class RTSPStreamReader:
                 with self.lock:
                     self.buffer.append(frame)
 
-            except Exception:
+            except Exception as e:
                 self.connected = False
-                log.exception("RTSP read error")
+                log("ERROR", f"RTSP read error: {str(e)[:100]}", service="validation")
                 try:
                     if self._cap is not None:
                         self._cap.release()
@@ -269,15 +267,15 @@ class CupDetector:
         self.reader.start()
 
         # RF-DETR model (local)
-        log.info("Initializing RF-DETR model...")
+        log("INFO", "Initializing RF-DETR model...", service="validation")
         
         # Use local model path if specified and file exists
         model_kwargs = {}
         if self.config.model_path and os.path.exists(self.config.model_path):
             model_kwargs["pretrain_weights"] = self.config.model_path
-            log.info(f"Using local model: {self.config.model_path}")
+            log("INFO", f"Using local model: {self.config.model_path}", service="validation")
         else:
-            log.info(f"Using default model (will download if needed)")
+            log("INFO", "Using default model (will download if needed)", service="validation")
         
         # Initialize model based on variant
         if self.config.rfdetr_variant == "large":
@@ -289,10 +287,10 @@ class CupDetector:
             from rfdetr import RFDETRMedium
             self.model = RFDETRMedium(**model_kwargs)
         else:
-            log.warning(f"Unknown variant '{self.config.rfdetr_variant}', using large")
+            log("WARNING", f"Unknown variant '{self.config.rfdetr_variant}', using large", service="validation")
             self.model = RFDETRLarge(**model_kwargs)
             
-        log.info("RF-DETR ready.")
+        log("INFO", "RF-DETR model ready for detection", service="validation")
 
         # Runtime state
         self._last_result = None
@@ -328,12 +326,12 @@ class CupDetector:
             if self.config.allowed_classes_are_ids:
                 # Using integer class IDs directly
                 self.target_ids = self.config.allowed_classes
-                log.info(f"Using class IDs for filtering: {sorted(self.target_ids)}")
+                log("INFO", f"Using class IDs for filtering: {sorted(self.target_ids)}", service="validation")
             else:
                 # Using class names - need to map to IDs
                 missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
                 if missing:
-                    log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
+                    log("WARNING", f"Unknown class names in ALLOWED_CLASSES: {missing}", service="validation")
                 self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
 
     def get_connection_status(self):
@@ -386,7 +384,7 @@ class CupDetector:
             filename = f"{self.config.debug_folder}/debug_frame.jpg"
             cv2.imwrite(filename, dbg)
         except Exception as e:
-            log.error(f"Error saving debug frame: {e}")
+            log("ERROR", f"Error saving debug frame: {str(e)[:100]}", service="validation")
 
     # --------------- Detection ---------------
     def detect(self):
@@ -437,8 +435,10 @@ class CupDetector:
                     return dict(self._last_result)
 
             # ---- RF-DETR inference (local) ----
+            log("DEBUG", f"Running RF-DETR inference (confidence: {self.config.confidence})", service="validation")
             pil_img = Image.fromarray(cv2.cvtColor(self._prealloc_frame, cv2.COLOR_BGR2RGB))
             detections = self.model.predict(pil_img, threshold=self.config.confidence)
+            log("DEBUG", f"RF-DETR detected {len(detections.xyxy)} objects before filtering", service="validation")
 
             # Supervision → tensors
             boxes_xyxy = torch.as_tensor(detections.xyxy, dtype=torch.float32)
@@ -527,6 +527,13 @@ class CupDetector:
                 # Create cup assignment mapping for debug
                 for i, cup_id in enumerate(assign):
                     cup_assign[i] = int(cup_id)
+                
+                # Log final detection results
+                detected_positions = [i+1 for i in range(4) if present[i]]
+                if detected_positions:
+                    log("INFO", f"Cups detected at positions: {detected_positions} ({len(boxes_xyxy)} objects after filtering)", service="validation")
+                else:
+                    log("INFO", f"No cups detected after filtering ({len(boxes_xyxy)} objects found, {len(detections.xyxy)} raw)", service="validation")
 
             # Save debug frame
             if self.config.debug_mode or self.config.save_frames:
@@ -548,8 +555,10 @@ class CupDetector:
             self._last_result = self._vote_presence(present)
             return dict(self._last_result)
 
-        except Exception:
-            log.exception("detect() failure")
+        except Exception as e:
+            log("ERROR", f"Cup detection failed: {str(e)[:100]}", service="validation")
+            import traceback
+            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
             return {"error": "Internal error during detect()."}
 
     # --------------- Voting / History ---------------
@@ -585,8 +594,10 @@ class CupDetector:
         Returns: bool or {"error": "..."}
         """
         try:
+            log("DEBUG", "Running milk dispenser cup detection...", service="validation")
             frame = self.reader.get_latest()
             if frame is None:
+                log("WARNING", "Milk detection: No camera frame available", service="validation")
                 return {"error": "No frame available yet."}
 
             orig_h, orig_w = frame.shape[:2]
@@ -702,6 +713,12 @@ class CupDetector:
                 # Create cup assignment mapping for debug
                 for i, cup_id in enumerate(assign):
                     cup_assign[i] = int(cup_id)
+            
+            # Log milk detection result
+            if cup_detected:
+                log("INFO", f"Milk dispenser: Cup detected (distance threshold: {max_distance:.1f}px)", service="validation")
+            else:
+                log("DEBUG", f"Milk dispenser: No cup detected", service="validation")
 
             # Save debug frame
             if self.config.debug_mode or self.config.save_frames:
@@ -721,8 +738,10 @@ class CupDetector:
 
             return cup_detected
 
-        except Exception:
-            log.exception("milk detect() failure")
+        except Exception as e:
+            log("ERROR", f"Milk detection failed: {str(e)[:100]}", service="validation")
+            import traceback
+            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
             return {"error": "Internal error during milk detect()."}
 
     def _save_milk_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None):
@@ -765,7 +784,7 @@ class CupDetector:
             filename = f"{self.config.milk_debug_folder}/debug_frame.jpg"
             cv2.imwrite(filename, dbg)
         except Exception as e:
-            log.error(f"Error saving milk debug frame: {e}")
+            log("ERROR", f"Error saving milk debug frame: {str(e)[:100]}", service="validation")
 
     # --------------- Sauce Detection Method ---------------
     def detect_sauce(self):
@@ -774,8 +793,10 @@ class CupDetector:
         Returns: bool or {"error": "..."}
         """
         try:
+            log("DEBUG", "Running sauce dispenser cup detection...", service="validation")
             frame = self.reader.get_latest()
             if frame is None:
+                log("WARNING", "Sauce detection: No camera frame available", service="validation")
                 return {"error": "No frame available yet."}
 
             orig_h, orig_w = frame.shape[:2]
@@ -891,6 +912,12 @@ class CupDetector:
                 # Create cup assignment mapping for debug
                 for i, cup_id in enumerate(assign):
                     cup_assign[i] = int(cup_id)
+            
+            # Log sauce detection result
+            if cup_detected:
+                log("INFO", f"Sauce dispenser: Cup detected (distance threshold: {max_distance:.1f}px)", service="validation")
+            else:
+                log("DEBUG", f"Sauce dispenser: No cup detected", service="validation")
 
             # Save debug frame
             if self.config.debug_mode or self.config.save_frames:
@@ -910,8 +937,10 @@ class CupDetector:
 
             return cup_detected
 
-        except Exception:
-            log.exception("sauce detect() failure")
+        except Exception as e:
+            log("ERROR", f"Sauce detection failed: {str(e)[:100]}", service="validation")
+            import traceback
+            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
             return {"error": "Internal error during sauce detect()."}
 
     def _save_sauce_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None):
@@ -954,5 +983,5 @@ class CupDetector:
             filename = f"{self.config.sauce_debug_folder}/debug_frame.jpg"
             cv2.imwrite(filename, dbg)
         except Exception as e:
-            log.error(f"Error saving sauce debug frame: {e}")
+            log("ERROR", f"Error saving sauce debug frame: {str(e)[:100]}", service="validation")
 

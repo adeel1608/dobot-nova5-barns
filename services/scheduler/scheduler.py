@@ -351,11 +351,11 @@ async def arm_worker(arm_name: str):
                 if len(submitted_tasks) == 0:
                     # Only log once when stopped with no tasks
                     if not order_stopped_logged:
-                        log("INFO", f"{arm_name} worker stopped - no submitted tasks", service="scheduler")
+                        log("INFO", f"{arm_name} worker stopped - waiting for resume or new order", service="scheduler")
                         order_stopped_logged = True
                     task = None
-                    # Exit the worker when stopped and no tasks are pending
-                    break
+                    # Don't exit - wait for resume or new order
+                    # The worker will continue and check again in the next iteration
                 else:
                     log("DEBUG", f"{arm_name} waiting for {len(submitted_tasks)} submitted tasks to complete", service="scheduler")
                     task = None
@@ -602,26 +602,64 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         
         log("INFO", f"Order {order_id} timeout set to {dynamic_timeout:.0f} seconds ({dynamic_timeout/60:.1f} minutes) for {num_cups} cups", service="scheduler")
         
-        # Wait for both arms to finish all tasks with dynamic timeout
+        # Wait for both arms to finish with a pause-aware timeout
+        # This timeout doesn't count time when order is stopped
         try:
-            await asyncio.wait_for(
-                asyncio.gather(arm1, arm2, return_exceptions=True),
-                timeout=dynamic_timeout
-            )
-            log("INFO", f"Both arm workers completed for order {order_id}", service="scheduler")
-        except asyncio.TimeoutError:
-            # Check if order was already completed before sending timeout error
-            with lock:
-                if order_completion_notified:
-                    log("INFO", f"Order {order_id} was already completed/failed before timeout, ignoring timeout", service="scheduler")
-                    return completed_count == tasks_total and failed_count == 0
+            elapsed_processing_time = 0.0
+            check_interval = 0.5  # Check every 0.5 seconds
+            last_check_time = time.time()
+            workers_done = False
+            last_stopped_log_time = 0.0
+            stopped_log_interval = 10.0  # Log stopped status every 10 seconds
             
-            log("ERROR", f"Order {order_id} timed out after {dynamic_timeout/60:.1f} minutes", service="scheduler")
-            # Cancel both arms
+            while not workers_done:
+                # Check if workers are done
+                if arm1.done() and arm2.done():
+                    workers_done = True
+                    log("INFO", f"Both arm workers completed for order {order_id}", service="scheduler")
+                    break
+                
+                # Check if order is stopped (don't count this time against timeout)
+                with lock:
+                    is_stopped = order_stopped
+                    is_notified = order_completion_notified
+                
+                # If order was completed/failed by feedback handler, exit
+                if is_notified:
+                    log("INFO", f"Order {order_id} was completed/failed by feedback handler", service="scheduler")
+                    workers_done = True
+                    break
+                
+                # Wait for check interval
+                await asyncio.sleep(check_interval)
+                current_time = time.time()
+                
+                # Only count elapsed time if order is not stopped
+                if not is_stopped:
+                    elapsed_processing_time += (current_time - last_check_time)
+                    last_stopped_log_time = 0.0  # Reset stopped log counter when resuming
+                else:
+                    # Log stopped status periodically (not every iteration)
+                    if last_stopped_log_time == 0.0 or (current_time - last_stopped_log_time) >= stopped_log_interval:
+                        log("INFO", f"Order {order_id} is stopped - timeout paused at {elapsed_processing_time:.1f}s", service="scheduler")
+                        last_stopped_log_time = current_time
+                
+                last_check_time = current_time
+                
+                # Check if we've exceeded timeout (only counting non-stopped time)
+                if elapsed_processing_time > dynamic_timeout:
+                    log("ERROR", f"Order {order_id} timed out after {elapsed_processing_time/60:.1f} minutes of processing time", service="scheduler")
+                    # Cancel both arms
+                    arm1.cancel()
+                    arm2.cancel()
+                    await notify_oms_completion(order_id, False, f"Order processing timed out after {elapsed_processing_time/60:.1f} minutes")
+                    return False
+            
+        except Exception as wait_error:
+            log("ERROR", f"Error in wait loop for order {order_id}: {str(wait_error)[:100]}", service="scheduler")
             arm1.cancel()
             arm2.cancel()
-            await notify_oms_completion(order_id, False, f"Order processing timed out after {dynamic_timeout/60:.1f} minutes")
-            return False
+            raise
         
         # Check if order was successful or failed
         with lock:
@@ -977,7 +1015,7 @@ def reset_scheduler_state_sync():
 
 async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
-    global completed_count, failed_count, tasks_total, current_status, order_completion_notified
+    global completed_count, failed_count, tasks_total, current_status, order_completion_notified, order_stopped
     
     # Read state snapshot while holding lock (minimize lock time)
     with lock:
@@ -990,12 +1028,18 @@ async def check_and_notify_order_completion():
         order_id = current_status.get("order_id")
         current_tasks_total = tasks_total
         already_notified = order_completion_notified
+        is_stopped = order_stopped
         
-        log("DEBUG", f"check_and_notify_order_completion called - order_id={order_id}, completed={completed_tasks}, failed={failed_tasks_count}, cancelled={cancelled_tasks}, total={current_tasks_total}, notified={already_notified}", service="scheduler")
+        log("DEBUG", f"check_and_notify_order_completion called - order_id={order_id}, completed={completed_tasks}, failed={failed_tasks_count}, cancelled={cancelled_tasks}, total={current_tasks_total}, notified={already_notified}, stopped={is_stopped}", service="scheduler")
         
         # Only proceed if we have an order_id and not already notified
         if not order_id or already_notified:
             log("DEBUG", f"Early return - no order_id ({not order_id}) or already notified ({already_notified})", service="scheduler")
+            return
+        
+        # If order was stopped, don't check for completion - it's handled separately
+        if is_stopped:
+            log("DEBUG", f"Order was stopped - skipping completion check", service="scheduler")
             return
             
         # If not all tasks are finished and no failures, continue waiting
@@ -1215,6 +1259,7 @@ async def start_order_heartbeat(order_id: int):
                     total_tasks = tasks_total
                     completed_tasks = completed_count
                     failed_tasks = failed_count
+                    is_stopped = order_stopped
                     
                     progress = {
                         "total_tasks": total_tasks,
@@ -1223,7 +1268,9 @@ async def start_order_heartbeat(order_id: int):
                         "completion_percentage": (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
                     }
                 
-                await send_order_heartbeat(order_id, "processing", progress)
+                # Send appropriate status based on whether order is stopped
+                status = "stopped" if is_stopped else "processing"
+                await send_order_heartbeat(order_id, status, progress)
                 await asyncio.sleep(30)  # Send heartbeat every 30 seconds
                 
             except asyncio.CancelledError:

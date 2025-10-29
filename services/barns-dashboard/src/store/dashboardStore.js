@@ -27,6 +27,15 @@ const saveSchedulerToStorage = (state) => {
       schedulerTaskStatus: state.schedulerTaskStatus,
       taskTimings: state.taskTimings || {}
     };
+    
+    // Log task statuses for debugging
+    const allTasks = [...(state.schedulerTasks.Arm1 || []), ...(state.schedulerTasks.Arm2 || [])];
+    const statusCounts = allTasks.reduce((acc, t) => {
+      acc[t.status] = (acc[t.status] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(`[Store] Saving to localStorage - Order: ${payload.orderId}, Tasks:`, statusCounts);
+    
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   } catch {}
 };
@@ -37,7 +46,11 @@ const clearSchedulerStorage = () => {
   } catch {}
 };
 
-export const useDashboardStore = create((set, get) => ({
+export const useDashboardStore = create((set, get) => {
+  // Load scheduler state from storage once
+  const savedSchedulerState = loadSchedulerFromStorage();
+  
+  return {
   // State
   orders: [],
   ordersTotal: 0,
@@ -59,17 +72,10 @@ export const useDashboardStore = create((set, get) => ({
   menuItems: [],
   ingredientsByCategory: {},
   // Hydrate scheduler view from storage to persist across refresh
-  ...(loadSchedulerFromStorage() ? {
-    schedulerCurrentOrderId: loadSchedulerFromStorage().orderId || null,
-    schedulerTasks: loadSchedulerFromStorage().schedulerTasks || { Arm1: [], Arm2: [] },
-    schedulerTaskStatus: loadSchedulerFromStorage().schedulerTaskStatus || {},
-    taskTimings: loadSchedulerFromStorage().taskTimings || {}
-  } : {
-    schedulerCurrentOrderId: null,
-    schedulerTasks: { Arm1: [], Arm2: [] },
-    schedulerTaskStatus: {},
-    taskTimings: {}
-  }),
+  schedulerCurrentOrderId: savedSchedulerState?.orderId || null,
+  schedulerTasks: savedSchedulerState?.schedulerTasks || { Arm1: [], Arm2: [] },
+  schedulerTaskStatus: savedSchedulerState?.schedulerTaskStatus || {},
+  taskTimings: savedSchedulerState?.taskTimings || {},
   // key: `${cup_id}:${action}` -> { status, success, message }
   schedulerStatusMessage: null,
   systemStatus: {
@@ -91,8 +97,34 @@ export const useDashboardStore = create((set, get) => ({
 
   // Actions
   setSchedulerPlan: (orderId, plan) => {
+    const state = get();
+    
+    // Don't reset plan if it's for the same order that's already being tracked
+    // This prevents resetting tasks that have already been updated with completion status
+    if (state.schedulerCurrentOrderId === orderId && state.schedulerTasks) {
+      // Check if we have any non-pending tasks
+      const allTasks = [...(state.schedulerTasks.Arm1 || []), ...(state.schedulerTasks.Arm2 || [])];
+      const hasNonPendingTasks = allTasks.some(t => t.status !== 'pending');
+      
+      if (hasNonPendingTasks) {
+        console.log(`[Store] Ignoring duplicate plan for order ${orderId} - tasks already in progress/completed`);
+        return;
+      }
+    }
+    
+    // Don't reset plan if it's for an order that's already completed/frozen
+    const existingOrder = state.orders.find(o => o.id === orderId);
+    const isAlreadyCompleted = existingOrder && 
+      ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(existingOrder.status?.toUpperCase());
+    
+    if (isAlreadyCompleted) {
+      console.log(`[Store] Ignoring plan for already completed order ${orderId} (status: ${existingOrder.status})`);
+      return;
+    }
+    
     // plan: { Arm1: [[action, cup_id], ...], Arm2: [...] }
     const format = (arr) => (arr || []).map(([action, cup]) => ({ action, cup_id: cup, status: 'pending' }));
+    console.log(`[Store] Setting new plan for order ${orderId}`);
     set({
       schedulerCurrentOrderId: orderId,
       schedulerTasks: {
@@ -107,27 +139,23 @@ export const useDashboardStore = create((set, get) => ({
 
   updateSchedulerTask: ({ cup_id, action, success, message }) => {
     const key = `${cup_id}:${action}`;
+    const newStatus = success === true ? 'completed' : success === false ? 'failed' : 'in_progress';
+    console.log(`[Store] Updating task ${cup_id}:${action} to ${newStatus}`);
+    
     set(state => {
-      // Don't update if order is already completed/failed (frozen state)
-      const currentOrder = state.orders.find(o => o.id === state.schedulerCurrentOrderId);
-      const isFrozenOrder = currentOrder && ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(currentOrder.status?.toUpperCase());
-      
-      if (isFrozenOrder) {
-        console.log(`[Store] Ignoring task update for frozen order ${state.schedulerCurrentOrderId}`);
-        return state; // Don't update frozen orders
-      }
-      
       const updateList = (list) => list.map(t => {
         if (t.cup_id === cup_id && t.action === action) {
           // Preserve terminal states - don't overwrite completed, failed, or cancelled
           const isTerminal = t.status === 'completed' || t.status === 'failed' || t.status === 'cancelled';
           if (isTerminal) {
+            console.log(`[Store] Task ${cup_id}:${action} already in terminal state: ${t.status}`);
             return t; // Keep the existing terminal state
           }
           // Update to new status if not terminal
+          console.log(`[Store] Task ${cup_id}:${action} updated from ${t.status} to ${newStatus}`);
           return { 
             ...t, 
-            status: success === true ? 'completed' : success === false ? 'failed' : 'in_progress', 
+            status: newStatus, 
             message 
           };
         }
@@ -140,7 +168,7 @@ export const useDashboardStore = create((set, get) => ({
         },
         schedulerTaskStatus: {
           ...state.schedulerTaskStatus,
-          [key]: { success, message, status: success === true ? 'completed' : success === false ? 'failed' : 'in_progress' }
+          [key]: { success, message, status: newStatus }
         }
       };
     });
@@ -235,8 +263,11 @@ export const useDashboardStore = create((set, get) => ({
     const result = await ordersAPI.fetchOrderStats();
     
     if (result.success) {
+      const stats = result.data || {};
+      const totalOrders = stats.total || 0;
+      const completedOrders = stats.completed || 0;
       set({ orderStats: result.data });
-      addLog('API', 'info', 'Order statistics updated');
+      addLog('API', 'info', `Order stats: ${completedOrders}/${totalOrders} orders completed`);
     } else {
       addLog('API', 'error', 'Failed to fetch order statistics', result.error);
     }
@@ -266,7 +297,7 @@ export const useDashboardStore = create((set, get) => ({
         systemStatus: { ...state.systemStatus, oms: 'online' }
       }));
       // Keep last plan on screen even if processing stopped (error/completed).
-      // Only clear when a different order starts processing.
+      // Only clear when a different order starts processing or the displayed order is deleted.
       try {
         const processing = (result.data || []).find(o => (o.status || '').toUpperCase() === 'PROCESSING');
         const currentOrderId = processing ? processing.id : null;
@@ -274,6 +305,7 @@ export const useDashboardStore = create((set, get) => ({
         
         if (currentOrderId && persistedOrderId && currentOrderId !== persistedOrderId) {
           // A different order began processing → reset until new plan arrives
+          console.log(`[Store] New order ${currentOrderId} started, clearing previous order ${persistedOrderId} tasks`);
           set({
             schedulerCurrentOrderId: currentOrderId,
             schedulerTasks: { Arm1: [], Arm2: [] },
@@ -284,14 +316,12 @@ export const useDashboardStore = create((set, get) => ({
           clearSchedulerStorage();
         } else if (!currentOrderId && persistedOrderId) {
           // No order is currently processing, but we have persisted tasks
-          // Check if the persisted order is in a terminal state
+          // Check if the persisted order still exists (if not, it was deleted)
           const persistedOrder = (result.data || []).find(o => o.id === persistedOrderId);
-          const isTerminalState = persistedOrder && 
-            ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(persistedOrder.status?.toUpperCase());
           
-          if (isTerminalState) {
-            // Order is complete/failed/stopped - clear tasks to allow new orders
-            console.log(`[Store] Clearing scheduler tasks for completed order ${persistedOrderId}`);
+          if (!persistedOrder) {
+            // Order was deleted - clear tasks
+            console.log(`[Store] Displayed order ${persistedOrderId} was deleted, clearing tasks`);
             set({
               schedulerCurrentOrderId: null,
               schedulerTasks: { Arm1: [], Arm2: [] },
@@ -301,6 +331,7 @@ export const useDashboardStore = create((set, get) => ({
             });
             clearSchedulerStorage();
           }
+          // If order still exists but is completed/failed/stopped, keep the tasks visible
         }
       } catch {}
       addLog('API', 'info', result.message);
@@ -549,12 +580,15 @@ export const useDashboardStore = create((set, get) => ({
       set(state => ({
         systemStatus: { ...state.systemStatus, ...result.data }
       }));
-      addLog('API', 'info', result.message);
+      // Log service statuses for better visibility
+      const services = Object.keys(result.data || {});
+      const onlineCount = Object.values(result.data || {}).filter(s => s === 'online').length;
+      addLog('API', 'info', `Health check: ${onlineCount}/${services.length} services online`);
     } else {
       set(state => ({
         systemStatus: { ...state.systemStatus, ...result.data }
       }));
-      addLog('API', 'error', result.error, result.details);
+      addLog('API', 'error', `Health check failed: ${result.error}`, result.details);
     }
 
     return result.data;
@@ -569,14 +603,14 @@ export const useDashboardStore = create((set, get) => ({
         systemStatus: { ...state.systemStatus, scheduler: 'online' },
         errors: { ...state.errors, scheduler: null }
       }));
-      addLog('API', 'info', result.message);
+      addLog('API', 'info', 'Scheduler status updated');
     } else {
       set(state => ({ 
         schedulerStatus: null,
         systemStatus: { ...state.systemStatus, scheduler: 'offline' },
         errors: { ...state.errors, scheduler: result.error }
       }));
-      addLog('API', 'error', result.error, result.details);
+      addLog('API', 'error', `Scheduler status fetch failed: ${result.error}`, result.details);
     }
 
     return result.data;
@@ -629,4 +663,5 @@ export const useDashboardStore = create((set, get) => ({
 
     return result.success;
   }
-})); 
+};
+}); 

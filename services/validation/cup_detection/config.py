@@ -6,7 +6,7 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
 RFDETR_CONFIDENCE = 0.1          # 0..1
-ALLOWED_CLASSES = [0,2,3,4,5]          # subset of model's label space (COCO class IDs)
+ALLOWED_CLASSES = [41]          # subset of model's label space (COCO class IDs) - 41 is "cup"
 
 # Local model paths (set to None to use default download behavior)
 # Using absolute path within container

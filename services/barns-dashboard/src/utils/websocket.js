@@ -74,7 +74,12 @@ export class WebSocketManager {
             return;
           }
 
-          addLog('WebSocket', 'info', `${name} received message: ${data.type || 'unknown'}`, data);
+          // Don't log 'connection' type messages - they're handled in onOpen
+          // Let the handler log specific messages with better context
+          if (data.type !== 'connection') {
+            // Only log non-routine messages here if handler doesn't log them
+            // Handlers will provide better context for specific message types
+          }
           
           if (handlers.onMessage) {
             handlers.onMessage(data);

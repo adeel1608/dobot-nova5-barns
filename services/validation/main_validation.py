@@ -771,7 +771,7 @@ class MainValidation:
         """Main loop for periodic coffee beans detection"""
         while self._detection_running:
             try:
-                log("INFO", "Starting coffee beans detection...", service="validation")
+                log("INFO", "Starting periodic coffee beans detection...", service="validation")
                 
                 # Run the blocking detection in thread pool
                 loop = asyncio.get_event_loop()
@@ -782,20 +782,20 @@ class MainValidation:
                 
                 # Log the result
                 if detection_result.get("updated"):
-                    log("INFO", f"Periodic detection updated inventory: {detection_result['percentage']}%", service="validation")
+                    log("INFO", f"Coffee inventory updated: {detection_result['percentage']}% (periodic scan)", service="validation")
                 else:
-                    log("INFO", f"Periodic detection completed without update: {detection_result['message']}", service="validation")
+                    log("DEBUG", f"☕ Periodic detection completed without update: {detection_result['message']}", service="validation")
                 
             except asyncio.CancelledError:
                 log("INFO", "Coffee beans detection task cancelled", service="validation")
                 break
             except Exception as e:
-                log("ERROR", f"Error in coffee beans detection: {e}", service="validation")
+                log("ERROR", f"Error in coffee beans detection: {str(e)[:100]}", service="validation")
             
             # Wait for 10 minutes before next detection
             try:
                 interval = config.detection.periodic_interval_seconds
-                log("DEBUG", f"Waiting {interval} seconds ({config.detection.periodic_interval_minutes} minutes) until next detection", service="validation")
+                log("DEBUG", f"Next coffee scan in {config.detection.periodic_interval_minutes} minutes", service="validation")
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
@@ -805,8 +805,7 @@ class MainValidation:
         try:
             # Use the production detector's detect_coffee method
             cv_result = self._coffee_beans_detector.detect_coffee()
-            print(f"cv_result: {cv_result}") # convert to logger
-            log("INFO", f"cv_result: {cv_result}", service="validation")
+            log("DEBUG", f"Coffee detection raw result: {cv_result}", service="validation")
             
             # Check if there was an error in detection
             if cv_result.get("error"):
@@ -952,4 +951,88 @@ class MainValidation:
                 "client_type": payload.get("client_type"),
                 "passed": False,
                 "error": f"Cup detection failed: {str(e)}"
+            }
+    
+    def process_milk_detection_request(self, payload):
+        """Process milk dispenser cup detection requests"""
+        try:
+            result = {"passed": False, "details": {}}
+            # Add request metadata to result
+            result["request_id"] = payload.get("request_id")
+            result["client_type"] = payload.get("client_type")
+
+            if not self._cup_detector:
+                result["error"] = "Cup detector not initialized"
+                return result
+
+            # Run milk detection
+            detection_result = self._cup_detector.detect_milk()
+            log("INFO", f"milk_detection_result: {detection_result}", service="validation")
+            
+            if isinstance(detection_result, dict) and "error" in detection_result:
+                result["error"] = detection_result["error"]
+                return result
+            
+            # detection_result is a bool
+            cup_detected = bool(detection_result)
+            
+            result["passed"] = True
+            result["detection_result"] = cup_detected
+
+            result["details"] = {
+                "cup_detected": cup_detected,
+                "message": f"Milk dispenser: Cup {'detected' if cup_detected else 'not detected'}"
+            }
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in milk detection: {e}", service="validation")
+            return {
+                "request_id": payload.get("request_id"),
+                "client_type": payload.get("client_type"),
+                "passed": False,
+                "error": f"Milk detection failed: {str(e)}"
+            }
+    
+    def process_sauce_detection_request(self, payload):
+        """Process sauce dispenser cup detection requests"""
+        try:
+            result = {"passed": False, "details": {}}
+            # Add request metadata to result
+            result["request_id"] = payload.get("request_id")
+            result["client_type"] = payload.get("client_type")
+
+            if not self._cup_detector:
+                result["error"] = "Cup detector not initialized"
+                return result
+
+            # Run sauce detection
+            detection_result = self._cup_detector.detect_sauce()
+            log("INFO", f"sauce_detection_result: {detection_result}", service="validation")
+            
+            if isinstance(detection_result, dict) and "error" in detection_result:
+                result["error"] = detection_result["error"]
+                return result
+            
+            # detection_result is a bool
+            cup_detected = bool(detection_result)
+            
+            result["passed"] = True
+            result["detection_result"] = cup_detected
+
+            result["details"] = {
+                "cup_detected": cup_detected,
+                "message": f"Sauce dispenser: Cup {'detected' if cup_detected else 'not detected'}"
+            }
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in sauce detection: {e}", service="validation")
+            return {
+                "request_id": payload.get("request_id"),
+                "client_type": payload.get("client_type"),
+                "passed": False,
+                "error": f"Sauce detection failed: {str(e)}"
             }
