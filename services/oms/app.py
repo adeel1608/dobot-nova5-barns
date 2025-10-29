@@ -240,6 +240,8 @@ def register_event_handlers():
     event_listener.register_event_handler("scheduler.status_update", handle_scheduler_status_update)
     event_listener.register_event_handler("scheduler.feedback_processed", handle_scheduler_feedback_processed)
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
+    event_listener.register_event_handler("validation.all_stations_occupied", handle_all_stations_occupied_event)
+    event_listener.register_event_handler("validation.retry_status", handle_retry_status_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
     log("INFO", "Registered all event handlers", service="oms")
@@ -414,7 +416,7 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
         # Scheduler will wait for current tasks to complete before responding
         if rabbitmq_client:
             try:
-                log("INFO", f"⏳ Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...", service="oms")
+                log("INFO", f"Sending stop request to scheduler for order {order_id} (this will wait for tasks to complete)...", service="oms")
                 response = await rabbitmq_client.send_request(
                     target_service="scheduler",
                     action="stop_order",
@@ -1086,24 +1088,103 @@ async def handle_scheduler_feedback_processed(data: Dict):
 
 async def handle_threshold_warning_event(data: Dict):
     """Handle threshold warning events from validation service"""
+    log("INFO", f"Received threshold_warning event: {data}", service="oms")
+    
     ingredient = data.get("ingredient")
     severity = data.get("severity")
+    message = data.get("message")  # Get custom message from validation service
+    
     if ingredient and severity:
-        # Create alert for threshold warning
-        event_id = db.log_event("threshold_warning", {
+        # Create alert for threshold warning with full payload including message
+        event_payload = {
             "ingredient": ingredient,
             "severity": severity,
             "timestamp": "now"
-        })
+        }
+        
+        # Include message if provided
+        if message:
+            event_payload["message"] = message
+        
+        # Include any additional info from the validation service
+        if "action_required" in data:
+            event_payload["action_required"] = data["action_required"]
+        if "retry_info" in data:
+            event_payload["retry_info"] = data["retry_info"]
+        if "failure_info" in data:
+            event_payload["failure_info"] = data["failure_info"]
+        if "retry_status" in data:
+            event_payload["retry_status"] = data["retry_status"]
+        
+        event_id = db.log_event("threshold_warning", event_payload)
         alert_id = db.create_alert(event_id, "ingredient_threshold", severity)
         
-        broadcast({
+        broadcast_payload = {
+            "type": "alert",
             "event": "threshold_warning",
             "ingredient": ingredient,
             "severity": severity,
+            "message": message,
             "alert_id": alert_id,
             "timestamp": "now"
-        })
+        }
+        log("INFO", f"Broadcasting threshold_warning to dashboard: {broadcast_payload}", service="oms")
+        broadcast(broadcast_payload)
+
+async def handle_all_stations_occupied_event(data: Dict):
+    """Handle all stations occupied event from validation service"""
+    log("INFO", f"Received all_stations_occupied event: {data}", service="oms")
+    
+    ingredient = data.get("ingredient")
+    severity = data.get("severity")
+    message = data.get("message")
+    
+    if ingredient and severity:
+        # Create alert for all stations occupied with full payload including message
+        event_payload = {
+            "ingredient": ingredient,
+            "severity": severity,
+            "message": message,
+            "timestamp": "now"
+        }
+        
+        # Include any additional info from the validation service
+        if "action_required" in data:
+            event_payload["action_required"] = data["action_required"]
+        if "failure_info" in data:
+            event_payload["failure_info"] = data["failure_info"]
+        
+        event_id = db.log_event("all_stations_occupied", event_payload)
+        alert_id = db.create_alert(event_id, "ingredient_threshold", severity)
+        
+        broadcast_payload = {
+            "type": "alert",
+            "event": "all_stations_occupied",
+            "ingredient": ingredient,
+            "severity": severity,
+            "message": message,
+            "alert_id": alert_id,
+            "timestamp": "now"
+        }
+        log("INFO", f"Broadcasting all_stations_occupied to dashboard: {broadcast_payload}", service="oms")
+        broadcast(broadcast_payload)
+
+async def handle_retry_status_event(data: Dict):
+    """Handle retry status event from validation service"""
+    log("INFO", f"Received retry_status event: {data}", service="oms")
+    
+    # Don't create alerts for retry status, just broadcast for real-time updates
+    broadcast_payload = {
+        "type": "alert",
+        "event": "retry_status",
+        "ingredient": data.get("ingredient"),
+        "severity": data.get("severity"),
+        "message": data.get("message"),
+        "retry_status": data.get("retry_status"),
+        "timestamp": "now"
+    }
+    log("INFO", f"Broadcasting retry_status to dashboard: {broadcast_payload}", service="oms")
+    broadcast(broadcast_payload)
 
 async def handle_shutdown_event(data: Dict):
     """Handle system shutdown events"""
@@ -2216,6 +2297,11 @@ def broadcast(message: dict):
     message_str = json.dumps(message)
     
     async def send_to_connections():
+        # Log broadcast details
+        event_type = message.get("event", "unknown")
+        msg_type = message.get("type", "unknown")
+        log("DEBUG", f"Broadcasting {msg_type}/{event_type} to {len(active_connections)} active connections", service="oms")
+        
         # Broadcast to order connections
         disconnected_orders = []
         for ws in active_connections:
@@ -2231,7 +2317,11 @@ def broadcast(message: dict):
                 active_connections.remove(ws)
         
         # Broadcast alerts to alert connections (if it's an alert event)
-        if message.get("event") in ["alert_created", "alert_acknowledged"]:
+        # Include all alert-related events: alert_created, alert_acknowledged, threshold_warning, etc.
+        alert_events = ["alert_created", "alert_acknowledged", "threshold_warning", "all_stations_occupied", "retry_status"]
+        is_alert_event = message.get("event") in alert_events or message.get("type") == "alert"
+        
+        if is_alert_event:
             disconnected_alerts = []
             for ws in alert_connections:
                 try:

@@ -8,15 +8,16 @@ import { useInventoryStore } from "../../store/inventoryStore";
 import { INVENTORY_CATEGORIES } from "../../utils/inventoryData";
 import CategoryInventoryCard from "./components/CategoryInventoryCard";
 import "./styles.css";
-import socket from '../../utils/socketConfigure';
+// import socket from '../../utils/socketConfigure'; // Removed old Socket.IO - using WebSocket now
 const InventoryPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
 
   const [liveStockLevel, setLiveStockLevel] = useState(null);
-  const [isSocketConnected, setSocketConnected] = useState(socket.connected);
+  // const [isSocketConnected, setSocketConnected] = useState(socket.connected); // Removed old Socket.IO
+  const [isSocketConnected, setSocketConnected] = useState(false);
 
-  console.log("scoket connected:", isSocketConnected );
+  // console.log("scoket connected:", isSocketConnected );
   const {
     fetchInventoryStatus,
     refillCategory,
@@ -31,37 +32,26 @@ const InventoryPage = () => {
   } = useInventoryStore();
 
   useEffect(() => {
-    // Fetch all inventory data in parallel for faster loading
-    Promise.all([
-      fetchInventoryStatus(),
-      fetchStockLevelData(),
-      fetchFullStockSummaryData()
-    ]);
-  }, [fetchInventoryStatus, fetchStockLevelData, fetchFullStockSummaryData]);
-  useEffect(() => {
-    const handleConnect = () => {
-      console.log('🟢 Socket connected');
-      setSocketConnected(true);
-    };
-
-    const handleDisconnect = () => {
-      console.log('🔴 Socket disconnected');
-      setSocketConnected(false);
-    };
-
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-
-    // Trigger immediately if already connected
-    if (socket.connected) handleConnect();
-
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-    };
-  }, []);
-
-
+    // Only fetch if inventory is not already loaded (prevent redundant calls)
+    // App.jsx already loads inventory in background, so check if we have data first
+    const inventoryStore = useInventoryStore.getState();
+    const hasInventoryData = Object.keys(inventoryStore.inventoryStatus || {}).length > 0;
+    
+    if (!hasInventoryData) {
+      // Fetch all inventory data in parallel (non-blocking)
+      Promise.allSettled([
+        fetchInventoryStatus(),
+        fetchStockLevelData(),
+        fetchFullStockSummaryData()
+      ]).catch(err => console.error("Inventory loading error:", err));
+    } else {
+      // We have inventory data, just refresh the supplementary data
+      Promise.allSettled([
+        fetchStockLevelData(),
+        fetchFullStockSummaryData()
+      ]).catch(err => console.error("Inventory refresh error:", err));
+    }
+  }, []); // Run only once on mount
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -102,7 +92,6 @@ const InventoryPage = () => {
 
   const categoryDetails = FullStockSummary || {};
   const totalFullStock = Object.values(categoryDetails).reduce((sum, count) => sum + count, 0);
-  console.log("🧠 Full Stock Summary:", categoryDetails);
   const tabs = [
     { id: 'all', name: 'All Categories', count: totalFullStock },
     ...Object.entries(categoryDetails).map(([key, count]) => ({
@@ -112,29 +101,31 @@ const InventoryPage = () => {
     }))
   ];
 
-  useEffect(() => {
-    const handleStockUpdate = (data) => {
-      console.log("📦 Stock levels updated via socket:", data);
-      setLiveStockLevel(data.stock_levels);
-    };
+  // Old Socket.IO stock level updates - commented out, using WebSocket now
+  // useEffect(() => {
+  //   const handleStockUpdate = (data) => {
+  //     console.log("📦 Stock levels updated via socket:", data);
+  //     setLiveStockLevel(data.stock_levels);
+  //   };
 
-    socket.on("inventory.stock_level", handleStockUpdate);
-    return () => socket.off("inventory.stock_level", handleStockUpdate);
-  }, []);
+  //   socket.on("inventory.stock_level", handleStockUpdate);
+  //   return () => socket.off("inventory.stock_level", handleStockUpdate);
+  // }, []);
 
-useEffect(() => {
-  const handleInventoryStatus = async (data) => {
-    console.log('📡 Live inventory.status received:', data);
-    if (data?.inventory) {
-      const store = useInventoryStore.getState();
-      store.updateInventoryData(data.inventory);
-      await store.updateCategorySummary();
-    }
-  };
+// Old Socket.IO inventory status updates - commented out, using WebSocket now
+// useEffect(() => {
+//   const handleInventoryStatus = async (data) => {
+//     console.log('📡 Live inventory.status received:', data);
+//     if (data?.inventory) {
+//       const store = useInventoryStore.getState();
+//       store.updateInventoryData(data.inventory);
+//       await store.updateCategorySummary();
+//     }
+//   };
 
-  socket.on('inventory.status', handleInventoryStatus);
-  return () => socket.off('inventory.status', handleInventoryStatus);
-}, []);
+//   socket.on('inventory.status', handleInventoryStatus);
+//   return () => socket.off('inventory.status', handleInventoryStatus);
+// }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

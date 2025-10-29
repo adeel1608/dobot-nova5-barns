@@ -14,9 +14,7 @@ import backarrow from '../../../assets/backarrow.png';
 import deleteIcon from '../../../assets/delete.png';
 
 function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isStopping, isResuming, isDeleting, isReordering, getStatusBadge }) {
-  // Debug: Log that this component is rendering
-  console.log(`📦 SortableItem rendering for order ${order.id} with status: ${order.status}`);
-  
+
   const {
     attributes, listeners, setNodeRef,
     transform, transition, isDragging
@@ -1002,9 +1000,6 @@ const handleDeleteOrder = async (orderId) => {
     
     return true;
   });
-
-  // Debug: Log filtered orders to see what we're working with
-  console.log('🎯 Filtered orders:', filteredOrders);
 
   // Build unique drink list for two-step selection
   const uniqueDrinkNames = React.useMemo(() => {

@@ -21,17 +21,24 @@ export const useWebSocketStore = create((set, get) => ({
 
   // Connect to the main WebSocket endpoint that handles all events
   connectWebSocket: () => {
-    wsManager.connect('main', '', {  // Empty endpoint because /ws is the default
+    wsManager.connect('main', '', {  // Connect to /ws endpoint via API Bridge
       onOpen: () => {
         set(state => ({
           connectionStatus: { ...state.connectionStatus, websocket: 'connected' }
         }));
-        addLog('WebSocket', 'info', 'Main WebSocket connected - real-time updates enabled');
+        // Removed verbose INFO log - only log errors
       },
       onMessage: (data) => {
+        // Log all WebSocket messages for debugging
+        console.log('[WebSocket] Message received:', {
+          type: data.type,
+          event: data.event,
+          timestamp: new Date().toISOString()
+        });
+        
         // Handle different types of events from the API bridge
         if (data.type === 'order_update') {
-          addLog('WebSocket', 'info', 'Order update received', data);
+          // Removed verbose INFO log - only log errors
           // Handle detailed scheduler events
           if (data.event === 'scheduler.plan_built') {
             const payload = data.data || {};
@@ -44,14 +51,14 @@ export const useWebSocketStore = create((set, get) => ({
           const payload = data.data || {};
           const orderId = payload.order_id;
           console.log(`[WebSocket] Order ${orderId} completed - freezing task state`);
-          addLog('WebSocket', 'info', `Order ${orderId} completed - task state frozen`);
+          // Removed verbose INFO log - only log errors
           useDashboardStore.getState().freezeSchedulerState();
           useDashboardStore.getState().fetchOrders();
         } else if (data.event === 'scheduler.order_failed') {
           // Order-level failure: mark remaining tasks as cancelled and freeze
           const payload = data.data || {};
           const reason = payload.error || 'Order failed';
-          addLog('WebSocket', 'info', `Order failed: ${reason} - task state frozen`);
+          // Removed verbose INFO log - only log errors
           useDashboardStore.getState().finalizeSchedulerAsFailed(reason);
           useDashboardStore.getState().freezeSchedulerState();
           useDashboardStore.getState().fetchOrders();
@@ -60,7 +67,7 @@ export const useWebSocketStore = create((set, get) => ({
           const payload = data.data || {};
           const orderId = payload.order_id || payload.order;
           console.log(`[WebSocket] Order ${orderId} stopping - refreshing orders`);
-          addLog('WebSocket', 'info', `Order ${orderId} stopping - updating status`);
+          // Removed verbose INFO log - only log errors
           useDashboardStore.getState().fetchOrders();
         } else if (data.event === 'scheduler.order_stopped' || data.event === 'order_stopped') {
           // Order stopped: freeze state and keep it visible until new order or deletion
@@ -68,7 +75,7 @@ export const useWebSocketStore = create((set, get) => ({
           const payload = data.data || {};
           const orderId = payload.order_id || payload.order;
           console.log(`[WebSocket] Order ${orderId} stopped - freezing and refreshing`);
-          addLog('WebSocket', 'info', `Order ${orderId} stopped - task state frozen`);
+          // Removed verbose INFO log - only log errors
           useDashboardStore.getState().freezeSchedulerState();
           useDashboardStore.getState().fetchOrders();
         } else if (data.event === 'order_resumed') {
@@ -76,7 +83,7 @@ export const useWebSocketStore = create((set, get) => ({
           const payload = data.data || {};
           const orderId = payload.order_id || payload.order;
           console.log(`[WebSocket] Order ${orderId} resumed - refreshing orders`);
-          addLog('WebSocket', 'info', `Order ${orderId} resumed - refreshing orders`);
+          // Removed verbose INFO log - only log errors
           useDashboardStore.getState().fetchOrders();
           } else if (data.event === 'scheduler.feedback_processed') {
             const payload = data.data || {};
@@ -94,15 +101,26 @@ export const useWebSocketStore = create((set, get) => ({
             useDashboardStore.getState().fetchOrders();
           }
         } else if (data.type === 'inventory_update') {
-          addLog('WebSocket', 'info', 'Inventory update received - refreshing inventory', data);
+          // Removed verbose INFO log - only log errors
           // Refresh inventory when we get updates
           useInventoryStore.getState().fetchInventoryStatus();
+        } else if (data.type === 'alert' || data.event?.includes('threshold_warning') || data.event?.includes('all_stations_occupied') || data.event?.includes('retry_status')) {
+          // Alert/warning events - refresh alerts immediately
+          console.log('[WebSocket] Alert event received, refreshing alerts:', data);
+          // Removed verbose INFO log - only log errors
+          
+          // Force immediate refresh
+          const alertsStore = useAlertsStore.getState();
+          alertsStore.fetchAlerts().then(() => {
+            console.log('[WebSocket] Alerts refreshed successfully');
+          }).catch((err) => {
+            console.error('[WebSocket] Failed to refresh alerts:', err);
+          });
         } else if (data.type === 'connection') {
           // Connection messages are already logged in onOpen, skip duplicate logging
           return;
         } else {
-          // Log unexpected message types for debugging
-          addLog('WebSocket', 'info', `Unknown WebSocket message type: ${data.type || 'undefined'}`, data);
+          // Removed verbose INFO log - only log errors
         }
       },
       onClose: () => {
@@ -155,7 +173,7 @@ export const useMainStore = create((set, get) => ({
   // Initialize the application
   initialize: async () => {
     try {
-      addLog('App', 'info', 'Initializing BARNS Dashboard...');
+      // Removed verbose INFO log - only log errors
       
       // Initialize all stores
       const dashboardStore = useDashboardStore.getState();
@@ -180,7 +198,7 @@ export const useMainStore = create((set, get) => ({
       webSocketStore.connectWebSocket();
       
       set({ isInitialized: true });
-      addLog('App', 'info', 'BARNS Dashboard initialized successfully');
+      // Removed verbose INFO log - only log errors
       
     } catch (error) {
       addLog('App', 'error', 'Failed to initialize BARNS Dashboard', error);

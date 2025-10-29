@@ -36,18 +36,31 @@ export default function App() {
 
     const setupConnections = async () => {
       try {
-        // Initial data fetching - parallel for faster loading
-        await Promise.all([
+        // Set up WebSocket connections immediately (don't wait for API calls)
+        connectOrderWS();
+        connectAlertWS();
+
+        // Load critical data first (with shorter timeout tolerance)
+        const criticalData = [
           fetchOrders(),
           fetchAlerts(),
+        ];
+
+        // Load non-critical data in background (don't block UI)
+        const backgroundData = [
           fetchSchedulerStatus(),
           fetchInventoryStatus(),
           checkSystemHealth()
-        ]);
+        ];
 
-        // Set up WebSocket connections
-        connectOrderWS();
-        connectAlertWS();
+        // Wait for critical data only
+        await Promise.allSettled(criticalData);
+        
+        // Start background data loading (don't await - let it happen in background)
+        Promise.allSettled(backgroundData).catch(err => 
+          console.error("Background data loading error:", err)
+        );
+        
       } catch (error) {
         console.error("Unexpected error during setup:", error);
       }

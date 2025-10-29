@@ -8,7 +8,7 @@ import { API_CONFIG } from '../utils/config';
 import { extractErrorMessage } from '../utils/errorHandler';
 
 class APIClient {
-  constructor(baseURL = API_CONFIG.API_BASE, defaultTimeout = 5000) {
+  constructor(baseURL = API_CONFIG.API_BASE, defaultTimeout = 30000) {
     this.client = axios.create({
       baseURL,
       timeout: defaultTimeout,

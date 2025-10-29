@@ -72,7 +72,7 @@ export const useInventoryStore = create((set, get) => ({
         FullCategoryInfo: result.data, 
         isLoading: false
       }));
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
 
     } else {
       set(state => ({ 
@@ -100,7 +100,7 @@ export const useInventoryStore = create((set, get) => ({
         FullStockSummary: result.data.details, 
         isLoading: false
       }));
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
 
     } else {
       set(state => ({ 
@@ -128,7 +128,7 @@ export const useInventoryStore = create((set, get) => ({
         inventoryStockLevel: result.data, 
         isLoading: false
       }));
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Also update category summary
       // await get().updateCategorySummary();
@@ -158,7 +158,7 @@ export const useInventoryStore = create((set, get) => ({
         inventoryStatus: result.data, 
         isLoading: false
       }));
-      addLog('API', 'info', `Inventory refreshed: ${itemCount} items loaded`);
+      // Removed verbose INFO log - only log errors
       
       // Also update category summary (non-blocking)
       get().updateCategorySummary();
@@ -187,10 +187,9 @@ export const useInventoryStore = create((set, get) => ({
         categorySummary: { ...state.categorySummary, ...result.data }
       }));
       
+      // Only log if there are low categories (warning) - removed INFO spam
       if (lowCategories.length > 0) {
-        addLog('API', 'warning', `Category summary updated - ${lowCategories.length} categories low: ${lowCategories.join(', ')}`);
-      } else {
-        addLog('API', 'info', 'Category summary updated - all categories OK');
+        addLog('API', 'warning', `Category summary: ${lowCategories.length} categories low: ${lowCategories.join(', ')}`);
       }
     } else {
       addLog('API', 'error', `Category summary update failed: ${result.error}`, result.details);
@@ -207,7 +206,7 @@ export const useInventoryStore = create((set, get) => ({
       set(state => ({
         inventoryStatus: { ...state.inventoryStatus, ...result.data }
       }));
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
     } else {
       addLog('API', 'error', result.error, result.details);
     }
@@ -220,7 +219,7 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.refillInventory(item, amount);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       // Refresh inventory status after refill
       await get().fetchInventoryStatus();
     } else {
@@ -243,7 +242,7 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.refillCategory(category, amount);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       // Refresh inventory status after category refill
       await get().fetchInventoryStatus();
     } else {
@@ -262,7 +261,7 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.getInventoryItem(item);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
     } else {
       addLog('API', 'error', result.error, result.details);
     }
@@ -275,7 +274,7 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.updateThresholds(item, thresholds);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       // Refresh inventory status after threshold update
       await get().fetchInventoryStatus();
     } else {

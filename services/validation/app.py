@@ -402,7 +402,10 @@ class ValidationServiceApp:
             log("INFO", f"Processing cup_detection request: {data.get('request_id', 'no-id')}", service="validation")
             
             alert_sent = False
-            while True:
+            max_retries = 10  # Max 10 retries = 100 seconds of waiting (10 * 10s)
+            retry_count = 0
+            
+            while retry_count <= max_retries:
                 # Run detection in thread to avoid blocking async loop
                 result = await asyncio.get_event_loop().run_in_executor(
                     None, 
@@ -418,6 +421,7 @@ class ValidationServiceApp:
                 any_free = any(not bool(v) for v in cups.values())
                 if any_free:
                     # Exit immediately when a station is available
+                    log("INFO", f"Cup station available found (retry {retry_count})", service="validation")
                     return result
 
                 # All occupied
@@ -425,15 +429,73 @@ class ValidationServiceApp:
                     try:
                         alert_payload = {
                             "ingredient": "cup_stations",
-                            "severity": "critical"
+                            "severity": "critical",
+                            "message": f"All cup stations are occupied. System will retry up to {max_retries} times every 10 seconds.",
+                            "action_required": "Please remove cups from stations to allow new orders to proceed.",
+                            "retry_info": {
+                                "max_retries": max_retries,
+                                "retry_interval_seconds": 10,
+                                "estimated_total_wait_seconds": max_retries * 10
+                            }
                         }
                         await self.rabbitmq_client.send_event("validation.threshold_warning", alert_payload)
                         alert_sent = True
-                        log("ERROR", "All cup stations occupied. Alert sent. Will keep retrying every 10s.", service="validation")
+                        log("ERROR", f"All cup stations occupied. Alert sent. Will retry up to {max_retries} times (every 10s).", service="validation")
                     except Exception as alert_err:
                         log("ERROR", f"Failed to send occupied-stations alert: {alert_err}", service="validation")
 
+                # Check if we've exhausted retries
+                if retry_count >= max_retries:
+                    log("ERROR", f"All cup stations still occupied after {max_retries} retries. Returning occupied status.", service="validation")
+                    
+                    # Send final failure alert to dashboard
+                    if self.rabbitmq_client:
+                        try:
+                            failure_payload = {
+                                "ingredient": "cup_stations",
+                                "severity": "critical",
+                                "message": f"All cup stations remain occupied after {max_retries} retry attempts. Total wait time: {max_retries * 10} seconds. Order cannot proceed.",
+                                "action_required": "URGENT: Remove cups from stations immediately. New orders are being rejected.",
+                                "failure_info": {
+                                    "retries_attempted": max_retries,
+                                    "total_wait_time_seconds": max_retries * 10,
+                                    "status": "retries_exhausted"
+                                }
+                            }
+                            await self.rabbitmq_client.send_event("validation.all_stations_occupied", failure_payload)
+                            log("ERROR", "Sent final failure alert for occupied stations.", service="validation")
+                        except Exception as alert_err:
+                            log("ERROR", f"Failed to send final occupied-stations alert: {alert_err}", service="validation")
+                    
+                    # Return the result with all stations occupied - let caller handle it
+                    result["all_stations_occupied"] = True
+                    result["retries_exhausted"] = True
+                    return result
+                
                 # Wait 10 seconds and retry
+                retry_count += 1
+                log("INFO", f"All stations occupied. Waiting 10s before retry {retry_count}/{max_retries}...", service="validation")
+                
+                # Send retry status update to dashboard (skip first retry to avoid spam)
+                if self.rabbitmq_client and retry_count > 1:
+                    try:
+                        time_elapsed = (retry_count - 1) * 10  # Time already waited
+                        time_remaining = (max_retries - retry_count + 1) * 10  # Time left including current retry
+                        retry_payload = {
+                            "ingredient": "cup_stations",
+                            "severity": "warning",
+                            "message": f"Retry attempt {retry_count} of {max_retries} in progress. Still checking for available stations.",
+                            "retry_status": {
+                                "current_retry": retry_count,
+                                "max_retries": max_retries,
+                                "time_elapsed_seconds": time_elapsed,
+                                "time_remaining_seconds": time_remaining
+                            }
+                        }
+                        await self.rabbitmq_client.send_event("validation.retry_status", retry_payload)
+                    except Exception:
+                        pass  # Don't fail on status update errors
+                
                 await asyncio.sleep(10)
             
         except Exception as e:

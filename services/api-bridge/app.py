@@ -131,6 +131,11 @@ async def startup_event():
         event_listener.register_event_handler("validation.all_inventory_updated", handle_inventory_updated_event_all)
         event_listener.register_event_handler("validation.stock_level_updated", handle_stock_level_event)
         event_listener.register_event_handler("validation.category_summary_updated", handle_category_summary_event)
+        
+        # Validation Alert Events
+        event_listener.register_event_handler("validation.threshold_warning", handle_validation_alert_event)
+        event_listener.register_event_handler("validation.all_stations_occupied", handle_validation_alert_event)
+        event_listener.register_event_handler("validation.retry_status", handle_validation_alert_event)
 
         log("INFO", "API Bridge service started successfully", service="api_bridge")
         
@@ -1143,6 +1148,19 @@ async def emit_inventory_update_all(data: Dict):
         "timestamp": datetime.now().isoformat()
     })
 
+async def handle_validation_alert_event(data: Dict):
+    """Handle validation alert events (threshold_warning, all_stations_occupied, retry_status)"""
+    event_type = data.get("_event_type", "validation_alert")  # Get the actual event type
+    log("INFO", f"Received validation alert event: {event_type}", service="api_bridge")
+    log("DEBUG", f"Alert data: {data}", service="api_bridge")
+    
+    # Broadcast to WebSocket clients
+    await broadcast_to_websockets({
+        "type": "alert",
+        "event": event_type,
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 # Add Socket.IO stats endpoint
 @app.get("/api/socketio/stats")

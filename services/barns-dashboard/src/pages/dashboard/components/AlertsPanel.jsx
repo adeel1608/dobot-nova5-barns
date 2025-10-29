@@ -33,17 +33,23 @@ export default function AlertsPanel() {
   };
 
   // Map real alerts data to component format
-  const mappedAlerts = alerts.map(alert => ({
-    id: alert.id,
-    type: mapAlertTypeToDisplayType(alert.alert_type, alert.severity),
-    title: getAlertTitle(alert),
-    message: alert.message || getDefaultMessage(alert.alert_type),
-    timestamp: alert.created_at ? new Date(alert.created_at) : new Date(),
-    acknowledged: false, // Active alerts are not acknowledged
-    source: mapAlertTypeToSource(alert.alert_type),
-    severity: alert.severity || 'medium',
-    rawAlert: alert // Keep reference to original alert data
-  }));
+  const mappedAlerts = alerts.map(alert => {
+    const ingredient = getIngredientFromAlert(alert);
+    const isCupStations = ingredient === 'cup_stations';
+    
+    return {
+      id: alert.id,
+      type: mapAlertTypeToDisplayType(alert.alert_type, alert.severity),
+      title: getAlertTitle(alert),
+      // For cup_stations, always use the message from the event payload
+      message: isCupStations && alert.message ? alert.message : (alert.message || getDefaultMessage(alert.alert_type)),
+      timestamp: alert.created_at ? new Date(alert.created_at) : new Date(),
+      acknowledged: false, // Active alerts are not acknowledged
+      source: isCupStations ? 'validation' : mapAlertTypeToSource(alert.alert_type),
+      severity: alert.severity || 'medium',
+      rawAlert: alert // Keep reference to original alert data
+    };
+  });
 
   // Helper function to map alert_type to display type
   function mapAlertTypeToDisplayType(alertType, severity) {
@@ -60,6 +66,10 @@ export default function AlertsPanel() {
     switch (alert.alert_type) {
       case 'ingredient_threshold':
         const ingredient = getIngredientFromAlert(alert);
+        // Special handling for cup_stations
+        if (ingredient === 'cup_stations') {
+          return 'Cup Stations Status';
+        }
         return `Low ${ingredient ? ingredient.charAt(0).toUpperCase() + ingredient.slice(1) : 'Ingredient'} Level`;
       case 'order_halted':
         return 'Order Processing Halted';
@@ -106,17 +116,29 @@ export default function AlertsPanel() {
 
   // Helper function to extract ingredient from alert
   function getIngredientFromAlert(alert) {
-    if (alert.payload && typeof alert.payload === 'string') {
-      try {
-        const payload = JSON.parse(alert.payload);
+    // Try to get ingredient from payload (can be object or JSON string)
+    if (alert.payload) {
+      let payload = alert.payload;
+      
+      // If payload is a string, parse it
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch (e) {
+          // If parsing fails, continue to message extraction
+          payload = null;
+        }
+      }
+      
+      // If we have a payload object with ingredient, return it
+      if (payload && payload.ingredient) {
         return payload.ingredient;
-      } catch (e) {
-        // If parsing fails, try to extract from message
       }
     }
     
+    // Fallback: try to extract from message
     const message = alert.message || '';
-    const ingredients = ['milk', 'cup', 'beans', 'syrup', 'coffee'];
+    const ingredients = ['cup_stations', 'milk', 'cup', 'beans', 'syrup', 'coffee'];
     return ingredients.find(ing => message.toLowerCase().includes(ing));
   }
 
@@ -203,6 +225,26 @@ export default function AlertsPanel() {
 
   return (
     <div className="bg-white rounded-lg shadow-md flex flex-col h-full">
+      {/* CSS Animation for blinking alerts */}
+      <style>{`
+        @keyframes alertBlink {
+          0%, 100% {
+            background-color: transparent;
+          }
+          50% {
+            background-color: rgba(226, 92, 83, 0.4)
+          }
+        }
+        
+        .alert-blink {
+          animation: alertBlink 2s ease-in-out infinite;
+        }
+        
+        .alert-blink-critical {
+          animation: alertBlink 1.5s ease-in-out infinite;
+        }
+      `}</style>
+      
       {/* Header - Responsive */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0  ">
         <div className="flex items-center justify-between w-full ">
@@ -289,9 +331,14 @@ export default function AlertsPanel() {
               <p className="text-xs text-gray-400">No active alerts</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100  p-3">
+            <div className="space-y-3 p-3">
               {unacknowledgedAlerts.map((alert) => (
-                <div key={alert.id} className="p-2 md:p-3 hover:bg-gray-50 transition-colors">
+                <div 
+                  key={alert.id} 
+                  className={`p-3 md:p-4 hover:bg-gray-50 transition-colors rounded-md border border-gray-200 ${
+                    alert.severity === 'critical' ? 'alert-blink-critical' : 'alert-blink'
+                  }`}
+                >
                   <div className="flex items-start space-x-2 md:space-x-3">
                     {getAlertIcon(alert.type)}
                     

@@ -607,6 +607,8 @@ class RFDETRDetector:
     def detect_cups_on_station(self):
         """
         Main cup detection for 4 positions on the station.
+        Note: Position mapping is FLIPPED/REVERSED (mirrored).
+        Camera position 0 → Output position 3, Camera position 1 → Output position 2, etc.
         Returns: {0: bool, 1: bool, 2: bool, 3: bool} or {"error": "..."}
         """
         # Frame skipping
@@ -632,7 +634,16 @@ class RFDETRDetector:
         
         # Apply voting/history if it's a valid result
         if isinstance(present, dict) and "error" not in present:
-            self._last_result = self._vote_presence(present)
+            voted_result = self._vote_presence(present)
+            # Flip/reverse the position mapping (mirror the positions)
+            # Position 0 → Position 3, Position 1 → Position 2, etc.
+            flipped_result = {
+                0: voted_result.get(3, False),
+                1: voted_result.get(2, False),
+                2: voted_result.get(1, False),
+                3: voted_result.get(0, False)
+            }
+            self._last_result = flipped_result
             return dict(self._last_result)
         
         return present

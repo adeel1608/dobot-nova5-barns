@@ -80,65 +80,100 @@ class RobotContainerService:
         
     async def start(self):
         """Start the robot container service with automatic reconnection."""
+        reconnect_attempts = 0
         while True:
             try:
+                reconnect_attempts += 1
+                if reconnect_attempts > 1:
+                    logger.info(f"🔄 [ROBOT-{self.robot_id}] Reconnection attempt #{reconnect_attempts}")
+                
                 await self._start_service()
-                # If we get here, the service was interrupted
+                # If we get here without exception, service was gracefully stopped
+                logger.info(f"✅ [ROBOT-{self.robot_id}] Service stopped gracefully")
                 break
+                
             except KeyboardInterrupt:
-                logger.info("Shutting down robot container service...")
+                logger.info(f"⚠️ [ROBOT-{self.robot_id}] Shutting down robot container service...")
                 await self.stop()
                 break
+                
             except Exception as e:
-                logger.error(f"Service error: {e}")
-                logger.info("Restarting service in 10 seconds...")
+                logger.error(f"❌ [ROBOT-{self.robot_id}] Service error: {e}")
+                logger.info(f"🔄 [ROBOT-{self.robot_id}] Restarting service in 10 seconds...")
                 await self.stop()  # Clean up before retrying
                 await asyncio.sleep(10)
+                # Continue loop to reconnect
 
     async def _start_service(self):
-        """Internal method to start service components."""
+        """Internal method to start service components with connection monitoring."""
         try:
             from shared.rabbitmq_client import RabbitMQClient
             self.rabbitmq_client = RabbitMQClient(self.service_name)
 
-            # Retry connection logic for RabbitMQ
+            # Retry connection logic for RabbitMQ with infinite retries
+            connection_attempt = 0
             while True:
                 try:
-                    logger.info(f"🤖 [ROBOT-{self.robot_id}] Attempting to connect to RabbitMQ...")
+                    connection_attempt += 1
+                    logger.info(f"🤖 [ROBOT-{self.robot_id}] Attempting to connect to RabbitMQ (attempt #{connection_attempt})...")
                     await self.rabbitmq_client.connect()
                     logger.info(f"✅ [ROBOT-{self.robot_id}] Successfully connected to RabbitMQ")
                     break
                 except Exception as e:
                     logger.error(f"❌ [ROBOT-{self.robot_id}] Failed to connect to RabbitMQ: {e}")
-                    logger.info("Retrying connection in 10 seconds...")
+                    logger.info(f"🔄 [ROBOT-{self.robot_id}] Retrying connection in 10 seconds...")
                     await asyncio.sleep(10)
+                    # Continue loop - never give up!
             
+            # Register handlers
             self.rabbitmq_client.register_handler("execute_action", self.handle_execute_action)
             self.rabbitmq_client.register_handler("list_actions", self.handle_list_actions)
             self.rabbitmq_client.register_handler("health", self.handle_health)
 
-            logger.info(f"Robot Container {self.robot_id} service started and listening for messages")
-            logger.info(f"Available actions: {list(ACTION_MAP.keys())}")
+            logger.info(f"✅ [ROBOT-{self.robot_id}] Robot Container service started and listening for messages")
+            logger.info(f"🎯 [ROBOT-{self.robot_id}] Available actions: {len(ACTION_MAP)} actions loaded")
 
-            # Wait forever - this is what was missing!
+            # Monitor connection health with periodic checks
             try:
-                await asyncio.Future()  # Run forever
+                while True:
+                    # Check if connection is still alive
+                    if not self.rabbitmq_client or not hasattr(self.rabbitmq_client, 'connection'):
+                        logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ connection lost!")
+                        raise ConnectionError("RabbitMQ connection lost")
+                    
+                    # Wait a bit before next health check
+                    await asyncio.sleep(30)  # Check every 30 seconds
+                    
             except KeyboardInterrupt:
-                logger.info("Shutting down robot container service...")
+                logger.info(f"⚠️ [ROBOT-{self.robot_id}] Shutting down robot container service...")
                 raise
+            except ConnectionError:
+                logger.error(f"❌ [ROBOT-{self.robot_id}] Connection error detected - triggering reconnection")
+                raise  # Trigger outer loop reconnection
+            except Exception as e:
+                logger.error(f"❌ [ROBOT-{self.robot_id}] Unexpected error in service loop: {e}")
+                raise  # Trigger outer loop reconnection
 
-        except ImportError:
-            logger.error("RabbitMQ client not available. Could not start service.")
+        except ImportError as e:
+            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ client not available: {e}")
             raise
+        except KeyboardInterrupt:
+            raise  # Pass through keyboard interrupt
         except Exception as e:
-            logger.error(f"Error starting robot container service: {e}")
-            raise  # Re-raise to trigger restart
+            logger.error(f"❌ [ROBOT-{self.robot_id}] Error in service: {e}")
+            raise  # Re-raise to trigger restart in outer loop
 
     async def stop(self):
-        """Stop the robot container service."""
+        """Stop the robot container service and clean up connections."""
         if self.rabbitmq_client:
-            await self.rabbitmq_client.disconnect()
-        logger.info(f"Robot container {self.robot_id} service stopped")
+            try:
+                await self.rabbitmq_client.disconnect()
+                logger.info(f"🛑 [ROBOT-{self.robot_id}] RabbitMQ connection closed")
+            except Exception as e:
+                logger.error(f"⚠️ [ROBOT-{self.robot_id}] Error closing RabbitMQ connection: {e}")
+            finally:
+                self.rabbitmq_client = None
+        logger.info(f"🛑 [ROBOT-{self.robot_id}] Robot container service stopped")
 
     async def handle_execute_action(self, data: Dict) -> Dict:
         """Handle action execution requests."""
@@ -235,9 +270,9 @@ class RobotContainerService:
                 }
             
         except ConnectionError as e:
-            logger.error(f"Connection error in handle_execute_action: {e}")
+            logger.error(f"❌ [ROBOT-{self.robot_id}] Connection error in handle_execute_action: {e}")
             # This will trigger service restart
-            raise
+            raise  # Propagate to trigger reconnection
         except Exception as e:
             error_msg = f"Error processing action request: {str(e)}"
             logger.error(f"💥 [ROBOT-{self.robot_id}] {error_msg}")

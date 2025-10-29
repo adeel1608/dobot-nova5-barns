@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useInventoryStore } from '../../../store/inventoryStore';
 import { CATEGORY_INFO } from '../../../utils/inventoryData';
-import socket from '../../../utils/socketConfigure';
+// import socket from '../../../utils/socketConfigure'; // Removed old Socket.IO - using WebSocket now
 
 import milk from '../../../assets/milk.png';
 import coffee_beans from '../../../assets/beans.png';
@@ -20,7 +20,8 @@ const IngredientsIndicator = () => {
   } = useInventoryStore();
 
   const { navigateToTab } = useStore();
-  const [isSocketConnected, setSocketConnected] = useState(socket.connected);
+  // const [isSocketConnected, setSocketConnected] = useState(socket.connected); // Removed old Socket.IO
+  const [isSocketConnected, setSocketConnected] = useState(false);
 
   useEffect(() => {
     fetchInventoryStatus();
@@ -38,30 +39,29 @@ const IngredientsIndicator = () => {
       updateSummaryFromSocket(data.summary);
     };
 
-    const handleConnect = () => {
-      // console.log('🟢 Socket connected');
-      setSocketConnected(true);
-      socket.on('inventory.summary', handleInventorySummary);
-    };
+    // Old Socket.IO code - commented out, using WebSocket now
+    // const handleConnect = () => {
+    //   setSocketConnected(true);
+    //   socket.on('inventory.summary', handleInventorySummary);
+    // };
 
-    const handleDisconnect = () => {
-      // console.log('🔴 Socket disconnected');
-      setSocketConnected(false);
-      socket.off('inventory.summary', handleInventorySummary);
-    };
+    // const handleDisconnect = () => {
+    //   setSocketConnected(false);
+    //   socket.off('inventory.summary', handleInventorySummary);
+    // };
 
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
+    // socket.on('connect', handleConnect);
+    // socket.on('disconnect', handleDisconnect);
 
-    if (socket.connected) {
-      handleConnect();
-    }
+    // if (socket.connected) {
+    //   handleConnect();
+    // }
 
-    return () => {
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-      socket.off('inventory.summary', handleInventorySummary);
-    };
+    // return () => {
+    //   socket.off('connect', handleConnect);
+    //   socket.off('disconnect', handleDisconnect);
+    //   socket.off('inventory.summary', handleInventorySummary);
+    // };
   }, []);
 
   const transformSummary = (summary) => {

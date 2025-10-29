@@ -37,13 +37,18 @@ async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitM
         
         log("INFO", f"Calling validation service: action={func_name}, payload={payload}", service="routine")
         
+        # Set timeout based on validation type
+        # cup_detection needs longer timeout to allow for retries when all stations occupied
+        # (validation retries every 10s, so we allow ~10 retries = 100s + buffer)
+        timeout = 120 
+        
         # Send function name as action directly (e.g., "cup_detection", "check_coffee_beans")
         # The validation service has handlers registered for specific actions, not a generic "validate"
         response = await rabbitmq_client.send_request(
             target_service="validation",
             action=func_name,  # Send function name directly as action
             data=payload,  # Send payload with metadata
-            timeout=30
+            timeout=timeout
         )
         
         log("INFO", f"Validation service response: {response}", service="routine")
@@ -132,32 +137,38 @@ def find_nearest_available_position(current_position: int, detection_result: dic
     Find the nearest available (False) cup position to the current position.
     
     Args:
-        current_position: The originally intended cup position (e.g., 1)
-        detection_result: Dict with position as key and occupancy as value 
-                         (True = occupied, False = available)
+        current_position: The originally intended cup position in 0-indexed format (0, 1, 2, 3)
+        detection_result: Dict with 0-indexed position as key and occupancy as value 
+                         (True = occupied/cup present, False = available/no cup)
     
     Returns:
-        The nearest available position number
+        The nearest available position number (0-indexed)
     """
     # Ensure current_position is an integer
     current_position = int(current_position)
     
-    # Get all available positions (False values) and ensure they're integers
+    # Get all available positions (False values = no cup = available) and ensure they're integers
     available_positions = [int(pos) for pos, occupied in detection_result.items() if not occupied]
+    
+    # Build detection breakdown string (avoid nested f-string syntax issues)
+    # Convert pos to int in case detection_result has string keys
+    detection_breakdown = ', '.join([f'Pos {int(pos)} (Station {int(pos)+1}): {"OCCUPIED" if occ else "AVAILABLE"}' for pos, occ in sorted(detection_result.items(), key=lambda x: int(x[0]))])
+    log("INFO", f"Detection result breakdown: {detection_breakdown}", service="routine")
+    log("INFO", f"Available positions: {[f'Pos {p} (Station {p+1})' for p in sorted(available_positions)]}", service="routine")
+    
     if not available_positions:
-        log("ERROR", f"No available cup positions found in detection result: {detection_result}", service="routine")
+        log("ERROR", f"No available cup positions found! All stations occupied: {detection_result}", service="routine")
         return current_position  # Return original if none available
     
     # If current position is available, use it
     if current_position in available_positions:
-        log("INFO", f"Current position {current_position} is available, no change needed", service="routine")
+        log("INFO", f"Position {current_position} (Station {current_position + 1}) is available, no change needed", service="routine")
         return current_position
     
     # Find nearest available position by calculating absolute distance
     nearest_position = min(available_positions, key=lambda pos: abs(pos - current_position))
     
-    log("INFO", f"Original position {current_position} is occupied. Using nearest available: {nearest_position}", service="routine")
-    log("INFO", f"Available positions: {sorted(available_positions)}", service="routine")
+    log("INFO", f"Position {current_position} (Station {current_position + 1}) is OCCUPIED. Using nearest available: Position {nearest_position} (Station {nearest_position + 1})", service="routine")
     
     return nearest_position
 
@@ -300,10 +311,20 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 
                 # Special handling for cup_detection - update cup position based on availability
                 if func_name == "cup_detection" and res.get("passed", False):
+                    # Check if all stations are occupied after retries
+                    if res.get("all_stations_occupied") and res.get("retries_exhausted"):
+                        log("ERROR", f"All cup stations occupied after retries for cup {cup_id}. Cannot proceed with task.", service="routine")
+                        message = "All cup stations are occupied. Please remove cups and try again."
+                        await publish_event("validation.failed", 
+                                    {"arm": arm_id, "cup": cup_id,
+                                    "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
+                        success = False
+                        break  # abort task
+                    
                     # Try to get detection_result from top level first, then from details
                     detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
                     if detection_result:
-                        log("INFO", f"🔍 Cup detection result: {detection_result}", service="routine")
+                        log("INFO", f"Cup detection result: {detection_result}", service="routine")
                         # Get current cup_position from task ingredients (already retrieved on line 277)
                         current_position = None
                         
@@ -313,25 +334,36 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                             cup_pos_data = ingredients["cup_position"]
                             if isinstance(cup_pos_data, dict):
                                 # Extract position value from nested dict: {'cup_position': 1.0}
-                                current_position = int(list(cup_pos_data.values())[0])
-                            elif isinstance(cup_pos_data, (int, float)):
-                                current_position = int(cup_pos_data)
+                                # Handle case where nested value might be string, int, or float
+                                nested_value = list(cup_pos_data.values())[0]
+                                current_position = int(float(nested_value))  # float() handles strings like "1.0"
+                            else:
+                                # Handle any other type (int, float, str) with robust conversion
+                                current_position = int(float(cup_pos_data))
                         # Option 2: Nested under 'position' key
                         elif "position" in ingredients and isinstance(ingredients["position"], dict):
                             if "cup_position" in ingredients["position"]:
                                 cup_pos_value = ingredients["position"]["cup_position"]
-                                if isinstance(cup_pos_value, (int, float)):
-                                    current_position = int(cup_pos_value)
+                                # Handle any type (int, float, str) with robust conversion
+                                current_position = int(float(cup_pos_value))
                         
                         if current_position:
-                            log("INFO", f"Current cup position from task: {current_position}", service="routine")
+                            log("INFO", f"Current cup position from task: {current_position} (1-indexed)", service="routine")
                             
-                            # Find nearest available position
-                            new_position = find_nearest_available_position(current_position, detection_result)
+                            # CRITICAL: Convert 1-indexed cup_position to 0-indexed for detection_result comparison
+                            # Task uses: 1=Station1, 2=Station2, 3=Station3, 4=Station4 (1-indexed)
+                            # Detection returns: 0=Station1, 1=Station2, 2=Station3, 3=Station4 (0-indexed)
+                            current_position_0indexed = current_position - 1
+                            log("INFO", f"Converted to 0-indexed for detection comparison: {current_position_0indexed}", service="routine")
+                            
+                            # Find nearest available position (using 0-indexed)
+                            new_position_0indexed = find_nearest_available_position(current_position_0indexed, detection_result)
+                            # Convert back to 1-indexed for task storage
+                            new_position = new_position_0indexed + 1
                             
                             # Update task params with new position if it changed
                             if new_position != current_position:
-                                log("INFO", "Resume", service="routine")
+                                log("INFO", f"📍 Position changed: Station {current_position} → Station {new_position} (task uses 1-indexed)", service="routine")
                                 
                                 # Update the task's ingredient data
                                 # Update direct 'cup_position' key if exists
@@ -388,7 +420,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 except Exception as e:
                                     log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
                             else:
-                                log("INFO", f"Cup position {current_position} is available for cup {cup_id}, no change needed", service="routine")
+                                log("INFO", f"Station {current_position} (1-indexed) is available for cup {cup_id}, no position change needed", service="routine")
                         else:
                             log("ERROR", f"Invalid position detected in validation response for cup {cup_id}", service="routine")
                 

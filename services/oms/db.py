@@ -611,13 +611,20 @@ def get_active_alerts() -> List[Dict[str, Any]]:
             )
             alerts = cur.fetchall()
             
-            # Convert datetime objects to ISO format strings
+            # Convert datetime objects to ISO format strings and extract message from payload
             result_alerts = []
             for alert in alerts:
                 alert_dict = dict(alert)
                 for key, value in alert_dict.items():
                     if isinstance(value, datetime):
                         alert_dict[key] = value.isoformat()
+                
+                # Extract message from payload if it exists
+                if alert_dict.get('payload') and isinstance(alert_dict['payload'], dict):
+                    payload = alert_dict['payload']
+                    if 'message' in payload:
+                        alert_dict['message'] = payload['message']
+                
                 result_alerts.append(alert_dict)
             
             return result_alerts
@@ -646,13 +653,20 @@ def get_acknowledged_alerts() -> List[Dict[str, Any]]:
             )
             alerts = cur.fetchall()
             
-            # Convert datetime objects to ISO format strings
+            # Convert datetime objects to ISO format strings and extract message from payload
             result_alerts = []
             for alert in alerts:
                 alert_dict = dict(alert)
                 for key, value in alert_dict.items():
                     if isinstance(value, datetime):
                         alert_dict[key] = value.isoformat()
+                
+                # Extract message from payload if it exists
+                if alert_dict.get('payload') and isinstance(alert_dict['payload'], dict):
+                    payload = alert_dict['payload']
+                    if 'message' in payload:
+                        alert_dict['message'] = payload['message']
+                
                 result_alerts.append(alert_dict)
             
             return result_alerts

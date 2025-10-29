@@ -267,7 +267,7 @@ export const useDashboardStore = create((set, get) => {
       const totalOrders = stats.total || 0;
       const completedOrders = stats.completed || 0;
       set({ orderStats: result.data });
-      addLog('API', 'info', `Order stats: ${completedOrders}/${totalOrders} orders completed`);
+      // Removed verbose INFO log - only log errors
     } else {
       addLog('API', 'error', 'Failed to fetch order statistics', result.error);
     }
@@ -334,7 +334,7 @@ export const useDashboardStore = create((set, get) => {
           // If order still exists but is completed/failed/stopped, keep the tasks visible
         }
       } catch {}
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Fetch updated statistics whenever orders are fetched
       get().fetchOrderStats();
@@ -357,20 +357,19 @@ export const useDashboardStore = create((set, get) => {
       return;
     }
     
-    addLog('API', 'info', `Loading more orders (offset: ${state.ordersOffset})...`);
+    // Removed verbose INFO log - only log errors
     await get().fetchOrders(true); // true = append mode
   },
 
   createOrder: async (orderData) => {
-    addLog('API', 'info', `Creating new order...`);
+    // Removed verbose INFO log - only log errors
     const result = await ordersAPI.createOrder(orderData);
     
     if (result.success) {
-      addLog('API', 'info', result.message, orderData);
+      // Removed verbose INFO log - only log errors
       
       // Add a small delay to ensure backend has time to update
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after creating order`);
         await get().fetchOrders(); // Refresh orders
       }, 500);
     } else {
@@ -381,15 +380,14 @@ export const useDashboardStore = create((set, get) => {
   },
 
   processPOSOrder: async (posOrderData) => {
-    addLog('API', 'info', `Processing POS order...`);
+    // Removed verbose INFO log - only log errors
     const result = await ordersAPI.processPOSOrder(posOrderData);
     
     if (result.success) {
-      addLog('API', 'info', result.message, posOrderData);
+      // Removed verbose INFO log - only log errors
       
       // Add a small delay to ensure backend has time to update
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after processing POS order`);
         await get().fetchOrders(); // Refresh orders
       }, 500);
     } else {
@@ -400,12 +398,12 @@ export const useDashboardStore = create((set, get) => {
   },
 
   fetchMenuItems: async () => {
-    addLog('API', 'info', `Fetching menu items...`);
+    // Removed verbose INFO log - only log errors
     const result = await ordersAPI.fetchMenuItems();
     
     if (result.success) {
       set({ menuItems: result.data });
-      addLog('API', 'info', `Loaded ${result.data.length} menu items`);
+      // Removed verbose INFO log - only log errors
     } else {
       addLog('API', 'error', result.error);
     }
@@ -414,13 +412,12 @@ export const useDashboardStore = create((set, get) => {
   },
 
   fetchIngredientsByCategory: async () => {
-    addLog('API', 'info', `Fetching ingredients...`);
+    // Removed verbose INFO log - only log errors
     const result = await ordersAPI.fetchIngredients();
     
     if (result.success) {
       set({ ingredientsByCategory: result.data });
-      const categoryCount = Object.keys(result.data).length;
-      addLog('API', 'info', `Loaded ingredients from ${categoryCount} categories`);
+      // Removed verbose INFO log - only log errors
     } else {
       addLog('API', 'error', result.error);
     }
@@ -429,7 +426,7 @@ export const useDashboardStore = create((set, get) => {
   },
 
   startOrder: async (orderId) => {
-    addLog('API', 'info', `Starting order ${orderId}...`);
+    // Removed verbose INFO log - only log errors
     
     // Verify no other order is currently processing
     const state = get();
@@ -452,11 +449,10 @@ export const useDashboardStore = create((set, get) => {
     const result = await ordersAPI.startOrder(orderId);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Refresh orders to get the actual state from backend
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after starting order ${orderId}`);
         await get().fetchOrders(); // Refresh orders
       }, 500);
     } else {
@@ -469,7 +465,7 @@ export const useDashboardStore = create((set, get) => {
   },
 
   stopOrder: async (orderId) => {
-    addLog('API', 'info', `Stopping order ${orderId}...`);
+    // Removed verbose INFO log - only log errors
     
     // Optimistic update: immediately change order status to STOPPING in UI
     set(state => ({
@@ -483,11 +479,10 @@ export const useDashboardStore = create((set, get) => {
     const result = await ordersAPI.stopOrder(orderId);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Refresh orders to get the actual state from backend
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after stopping order ${orderId}`);
         await get().fetchOrders();
       }, 500);
     } else {
@@ -500,7 +495,7 @@ export const useDashboardStore = create((set, get) => {
   },
 
   resumeOrder: async (orderId) => {
-    addLog('API', 'info', `Resuming order ${orderId}...`);
+    // Removed verbose INFO log - only log errors
     
     // Optimistic update: immediately change order status to PROCESSING in UI
     set(state => ({
@@ -514,11 +509,10 @@ export const useDashboardStore = create((set, get) => {
     const result = await ordersAPI.resumeOrder(orderId);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Refresh orders to get the actual state from backend
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after resuming order ${orderId}`);
         await get().fetchOrders();
       }, 500);
     } else {
@@ -531,15 +525,14 @@ export const useDashboardStore = create((set, get) => {
   },
 
   deleteOrder: async (orderId) => {
-    addLog('API', 'info', `Deleting order ${orderId}...`);
+    // Removed verbose INFO log - only log errors
     const result = await ordersAPI.deleteOrder(orderId);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Add a small delay to ensure backend has time to update
       setTimeout(async () => {
-        addLog('API', 'info', `Refreshing orders after deleting order ${orderId}`);
         await get().fetchOrders(); // Refresh orders
       }, 500);
     } else {
@@ -560,7 +553,7 @@ export const useDashboardStore = create((set, get) => {
     
     if (result.success) {
       set({ orders: newOrders, isLoading: false });
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
     } else {
       set(state => ({ 
         isLoading: false,
@@ -580,10 +573,7 @@ export const useDashboardStore = create((set, get) => {
       set(state => ({
         systemStatus: { ...state.systemStatus, ...result.data }
       }));
-      // Log service statuses for better visibility
-      const services = Object.keys(result.data || {});
-      const onlineCount = Object.values(result.data || {}).filter(s => s === 'online').length;
-      addLog('API', 'info', `Health check: ${onlineCount}/${services.length} services online`);
+      // Removed verbose INFO log - only log errors
     } else {
       set(state => ({
         systemStatus: { ...state.systemStatus, ...result.data }
@@ -603,7 +593,7 @@ export const useDashboardStore = create((set, get) => {
         systemStatus: { ...state.systemStatus, scheduler: 'online' },
         errors: { ...state.errors, scheduler: null }
       }));
-      addLog('API', 'info', 'Scheduler status updated');
+      // Removed verbose INFO log - only log errors
     } else {
       set(state => ({ 
         schedulerStatus: null,
@@ -650,7 +640,7 @@ export const useDashboardStore = create((set, get) => {
     
     if (result.success) {
       set({ isLoading: false });
-      addLog('System', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       // Refresh orders and alerts after resume
       await get().fetchOrders();
     } else {

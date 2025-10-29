@@ -3,7 +3,7 @@ import useStore from '../../../store';
 
 export default function LogsPanel() {
   const { systemLogs, clearLogs, systemStatus, checkSystemHealth } = useStore();
-  const [filterLevel, setFilterLevel] = useState('ALL');
+  const [filterLevel, setFilterLevel] = useState('ERROR'); // Default to ERROR only to reduce spam
   const [filterService, setFilterService] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);

@@ -38,19 +38,27 @@ export const useAlertsStore = create((set, get) => ({
 
   // Fetch active alerts
   fetchAlerts: async () => {
+    const startTime = performance.now();
+    console.log('[AlertsStore] Starting fetchAlerts...');
+    
     set(state => ({ 
       isLoading: true, 
       errors: { ...state.errors, alerts: null }
     }));
 
     const result = await alertsAPI.fetchActiveAlerts();
+    const endTime = performance.now();
+    const duration = (endTime - startTime).toFixed(2);
+    
+    console.log(`[AlertsStore] fetchAlerts completed in ${duration}ms`);
     
     if (result.success) {
       set(state => ({ 
         alerts: result.data, 
         isLoading: false
       }));
-      addLog('API', 'info', result.message);
+      console.log(`[AlertsStore] Updated state with ${result.data?.length || 0} alerts`);
+      // Removed verbose INFO log - only log errors
     } else {
       set(state => ({ 
         alerts: [],
@@ -71,7 +79,7 @@ export const useAlertsStore = create((set, get) => ({
       set(state => ({ 
         acknowledgedAlerts: result.data
       }));
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
     } else {
       set(state => ({ 
         acknowledgedAlerts: [],
@@ -88,7 +96,7 @@ export const useAlertsStore = create((set, get) => ({
     const result = await alertsAPI.acknowledgeAlert(alertId);
     
     if (result.success) {
-      addLog('API', 'info', result.message);
+      // Removed verbose INFO log - only log errors
       
       // Remove the alert from active alerts immediately for better UX
       set(state => ({
@@ -114,7 +122,7 @@ export const useAlertsStore = create((set, get) => ({
     const result = await alertsAPI.createAlert(alertData);
     
     if (result.success) {
-      addLog('API', 'info', result.message, alertData);
+      // Removed verbose INFO log - only log errors
       await get().fetchAlerts(); // Refresh alerts
     } else {
       addLog('API', 'error', result.error, result.details);

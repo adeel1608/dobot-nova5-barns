@@ -10,7 +10,8 @@ export const inventoryAPI = {
 
     fetchCategoryInfo: async () => {
     const result = await apiClient.get('/inventory/category-info', {}, {
-      successMessage: 'Successfully fetched category information'
+      successMessage: 'Successfully fetched category information',
+      timeout: 10000  // 10 second timeout for faster failure
     });
 
     if (result.success) {
@@ -25,7 +26,8 @@ export const inventoryAPI = {
 
   fetchFullStockSummary: async () => {
     const result = await apiClient.get('/inventory/category-count', {}, {
-      successMessage: 'Successfully fetched full stock summary'
+      successMessage: 'Successfully fetched full stock summary',
+      timeout: 10000  // 10 second timeout for faster failure
     });
 
     if (result.success) {
@@ -41,7 +43,8 @@ export const inventoryAPI = {
   // Fetch full inventory status (all items)
   fetchStocklevel: async () => {
     const result = await apiClient.get('/inventory/stock-level', {}, {
-      successMessage: 'Successfully fetched stock-level'
+      successMessage: 'Successfully fetched stock-level',
+      timeout: 10000  // 10 second timeout for faster failure
     });
     
     if (result.success) {
@@ -58,6 +61,7 @@ export const inventoryAPI = {
   // Fetch full inventory status (all items)
   fetchInventoryStatus: async () => {
     const result = await apiClient.get('/inventory/status', {}, {
+      timeout: 10000,  // 10 second timeout for faster failure (was 30s)
       successMessage: 'Successfully fetched inventory status'
     });
     

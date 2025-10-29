@@ -596,7 +596,7 @@ async def process_order_async(order_id: int, drinks: List[Dict[str, Any]], recip
         # Calculate dynamic timeout based on number of cups
         # Base timeout (2 minutes) + per-cup timeout (6.67 minutes per cup)
         base_timeout = 60.0  # 1 minute base
-        per_cup_timeout = 240.0  # 4 minutes per cup (240 seconds)
+        per_cup_timeout = 360.0  # 6 minutes per cup (360 seconds)
         num_cups = len(drinks)
         dynamic_timeout = base_timeout + (per_cup_timeout * num_cups)
         
