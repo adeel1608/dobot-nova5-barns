@@ -8,7 +8,6 @@
 import os
 import cv2
 import time
-import sys
 
 import types
 import numpy as np
@@ -17,9 +16,12 @@ import threading
 import importlib.util
 from collections import deque
 
-# ---- Import shared logger for BARNS ----
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from shared.logger import log
+# ---- Logging (simple; swap with your logger_config if desired) ----
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+log = logging.getLogger("rfdetr-app")
 
 # ---- RF-DETR + Supervision ----
 from PIL import Image
@@ -56,17 +58,7 @@ class Config:
         # You can set RFDETR_VARIANT="base" or "large" in config.py if you like.
         self.rfdetr_variant = str(g.get("RFDETR_VARIANT", "base")).lower()
         self.confidence = float(g.get("RFDETR_CONFIDENCE", 0.30))
-        
-        # ALLOWED_CLASSES can be either class IDs (integers) or class names (strings)
-        allowed_classes_raw = g.get("ALLOWED_CLASSES", [41])  # default to cup class ID (41 in COCO)
-        if allowed_classes_raw and isinstance(allowed_classes_raw[0], int):
-            # If integer class IDs provided, use them directly
-            self.allowed_classes = set(allowed_classes_raw)
-            self.allowed_classes_are_ids = True
-        else:
-            # If class names provided, convert to lowercase for lookup
-            self.allowed_classes = set(map(str, allowed_classes_raw))
-            self.allowed_classes_are_ids = False
+        self.allowed_classes = set(map(str, g.get("ALLOWED_CLASSES", ["cup"])))  # default to "cup" only
         
         # Local model paths
         model_paths = g.get("RFDETR_MODEL_PATHS", {})
@@ -95,6 +87,10 @@ class Config:
         self.aspect_min = float(g.get("ASPECT_RATIO_MIN", 0.25))
         self.aspect_max = float(g.get("ASPECT_RATIO_MAX", 4.0))
         self.roi_overlap_threshold = float(g.get("ROI_OVERLAP_THRESHOLD", 0.3))
+        
+        # Distance threshold for cup assignment (pixels in resized frame)
+        # Only assign detection to cup if within this distance
+        self.max_cup_distance = float(g.get("MAX_CUP_DISTANCE", 150.0))
 
         # History / voting
         self.frames_vote = int(g.get("FRAMES", 5))
@@ -166,7 +162,7 @@ class RTSPStreamReader:
                         time.sleep(0.05)
                     self.connected = self._cap.isOpened()
                     if not self.connected:
-                        log("WARNING", f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s", service="validation")
+                        log.warning(f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s")
                         time.sleep(delay)
                         delay = min(self.cfg.max_retry_delay, delay * self.cfg.retry_backoff)
                         continue
@@ -189,9 +185,9 @@ class RTSPStreamReader:
                 with self.lock:
                     self.buffer.append(frame)
 
-            except Exception as e:
+            except Exception:
                 self.connected = False
-                log("ERROR", f"RTSP read error: {str(e)[:100]}", service="validation")
+                log.exception("RTSP read error")
                 try:
                     if self._cap is not None:
                         self._cap.release()
@@ -251,7 +247,7 @@ def _build_roi_integral(h: int, w: int, roi_poly: np.ndarray):
 # Main detector
 # ------------------------------
 
-class CupDetector:
+class RFDETRDetector:
     def __init__(self, config_path: str = "config.py"):
         mod = _load_config_module(config_path)
         self.config = Config(mod)
@@ -267,15 +263,15 @@ class CupDetector:
         self.reader.start()
 
         # RF-DETR model (local)
-        log("INFO", "Initializing RF-DETR model...", service="validation")
+        log.info("Initializing RF-DETR model...")
         
         # Use local model path if specified and file exists
         model_kwargs = {}
         if self.config.model_path and os.path.exists(self.config.model_path):
             model_kwargs["pretrain_weights"] = self.config.model_path
-            log("INFO", f"Using local model: {self.config.model_path}", service="validation")
+            log.info(f"Using local model: {self.config.model_path}")
         else:
-            log("INFO", "Using default model (will download if needed)", service="validation")
+            log.info(f"Using default model (will download if needed)")
         
         # Initialize model based on variant
         if self.config.rfdetr_variant == "large":
@@ -287,10 +283,10 @@ class CupDetector:
             from rfdetr import RFDETRMedium
             self.model = RFDETRMedium(**model_kwargs)
         else:
-            log("WARNING", f"Unknown variant '{self.config.rfdetr_variant}', using large", service="validation")
+            log.warning(f"Unknown variant '{self.config.rfdetr_variant}', using large")
             self.model = RFDETRLarge(**model_kwargs)
             
-        log("INFO", "RF-DETR model ready for detection", service="validation")
+        log.info("RF-DETR ready.")
 
         # Runtime state
         self._last_result = None
@@ -323,16 +319,10 @@ class CupDetector:
 
         self.target_ids = set()
         if self.config.allowed_classes:
-            if self.config.allowed_classes_are_ids:
-                # Using integer class IDs directly
-                self.target_ids = self.config.allowed_classes
-                log("INFO", f"Using class IDs for filtering: {sorted(self.target_ids)}", service="validation")
-            else:
-                # Using class names - need to map to IDs
-                missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
-                if missing:
-                    log("WARNING", f"Unknown class names in ALLOWED_CLASSES: {missing}", service="validation")
-                self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
+            missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
+            if missing:
+                log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
+            self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
 
     def get_connection_status(self):
         return self.reader.status()
@@ -345,16 +335,19 @@ class CupDetector:
         except Exception:
             pass
 
-    def _save_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None):
+    def _save_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None, 
+                          roi_poly=None, debug_folder=None, label_prefix="", filtered_dets=None):
+        """Generic debug frame saving with configurable parameters"""
         if not (self.config.debug_mode or self.config.save_frames): 
             return
         try:
-            os.makedirs(self.config.debug_folder, exist_ok=True)
+            folder = debug_folder or self.config.debug_folder
+            os.makedirs(folder, exist_ok=True)
             dbg = frame.copy()
             
             # Draw ROI polygon if available
-            if self._roi_poly_resized is not None and len(self._roi_poly_resized) > 0:
-                cv2.polylines(dbg, [self._roi_poly_resized], True, (0,255,0), 2)
+            if roi_poly is not None and len(roi_poly) > 0:
+                cv2.polylines(dbg, [roi_poly], True, (0,255,0), 2)
             
             # Draw all detections (light orange)
             if all_dets:
@@ -362,34 +355,56 @@ class CupDetector:
                     cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,100,255),1)
                     cv2.putText(dbg,f"All {i+1}",(x1,y1-8),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,100,255),1)
             
-            # Draw filtered detections (red)
+            # Draw filtered out detections (yellow) - these failed filters
+            if filtered_dets:
+                for i,(x1,y1,x2,y2,reason) in enumerate(filtered_dets):
+                    cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,255,255),1)
+                    cv2.putText(dbg,f"X:{reason}",(x1,y1-8),cv2.FONT_HERSHEY_SIMPLEX,0.4,(0,255,255),1)
+            
+            # Draw filtered detections (red) - these passed all filters
             if bboxes:
                 for i,(x1,y1,x2,y2) in enumerate(bboxes):
                     cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,0,255),2)
                     if cup_assign and i in cup_assign:
-                        cv2.putText(dbg,f"Cup {i+1}->Pos {cup_assign[i]+1}",(x1,y1-10),
+                        cv2.putText(dbg,f"{label_prefix}Cup {i+1}->Pos {cup_assign[i]+1}",(x1,y1-10),
                                     cv2.FONT_HERSHEY_SIMPLEX,0.6,(0,0,255),2)
             
             # Draw cup positions (blue)
             if positions:
                 for i,(x,y) in enumerate(positions):
                     cv2.circle(dbg,(x,y),8,(255,0,0),-1)
-                    cv2.putText(dbg,f"Pos {i+1}",(x+10,y-10),cv2.FONT_HERSHEY_SIMPLEX,0.6,(255,0,0),2)
+                    cv2.putText(dbg,f"{label_prefix}Pos {i+1}",(x+10,y-10),cv2.FONT_HERSHEY_SIMPLEX,0.6,(255,0,0),2)
+                    # Draw distance threshold circle
+                    cv2.circle(dbg,(x,y),int(self.config.max_cup_distance),(200,200,200),1)
             
             # Add timestamp and frame info
             ts = time.strftime("%H:%M:%S")
-            cv2.putText(dbg,f"Frame {self._frame_count} - {ts}",(10,30),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2)
+            cv2.putText(dbg,f"{label_prefix}Frame {getattr(self,'_frame_count',0)} - {ts}",(10,30),
+                       cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2)
             
             # Save to debug folder (overwrites each time)
-            filename = f"{self.config.debug_folder}/debug_frame.jpg"
+            filename = f"{folder}/debug_frame.jpg"
             cv2.imwrite(filename, dbg)
         except Exception as e:
-            log("ERROR", f"Error saving debug frame: {str(e)[:100]}", service="validation")
+            log.error(f"Error saving debug frame: {e}")
 
-    # --------------- Detection ---------------
-    def detect(self):
+    # --------------- Generic Detection Method ---------------
+    def _detect_generic(self, roi_polygon, cup_positions, debug_folder=None, label_prefix="", 
+                        return_dict=True, num_positions=4, max_distance=None):
         """
-        Returns: {0: bool, 1: bool, 2: bool, 3: bool} or {"error": "..."}
+        Generic detection method used by all detection functions.
+        
+        Args:
+            roi_polygon: ROI polygon for filtering
+            cup_positions: List of (x,y) cup positions
+            debug_folder: Folder to save debug frames
+            label_prefix: Prefix for debug labels
+            return_dict: If True, return dict. If False, return bool (for single cup)
+            num_positions: Number of cup positions (4 for station, 1 for milk/sauce)
+            max_distance: Maximum distance for cup assignment (uses config default if None)
+            
+        Returns:
+            dict {0: bool, 1: bool, ...} or bool or {"error": "..."}
         """
         try:
             frame = self.reader.get_latest()
@@ -403,81 +418,84 @@ class CupDetector:
             if new_w < 2 or new_h < 2:
                 return {"error": "Resized frame too small."}
 
-            # (Re)allocate only on size change
-            size_changed = (self._input_shape != (new_h, new_w))
-            if size_changed:
-                self._prealloc_frame = np.empty((new_h, new_w, 3), dtype=np.uint8)
-                self._input_shape = (new_h, new_w)
+            # Build ROI caches
+            if roi_polygon.size > 0:
+                sx = new_w / float(orig_w)
+                sy = new_h / float(orig_h)
+                roi_poly_resized = _resize_polygon(roi_polygon, sx, sy)
+            else:
+                roi_poly_resized = np.array([], dtype=np.int32)
+            roi_mask, roi_integral = _build_roi_integral(new_h, new_w, roi_poly_resized)
 
-                # Rebuild ROI caches
-                if self.config.roi_polygon.size > 0:
-                    sx = new_w / float(orig_w)
-                    sy = new_h / float(orig_h)
-                    self._roi_poly_resized = _resize_polygon(self.config.roi_polygon, sx, sy)
-                else:
-                    self._roi_poly_resized = np.array([], dtype=np.int32)
-                self._roi_mask, self._roi_integral = _build_roi_integral(new_h, new_w, self._roi_poly_resized)
+            # Resize cup positions
+            cups = np.array(cup_positions, dtype=np.float32)
+            if len(cups.shape) == 1:  # Handle single position
+                cups = cups.reshape(1, -1)
+            cups[:, 0] *= (new_w / float(orig_w))
+            cups[:, 1] *= (new_h / float(orig_h))
+            cups_resized = cups.astype(np.float32)
 
-                # Resize cup positions
-                cups = np.array(self.config.cup_positions, dtype=np.float32)
-                cups[:, 0] *= (new_w / float(orig_w))
-                cups[:, 1] *= (new_h / float(orig_h))
-                self._cups_resized = cups.astype(np.float32)
+            # Resize frame
+            resized_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-            # Resize BGR -> prealloc
-            cv2.resize(frame, (new_w, new_h), dst=self._prealloc_frame, interpolation=cv2.INTER_AREA)
-
-            # Frame skipping
-            self._ticks += 1
-            if self.config.enable_frame_skipping:
-                stride = max(1, int(self.config.skip_frames) + 1)
-                if (self._ticks % stride) != 0 and self._last_result is not None:
-                    return dict(self._last_result)
-
-            # ---- RF-DETR inference (local) ----
-            log("DEBUG", f"Running RF-DETR inference (confidence: {self.config.confidence})", service="validation")
-            pil_img = Image.fromarray(cv2.cvtColor(self._prealloc_frame, cv2.COLOR_BGR2RGB))
+            # ---- RF-DETR inference ----
+            pil_img = Image.fromarray(cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
             detections = self.model.predict(pil_img, threshold=self.config.confidence)
-            log("DEBUG", f"RF-DETR detected {len(detections.xyxy)} objects before filtering", service="validation")
 
             # Supervision → tensors
             boxes_xyxy = torch.as_tensor(detections.xyxy, dtype=torch.float32)
             scores     = torch.as_tensor(detections.confidence, dtype=torch.float32)
             class_ids  = torch.as_tensor(detections.class_id, dtype=torch.int64)
 
-            # Confidence filter (strict recheck)
+            # Store original detections for debug
+            all_dets_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in detections.xyxy] if detections.xyxy.size > 0 else []
+            filtered_dets = []  # Store filtered out detections with reason
+
+            # Confidence filter
             keep = scores >= self.config.confidence
             boxes_xyxy, scores, class_ids = boxes_xyxy[keep], scores[keep], class_ids[keep]
 
-            # Class filter (only allowed_classes)
+            # Class filter
             if self.target_ids:
                 try:
                     mask = torch.isin(class_ids, torch.tensor(list(self.target_ids), dtype=class_ids.dtype))
                 except AttributeError:
                     mask = torch.tensor([int(int(cid) in self.target_ids) for cid in class_ids], dtype=torch.bool)
+                
+                # Track filtered by class
+                for i, keep_det in enumerate(mask):
+                    if not keep_det and i < len(boxes_xyxy):
+                        box = boxes_xyxy[i].cpu().numpy()
+                        filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "class"))
+                
                 boxes_xyxy, scores, class_ids = boxes_xyxy[mask], scores[mask], class_ids[mask]
 
             if boxes_xyxy.numel() == 0:
-                # save a debug frame even when nothing detected
                 if self.config.debug_mode or self.config.save_frames:
-                    self._save_debug_frame(self._prealloc_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                    self._frame_count += 1
-                present = {0: False, 1: False, 2: False, 3: False}
-                self._last_result = self._vote_presence(present)
-                return dict(self._last_result)
+                    self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
+                                          all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                return {i: False for i in range(num_positions)} if return_dict else False
 
             # NMS
             keep_nms = nms(boxes_xyxy, scores, 0.5)
+            
+            # Track filtered by NMS
+            nms_mask = torch.zeros(len(boxes_xyxy), dtype=torch.bool)
+            nms_mask[keep_nms] = True
+            for i, keep_det in enumerate(nms_mask):
+                if not keep_det:
+                    box = boxes_xyxy[i].cpu().numpy()
+                    filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "NMS"))
+            
             boxes_xyxy, scores, class_ids = boxes_xyxy[keep_nms], scores[keep_nms], class_ids[keep_nms]
 
             if boxes_xyxy.numel() == 0:
-                # save a debug frame even when nothing detected
                 if self.config.debug_mode or self.config.save_frames:
-                    self._save_debug_frame(self._prealloc_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                    self._frame_count += 1
-                present = {0: False, 1: False, 2: False, 3: False}
-                self._last_result = self._vote_presence(present)
-                return dict(self._last_result)
+                    self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
+                                          all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                return {i: False for i in range(num_positions)} if return_dict else False
 
             # Size & aspect filters
             bw = (boxes_xyxy[:, 2] - boxes_xyxy[:, 0]).clamp(1)
@@ -487,79 +505,127 @@ class CupDetector:
             aspect = bw / bh
             aspect_ok = (aspect >= self.config.aspect_min) & (aspect <= self.config.aspect_max)
             keep = area_ok & aspect_ok
+            
+            # Track filtered by size/aspect
+            for i, keep_det in enumerate(keep):
+                if not keep_det:
+                    box = boxes_xyxy[i].cpu().numpy()
+                    reason = "size" if not area_ok[i] else "aspect"
+                    filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), reason))
+            
             boxes_xyxy = boxes_xyxy[keep]
+            
             if boxes_xyxy.numel() == 0:
-                # save a debug frame even when nothing detected
                 if self.config.debug_mode or self.config.save_frames:
-                    self._save_debug_frame(self._prealloc_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                    self._frame_count += 1
-                present = {0: False, 1: False, 2: False, 3: False}
-                self._last_result = self._vote_presence(present)
-                return dict(self._last_result)
+                    self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
+                                          all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                return {i: False for i in range(num_positions)} if return_dict else False
 
-            # ROI overlap via integral mask
-            if self._roi_integral is not None:
-                H, W = self._roi_mask.shape[:2]
+            # ROI overlap filter
+            if roi_integral is not None and roi_polygon.size > 0:
+                H, W = roi_mask.shape[:2]
                 x1 = boxes_xyxy[:, 0].to(torch.int32).clamp(0, W - 1)
                 y1 = boxes_xyxy[:, 1].to(torch.int32).clamp(0, H - 1)
                 x2 = boxes_xyxy[:, 2].to(torch.int32).clamp(0, W - 1)
                 y2 = boxes_xyxy[:, 3].to(torch.int32).clamp(0, H - 1)
 
-                S = torch.as_tensor(self._roi_integral, dtype=torch.int64)  # (H+1, W+1)
+                S = torch.as_tensor(roi_integral, dtype=torch.int64)
                 roi_pix = S[y2 + 1, x2 + 1] - S[y1, x2 + 1] - S[y2 + 1, x1] + S[y1, x1]
                 box_area = (x2 - x1 + 1) * (y2 - y1 + 1)
                 overlap = roi_pix.to(torch.float32) / torch.clamp(box_area.to(torch.float32), min=1.0)
                 keep = overlap >= self.config.roi_overlap_threshold
+                
+                # Track filtered by ROI
+                for i, keep_det in enumerate(keep):
+                    if not keep_det:
+                        box = boxes_xyxy[i].cpu().numpy()
+                        filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "ROI"))
+                
                 boxes_xyxy = boxes_xyxy[keep]
 
-            # Assign to nearest of 4 cups
-            present = {0: False, 1: False, 2: False, 3: False}
+            # Assign to cup positions with distance threshold
+            result = {i: False for i in range(num_positions)} if return_dict else False
             cup_assign = {}
-            if self._cups_resized is not None and len(self._cups_resized) >= 4 and boxes_xyxy.numel() > 0:
+            
+            if cups_resized is not None and len(cups_resized) >= 1 and boxes_xyxy.numel() > 0:
                 cx = 0.5 * (boxes_xyxy[:, 0] + boxes_xyxy[:, 2])
                 cy = 0.5 * (boxes_xyxy[:, 1] + boxes_xyxy[:, 3])
-                centers = torch.stack([cx, cy], dim=1).cpu().numpy()     # (N,2)
-                cups = self._cups_resized.astype(np.float32)             # (4,2)
-                d2 = ((centers[:, None, :] - cups[None, :, :]) ** 2).sum(axis=2)
-                assign = np.argmin(d2, axis=1)
-                for k in range(4):
-                    present[k] = bool(np.any(assign == k))
-                # Create cup assignment mapping for debug
-                for i, cup_id in enumerate(assign):
-                    cup_assign[i] = int(cup_id)
+                centers = torch.stack([cx, cy], dim=1).cpu().numpy()
+                cups_np = cups_resized.astype(np.float32)
                 
-                # Log final detection results
-                detected_positions = [i+1 for i in range(4) if present[i]]
-                if detected_positions:
-                    log("INFO", f"Cups detected at positions: {detected_positions} ({len(boxes_xyxy)} objects after filtering)", service="validation")
-                else:
-                    log("INFO", f"No cups detected after filtering ({len(boxes_xyxy)} objects found, {len(detections.xyxy)} raw)", service="validation")
+                # Calculate distances
+                d2 = ((centers[:, None, :] - cups_np[None, :, :]) ** 2).sum(axis=2)
+                assign = np.argmin(d2, axis=1)
+                min_distances = np.min(d2, axis=1)
+                
+                # Use distance threshold
+                distance_threshold = max_distance if max_distance is not None else self.config.max_cup_distance
+                distance_threshold_sq = distance_threshold ** 2
+                
+                # Track detections filtered by distance
+                valid_assignments = min_distances <= distance_threshold_sq
+                for i, (is_valid, min_dist) in enumerate(zip(valid_assignments, min_distances)):
+                    if is_valid:
+                        cup_id = assign[i]
+                        if return_dict:
+                            result[cup_id] = True
+                        else:
+                            result = True
+                        cup_assign[i] = int(cup_id)
+                    else:
+                        # This detection is too far from any cup position
+                        box = boxes_xyxy[i].cpu().numpy()
+                        filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "dist"))
 
             # Save debug frame
             if self.config.debug_mode or self.config.save_frames:
-                # Convert tensors to lists for debug visualization
-                bboxes_list = []
-                all_dets_list = []
-                if boxes_xyxy.numel() > 0:
-                    bboxes_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in boxes_xyxy.cpu().numpy()]
-                if detections.xyxy.size > 0:
-                    all_dets_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in detections.xyxy]
+                bboxes_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in boxes_xyxy.cpu().numpy()] if boxes_xyxy.numel() > 0 else []
+                positions_list = [(int(x), int(y)) for x, y in cups_resized] if cups_resized is not None else []
                 
-                positions_list = []
-                if self._cups_resized is not None and len(self._cups_resized) >= 4:
-                    positions_list = [(int(x), int(y)) for x, y in self._cups_resized]
-                
-                self._save_debug_frame(self._prealloc_frame, bboxes_list, positions_list, all_dets_list, cup_assign)
-                self._frame_count += 1
+                self._save_debug_frame(resized_frame, bboxes_list, positions_list, all_dets_list, cup_assign,
+                                      roi_poly=roi_poly_resized, debug_folder=debug_folder,
+                                      label_prefix=label_prefix, filtered_dets=filtered_dets)
 
+            return result
+
+        except Exception:
+            log.exception(f"{label_prefix}detect() failure")
+            return {"error": f"Internal error during {label_prefix}detect()."}
+
+    # --------------- Detection Methods ---------------
+    def detect_cups_on_station(self):
+        """
+        Main cup detection for 4 positions on the station.
+        Returns: {0: bool, 1: bool, 2: bool, 3: bool} or {"error": "..."}
+        """
+        # Frame skipping
+        self._ticks += 1
+        if self.config.enable_frame_skipping:
+            stride = max(1, int(self.config.skip_frames) + 1)
+            if (self._ticks % stride) != 0 and self._last_result is not None:
+                return dict(self._last_result)
+        
+        # Increment frame count for debug
+        if self.config.debug_mode or self.config.save_frames:
+            self._frame_count += 1
+        
+        # Use generic detection method
+        present = self._detect_generic(
+            roi_polygon=self.config.roi_polygon,
+            cup_positions=self.config.cup_positions,
+            debug_folder=self.config.debug_folder,
+            label_prefix="",
+            return_dict=True,
+            num_positions=4
+        )
+        
+        # Apply voting/history if it's a valid result
+        if isinstance(present, dict) and "error" not in present:
             self._last_result = self._vote_presence(present)
             return dict(self._last_result)
-
-        except Exception as e:
-            log("ERROR", f"Cup detection failed: {str(e)[:100]}", service="validation")
-            import traceback
-            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
-            return {"error": "Internal error during detect()."}
+        
+        return present
 
     # --------------- Voting / History ---------------
     def _vote_presence(self, present_now: dict):
@@ -588,400 +654,31 @@ class CupDetector:
             raise ValueError("ROI_POLYGON must be an Nx2 array.")
 
     # --------------- Milk Detection Method ---------------
-    def detect_milk(self):
+    def detect_cup_milk_dispenser(self):
         """
         Milk dispenser detection using MILK_ROI_POLYGON and MILK_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
-        try:
-            log("DEBUG", "Running milk dispenser cup detection...", service="validation")
-            frame = self.reader.get_latest()
-            if frame is None:
-                log("WARNING", "Milk detection: No camera frame available", service="validation")
-                return {"error": "No frame available yet."}
-
-            orig_h, orig_w = frame.shape[:2]
-            scale = min(1.0, float(self.config.max_side) / float(max(orig_h, orig_w)))
-            new_w = int(orig_w * scale)
-            new_h = int(orig_h * scale)
-            if new_w < 2 or new_h < 2:
-                return {"error": "Resized frame too small."}
-
-            # Use milk-specific ROI and cup positions
-            milk_roi_polygon = self.config.milk_roi_polygon
-            milk_cup_positions = self.config.milk_cup_positions
-
-            # Build ROI caches using milk ROI
-            if milk_roi_polygon.size > 0:
-                sx = new_w / float(orig_w)
-                sy = new_h / float(orig_h)
-                roi_poly_resized = _resize_polygon(milk_roi_polygon, sx, sy)
-            else:
-                roi_poly_resized = np.array([], dtype=np.int32)
-            roi_mask, roi_integral = _build_roi_integral(new_h, new_w, roi_poly_resized)
-
-            # Resize milk cup positions
-            cups = np.array(milk_cup_positions, dtype=np.float32)
-            cups[:, 0] *= (new_w / float(orig_w))
-            cups[:, 1] *= (new_h / float(orig_h))
-            cups_resized = cups.astype(np.float32)
-
-            # Resize frame
-            resized_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-            # ---- RF-DETR inference (local) ----
-            pil_img = Image.fromarray(cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
-            detections = self.model.predict(pil_img, threshold=self.config.confidence)
-
-            # Supervision → tensors
-            boxes_xyxy = torch.as_tensor(detections.xyxy, dtype=torch.float32)
-            scores     = torch.as_tensor(detections.confidence, dtype=torch.float32)
-            class_ids  = torch.as_tensor(detections.class_id, dtype=torch.int64)
-
-            # Confidence filter (strict recheck)
-            keep = scores >= self.config.confidence
-            boxes_xyxy, scores, class_ids = boxes_xyxy[keep], scores[keep], class_ids[keep]
-
-            # Class filter (only allowed_classes)
-            if self.target_ids:
-                try:
-                    mask = torch.isin(class_ids, torch.tensor(list(self.target_ids), dtype=class_ids.dtype))
-                except AttributeError:
-                    mask = torch.tensor([int(int(cid) in self.target_ids) for cid in class_ids], dtype=torch.bool)
-                boxes_xyxy, scores, class_ids = boxes_xyxy[mask], scores[mask], class_ids[mask]
-
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_milk_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # NMS
-            keep_nms = nms(boxes_xyxy, scores, 0.5)
-            boxes_xyxy, scores, class_ids = boxes_xyxy[keep_nms], scores[keep_nms], class_ids[keep_nms]
-
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_milk_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # Size & aspect filters
-            bw = (boxes_xyxy[:, 2] - boxes_xyxy[:, 0]).clamp(1)
-            bh = (boxes_xyxy[:, 3] - boxes_xyxy[:, 1]).clamp(1)
-            area_ok = (bw >= self.config.min_cup_size) & (bh >= self.config.min_cup_size) \
-                      & (bw <= self.config.max_cup_size) & (bh <= self.config.max_cup_size)
-            aspect = bw / bh
-            aspect_ok = (aspect >= self.config.aspect_min) & (aspect <= self.config.aspect_max)
-            keep = area_ok & aspect_ok
-            boxes_xyxy = boxes_xyxy[keep]
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_milk_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # ROI overlap via integral mask
-            if roi_integral is not None:
-                H, W = roi_mask.shape[:2]
-                x1 = boxes_xyxy[:, 0].to(torch.int32).clamp(0, W - 1)
-                y1 = boxes_xyxy[:, 1].to(torch.int32).clamp(0, H - 1)
-                x2 = boxes_xyxy[:, 2].to(torch.int32).clamp(0, W - 1)
-                y2 = boxes_xyxy[:, 3].to(torch.int32).clamp(0, H - 1)
-
-                S = torch.as_tensor(roi_integral, dtype=torch.int64)  # (H+1, W+1)
-                roi_pix = S[y2 + 1, x2 + 1] - S[y1, x2 + 1] - S[y2 + 1, x1] + S[y1, x1]
-                box_area = (x2 - x1 + 1) * (y2 - y1 + 1)
-                overlap = roi_pix.to(torch.float32) / torch.clamp(box_area.to(torch.float32), min=1.0)
-                keep = overlap >= self.config.roi_overlap_threshold
-                boxes_xyxy = boxes_xyxy[keep]
-
-            # Assign to milk cup (single cup detection)
-            cup_detected = False
-            cup_assign = {}
-            if cups_resized is not None and len(cups_resized) >= 1 and boxes_xyxy.numel() > 0:
-                cx = 0.5 * (boxes_xyxy[:, 0] + boxes_xyxy[:, 2])
-                cy = 0.5 * (boxes_xyxy[:, 1] + boxes_xyxy[:, 3])
-                centers = torch.stack([cx, cy], dim=1).cpu().numpy()     # (N,2)
-                cups = cups_resized.astype(np.float32)             # (1,2)
-                d2 = ((centers[:, None, :] - cups[None, :, :]) ** 2).sum(axis=2)
-                assign = np.argmin(d2, axis=1)
-                # Check if any detection is close enough to the milk cup
-                min_distances = np.min(d2, axis=1)
-                max_distance = 500.0  # Maximum distance threshold for cup detection
-                cup_detected = bool(np.any(min_distances <= max_distance))
-                # Create cup assignment mapping for debug
-                for i, cup_id in enumerate(assign):
-                    cup_assign[i] = int(cup_id)
-            
-            # Log milk detection result
-            if cup_detected:
-                log("INFO", f"Milk dispenser: Cup detected (distance threshold: {max_distance:.1f}px)", service="validation")
-            else:
-                log("DEBUG", f"Milk dispenser: No cup detected", service="validation")
-
-            # Save debug frame
-            if self.config.debug_mode or self.config.save_frames:
-                # Convert tensors to lists for debug visualization
-                bboxes_list = []
-                all_dets_list = []
-                if boxes_xyxy.numel() > 0:
-                    bboxes_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in boxes_xyxy.cpu().numpy()]
-                if detections.xyxy.size > 0:
-                    all_dets_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in detections.xyxy]
-                
-                positions_list = []
-                if cups_resized is not None and len(cups_resized) >= 1:
-                    positions_list = [(int(x), int(y)) for x, y in cups_resized]
-                
-                self._save_milk_debug_frame(resized_frame, bboxes_list, positions_list, all_dets_list, cup_assign)
-
-            return cup_detected
-
-        except Exception as e:
-            log("ERROR", f"Milk detection failed: {str(e)[:100]}", service="validation")
-            import traceback
-            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
-            return {"error": "Internal error during milk detect()."}
-
-    def _save_milk_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None):
-        """Save debug frame for milk dispenser"""
-        if not (self.config.debug_mode or self.config.save_frames): 
-            return
-        try:
-            os.makedirs(self.config.milk_debug_folder, exist_ok=True)
-            dbg = frame.copy()
-            
-            # Draw ROI polygon if available
-            if hasattr(self, '_milk_roi_poly_resized') and self._milk_roi_poly_resized is not None and len(self._milk_roi_poly_resized) > 0:
-                cv2.polylines(dbg, [self._milk_roi_poly_resized], True, (0,255,0), 2)
-            
-            # Draw all detections (light orange)
-            if all_dets:
-                for i,(x1,y1,x2,y2) in enumerate(all_dets):
-                    cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,100,255),1)
-                    cv2.putText(dbg,f"All {i+1}",(x1,y1-8),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,100,255),1)
-            
-            # Draw filtered detections (red)
-            if bboxes:
-                for i,(x1,y1,x2,y2) in enumerate(bboxes):
-                    cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,0,255),2)
-                    if cup_assign and i in cup_assign:
-                        cv2.putText(dbg,f"Milk Cup {i+1}->Pos {cup_assign[i]+1}",(x1,y1-10),
-                                    cv2.FONT_HERSHEY_SIMPLEX,0.6,(0,0,255),2)
-            
-            # Draw cup positions (blue)
-            if positions:
-                for i,(x,y) in enumerate(positions):
-                    cv2.circle(dbg,(x,y),8,(255,0,0),-1)
-                    cv2.putText(dbg,f"Milk Pos {i+1}",(x+10,y-10),cv2.FONT_HERSHEY_SIMPLEX,0.6,(255,0,0),2)
-            
-            # Add timestamp and frame info
-            ts = time.strftime("%H:%M:%S")
-            cv2.putText(dbg,f"Milk Frame - {ts}",(10,30),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2)
-            
-            # Save to debug folder (overwrites each time)
-            filename = f"{self.config.milk_debug_folder}/debug_frame.jpg"
-            cv2.imwrite(filename, dbg)
-        except Exception as e:
-            log("ERROR", f"Error saving milk debug frame: {str(e)[:100]}", service="validation")
+        return self._detect_generic(
+            roi_polygon=self.config.milk_roi_polygon,
+            cup_positions=self.config.milk_cup_positions,
+            debug_folder=self.config.milk_debug_folder,
+            label_prefix="Milk ",
+            return_dict=False,
+            num_positions=1
+        )
 
     # --------------- Sauce Detection Method ---------------
-    def detect_sauce(self):
+    def detect_cup_sauce_dispenser(self):
         """
         Sauce dispenser detection using SAUCE_ROI_POLYGON and SAUCE_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
-        try:
-            log("DEBUG", "Running sauce dispenser cup detection...", service="validation")
-            frame = self.reader.get_latest()
-            if frame is None:
-                log("WARNING", "Sauce detection: No camera frame available", service="validation")
-                return {"error": "No frame available yet."}
-
-            orig_h, orig_w = frame.shape[:2]
-            scale = min(1.0, float(self.config.max_side) / float(max(orig_h, orig_w)))
-            new_w = int(orig_w * scale)
-            new_h = int(orig_h * scale)
-            if new_w < 2 or new_h < 2:
-                return {"error": "Resized frame too small."}
-
-            # Use sauce-specific ROI and cup positions
-            sauce_roi_polygon = self.config.sauce_roi_polygon
-            sauce_cup_positions = self.config.sauce_cup_positions
-
-            # Build ROI caches using sauce ROI
-            if sauce_roi_polygon.size > 0:
-                sx = new_w / float(orig_w)
-                sy = new_h / float(orig_h)
-                roi_poly_resized = _resize_polygon(sauce_roi_polygon, sx, sy)
-            else:
-                roi_poly_resized = np.array([], dtype=np.int32)
-            roi_mask, roi_integral = _build_roi_integral(new_h, new_w, roi_poly_resized)
-
-            # Resize sauce cup positions
-            cups = np.array(sauce_cup_positions, dtype=np.float32)
-            cups[:, 0] *= (new_w / float(orig_w))
-            cups[:, 1] *= (new_h / float(orig_h))
-            cups_resized = cups.astype(np.float32)
-
-            # Resize frame
-            resized_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
-
-            # ---- RF-DETR inference (local) ----
-            pil_img = Image.fromarray(cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
-            detections = self.model.predict(pil_img, threshold=self.config.confidence)
-
-            # Supervision → tensors
-            boxes_xyxy = torch.as_tensor(detections.xyxy, dtype=torch.float32)
-            scores     = torch.as_tensor(detections.confidence, dtype=torch.float32)
-            class_ids  = torch.as_tensor(detections.class_id, dtype=torch.int64)
-
-            # Confidence filter (strict recheck)
-            keep = scores >= self.config.confidence
-            boxes_xyxy, scores, class_ids = boxes_xyxy[keep], scores[keep], class_ids[keep]
-
-            # Class filter (only allowed_classes)
-            if self.target_ids:
-                try:
-                    mask = torch.isin(class_ids, torch.tensor(list(self.target_ids), dtype=class_ids.dtype))
-                except AttributeError:
-                    mask = torch.tensor([int(int(cid) in self.target_ids) for cid in class_ids], dtype=torch.bool)
-                boxes_xyxy, scores, class_ids = boxes_xyxy[mask], scores[mask], class_ids[mask]
-
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_sauce_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # NMS
-            keep_nms = nms(boxes_xyxy, scores, 0.5)
-            boxes_xyxy, scores, class_ids = boxes_xyxy[keep_nms], scores[keep_nms], class_ids[keep_nms]
-
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_sauce_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # Size & aspect filters
-            bw = (boxes_xyxy[:, 2] - boxes_xyxy[:, 0]).clamp(1)
-            bh = (boxes_xyxy[:, 3] - boxes_xyxy[:, 1]).clamp(1)
-            area_ok = (bw >= self.config.min_cup_size) & (bh >= self.config.min_cup_size) \
-                      & (bw <= self.config.max_cup_size) & (bh <= self.config.max_cup_size)
-            aspect = bw / bh
-            aspect_ok = (aspect >= self.config.aspect_min) & (aspect <= self.config.aspect_max)
-            keep = area_ok & aspect_ok
-            boxes_xyxy = boxes_xyxy[keep]
-            if boxes_xyxy.numel() == 0:
-                # Save debug frame even when nothing detected
-                if self.config.debug_mode or self.config.save_frames:
-                    self._save_sauce_debug_frame(resized_frame, bboxes=[], positions=[], all_dets=[], cup_assign={})
-                return False
-
-            # ROI overlap via integral mask
-            if roi_integral is not None:
-                H, W = roi_mask.shape[:2]
-                x1 = boxes_xyxy[:, 0].to(torch.int32).clamp(0, W - 1)
-                y1 = boxes_xyxy[:, 1].to(torch.int32).clamp(0, H - 1)
-                x2 = boxes_xyxy[:, 2].to(torch.int32).clamp(0, W - 1)
-                y2 = boxes_xyxy[:, 3].to(torch.int32).clamp(0, H - 1)
-
-                S = torch.as_tensor(roi_integral, dtype=torch.int64)  # (H+1, W+1)
-                roi_pix = S[y2 + 1, x2 + 1] - S[y1, x2 + 1] - S[y2 + 1, x1] + S[y1, x1]
-                box_area = (x2 - x1 + 1) * (y2 - y1 + 1)
-                overlap = roi_pix.to(torch.float32) / torch.clamp(box_area.to(torch.float32), min=1.0)
-                keep = overlap >= self.config.roi_overlap_threshold
-                boxes_xyxy = boxes_xyxy[keep]
-
-            # Assign to sauce cup (single cup detection)
-            cup_detected = False
-            cup_assign = {}
-            if cups_resized is not None and len(cups_resized) >= 1 and boxes_xyxy.numel() > 0:
-                cx = 0.5 * (boxes_xyxy[:, 0] + boxes_xyxy[:, 2])
-                cy = 0.5 * (boxes_xyxy[:, 1] + boxes_xyxy[:, 3])
-                centers = torch.stack([cx, cy], dim=1).cpu().numpy()     # (N,2)
-                cups = cups_resized.astype(np.float32)             # (1,2)
-                d2 = ((centers[:, None, :] - cups[None, :, :]) ** 2).sum(axis=2)
-                assign = np.argmin(d2, axis=1)
-                # Check if any detection is close enough to the sauce cup
-                min_distances = np.min(d2, axis=1)
-                max_distance = 500.0  # Maximum distance threshold for cup detection
-                cup_detected = bool(np.any(min_distances <= max_distance))
-                # Create cup assignment mapping for debug
-                for i, cup_id in enumerate(assign):
-                    cup_assign[i] = int(cup_id)
-            
-            # Log sauce detection result
-            if cup_detected:
-                log("INFO", f"Sauce dispenser: Cup detected (distance threshold: {max_distance:.1f}px)", service="validation")
-            else:
-                log("DEBUG", f"Sauce dispenser: No cup detected", service="validation")
-
-            # Save debug frame
-            if self.config.debug_mode or self.config.save_frames:
-                # Convert tensors to lists for debug visualization
-                bboxes_list = []
-                all_dets_list = []
-                if boxes_xyxy.numel() > 0:
-                    bboxes_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in boxes_xyxy.cpu().numpy()]
-                if detections.xyxy.size > 0:
-                    all_dets_list = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in detections.xyxy]
-                
-                positions_list = []
-                if cups_resized is not None and len(cups_resized) >= 1:
-                    positions_list = [(int(x), int(y)) for x, y in cups_resized]
-                
-                self._save_sauce_debug_frame(resized_frame, bboxes_list, positions_list, all_dets_list, cup_assign)
-
-            return cup_detected
-
-        except Exception as e:
-            log("ERROR", f"Sauce detection failed: {str(e)[:100]}", service="validation")
-            import traceback
-            log("ERROR", f"Traceback: {traceback.format_exc()[:300]}", service="validation")
-            return {"error": "Internal error during sauce detect()."}
-
-    def _save_sauce_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None):
-        """Save debug frame for sauce dispenser"""
-        if not (self.config.debug_mode or self.config.save_frames): 
-            return
-        try:
-            os.makedirs(self.config.sauce_debug_folder, exist_ok=True)
-            dbg = frame.copy()
-            
-            # Draw ROI polygon if available
-            if hasattr(self, '_sauce_roi_poly_resized') and self._sauce_roi_poly_resized is not None and len(self._sauce_roi_poly_resized) > 0:
-                cv2.polylines(dbg, [self._sauce_roi_poly_resized], True, (0,255,0), 2)
-            
-            # Draw all detections (light orange)
-            if all_dets:
-                for i,(x1,y1,x2,y2) in enumerate(all_dets):
-                    cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,100,255),1)
-                    cv2.putText(dbg,f"All {i+1}",(x1,y1-8),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,100,255),1)
-            
-            # Draw filtered detections (red)
-            if bboxes:
-                for i,(x1,y1,x2,y2) in enumerate(bboxes):
-                    cv2.rectangle(dbg,(x1,y1),(x2,y2),(0,0,255),2)
-                    if cup_assign and i in cup_assign:
-                        cv2.putText(dbg,f"Sauce Cup {i+1}->Pos {cup_assign[i]+1}",(x1,y1-10),
-                                    cv2.FONT_HERSHEY_SIMPLEX,0.6,(0,0,255),2)
-            
-            # Draw cup positions (orange)
-            if positions:
-                for i,(x,y) in enumerate(positions):
-                    cv2.circle(dbg,(x,y),8,(0,165,255),-1)
-                    cv2.putText(dbg,f"Sauce Pos {i+1}",(x+10,y-10),cv2.FONT_HERSHEY_SIMPLEX,0.6,(0,165,255),2)
-            
-            # Add timestamp and frame info
-            ts = time.strftime("%H:%M:%S")
-            cv2.putText(dbg,f"Sauce Frame - {ts}",(10,30),cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2)
-            
-            # Save to debug folder (overwrites each time)
-            filename = f"{self.config.sauce_debug_folder}/debug_frame.jpg"
-            cv2.imwrite(filename, dbg)
-        except Exception as e:
-            log("ERROR", f"Error saving sauce debug frame: {str(e)[:100]}", service="validation")
-
+        return self._detect_generic(
+            roi_polygon=self.config.sauce_roi_polygon,
+            cup_positions=self.config.sauce_cup_positions,
+            debug_folder=self.config.sauce_debug_folder,
+            label_prefix="Sauce ",
+            return_dict=False,
+            num_positions=1
+        )

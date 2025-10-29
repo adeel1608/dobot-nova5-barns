@@ -86,7 +86,7 @@ class MainValidation:
             # TEST CUP DETECTION - COMMENT OUT LATER
             try:
                 log("DEBUG", "Testing cup detection on initialization...", service="validation")
-                test_result = self._cup_detector.detect()
+                test_result = self._cup_detector.detect_cups_on_station()
                 log("DEBUG", f"Cup detection test result: {test_result}", service="validation")
                 if "error" not in test_result:
                     detected_count = sum(1 for present in test_result.values() if present)
@@ -921,7 +921,7 @@ class MainValidation:
                 return result
 
             # Run cup detection
-            detection_result = self._cup_detector.detect()
+            detection_result = self._cup_detector.detect_cups_on_station()
             log("INFO", f"detection_result: {detection_result}", service="validation")
             if "error" in detection_result:
                 result["error"] = detection_result["error"]
@@ -966,7 +966,7 @@ class MainValidation:
                 return result
 
             # Run milk detection
-            detection_result = self._cup_detector.detect_milk()
+            detection_result = self._cup_detector.detect_cup_milk_dispenser()
             log("INFO", f"milk_detection_result: {detection_result}", service="validation")
             
             if isinstance(detection_result, dict) and "error" in detection_result:
@@ -1008,7 +1008,7 @@ class MainValidation:
                 return result
 
             # Run sauce detection
-            detection_result = self._cup_detector.detect_sauce()
+            detection_result = self._cup_detector.detect_cup_sauce_dispenser()
             log("INFO", f"sauce_detection_result: {detection_result}", service="validation")
             
             if isinstance(detection_result, dict) and "error" in detection_result:

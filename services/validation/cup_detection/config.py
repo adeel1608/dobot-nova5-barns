@@ -5,17 +5,14 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
-RFDETR_CONFIDENCE = 0.1          # 0..1
-ALLOWED_CLASSES = [41]          # subset of model's label space (COCO class IDs) - 41 is "cup"
+RFDETR_CONFIDENCE = 0.20        # 0..1 (lowered to catch more cups at milk dispenser)
+ALLOWED_CLASSES = ["cup", "bowl"]     # Include bowl (cups sometimes detected as bowls)
 
 # Local model paths (set to None to use default download behavior)
-# Using absolute path within container
-import os as _os
-_BASE_DIR = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
 RFDETR_MODEL_PATHS = {
-    "large": _os.path.join(_BASE_DIR, "models", "rf-detr-large.pth"),      # Path to your local large model
-    "base": _os.path.join(_BASE_DIR, "models", "rf-detr-base.pth"),        # Path to your local base model  
-    "medium": _os.path.join(_BASE_DIR, "models", "rf-detr-medium.pth")  # Path to your local medium model
+    "large": "rf-detr-large.pth",      # Path to your local large model
+    "base": "rf-detr-base.pth",        # Path to your local base model  
+    "medium": "models/rf-detr-medium.pth"  # Path to your local medium model
 }
 
 # Preprocess
@@ -38,11 +35,15 @@ CUP_POSITIONS = [
 ]
 
 # Filters / heuristics
-MIN_CUP_SIZE = 20                  # px (min bbox min side)
+MIN_CUP_SIZE = 15                  # px (min bbox min side) - lowered to catch smaller cups
 MAX_CUP_SIZE = 300                 # px (max bbox max side)
 ASPECT_RATIO_MIN = 0.1           # w/h lower bound
-ASPECT_RATIO_MAX = 2.0             # w/h upper bound
-ROI_OVERLAP_THRESHOLD = 0.30       # IoU with ROI mask for acceptance
+ASPECT_RATIO_MAX = 2.5             # w/h upper bound - slightly increased
+ROI_OVERLAP_THRESHOLD = 0.20       # IoU with ROI mask for acceptance - lowered for milk dispenser
+
+# Distance threshold for cup assignment (reduce false positives)
+# Only assign detection to cup position if within this distance (pixels)
+MAX_CUP_DISTANCE = 180.0           # px (increased to catch all cups on station)
 
 # History / voting
 FRAMES = 1                         # detections to aggregate per result
