@@ -870,16 +870,23 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                         completed_count += 1
                         log("INFO", f"Task completed: {action} for cup {cup_id}", service="scheduler")
                         
-                        # Check if this was the final task for this cup
-                        if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
-                            update_message = f"Order complete: {task['drink']} for {cup_id}"
-                            
-                            # Cup is now complete - remove from arm's current cup
-                            arm_name = task["assigned_arm"]
+                        arm_name = task["assigned_arm"]
+                        
+                        # Check if this arm has completed all its tasks for this cup
+                        arm_tasks_for_cup = [t for t in tasks_by_cup[cup_id] if t["assigned_arm"] == arm_name]
+                        arm_completed_tasks = [t for t in arm_tasks_for_cup if t["status"] == "done"]
+                        
+                        if len(arm_completed_tasks) == len(arm_tasks_for_cup):
+                            # This arm has finished all its tasks for this cup - release it to work on next cup
                             if arm_name in per_arm_current_cups and per_arm_current_cups[arm_name] == cup_id:
                                 per_arm_current_cups[arm_name] = None
+                                log("INFO", f"{arm_name} completed all its tasks for cup {cup_id} - ready for next cup", service="scheduler")
+                        
+                        # Check if entire cup is complete (all tasks from both arms)
+                        if len(completed[cup_id]) == len(tasks_by_cup[cup_id]):
+                            update_message = f"Order complete: {task['drink']} for {cup_id}"
                             cup_completion_status[cup_id] = "completed"
-                            log("INFO", f"Cup {cup_id} completed by {arm_name}", service="scheduler")
+                            log("INFO", f"Cup {cup_id} fully completed (all arms finished)", service="scheduler")
                     else:
                         # Mark task as failed
                         task["status"] = "failed"
