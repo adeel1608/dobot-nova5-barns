@@ -8,38 +8,34 @@
     },
     "cups": {
         "subtypes": {
-            "H7": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
-            "H9": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
-            "H12": {"max_capacity": 300, "warning_threshold": 40, "critical_threshold": 20},
-            "C7": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
-            "C9": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
-            "C12": {"max_capacity": 200, "warning_threshold": 30, "critical_threshold": 15},
-            "C16": {"max_capacity": 150, "warning_threshold": 25, "critical_threshold": 12}
+            "cup_H7": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
+            "cup_H9": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
+            "cup_H12": {"max_capacity": 300, "warning_threshold": 40, "critical_threshold": 20},
+            "cup_C7": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
+            "cup_C9": {"max_capacity": 300, "warning_threshold": 50, "critical_threshold": 25},
+            "cup_C12": {"max_capacity": 200, "warning_threshold": 30, "critical_threshold": 15},
+            "cup_C16": {"max_capacity": 150, "warning_threshold": 25, "critical_threshold": 12}
         }
     },
     "milk": {
         "subtypes": {
-            "whole_fat": {"max_capacity": 15000, "warning_threshold": 2000, "critical_threshold": 1000},
-            "low_fat": {"max_capacity": 10000, "warning_threshold": 1500, "critical_threshold": 750},
-            "lactose_free": {"max_capacity": 8000, "warning_threshold": 1000, "critical_threshold": 500},
-            "almond": {"max_capacity": 8000, "warning_threshold": 1000, "critical_threshold": 500}
+            "whole_fat_milk": {"max_capacity": 15000, "warning_threshold": 2000, "critical_threshold": 1000},
+            "low_fat_milk": {"max_capacity": 10000, "warning_threshold": 1500, "critical_threshold": 750},
+            "lactose_free_milk": {"max_capacity": 8000, "warning_threshold": 1000, "critical_threshold": 500},
+            "almond_milk": {"max_capacity": 8000, "warning_threshold": 1000, "critical_threshold": 500}
         }
     },
     "syrups": {
         "subtypes": {
-            "vanilla": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
-            "caramel": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
-            "hazelnut": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
-            "peach_iced_tea": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
-            "passion_fruit_puree": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
-            "ice_tea": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100}
-        }
-    },
-    "sauces": {
-        "subtypes": {
-            "white_chocolate": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
-            "caramel": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
-            "condense_milk": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100}
+            "vanilla_syrup": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
+            "caramel_syrup": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
+            "hazelnut_syrup": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
+            "peached_iced_syrup": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
+            "passion_fruit_iced_syrup": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
+            "ice_tea_syrup": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100},
+            "white_chocolate_sauce": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
+            "caramel_sauce": {"max_capacity": 3000, "warning_threshold": 300, "critical_threshold": 150},
+            "condense_milk_sauce": {"max_capacity": 2000, "warning_threshold": 200, "critical_threshold": 100}
         }
     },
     "premixes": {

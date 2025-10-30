@@ -22,16 +22,23 @@ logger = logging.getLogger(__name__)
 # Remove the global client - we'll use the one passed from the main service
 # rabbitmq_client = RabbitMQClient("routine_executor")
 
-async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitMQClient):
+async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitMQClient, cup_id: str = None):
     """
     Calls the validation service with the given function name and parameters.
     The function name is sent directly as the action to match validation service handlers.
     """
     try:
+        # Build request_id with cup_id if provided for better tracking
+        if cup_id:
+            request_id = f"routine-{cup_id}-{datetime.now().timestamp()}"
+        else:
+            request_id = f"routine-{datetime.now().timestamp()}"
+        
         # Prepare payload with metadata expected by validation service
         payload = {
-            "request_id": f"routine-{datetime.now().timestamp()}",
+            "request_id": request_id,
             "client_type": "routine",
+            "cup_id": cup_id,  # Include cup_id in payload for validation service
             **params  # Merge any additional params
         }
         
@@ -280,6 +287,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         await asyncio.sleep(1)
     
     log("INFO", f"Processing task: {function} for cup {cup_id} on arm {arm_id}", service="routine")
+    log("DEBUG", f"Task structure: {json.dumps(task, indent=2)}", service="routine")
     
     try:
         cfg = configs[function]
@@ -287,6 +295,8 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         task_item = task.get("item", {})
         if "ingredients" not in task_item:
             task_item["ingredients"] = {}
+        
+        log("DEBUG", f"Task ingredients: {json.dumps(task_item.get('ingredients', {}), indent=2)}", service="routine")
         
         for step in cfg["steps"]:
             step_type = step["type"]
@@ -307,7 +317,8 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 log("INFO", "No cup_position found in params", service="routine")
             
             if step_type == "validation":
-                res = await call_validation(func_name, params, rabbitmq_client)
+                log("INFO", f"Calling validation function '{func_name}' with params: {json.dumps(params)}", service="routine")
+                res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
                 
                 # Special handling for cup_detection - update cup position based on availability
                 if func_name == "cup_detection" and res.get("passed", False):

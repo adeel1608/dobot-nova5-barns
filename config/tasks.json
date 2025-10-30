@@ -106,7 +106,16 @@
   },
   "Espresso": {
       "steps": [
-
+      {
+        "type": "validation",
+        "function": "validate_ingredients",
+        "params": {}
+      },
+      {
+        "type": "validation",
+        "function": "update_ingredients",
+        "params": {}
+      },
       {
           "type": "automation",
           "function": "grinding_machine",

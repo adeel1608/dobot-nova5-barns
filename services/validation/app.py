@@ -104,6 +104,13 @@ class ValidationServiceApp:
         self.rabbitmq_client.register_handler("sauce_detection", self.handle_sauce_detection)
         self.rabbitmq_client.register_handler("check_coffee_beans", self.handle_check_coffee_beans)
         
+        # Routine service ingredient validation handlers
+        self.rabbitmq_client.register_handler("validate_ingredients", self.handle_validate_ingredients)
+        self.rabbitmq_client.register_handler("update_ingredients", self.handle_update_ingredients)
+        self.rabbitmq_client.register_handler("update_milk", self.handle_update_milk)
+        self.rabbitmq_client.register_handler("update_water", self.handle_update_water)
+        self.rabbitmq_client.register_handler("update_syrup", self.handle_update_syrup)
+        
         # System handlers
         self.rabbitmq_client.register_handler("health", self.handle_health)
         
@@ -145,6 +152,8 @@ class ValidationServiceApp:
             # Call your existing business logic
             result = self.main_validation.process_update_inventory_request(request_data)
             
+            log("INFO", f"Update inventory request result: {result['passed']}", service="validation")
+            
             # Track affected categories
             affected_categories = set()
             
@@ -172,28 +181,6 @@ class ValidationServiceApp:
                 "passed": False,
                 "error": f"Inventory update failed: {str(e)}"
             }
-    
-    # async def handle_ingredient_status(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-    #     """Handle ingredient status requests - get current inventory status and levels"""
-    #     try:
-    #         self.log("INFO", "Processing ingredient_status request: {data.get('request_id', 'no-id')}", service="validation")
-            
-    #         # Convert new format to your existing format
-    #         request_data = self.convert_to_validation_format(data, "ingredient_status")
-            
-    #         # Call your existing business logic
-    #         result = self.main_validation.process_ingredient_status_request(request_data)
-            
-    #         return result
-            
-    #     except Exception as e:
-    #         self.log("ERROR", "Error in ingredient_status: {e}", service="validation")
-    #         return {
-    #             "request_id": data.get("request_id"),
-    #             "passed": False,
-    #             "error": f"Ingredient status failed: {str(e)}"
-    #         }
-    
     
     async def handle_ingredient_status(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
         """Handle ingredient status requests - get current inventory status and levels"""
@@ -391,7 +378,6 @@ class ValidationServiceApp:
                 "error": f"Category count failed: {str(e)}"
             }
 
-
     # =============================================================================
     # COMPUTER VISION HANDLERS
     # =============================================================================
@@ -551,12 +537,199 @@ class ValidationServiceApp:
             }
     
     async def handle_check_coffee_beans(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle coffee beans validation requests"""
-        return {
-            "request_id": data.get("request_id"),
-            "passed": True,
-            "details": {"message": "Coffee beans validation passed (placeholder)"}
+        """Handle coffee beans validation requests from routine service"""
+        try:
+            payload = self._extract_routine_payload(data)
+            log("INFO", f"Processing check_coffee_beans request: {payload.get('request_id', 'no-id')}", service="validation")
+            
+            # Use the generic ingredient validation that handles routine format
+            result = self.main_validation.process_ingredient_validation_request(payload)
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in check_coffee_beans: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Coffee beans validation failed: {str(e)}"
+            }
+    # =============================================================================
+    # ROUTINE SERVICE INGREDIENT VALIDATION HANDLERS
+    # =============================================================================
+
+    async def handle_validate_ingredients(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle generic ingredient validation requests from routine service.
+        
+        This handler processes requests with the routine format:
+        {
+            'request_id': 'routine-cup123-...',
+            'client_type': 'routine',
+            'cup_id': 'cup123',
+            'milk': {1: 110.0},
+            'syrups': {10: 5.0, 13: 8.0},
+            'cups': {'cup_H9': 1.0},
+            'espresso': {'espresso_shot_single': 1.0},
+            ...
         }
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing ingredient validation request for cup {cup_id}: {request_id}", service="validation")
+            log("INFO", f"Handler received payload keys: {list(payload.keys())}", service="validation")
+            
+            # Use the generic ingredient validation method
+            log("INFO", f"Calling main_validation.process_ingredient_validation_request...", service="validation")
+            result = self.main_validation.process_ingredient_validation_request(payload)
+            log("INFO", f"Validation completed, result passed: {result.get('passed')}", service="validation")
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in validate_ingredients: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Ingredient validation failed: {str(e)}"
+            }
+    
+    async def handle_update_ingredients(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle ingredient update requests from routine service - deducts ALL ingredients.
+        
+        This handler processes requests with the routine format and deducts all
+        matching ingredients from the inventory database.
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing ingredient update (deduction) request for cup {cup_id}: {request_id}", service="validation")
+            log("INFO", f"Handler received payload keys: {list(payload.keys())}", service="validation")
+            
+            # Use the generic ingredient update method (no specific_ingredient = update all)
+            log("INFO", f"Calling main_validation.process_ingredient_update_request...", service="validation")
+            result = self.main_validation.process_ingredient_update_request(payload, specific_ingredient=None)
+            log("INFO", f"Update completed, result passed: {result.get('passed')}", service="validation")
+            
+            # Send inventory status update events if successful
+            if result.get("passed"):
+                # Extract affected categories
+                affected_categories = set()
+                for ingredient_key in payload.keys():
+                    if ingredient_key not in {'request_id', 'client_type', 'cup_id', 'position', 'temperature'}:
+                        if ingredient_key == "espresso":
+                            affected_categories.add("coffee_beans")
+                        elif ingredient_key == "cups":
+                            affected_categories.add("cups")
+                        else:
+                            affected_categories.add(ingredient_key)
+                
+                # Send category-specific updates
+                await self.send_inventory_status_event(affected_categories)
+                await self.send_all_inventory_status()
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in update_ingredients: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Ingredient update failed: {str(e)}"
+            }
+    
+    async def handle_update_milk(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle milk update requests from routine service - deducts ONLY milk.
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing milk update (deduction) request for cup {cup_id}: {request_id}", service="validation")
+            
+            # Use the generic ingredient update method with specific_ingredient="milk"
+            result = self.main_validation.process_ingredient_update_request(payload, specific_ingredient="milk")
+            
+            # Send inventory status update events if successful
+            if result.get("passed"):
+                await self.send_inventory_status_event({"milk"})
+                await self.send_all_inventory_status()
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in update_milk: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Milk update failed: {str(e)}"
+            }
+    
+    async def handle_update_water(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle water update requests from routine service - deducts ONLY water.
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing water update (deduction) request for cup {cup_id}: {request_id}", service="validation")
+            
+            # Use the generic ingredient update method with specific_ingredient="water"
+            result = self.main_validation.process_ingredient_update_request(payload, specific_ingredient="water")
+            
+            # Send inventory status update events if successful
+            if result.get("passed"):
+                await self.send_inventory_status_event({"water"})
+                await self.send_all_inventory_status()
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in update_water: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Water update failed: {str(e)}"
+            }
+    
+    async def handle_update_syrup(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle syrup update requests from routine service - deducts ONLY syrups.
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing syrup update (deduction) request for cup {cup_id}: {request_id}", service="validation")
+            
+            # Use the generic ingredient update method with specific_ingredient="syrups"
+            result = self.main_validation.process_ingredient_update_request(payload, specific_ingredient="syrups")
+            
+            # Send inventory status update events if successful
+            if result.get("passed"):
+                await self.send_inventory_status_event({"syrups"})
+                await self.send_all_inventory_status()
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in update_syrup: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Syrup update failed: {str(e)}"
+            }
     
     # =============================================================================
     # SYSTEM HANDLERS
@@ -573,7 +746,6 @@ class ValidationServiceApp:
                 "cup_detection", "milk_detection", "sauce_detection", "check_coffee_beans"
             ]
         }
-    
     
     # =============================================================================
     # UTILITY METHODS
@@ -596,8 +768,6 @@ class ValidationServiceApp:
             
         except Exception as e:
             log("ERROR", f"Error sending all inventory status to API Bridge: {e}", service="validation")
-
-
 
     async def send_inventory_status_event(self, affected_categories: set):
         """Send live inventory status update for affected categories only"""
@@ -661,7 +831,6 @@ class ValidationServiceApp:
         except Exception as e:
             log("ERROR", f"Error sending summary events: {e}", service="validation")
 
-
     async def check_and_send_alerts(self, category: str, category_status: dict):
         """Check inventory status and send alerts if needed"""
         try:
@@ -684,7 +853,6 @@ class ValidationServiceApp:
                 
         except Exception as e:
             log("ERROR", f"Error checking status for alerts: {e}", service="validation")
-    
 
     async def send_alert_to_oms(self, severity: str, ingredient_type: str, subtype: str):
         """Send simple alert event to OMS (matching threshold_warning format)"""
@@ -720,6 +888,27 @@ class ValidationServiceApp:
         except Exception as e:
             log("ERROR", f"Error sending resolution to OMS: {e}", service="validation")
 
+    def _extract_routine_payload(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Extract the actual routine payload from RabbitMQ wrapper messages."""
+        if not isinstance(data, dict):
+            return {}
+
+        raw_payload = data.get("payload")
+        if isinstance(raw_payload, dict):
+            extracted = dict(raw_payload)
+        else:
+            extracted = dict(data)
+
+        # Remove wrapper-specific keys that are not part of the ingredient payload
+        for wrapper_key in ("function_name", "payload", "timestamp", "source_service"):
+            extracted.pop(wrapper_key, None)
+
+        # Ensure essential metadata is present
+        for meta_key in ("client_type", "request_id", "cup_id"):
+            if meta_key in data and meta_key not in extracted:
+                extracted[meta_key] = data[meta_key]
+
+        return extracted
 
     def convert_to_validation_format(self, new_data: Dict[Any, Any], function_name: str) -> Dict[Any, Any]:
         # Check if data is nested (from RabbitMQClient wrapper)
@@ -748,29 +937,7 @@ class ValidationServiceApp:
         else:
             return "api_bridge"  # Default to api_bridge
     
-    # async def send_inventory_status_event(self):
-    #     """Send live inventory status update to API Bridge after any inventory change"""
-    #     try:
-    #         # Get current full inventory status
-    #         status_request = {
-    #             "request_id": f"auto-update-{datetime.now().timestamp()}",
-    #             "client_type": "api_bridge",
-    #             "function_name": "ingredient_status",
-    #             "payload": {}
-    #         }
-            
-    #         current_status = self.main_validation.process_ingredient_status_request(status_request)
-            
-    #         # Send as event for live updates that API Bridge can subscribe to
-    #         await self.rabbitmq_client.send_event("validation.status_updated", {
-    #             "current_status": current_status,
-    #             "timestamp": datetime.now().isoformat()
-    #         })
-            
-    #         self.log("INFO", "Sent live inventory status update to API Bridge", service="validation")
-            
-    #     except Exception as e:
-    #         self.log("ERROR", "Error sending inventory status to API Bridge: {e}", service="validation")
+        self.log("ERROR", "Error sending inventory status to API Bridge: {e}", service="validation")
     
     async def stop(self):
         """Gracefully stop the validation service"""
@@ -796,7 +963,6 @@ def signal_handler(signum, frame):
     log("INFO", f"Received signal {signum}, shutting down...", service="validation")
     sys.exit(0)
 
-
 async def main():
     """Main entry point for the validation service"""
     
@@ -813,7 +979,6 @@ async def main():
         logger = logging.getLogger("ValidationApp")
         log("ERROR", f"Failed to start validation service: {e}", service="validation")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     log("DEBUG", "Starting Validation Service with Async RabbitMQ", service="validation")
