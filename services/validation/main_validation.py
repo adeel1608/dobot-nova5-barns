@@ -18,29 +18,43 @@ from .inventory_manager import InventoryManager
 from .db_client import DatabaseClient
 # Replace dummy detector with production detector
 from .coffee_detection.camera_worker_production import ProductionCoffeeDetector, load_config
+from .cup_detection.cup_detector import CupDetector
 from .config import get_db_connection_string, config
 
-# Cup detector import - can switch between real and dummy
-USE_DUMMY_CUP_DETECTOR = os.getenv("USE_DUMMY_CUP_DETECTOR", "false").lower() == "true"
+# ID-to-Subtype mappings for routine service integration
+# These map numeric IDs used by routine service to inventory database subtypes
+MILK_ID_TO_SUBTYPE = {
+    1: "whole_fat_milk",      # whole_fat -> whole_fat_milk
+    2: "almond_milk",          # almond -> almond_milk
+    3: "oat_milk",             # oat -> oat_milk (if exists in inventory)
+    4: "soy_milk",             # soy -> soy_milk (if exists in inventory)
+    5: None,                   # normal_water -> handled separately as water
+    6: "lactose_free_milk",    # lactose_free -> lactose_free_milk
+    7: "low_fat_milk",         # low_fat -> low_fat_milk
+}
 
-if USE_DUMMY_CUP_DETECTOR:
-    from .cup_detection.dummy_detector import CupDetector
-    log("INFO", "Using DUMMY Cup Detector for testing", service="validation")
-else:
-    from .cup_detection.cup_detector import CupDetector
-    log("INFO", "Using RF-DETR Cup Detector", service="validation")
+SYRUP_ID_TO_SUBTYPE = {
+    9: "white_chocolate_sauce",   # white_chocolate -> white_chocolate_sauce
+    10: "caramel_sauce",          # caramel_sauce -> caramel_sauce
+    11: "condense_milk_sauce",    # condense_milk -> condense_milk_sauce
+    12: "hazelnut_syrup",         # hazelnut -> hazelnut_syrup
+    13: "vanilla_syrup",          # vanilla -> vanilla_syrup
+    14: "peached_iced_syrup",     # peach_iced_tea -> peached_iced_syrup
+    15: "passion_fruit_iced_syrup", # passion_fruit_puree -> passion_fruit_iced_syrup
+    16: "ice_tea_syrup",          # ice_tea -> ice_tea_syrup
+}
+
+# Water is special - ID 5 in MILK_MAPPINGS
+# Note: Water may not be tracked in inventory (unlimited supply)
+WATER_ID_TO_SUBTYPE = {
+    5: "normal_water",  # normal_water - may not exist in inventory database
+}
+
 
 
 class MainValidation:
     def __init__(self):
         self._db_client = DatabaseClient(get_db_connection_string())
-        # db_host = os.getenv("POSTGRES_HOST", "localhost")
-        # db_port = os.getenv("POSTGRES_PORT", "5432")
-        # db_name = os.getenv("POSTGRES_DB", "barns_validation")
-        # db_user = os.getenv("POSTGRES_USER", "validation_user")
-        # db_password = os.getenv("POSTGRES_PASSWORD", "validation_pass")
-        # connection_string = f"dbname={db_name} user={db_user} password={db_password} host={db_host} port={db_port}"
-        # self._db_client = DatabaseClient(connection_string)
 
         # the inventory manager
                 # the inventory manager
@@ -85,59 +99,29 @@ class MainValidation:
             
             # TEST CUP DETECTION - COMMENT OUT LATER
             try:
-                log("DEBUG", "Testing cup detection on initialization...", service="validation")
+                log("INFO", "Testing cup detection on initialization...", service="validation")
                 test_result = self._cup_detector.detect_cups_on_station()
-                log("DEBUG", f"Cup detection test result: {test_result}", service="validation")
+                log("INFO", f"Cup detection test result: {test_result}", service="validation")
                 if "error" not in test_result:
                     detected_count = sum(1 for present in test_result.values() if present)
-                    log("DEBUG", f"Cup detection working! Detected {detected_count} cups", service="validation")
+                    log("INFO", f"Cup detection working! Detected {detected_count} cups", service="validation")
                 else:
-                    log("DEBUG", f"Cup detection error: {test_result['error']}", service="validation")
+                    log("INFO", f"Cup detection error: {test_result['error']}", service="validation")
             except Exception as test_e:
-                log("DEBUG", f"Cup detection test failed: {test_e}", service="validation")
+                log("INFO", f"Cup detection test failed: {test_e}", service="validation")
             # END TEST CODE
             
         except Exception as e:
             log("ERROR", f"Failed to initialize cup detector: {e}", service="validation")
             self._cup_detector = None
 
-        # # Queues to receive requests and process responses
-        # self._request_queue = Queue()
-        # self._response_queue = Queue()
 
-        # # the workers
-        # self._request_worker = threading.Thread(target=self.request_worker, daemon=True)
-        # self._response_worker = threading.Thread(target=self.response_worker, daemon=True)
-
-        # # event flags for adding request and response
-        # self._request_event = threading.Event()
-        # self._response_event = threading.Event()
 
         # Thread pool for blocking operations
         self._thread_pool = ThreadPoolExecutor(max_workers=config.detection.max_detection_workers, thread_name_prefix="detection_worker")
         # Detection task control
         self._detection_task = None
         self._detection_running = False
-
-
-    # def post_request(self, request):
-    #     try:
-    #         # # check if it is a valid request using pydantic !! ALWAYS VALID THOUGH !!
-    #         # if not request or not request.payload or not request.payload.items:
-    #         #     # raise a validation error
-    #         #     raise HTTPException(status_code=422, detail="Invalid request")
-    #         # # log the request
-    #         logging.info(f"received request: {request} with request_id: {request.request_id}")
-    #         # if the request is valid, add it to the queue
-    #         self._request_queue.put(request)
-    #         # raise the event flag
-    #         self._request_event.set()
-    #     except Exception as e:
-    #         print(e) 
-    #         print("failed to add request to queue")
-    #         # log the error
-    #         logging.error(f"failed to add request to queue: {e}")
-
 
     def process_update_inventory_request(self, payload):
         """
@@ -199,7 +183,6 @@ class MainValidation:
             # # Put result in response queue
             # self._response_queue.put(result)
             print("result after update inventory request")
-            print(result)
             return result
             
         except Exception as e:
@@ -212,74 +195,6 @@ class MainValidation:
             }
             # self._response_queue.put(error_result)
             return error_result
-
-
-
-    # def process_ingredient_status_request(self, payload):
-    #     # @Uzair verify this works properly
-    #     # i believe the structure of the request should be without any item in the payload
-    #     """ !!!!!!! NOTE: @Uzair refactor this function to be more efficient and readable
-    #     Used to get the inventory status for the entire inventory OR a specific item in the inventory
-    #     """
-    #     try:
-    #         inventory_status = {}
-    #         if payload["client_type"] == "dashboard" or payload["client_type"] == "api_bridge":
-                
-    #             for ingredient_type, subtypes in self._inventory_client.inventory_cache.items():
-    #                 inventory_status[ingredient_type] = {}
-
-    #                 for subtype, data in subtypes.items():
-    #                     current_amount = data["current_amount"]
-    #                     warning_threshold = data["warning_threshold"]
-    #                     critical_threshold = data["critical_threshold"]
-
-    #                     status = "full"
-    #                     final_res = True
-    #                     if current_amount < critical_threshold:
-    #                         status = "empty"
-    #                         final_res = False
-    #                     elif current_amount < warning_threshold:
-    #                         status = "low"
-
-    #                     inventory_status[ingredient_type][subtype] = {
-    #                         "status": status,
-    #                         "current_amount": current_amount,
-    #                         "warning_threshold": warning_threshold,
-    #                         "critical_threshold": critical_threshold,
-    #                         "final_res": final_res #final_res is False if the inventory is empty when the amount is less than the critical threshold
-    #                     }
-                        
-    #                     # another suggestion for response structure:
-    #                     # inventory_status[ingredient_type][subtype] = {
-    #                     #     "status": status, # better to be high, medium, low
-    #                     #     "current_amount": current_amount,
-    #                     # }
-            
-    #         else:
-    #             # invalid client type
-    #             inventory_status = {"final_res": False, "details": "Invalid client type"}
-    #         final_result = { "passed": True, "request_id": payload["request_id"],
-    #             "client_type": payload["client_type"], "details": inventory_status}
-    #         self._response_queue.put(final_result)
-    #         self._response_event.set()
-    #         return final_result
-
-    #     except Exception as e:
-    #         logging.error(f"Error processing inventory status request: {e}")
-    #         error_result = {
-    #             "passed": False,
-    #             "request_id": payload["request_id"],
-    #             "client_type": payload["client_type"],
-    #             "result": {
-    #                 "final_res": False,
-    #                 "details": f"Error processing request: {str(e)}"
-    #             }
-    #         }
-    #         self._response_queue.put(error_result)
-    #         # NOTE: @ UZAIR fix this to make sure the result is sent to the response queue
-    #         self._response_event.set()
-    #         return error_result
-
     
     def process_pre_check_request(self, payload):
         # NOTE: THIS IS PRE-CHECK REQUEST
@@ -288,7 +203,8 @@ class MainValidation:
             # Add request metadata to result
             result["request_id"] = payload["request_id"]
             result["client_type"] = payload["client_type"]
-
+            log("INFO", f"Pre-check request initiated", service="validation")
+            print(f"payload: {payload}")
 
             if payload["client_type"] == "scheduler":
                 # get the invenoty cache
@@ -353,7 +269,6 @@ class MainValidation:
                     
 
                     result["details"][item["drink_name"]] = item_details
-                print(result)
 
             else:
                 # invalid client type
@@ -364,6 +279,7 @@ class MainValidation:
                 
             # self._response_queue.put(result)
             # self._response_event.set()
+            log("INFO", f"Pre-check request result: {result['passed']}", service="validation")
             return result
 
         except Exception as e:
@@ -379,60 +295,11 @@ class MainValidation:
             # self._response_event.set()
             return error_result
 
-    # def process_refill_ingredient_request(self, payload):
-    #     try:
-    #         result = {"passed": True, "details": {}}
-    #         result["request_id"] = payload["request_id"]
-    #         result["client_type"] = payload["client_type"]
-
-    #         for ingredient in payload["payload"]["ingredients"]:
-    #             ingredient_type = ingredient["ingredient_type"]
-    #             subtype = ingredient["subtype"]
-
-    #             if ingredient_type == "espresso":
-    #                 ingredient_type = "coffee_beans"
-    #             elif ingredient_type == "cup":
-    #                 ingredient_type = "cups"
-
-    #             is_refilled = self._inventory_client.refill_inventory(ingredient_type, subtype)
-                
-    #             if not is_refilled:
-    #                 result["passed"] = False
-    #                 result["details"][f"{ingredient_type}"] = {
-    #                     "type": subtype,
-    #                     "status": "failed",
-    #                     "message": "Failed to refill inventory"
-    #                 }
-                
-    #             else:
-    #                 result["details"][f"{ingredient_type}"] = {
-    #                     "type": subtype,
-    #                     "status": "success",
-    #                     "message": "Inventory refilled successfully"
-    #                 }
-            
-    #         self._response_queue.put(result)
-    #         self._response_event.set()
-    #         return result
-            
-    #     except Exception as e:
-    #         logging.error(f"Error processing refill ingredient request: {e}")
-    #         error_result = {
-    #             "request_id": payload["request_id"],
-    #             "client_type": payload["client_type"],
-    #             "passed": False,
-    #             "details": f"Error processing request: {str(e)}"
-    #         }
-    #         self._response_queue.put(error_result)
-    #         return error_result
-    
-    
     def process_refill_ingredient_request(self, payload):
         try:
             # Extract parameters from payload
             ingredient_type = payload.get("payload", {}).get("ingredient_type", None)
             subtype = payload.get("payload", {}).get("subtype", None)
-            print(f"inside process_refill_ingredient_request: ingredient_type: {ingredient_type}, subtype: {subtype}")
 
             result = {"passed": True, "details": {}}
             result["request_id"] = payload["request_id"]
@@ -444,7 +311,6 @@ class MainValidation:
                 (ingredient_type == "coffee_beans" and subtype is None) or 
                 (ingredient_type is None and subtype is None)  # Full refill
             )
-            print(f"needs_coffee_detection: {needs_coffee_detection}")
 
             coffee_detection_success = True
             
@@ -521,19 +387,12 @@ class MainValidation:
         try:
             # Extract parameters from payload
             ingredient_type = payload.get("payload", {}).get("ingredient_type", None)
-            print(f"****ingredient_status_request: {json.dumps(payload, indent=2)}")
             subtype = payload.get("payload", {}).get("subtype", None)
-            print("###################################")
-            print(ingredient_type, subtype)
-            print("###################################")
-            print(payload)
             # Get status from inventory manager
             inventory_status = self._inventory_client.get_inventory_status(
                 ingredient_type=ingredient_type,
                 subtype=subtype
             )
-            print(f"inventory_status: {json.dumps(inventory_status, indent=2)}")
-            
             final_result = {
                 "passed": True,
                 "request_id": payload["request_id"],
@@ -583,13 +442,9 @@ class MainValidation:
             # self._response_event.set()
             return error_result
         
-
     def process_category_summary_request(self, payload):
         """Process category summary request"""
         try:
-            print("###################################")
-            print("process_category_summary_request")
-            print(f"payload: {json.dumps(payload, indent=2)}")
             category_summary = self._inventory_client.get_category_summary()
             
             final_result = {
@@ -598,7 +453,6 @@ class MainValidation:
                 "client_type": payload["client_type"],
                 "details": category_summary
             }
-            print(f"final_result: {json.dumps(final_result, indent=2)}")
             
             # self._response_queue.put(final_result)
             # self._response_event.set()
@@ -644,7 +498,6 @@ class MainValidation:
             # self._response_event.set()
             return error_result
         
-
     def process_stock_level_request(self, payload):
         """Process inventory stock level statistics request"""
         try:
@@ -673,8 +526,6 @@ class MainValidation:
             # self._response_event.set()
             return error_result
         
-    
-    
     def process_inventory_by_stock_level_request(self, payload):
         """Process inventory by stock level request"""
         try:
@@ -710,40 +561,6 @@ class MainValidation:
             }
             return error_result
         
-
-            
-    
-    # def request_worker(self):
-    #     while True:
-    #         try:
-    #             self._request_event.wait()
-    #             request = self._request_queue.get()
-    #             self._request_event.clear()  # Clear the event flag
-                
-    #             if request["function_name"] == "update_inventory":
-    #                 self.process_update_inventory_request(request)
-    #             elif request["function_name"] == "ingredient_status" or request["function_name"] == "pre_check":
-    #                 self.process_ingredient_status_request(request)
-    #             else:
-    #                 logging.error(f"Invalid function name: {request['function_name']}")
-    #         except Exception as e:
-    #             logging.error(f"Error processing request: {e}")
-
-
-    # def response_worker(self):
-    #     while True:
-    #         try:
-    #             self._response_event.wait()
-    #             response = self._response_queue.get()
-    #             ####################
-    #             # @NOTE: @Uzair @Mais work with sending the response to the client here
-    #             ## Ideally have a separate object to handle this
-    #             print(response)
-    #         #####################
-    #             self._response_event.clear()
-    #         except Exception as e:
-    #             logging.error(f"Error processing response: {e}")
-
 
     async def start_periodic_detection(self):
         """Start the periodic coffee beans detection task"""
@@ -784,7 +601,7 @@ class MainValidation:
                 if detection_result.get("updated"):
                     log("INFO", f"Coffee inventory updated: {detection_result['percentage']}% (periodic scan)", service="validation")
                 else:
-                    log("DEBUG", f"☕ Periodic detection completed without update: {detection_result['message']}", service="validation")
+                    log("INFO", f"☕ Periodic detection completed without update: {detection_result['message']}", service="validation")
                 
             except asyncio.CancelledError:
                 log("INFO", "Coffee beans detection task cancelled", service="validation")
@@ -795,7 +612,7 @@ class MainValidation:
             # Wait for 10 minutes before next detection
             try:
                 interval = config.detection.periodic_interval_seconds
-                log("DEBUG", f"Next coffee scan in {config.detection.periodic_interval_minutes} minutes", service="validation")
+                log("INFO", f"Next coffee scan in {config.detection.periodic_interval_minutes} minutes", service="validation")
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
@@ -805,7 +622,7 @@ class MainValidation:
         try:
             # Use the production detector's detect_coffee method
             cv_result = self._coffee_beans_detector.detect_coffee()
-            log("DEBUG", f"Coffee detection raw result: {cv_result}", service="validation")
+            log("INFO", f"Coffee detection raw result: {cv_result}", service="validation")
             
             # Check if there was an error in detection
             if cv_result.get("error"):
@@ -899,7 +716,6 @@ class MainValidation:
                     "message": "Unexpected error in detection, keeping current inventory amount"
                 }
             
-
     async def cleanup(self):
         """Cleanup resources when shutting down"""
         await self.stop_periodic_detection()
@@ -1035,4 +851,508 @@ class MainValidation:
                 "client_type": payload.get("client_type"),
                 "passed": False,
                 "error": f"Sauce detection failed: {str(e)}"
+            }
+    
+    def process_ingredient_validation_request(self, payload):
+        """
+        Process ingredient validation requests from routine service.
+        
+        Validates ingredients sent in the routine format:
+        {
+            'request_id': 'routine-cup123-...',
+            'client_type': 'routine',
+            'cup_id': 'cup123',
+            'milk': {1: 110.0},
+            'syrups': {10: 5.0, 13: 8.0},
+            'cups': {'cup_H9': 1.0},
+            'espresso': {'espresso_shot_single': 1.0},
+            'water': {5: 100.0},
+            ...
+        }
+        
+        Returns validation result indicating whether all ingredients are available.
+        """
+        try:
+            log("INFO", f"=== INGREDIENT VALIDATION START ===", service="validation")
+            log("INFO", f"Payload type: {type(payload)}", service="validation")
+            log("INFO", f"Payload keys: {list(payload.keys()) if isinstance(payload, dict) else 'NOT A DICT'}", service="validation")
+            
+            result = {"passed": True, "details": {}}
+            result["request_id"] = payload.get("request_id")
+            result["client_type"] = payload.get("client_type")
+            result["cup_id"] = payload.get("cup_id")
+            
+            # Get current inventory cache
+            current_inventory = self._inventory_client.inventory_cache.copy()
+            
+            # Define ingredient categories to check (skip non-ingredient keys)
+            skip_keys = {'request_id', 'client_type', 'cup_id', 'position', 'temperature'}
+            
+            # Check each ingredient in the payload
+            for ingredient_key, ingredient_data in payload.items():
+                # Skip non-ingredient keys
+                if ingredient_key in skip_keys:
+                    continue
+                
+                # Validate that ingredient_data is a dict
+                if not isinstance(ingredient_data, dict):
+                    log("INFO", f"Skipping non-dict value for key '{ingredient_key}': {type(ingredient_data)}", service="validation")
+                    continue
+                
+                # Skip if the dict is empty
+                if not ingredient_data:
+                    log("INFO", f"Skipping empty dict for key '{ingredient_key}'", service="validation")
+                    continue
+                
+                # Map ingredient names to inventory categories
+                ingredient_type = ingredient_key
+                if ingredient_key == "espresso":
+                    ingredient_type = "coffee_beans"
+                elif ingredient_key == "cups":
+                    ingredient_type = "cups"
+                
+                # Check if this ingredient type exists in inventory
+                if ingredient_type not in current_inventory:
+                    log("WARNING", f"Ingredient type '{ingredient_type}' not found in inventory", service="validation")
+                    continue
+                
+                # Validate each subtype/variant in this ingredient
+                for subtype_key, amount in ingredient_data.items():
+                    # Validate that amount is numeric
+                    if not isinstance(amount, (int, float)):
+                        log("WARNING", f"Skipping non-numeric amount for {ingredient_key}:{subtype_key}: {amount}", service="validation")
+                        continue
+                    # For espresso, convert to coffee beans and check regular subtype
+                    if ingredient_key == "espresso":
+                        # Convert shots to grams for coffee beans
+                        amount_grams = self._inventory_client.convert_shots_to_grams(amount)
+                        subtype = "regular"  # Coffee beans regular is used for espresso
+                        
+                        # Check coffee beans inventory
+                        if subtype in current_inventory[ingredient_type]:
+                            current_amount = current_inventory[ingredient_type][subtype]["current_amount"]
+                            critical_threshold = current_inventory[ingredient_type][subtype]["critical_threshold"]
+                            
+                            if current_amount < amount_grams:
+                                result["passed"] = False
+                                result["details"][ingredient_key] = {
+                                    "subtype": subtype,
+                                    "current": current_amount,
+                                    "needed": amount_grams,
+                                    "critical_threshold": critical_threshold,
+                                    "status": "insufficient"
+                                }
+                            else:
+                                result["details"][ingredient_key] = {
+                                    "subtype": subtype,
+                                    "current": current_amount,
+                                    "needed": amount_grams,
+                                    "critical_threshold": critical_threshold,
+                                    "status": "available"
+                                }
+                        
+                    elif ingredient_key == "cups":
+                        # Cup subtypes are stored directly (e.g., 'cup_H9')
+                        subtype = subtype_key
+                        
+                        # Check cups inventory
+                        if subtype in current_inventory[ingredient_type]:
+                            current_amount = current_inventory[ingredient_type][subtype]["current_amount"]
+                            critical_threshold = current_inventory[ingredient_type][subtype]["critical_threshold"]
+                            
+                            if current_amount < amount:
+                                result["passed"] = False
+                                result["details"]["cups"] = {
+                                    "subtype": subtype,
+                                    "current": current_amount,
+                                    "needed": amount,
+                                    "critical_threshold": critical_threshold,
+                                    "status": "insufficient"
+                                }
+                            else:
+                                result["details"]["cups"] = {
+                                    "subtype": subtype,
+                                    "current": current_amount,
+                                    "needed": amount,
+                                    "critical_threshold": critical_threshold,
+                                    "status": "available"
+                                }
+                    
+                    else:
+                        # For milk, water, syrups - these use numeric IDs that need mapping
+                        try:
+                            if isinstance(subtype_key, int):
+                                numeric_id = subtype_key
+                            elif isinstance(subtype_key, str):
+                                numeric_id = int(subtype_key)
+                            else:
+                                log("WARNING", f"Invalid subtype_key type for {ingredient_key}: {type(subtype_key)}", service="validation")
+                                continue
+                        except (ValueError, TypeError) as e:
+                            log("WARNING", f"Failed to convert subtype_key to int for {ingredient_key}:{subtype_key}: {e}", service="validation")
+                            continue
+                        
+                        # Determine the inventory category and subtype based on ingredient_key
+                        inventory_category = None
+                        inventory_subtype = None
+                        check_amount = amount
+                        
+                        if ingredient_key == "milk":
+                            # Map numeric ID to milk subtype
+                            if numeric_id in MILK_ID_TO_SUBTYPE:
+                                inventory_subtype = MILK_ID_TO_SUBTYPE[numeric_id]
+                                if inventory_subtype is None:  # ID 5 is water, not milk
+                                    log("INFO", f"Milk ID {numeric_id} is actually water, skipping validation", service="validation")
+                                    continue
+                                inventory_category = "milk"
+                            else:
+                                log("WARNING", f"Unknown milk ID: {numeric_id}", service="validation")
+                                continue
+                        
+                        elif ingredient_key == "water":
+                            # Water is not tracked in inventory
+                            log("INFO", f"Water validation requested (ID: {numeric_id}) - water not tracked, assuming available", service="validation")
+                            continue
+                        
+                        elif ingredient_key == "syrups":
+                            # Map numeric ID to syrup/sauce subtype
+                            if numeric_id in SYRUP_ID_TO_SUBTYPE:
+                                inventory_subtype = SYRUP_ID_TO_SUBTYPE[numeric_id]
+                                # Determine if it's a syrup or sauce based on the subtype name
+                                if "sauce" in inventory_subtype:
+                                    inventory_category = "sauces"
+                                else:
+                                    inventory_category = "syrups"
+                            else:
+                                log("WARNING", f"Unknown syrup/sauce ID: {numeric_id}", service="validation")
+                                continue
+                        
+                        # If we have a valid mapping, check inventory
+                        if inventory_category and inventory_subtype:
+                            if inventory_subtype in current_inventory[inventory_category]:
+                                current_amount = current_inventory[inventory_category][inventory_subtype]["current_amount"]
+                                critical_threshold = current_inventory[inventory_category][inventory_subtype]["critical_threshold"]
+                                
+                                if current_amount < check_amount:
+                                    result["passed"] = False
+                                    result["details"][ingredient_key] = {
+                                        "id": numeric_id,
+                                        "inventory_category": inventory_category,
+                                        "subtype": inventory_subtype,
+                                        "current": current_amount,
+                                        "needed": check_amount,
+                                        "critical_threshold": critical_threshold,
+                                        "status": "insufficient"
+                                    }
+                                else:
+                                    result["details"][ingredient_key] = {
+                                        "id": numeric_id,
+                                        "inventory_category": inventory_category,
+                                        "subtype": inventory_subtype,
+                                        "current": current_amount,
+                                        "needed": check_amount,
+                                        "critical_threshold": critical_threshold,
+                                        "status": "available"
+                                    }
+                            else:
+                                log("WARNING", f"Subtype {inventory_subtype} not found in {inventory_category} inventory", service="validation")
+                                continue
+            
+            # Add summary message
+            if result["passed"]:
+                result["details"]["message"] = "All ingredients available for this task"
+            else:
+                result["details"]["message"] = "Insufficient ingredients for this task"
+            
+            log("INFO", f"Ingredient validation result: {json.dumps(result, indent=2)}", service="validation")
+            return result
+            
+        except Exception as e:
+            import traceback
+            log("ERROR", f"!!! EXCEPTION in ingredient validation: {e}", service="validation")
+            log("ERROR", f"!!! Traceback: {traceback.format_exc()}", service="validation")
+            return {
+                "request_id": payload.get("request_id") if isinstance(payload, dict) else "unknown",
+                "client_type": payload.get("client_type") if isinstance(payload, dict) else "unknown",
+                "cup_id": payload.get("cup_id") if isinstance(payload, dict) else "unknown",
+                "passed": False,
+                "error": f"Ingredient validation failed: {str(e)}"
+            }
+    
+    def process_ingredient_update_request(self, payload, specific_ingredient=None):
+        """
+        Process ingredient update (deduction) requests from routine service.
+        
+        Deducts ingredients sent in the routine format from inventory:
+        {
+            'request_id': 'routine-cup123-...',
+            'client_type': 'routine',
+            'cup_id': 'cup123',
+            'milk': {1: 110.0},
+            'syrups': {10: 5.0, 13: 8.0},
+            'cups': {'cup_H9': 1.0},
+            'espresso': {'espresso_shot_single': 1.0},
+            'water': {5: 100.0},
+            ...
+        }
+        
+        Args:
+            payload: Request payload with ingredients
+            specific_ingredient: If provided, only deduct this specific ingredient type
+                                (e.g., 'milk', 'water', 'syrups')
+        
+        Returns:
+            Result dict with deduction details and warnings
+        """
+        try:
+            log("INFO", f"=== INGREDIENT UPDATE START ===", service="validation")
+            log("INFO", f"Specific ingredient filter: {specific_ingredient}", service="validation")
+            log("INFO", f"Payload type: {type(payload)}", service="validation")
+            log("INFO", f"Payload keys: {list(payload.keys()) if isinstance(payload, dict) else 'NOT A DICT'}", service="validation")
+            
+            result = {"passed": True, "details": {}}
+            result["request_id"] = payload.get("request_id")
+            result["client_type"] = payload.get("client_type")
+            result["cup_id"] = payload.get("cup_id")
+            
+            # Define ingredient categories to check (skip non-ingredient keys)
+            skip_keys = {'request_id', 'client_type', 'cup_id', 'position', 'temperature'}
+            
+            updated_ingredients = []
+
+            def _capture_remaining(category: str, subtype_name: str):
+                entry = self._inventory_client.inventory_cache.get(category, {}).get(subtype_name)
+                if not entry:
+                    return None, None
+                remaining_amount = entry.get("current_amount")
+                max_capacity = entry.get("max_capacity", 0)
+                if max_capacity:
+                    remaining_percentage = int((remaining_amount / max_capacity) * 100)
+                else:
+                    remaining_percentage = None
+                return remaining_amount, remaining_percentage
+            
+            # Check each ingredient in the payload
+            log("INFO", f"Iterating through payload keys: {list(payload.keys())}", service="validation")
+            
+            for ingredient_key, ingredient_data in payload.items():
+                # Skip non-ingredient keys
+                if ingredient_key in skip_keys:
+                    log("INFO", f"Skipping metadata key: {ingredient_key}", service="validation")
+                    continue
+                
+                # Validate that ingredient_data is a dict
+                if not isinstance(ingredient_data, dict):
+                    log("INFO", f"Skipping non-dict value for key '{ingredient_key}': {type(ingredient_data)}", service="validation")
+                    continue
+                
+                # Skip if the dict is empty
+                if not ingredient_data:
+                    log("INFO", f"Skipping empty dict for key '{ingredient_key}'", service="validation")
+                    continue
+                
+                # If specific_ingredient is set, only process that ingredient
+                if specific_ingredient and ingredient_key != specific_ingredient:
+                    log("INFO", f"Skipping {ingredient_key} (looking for {specific_ingredient})", service="validation")
+                    continue
+                
+                log("INFO", f"Processing ingredient '{ingredient_key}' with data: {ingredient_data}", service="validation")
+                
+                # Map ingredient names to inventory categories
+                ingredient_type = ingredient_key
+                if ingredient_key == "espresso":
+                    ingredient_type = "coffee_beans"
+                elif ingredient_key == "cups":
+                    ingredient_type = "cups"
+                
+                # Process each subtype/variant in this ingredient
+                for subtype_key, amount in ingredient_data.items():
+                    # Validate that amount is numeric
+                    if not isinstance(amount, (int, float)):
+                        log("WARNING", f"Skipping non-numeric amount for {ingredient_key}:{subtype_key}: {amount}", service="validation")
+                        continue
+                    # For espresso, convert to coffee beans
+                    if ingredient_key == "espresso":
+                        subtype = "regular"  # Coffee beans regular is used for espresso
+                        shots_value = int(round(float(amount)))
+                        grams_deducted = self._inventory_client.convert_shots_to_grams(abs(shots_value))
+
+                        # Deduct from inventory (negative amount = deduction in shots)
+                        success, warning = self._inventory_client.update_inventory(
+                            ingredient_type="coffee_beans",
+                            subtype=subtype,
+                            amount=-shots_value
+                        )
+
+                        if success:
+                            updated_ingredients.append(f"coffee_beans:{subtype}")
+                            remaining_amount, remaining_percentage = _capture_remaining("coffee_beans", subtype)
+                            result["details"][ingredient_key] = {
+                                "subtype": subtype,
+                                "shots": shots_value,
+                                "deducted_grams": grams_deducted,
+                                "remaining_amount": remaining_amount,
+                                "remaining_percentage": remaining_percentage,
+                                "status": warning,
+                                "message": f"Deducted {shots_value} shot(s) ({grams_deducted}g) of coffee beans"
+                            }
+                        else:
+                            result["passed"] = False
+                            result["details"][ingredient_key] = {
+                                "subtype": subtype,
+                                "status": "failed",
+                                "message": f"Failed to deduct {shots_value} shot(s) of coffee beans"
+                            }
+                    
+                    elif ingredient_key == "cups":
+                        # Cup subtypes are stored directly (e.g., 'cup_H9')
+                        subtype = subtype_key
+                        
+                        # Deduct from inventory
+                        success, warning = self._inventory_client.update_inventory(
+                            ingredient_type="cups",
+                            subtype=subtype,
+                            amount=-amount
+                        )
+                        
+                        if success:
+                            updated_ingredients.append(f"cups:{subtype}")
+                            remaining_amount, remaining_percentage = _capture_remaining("cups", subtype)
+                            result["details"]["cups"] = {
+                                "subtype": subtype,
+                                "deducted_amount": amount,
+                                "remaining_amount": remaining_amount,
+                                "remaining_percentage": remaining_percentage,
+                                "status": warning,
+                                "message": f"Deducted {amount} cup(s) of {subtype}"
+                            }
+                        else:
+                            result["passed"] = False
+                            result["details"]["cups"] = {
+                                "subtype": subtype,
+                                "status": "failed",
+                                "message": f"Failed to deduct {amount} cup(s) of {subtype}"
+                            }
+                    
+                    else:
+                        # For milk, water, syrups - these use numeric IDs that need mapping
+                        try:
+                            if isinstance(subtype_key, int):
+                                numeric_id = subtype_key
+                            elif isinstance(subtype_key, str):
+                                numeric_id = int(subtype_key)
+                            else:
+                                log("WARNING", f"Invalid subtype_key type for {ingredient_key}: {type(subtype_key)}", service="validation")
+                                continue
+                        except (ValueError, TypeError) as e:
+                            log("WARNING", f"Failed to convert subtype_key to int for {ingredient_key}:{subtype_key}: {e}", service="validation")
+                            continue
+                        
+                        # Determine the inventory category and subtype based on ingredient_key
+                        inventory_category = None
+                        inventory_subtype = None
+                        
+                        if ingredient_key == "milk":
+                            # Map numeric ID to milk subtype
+                            log("INFO", f"Mapping milk ID {numeric_id} to subtype", service="validation")
+                            if numeric_id in MILK_ID_TO_SUBTYPE:
+                                inventory_subtype = MILK_ID_TO_SUBTYPE[numeric_id]
+                                if inventory_subtype is None:  # ID 5 is water, not milk
+                                    log("WARNING", f"Milk ID {numeric_id} is actually water, skipping", service="validation")
+                                    continue
+                                inventory_category = "milk"
+                                log("INFO", f"Mapped to: {inventory_category}:{inventory_subtype}", service="validation")
+                            else:
+                                log("WARNING", f"Unknown milk ID: {numeric_id}", service="validation")
+                                result["details"][f"milk_id_{numeric_id}"] = {
+                                    "id": numeric_id,
+                                    "status": "unknown_id",
+                                    "message": f"Unknown milk ID: {numeric_id}"
+                                }
+                                continue
+                        
+                        elif ingredient_key == "water":
+                            # Water may not be tracked in inventory (unlimited supply)
+                            # Log the usage but don't try to deduct from inventory
+                            log("INFO", f"Water deduction requested (ID: {numeric_id}, amount: {amount}) - water not tracked in inventory", service="validation")
+                            result["details"]["water"] = {
+                                "id": numeric_id,
+                                "deducted_amount": amount,
+                                "status": "not_tracked",
+                                "message": f"Water usage logged ({amount} units) - not tracked in inventory"
+                            }
+                            continue  # Skip inventory deduction for water
+                        
+                        elif ingredient_key == "syrups":
+                            # Map numeric ID to syrup/sauce subtype
+                            if numeric_id in SYRUP_ID_TO_SUBTYPE:
+                                inventory_subtype = SYRUP_ID_TO_SUBTYPE[numeric_id]
+                                # Determine if it's a syrup or sauce based on the subtype name
+                                if "sauce" in inventory_subtype:
+                                    inventory_category = "sauces"
+                                else:
+                                    inventory_category = "syrups"
+                            else:
+                                log("WARNING", f"Unknown syrup/sauce ID: {numeric_id}", service="validation")
+                                result["details"][f"syrup_id_{numeric_id}"] = {
+                                    "id": numeric_id,
+                                    "status": "unknown_id",
+                                    "message": f"Unknown syrup ID: {numeric_id}"
+                                }
+                                continue
+                        
+                        # If we have a valid mapping, deduct from inventory
+                        if inventory_category and inventory_subtype:
+                            log("INFO", f"Deducting {ingredient_key} (ID: {numeric_id} -> {inventory_category}:{inventory_subtype}, amount: {amount})", service="validation")
+                            
+                            # Deduct from inventory
+                            success, warning = self._inventory_client.update_inventory(
+                                ingredient_type=inventory_category,
+                                subtype=inventory_subtype,
+                                amount=-amount
+                            )
+                            
+                            if success:
+                                updated_ingredients.append(f"{inventory_category}:{inventory_subtype}")
+                                remaining_amount, remaining_percentage = _capture_remaining(inventory_category, inventory_subtype)
+                                result["details"][ingredient_key] = {
+                                    "id": numeric_id,
+                                    "inventory_category": inventory_category,
+                                    "subtype": inventory_subtype,
+                                    "deducted_amount": amount,
+                                    "remaining_amount": remaining_amount,
+                                    "remaining_percentage": remaining_percentage,
+                                    "status": warning,
+                                    "message": f"Deducted {amount} units of {inventory_subtype}"
+                                }
+                            else:
+                                result["passed"] = False
+                                result["details"][ingredient_key] = {
+                                    "id": numeric_id,
+                                    "inventory_category": inventory_category,
+                                    "subtype": inventory_subtype,
+                                    "status": "failed",
+                                    "message": f"Failed to deduct {amount} units of {inventory_subtype}"
+                                }
+            
+            # Add summary
+            if updated_ingredients:
+                result["details"]["updated_ingredients"] = updated_ingredients
+                result["details"]["message"] = f"Successfully deducted {len(updated_ingredients)} ingredient type(s)"
+            else:
+                result["details"]["message"] = "No ingredients were deducted (may require ID mapping)"
+            
+            log("INFO", f"Ingredient update result: {json.dumps(result, indent=2)}", service="validation")
+            return result
+            
+        except Exception as e:
+            import traceback
+            log("ERROR", f"!!! EXCEPTION in ingredient update: {e}", service="validation")
+            log("ERROR", f"!!! Traceback: {traceback.format_exc()}", service="validation")
+            return {
+                "request_id": payload.get("request_id") if isinstance(payload, dict) else "unknown",
+                "client_type": payload.get("client_type") if isinstance(payload, dict) else "unknown",
+                "cup_id": payload.get("cup_id") if isinstance(payload, dict) else "unknown",
+                "passed": False,
+                "error": f"Ingredient update failed: {str(e)}"
             }

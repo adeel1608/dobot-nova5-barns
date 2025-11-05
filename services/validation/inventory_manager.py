@@ -268,7 +268,6 @@ class InventoryManager:
         Returns hierarchical dict with percentage, amount, status, date
         """
         result = {}
-        print(f"^^^inside get_inventory_status: ingredient_type: {ingredient_type}, subtype: {subtype}")
         
         # Determine ingredient_types to process
         if ingredient_type is None:
