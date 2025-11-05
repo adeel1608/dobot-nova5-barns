@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import DrinkIcon from './DrinkIcon';
 
 export default function MenuGrid({
   drinkNames = [],
@@ -100,31 +101,16 @@ export default function MenuGrid({
               <div key={drinkName} className="drink-card">
                 {/* Drink Icon/Image Placeholder */}
                 <div className="drink-icon">
-                  {/* Coffee Cup Icon */}
-                  <svg 
-                    className="icon" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2} 
-                      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" 
-                    />
-                  </svg>
+                  <DrinkIcon drinkName={drinkName} className="icon" />
                 </div>
 
                 {/* Drink Info */}
                 <div className="drink-info">
                   <h3 className="drink-name">{drinkName}</h3>
-                  <p className="drink-category">{category}</p>
                 </div>
 
                 {/* Size Selection */}
                 <div className="size-selection">
-                  <label className="size-label">Select Size:</label>
                   <div className="size-buttons">
                     {sizes.map(size => (
                       <button
