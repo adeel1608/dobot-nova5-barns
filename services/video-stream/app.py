@@ -144,8 +144,10 @@ class Camera:
         log("INFO", "Camera {self.name} stopped", service="video_stream")
 
 # Initialize cameras with test patterns for demonstration
+RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
+
 cameras: Dict[str, Camera] = {
-    "webcam": Camera("Live Webcam", "webcam", 0, use_test_pattern=True),  # Try real webcam, fallback to test pattern
+    "ceiling": Camera("Ceiling Camera", "ceiling", RTSP_URL, use_test_pattern=False),  # RTSP ceiling camera
     "test_pattern": Camera("Test Pattern Demo", "test_pattern", None, use_test_pattern=True),  # Pure test pattern
     "camera1": Camera("Camera 1", "camera1", None),  # Mock camera with error frame
     "camera2": Camera("Camera 2", "camera2", None),  # Mock camera with error frame  

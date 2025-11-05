@@ -197,7 +197,7 @@ export default function IngredientSettings() {
   }
 
   return (
-    <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: 'calc(100vh - 270px)' }}>
       {/* Notification Toast */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg max-w-md ${
@@ -222,8 +222,8 @@ export default function IngredientSettings() {
         </div>
       )}
       
-      {/* Header */}
-      <div className="mb-6">
+      {/* Header - Fixed */}
+      <div className="p-6 pb-0 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
             <h2 className="text-xl font-bold text-gray-900">Ingredient Capacity Settings</h2>
@@ -291,8 +291,8 @@ export default function IngredientSettings() {
         </div>
       </div>
 
-      {/* Ingredient Table */}
-      <div className="overflow-x-auto">
+      {/* Ingredient Table - Scrollable */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6" style={{ scrollbarWidth: 'thin', scrollbarColor: '#cbd5e1 #f1f5f9', marginTop: '10px'}}>
         {Object.keys(filteredData).length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -420,23 +420,7 @@ export default function IngredientSettings() {
         )}
       </div>
 
-      {/* Info Box */}
-      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-        <div className="flex items-start">
-          <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-          <div className="text-sm">
-            <p className="font-medium text-blue-900 mb-1">Capacity Settings Information</p>
-            <ul className="text-blue-800 space-y-1">
-              <li>• <strong>Max Capacity:</strong> Maximum storage capacity for the ingredient</li>
-              <li>• <strong>Warning Threshold:</strong> System sends warning when inventory falls below this level</li>
-              <li>• <strong>Critical Threshold:</strong> System sends critical alert when inventory falls below this level</li>
-              <li>• Changes will be applied after clicking "Save Changes" and will affect future inventory operations</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+
     </div>
   );
 }

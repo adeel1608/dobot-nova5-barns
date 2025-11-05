@@ -173,7 +173,7 @@ export default function LogsPanel() {
   const services = ['ALL', ...new Set(systemLogs.map(log => log.service))];
 
   return (
-    <div className="p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: 'calc(100vh - 100px)' }}>
+    <div className="p-2 rounded-xl shadow-sm border border-gray-200 flex flex-col" style={{ height: 'calc(100vh - 270px)' }}>
       {/* Header */}
       <div className="bg-white border-b border-gray-200 p-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between">

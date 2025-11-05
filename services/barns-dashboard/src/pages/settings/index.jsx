@@ -44,7 +44,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="container-fluid bg-gray-50">
+    <div className="container-fluid">
       <div className="container-fluid">
         <div className="mt-3">
           
@@ -58,8 +58,8 @@ export default function SettingsPage() {
             </div>
             
             {/* Tab Navigation */}
-            <div className="px-6">
-              <div className="flex space-x-1 border-b border-gray-200">
+            <div className="px-6" style={{ margin: '10px'}}>
+              <div className="flex space-x-1">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
