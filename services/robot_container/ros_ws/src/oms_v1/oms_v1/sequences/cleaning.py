@@ -10,21 +10,24 @@ with precise positioning and error handling.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.espresso import unmount, mount, _normalize_espresso_shot
+from oms_v1.sequences.espresso import _normalize_espresso_shot
 from oms_v1.params import (
-    ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT,
-    validate_port, log_step, log_success, log_error, log_info
+    ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT
 )
 
 
 def clean_portafilter(**params) -> bool:
     """
-    Very simple cleaning flow:
-      1) unmount
-      2) grinder home
-      3) hard brush: approach → adjust → mount → motion1 → motion2 → retreat_hard
-      4) soft brush: approach → mount → motion1 → motion2 → retreat_soft
-      5) grinder home
+    Clean portafilter at cleaning station.
+    
+    Note: This function assumes the portafilter is already unmounted. 
+    Call unmount() separately before calling this function.
+    
+    Cleaning flow:
+      1) Move to grinder home
+      2) Hard brush: approach → adjust → mount → motion1 → motion2 → retreat_hard
+      3) Soft brush: approach → mount → motion1 → motion2 → retreat_soft
+      4) Return to grinder home
     """
     # Normalize from espresso shot if provided
     # New format: {'espresso': {'espresso_shot_double': 2.0}}

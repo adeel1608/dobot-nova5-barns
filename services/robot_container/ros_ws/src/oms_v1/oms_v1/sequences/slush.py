@@ -86,7 +86,7 @@ def get_slush(**params) -> bool:
         
         # Step 1: Grab plastic cup
         log_step(1, 4, f"Grabbing {cup_size} plastic cup")
-        if not dispense_plastic_cup(cup_size=cup_size):
+        if not dispense_plastic_cup(**params):
             log_error(f"Failed to grab {cup_size} plastic cup")
             return False
         log_success("Cup grabbed successfully", indent=1)
@@ -235,7 +235,7 @@ def place_slush(**params) -> bool:
         
         # Step 4: Place slush cup at designated stage
         print(f"📍 Step 4/4: Placing slush cup at stage {stage}...")
-        if not place_plastic_cup_station(position={'cup_position': int(stage)}):
+        if not place_plastic_cup_station(**params):
             print(f"[ERROR] Failed to place slush cup at stage {stage}")
             return False
         print(f"   ✅ Successfully placed slush cup at stage {stage}")

@@ -13,7 +13,8 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.params import (
     DEFAULT_PLASTIC_CUP_SIZE, validate_cup_size, log_step, log_success, log_error,
-    _extract_cup_position, _extract_cups_dict, _normalize_cup_size
+    _extract_cup_position, _extract_cups_dict, _normalize_cup_size,
+    _set_cup_dispensed, _check_and_clear_cup_dispensed
 )
 
 
@@ -421,7 +422,7 @@ def place_plastic_cup_station(**params) -> bool:
         if not home(position="east"):
             print("[ERROR] Failed to return to east home")
             return False
-        print("   ✅ Successfully moved up and returned def testto home")
+        print("   ✅ Successfully moved up and returned to home")
         
         # Final success summary
         print("=" * 50)
@@ -543,23 +544,25 @@ def pick_plastic_cup_station(**params) -> bool:
         print("   ✅ Cup gripped successfully")
         
         if cup_position == 3 or cup_position == 4:
+            print("🏠 Step 4.5/6: Moving to south-east home for stages 3/4...")
             if not home(position="south_east"):
                 print("[ERROR] Failed to move to south_east home")
                 return False
+            print("   ✅ Successfully moved to south-east home")
                 
-        # Step 5: Return to safe position
-        print("🏠 Step 5/6: Returning to safe position...")
+        # Step 5: Return to east home
+        print("🏠 Step 5/6: Returning to east home...")
         if not home(position="east"):
             print("[ERROR] Failed to return to east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to east home")
         
-        # Step 5: Return to safe position
-        print("🏠 Step 5/6: Returning to safe position...")
+        # Step 6: Return to north-east home
+        print("🏠 Step 6/6: Returning to north-east home...")
         if not home(position="north_east"):
-            print("[ERROR] Failed to return to east home")
+            print("[ERROR] Failed to return to north-east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to north-east home")
         
         # Final success summary
         print("=" * 50)

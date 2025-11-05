@@ -10,8 +10,8 @@ and staging area management.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.params import (
-    GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS, DEFAULT_CUP_POSITION,
-    ESPRESSO_HOME, ESPRESSO_GRINDER_HOME,
+    GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS,
+    ESPRESSO_HOME,
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 from oms_v1.manipulate_node import run_skill
@@ -449,17 +449,18 @@ def pick_paper_cup_station(**params) -> bool:
         run_skill("moveEE_movJ", 0, 0, 200, 0, 0, 0)
         
         # Step 5: Return to safe position
-        print("🏠 Step 5/6: Returning to safe position...")
+        print("🏠 Step 5/6: Returning to east home...")
         if not home(position="east"):
             print("[ERROR] Failed to return to east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to east home")
 
-        print("🏠 Step 5/6: Returning to safe position...")
+        # Step 6: Return to north-east home
+        print("🏠 Step 6/6: Returning to north-east home...")
         if not home(position="north_east"):
-            print("[ERROR] Failed to return to east home")
+            print("[ERROR] Failed to return to north-east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to north-east home")
 
         # Final success summary
         print("=" * 50)
@@ -504,10 +505,11 @@ def place_paper_cup_station(**params) -> bool:
         print("   ✅ Successfully moved to east home")
 
         if stage in ("3", "4"):
+            print("🏠 Step 2.5/5: Moving to south-east home...")
             if not home(position="south_east"):
                 print("[ERROR] Failed to move to south-east home")
                 return False
-        print("   ✅ Successfully moved to south-east home")
+            print("   ✅ Successfully moved to south-east home")
 
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
@@ -581,7 +583,7 @@ def pick_paper_cup_sauces(**params) -> bool:
     Pick the paper cup from the sauces station.
 
     Args:
-        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+        cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0} - supports H7, H9, H12 (7oz, 9oz, 12oz)
     """
     try:
         # Extract cup size using unified helper
@@ -640,7 +642,7 @@ def pick_paper_cup_milk(**params) -> bool:
     Pick the paper cup from the milk station.
 
     Args:
-        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+        cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0} - supports H7, H9, H12 (7oz, 9oz, 12oz)
     """
     try:
         # Extract cup size using unified helper

@@ -221,11 +221,11 @@ def pick_frother(**params) -> bool:
         active_frother = 'milk_frother_1'
         
         if not approach_result or elapsed_time >= 2.0:
-            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_1...")
-            active_frother = 'milk_frother_1'
-            approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
+            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_2...")
+            active_frother = 'milk_frother_2'
+            approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
             if not approach_result:
-                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_1")
+                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_2")
                 return False
         
         print(f"   ✅ Successfully approached {active_frother}")
