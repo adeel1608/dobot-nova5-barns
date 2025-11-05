@@ -114,6 +114,9 @@ class ValidationServiceApp:
         # System handlers
         self.rabbitmq_client.register_handler("health", self.handle_health)
         
+        # Inventory limits update handler
+        self.rabbitmq_client.register_handler("update_limits", self.handle_update_limits)
+        
         log("INFO", "All message handlers registered", service="validation")
     
     # =============================================================================
@@ -746,6 +749,40 @@ class ValidationServiceApp:
                 "cup_detection", "milk_detection", "sauce_detection", "check_coffee_beans"
             ]
         }
+    
+    async def handle_update_limits(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle inventory limits update requests"""
+        try:
+            updates = data.get("payload", {}).get("updates", [])
+            
+            if not updates:
+                return {
+                    "request_id": data.get("request_id"),
+                    "passed": False,
+                    "error": "No updates provided"
+                }
+            
+            log("INFO", f"Processing inventory limits update with {len(updates)} changes", service="validation")
+            
+            # Call the main validation method
+            result = self.main_validation.process_update_limits_request({
+                "request_id": data.get("request_id", f"update-limits-{datetime.now().timestamp()}"),
+                "client_type": "api_bridge",
+                "function_name": "update_limits",
+                "payload": {
+                    "updates": updates
+                }
+            })
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in handle_update_limits: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "passed": False,
+                "error": f"Inventory limits update failed: {str(e)}"
+            }
     
     # =============================================================================
     # UTILITY METHODS

@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional, Set
 import uuid
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
@@ -917,6 +917,54 @@ async def get_inventory_by_stock_level(stock_level: str):
     except Exception as e:
         log("ERROR", f"Error getting {stock_level} stock ingredients: {e}", service="api_bridge")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")           
+
+
+@app.post("/api/inventory/update-limits")
+async def update_inventory_limits(request: Request):
+    """Update ingredient capacity limits (max_capacity, warning_threshold, critical_threshold)"""
+    try:
+        body = await request.json()
+        updates = body.get("updates", [])
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No updates provided")
+        
+        # Validate updates format
+        for update in updates:
+            if not all(k in update for k in ['category', 'subtype', 'field', 'value']):
+                raise HTTPException(status_code=400, detail="Invalid update format")
+            
+            if update['field'] not in ['max_capacity', 'warning_threshold', 'critical_threshold']:
+                raise HTTPException(status_code=400, detail=f"Invalid field: {update['field']}")
+        
+        # Send request to validation service
+        response = await rabbitmq_client.send_request(
+            target_service="validation",
+            action="update_limits",
+            data={
+                "updates": updates
+            },
+            timeout=30
+        )
+        
+        if response.get("success") or response.get("passed"):
+            return {
+                "success": True,
+                "message": "Inventory limits updated successfully",
+                "details": response.get("details", {}),
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail=response.get("error", "Failed to update inventory limits")
+            )
+            
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions
+    except Exception as e:
+        log("ERROR", f"Error updating inventory limits: {e}", service="api_bridge")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Alert Management Endpoints
 @app.get("/api/alerts/active")

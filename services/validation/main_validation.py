@@ -1356,3 +1356,155 @@ class MainValidation:
                 "passed": False,
                 "error": f"Ingredient update failed: {str(e)}"
             }
+    
+    def process_update_limits_request(self, request: dict) -> dict:
+        """
+        Process requests to update inventory capacity limits.
+        Updates both the inventory_rules.json file and the in-memory cache.
+        
+        Args:
+            request: {
+                "request_id": "...",
+                "client_type": "api_bridge",
+                "function_name": "update_limits",
+                "payload": {
+                    "updates": [
+                        {"category": "milk", "subtype": "whole_fat_milk", "field": "max_capacity", "value": 20000},
+                        {"category": "cups", "subtype": "cup_H7", "field": "warning_threshold", "value": 60},
+                        ...
+                    ]
+                }
+            }
+        
+        Returns:
+            dict: Result with success status and details
+        """
+        try:
+            request_id = request.get("request_id")
+            updates = request.get("payload", {}).get("updates", [])
+            
+            log("INFO", f"Processing update limits request: {request_id} with {len(updates)} updates", service="validation")
+            
+            if not updates:
+                return {
+                    "request_id": request_id,
+                    "passed": False,
+                    "error": "No updates provided"
+                }
+            
+            # Load current inventory rules
+            import os
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            rules_file = os.path.join(current_dir, 'inventory_rules.json')
+            
+            with open(rules_file, 'r') as f:
+                inventory_rules = json.load(f)
+            
+            updated_items = []
+            errors = []
+            
+            # Process each update
+            for update in updates:
+                category = update.get("category")
+                subtype = update.get("subtype")
+                field = update.get("field")
+                value = update.get("value")
+                
+                # Validate update
+                if not all([category, subtype, field is not None, value is not None]):
+                    errors.append(f"Invalid update format: {update}")
+                    continue
+                
+                if field not in ['max_capacity', 'warning_threshold', 'critical_threshold', 'low_threshold']:
+                    errors.append(f"Invalid field '{field}' for {category}:{subtype}")
+                    continue
+                
+                # Check if category and subtype exist
+                if category not in inventory_rules:
+                    errors.append(f"Invalid category: {category}")
+                    continue
+                
+                if 'subtypes' not in inventory_rules[category]:
+                    errors.append(f"Category {category} has no subtypes")
+                    continue
+                
+                if subtype not in inventory_rules[category]['subtypes']:
+                    errors.append(f"Invalid subtype '{subtype}' for category {category}")
+                    continue
+                
+                # Update the value in inventory_rules
+                old_value = inventory_rules[category]['subtypes'][subtype].get(field, 0)
+                inventory_rules[category]['subtypes'][subtype][field] = value
+                
+                # Update in-memory cache
+                if category in self._inventory_client.inventory_cache:
+                    if subtype in self._inventory_client.inventory_cache[category]:
+                        self._inventory_client.inventory_cache[category][subtype][field] = value
+                
+                # Special handling for max_capacity: If new max_capacity is lower than current_amount,
+                # reduce current_amount to match new max_capacity to prevent >100% display
+                current_amount_adjusted = False
+                if field == 'max_capacity':
+                    current_amount = self._inventory_client.inventory_cache.get(category, {}).get(subtype, {}).get("current_amount", 0)
+                    
+                    if current_amount > value:
+                        # Current amount exceeds new max capacity, reduce it
+                        success = self._db_client.update_inventory(category, subtype, value)
+                        
+                        if success:
+                            # Update cache with new current_amount
+                            if category in self._inventory_client.inventory_cache:
+                                if subtype in self._inventory_client.inventory_cache[category]:
+                                    self._inventory_client.inventory_cache[category][subtype]["current_amount"] = value
+                            
+                            current_amount_adjusted = True
+                            log("INFO", f"Adjusted current_amount for {category}:{subtype} from {current_amount} to {value} (new max_capacity)", service="validation")
+                
+                updated_items.append({
+                    "category": category,
+                    "subtype": subtype,
+                    "field": field,
+                    "old_value": old_value,
+                    "new_value": value,
+                    "current_amount_adjusted": current_amount_adjusted
+                })
+                
+                log("INFO", f"Updated {category}:{subtype}.{field} from {old_value} to {value}", service="validation")
+            
+            # Save updated inventory rules back to file
+            if updated_items:
+                with open(rules_file, 'w') as f:
+                    json.dump(inventory_rules, f, indent=4)
+                log("INFO", f"Saved {len(updated_items)} updates to inventory_rules.json", service="validation")
+            
+            # Prepare response
+            if errors and not updated_items:
+                return {
+                    "request_id": request_id,
+                    "passed": False,
+                    "error": "All updates failed",
+                    "details": {
+                        "errors": errors
+                    }
+                }
+            
+            return {
+                "request_id": request_id,
+                "passed": True,
+                "success": True,
+                "details": {
+                    "updated_items": updated_items,
+                    "updated_count": len(updated_items),
+                    "errors": errors if errors else []
+                }
+            }
+            
+        except Exception as e:
+            log("ERROR", f"Error processing update limits request: {e}", service="validation")
+            import traceback
+            traceback.print_exc()
+            return {
+                "request_id": request.get("request_id"),
+                "passed": False,
+                "error": f"Error updating inventory limits: {str(e)}"
+            }
