@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import NewPOSOrderForm from './NewPOSOrderForm';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import Swal from 'sweetalert2';
 import {
@@ -10,7 +9,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import useStore from '../../../store';
-import backarrow from '../../../assets/backarrow.png';
 import deleteIcon from '../../../assets/delete.png';
 
 function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isStopping, isResuming, isDeleting, isReordering, getStatusBadge }) {
@@ -283,21 +281,17 @@ function OrderQueue({ connectionStatus }) {
     orders,
     ordersTotal,
     ordersHasMore,
-    menuItems,
-    ingredientsByCategory,
     sendReorder,
     createOrder,
     startOrder,
     stopOrder,
     resumeOrder, 
-    deleteOrder, 
-    processPOSOrder,
+    deleteOrder,
     loadMoreOrders,
-    fetchMenuItems,
-    fetchIngredientsByCategory,
     isLoading, 
     errors, 
-    clearError 
+    clearError,
+    navigate
   } = useStore();
   
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -308,34 +302,9 @@ function OrderQueue({ connectionStatus }) {
   const [resumingOrderId, setResumingOrderId] = useState(null);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [reorderingOrderId, setReorderingOrderId] = useState(null);
-  const [showNewOrder, setShowNewOrder] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [posOrderData, setPosOrderData] = useState({
-    items: [{ 
-      item_id: '', 
-      quantity: 1,
-      kitchen_notes: [],
-      item_ingredients: [],
-      selectedDrinkName: '',
-      selectedSize: '',
-      isExpanded: false,
-      isCustomizeOpen: false
-    }]
-  });
   const logsEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
-
-  // Fetch menu items and ingredients for POS mode
-  useEffect(() => {
-    if (showNewOrder) {
-      if (menuItems.length === 0) {
-        fetchMenuItems();
-      }
-      if (Object.keys(ingredientsByCategory).length === 0) {
-        fetchIngredientsByCategory();
-      }
-    }
-  }, [showNewOrder, menuItems.length, ingredientsByCategory, fetchMenuItems, fetchIngredientsByCategory]);
 
   // Auto-refresh when there's a STOPPING order to ensure UI updates quickly
   useEffect(() => {
@@ -681,288 +650,6 @@ const handleDeleteOrder = async (orderId) => {
     }, 0);
   };
 
-  // POS Order Functions
-  const handleSubmitPOSOrder = async (e) => {
-    e.preventDefault();
-    
-    // Validate that all items have item_id
-    const invalidItems = posOrderData.items.filter(item => !item.item_id || item.item_id.trim() === '');
-    if (invalidItems.length > 0) {
-      Swal.fire({
-        title: 'Missing Item ID',
-        text: 'Please enter an item ID for all items before creating the order.',
-        icon: 'warning',
-        timer: 3000,
-        timerProgressBar: true,
-        showConfirmButton: false
-      });
-      return;
-    }
-    
-    // Generate transaction_id
-    const transactionId = `TXN${Date.now()}`;
-    const now = new Date();
-    const date = now.toISOString().split('T')[0];
-    const time = now.toTimeString().split(' ')[0];
-    
-    // Build POS order format matching desired_output.json
-    const posOrder = {
-      transaction_id: transactionId,
-      date: date,
-      time: time,
-      store_number: 1,
-      pos_reg_id: 1,
-      customer_id: null,
-      items: posOrderData.items
-    };
-    
-    const success = await processPOSOrder(posOrder);
-    if (success) {
-      setPosOrderData({ 
-        items: [{ 
-          item_id: '', 
-          quantity: 1,
-          kitchen_notes: [],
-          item_ingredients: [],
-          selectedDrinkName: '',
-          selectedSize: ''
-        }]
-      });
-      setShowNewOrder(false);
-
-      Swal.fire({
-        title: 'Success!',
-        text: 'POS Order processed successfully!',
-        icon: 'success',
-        timer: 3000,
-        timerProgressBar: true,
-        showConfirmButton: false
-      });
-    } else {
-      Swal.fire({
-        title: 'Failed!',
-        text: 'Failed to process POS order!',
-        icon: 'error',
-        timer: 3000,
-        timerProgressBar: true,
-        showConfirmButton: false
-      });
-    }
-  };
-
-  const addPOSItem = () => {
-    setPosOrderData(prev => ({
-      items: [...prev.items, { 
-        item_id: '', 
-        quantity: 1,
-        kitchen_notes: [],
-        item_ingredients: [],
-        selectedDrinkName: '',
-        selectedSize: '',
-        isExpanded: true,
-        isCustomizeOpen: false
-      }]
-    }));
-  };
-
-  const removePOSItem = (index) => {
-    if (posOrderData.items.length > 1) {
-      setPosOrderData(prev => ({
-        items: prev.items.filter((_, i) => i !== index)
-      }));
-    }
-  };
-
-  const updatePOSItem = (index, field, value) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => {
-        if (i !== index) return item;
-
-        // Two-step selection logic
-        if (field === 'selectedDrinkName') {
-          return {
-            ...item,
-            selectedDrinkName: value,
-            selectedSize: '',
-            item_id: '',
-            selectedMenuItem: undefined,
-            kitchen_notes: [],
-            item_ingredients: [],
-            isExpanded: true,
-            isCustomizeOpen: false
-          };
-        }
-
-        if (field === 'selectedSize') {
-          const drinkName = item.selectedDrinkName;
-          const selectedMenuItem = menuItems.find(m => m.name === drinkName && m.size === value);
-          if (selectedMenuItem) {
-            return {
-              ...item,
-              selectedSize: value,
-              item_id: selectedMenuItem.item_id,
-              selectedMenuItem: selectedMenuItem,
-              kitchen_notes: [],
-              item_ingredients: [],
-              isExpanded: true,
-              isCustomizeOpen: false
-            };
-          }
-          return { ...item, selectedSize: value, item_id: '', selectedMenuItem: undefined };
-        }
-
-        // Fallback: item_id direct change
-        if (field === 'item_id') {
-          const selectedMenuItem = menuItems.find(m => m.item_id === value);
-          if (selectedMenuItem) {
-            return {
-              ...item,
-              item_id: value,
-              selectedDrinkName: selectedMenuItem.name || item.selectedDrinkName || '',
-              selectedSize: selectedMenuItem.size || item.selectedSize || '',
-              selectedMenuItem: selectedMenuItem,
-              kitchen_notes: [],
-              item_ingredients: []
-            };
-          }
-        }
-
-        return { ...item, [field]: value };
-      })
-    }));
-  };
-
-  const addKitchenNote = (itemIndex) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? { 
-          ...item, 
-          kitchen_notes: [...item.kitchen_notes, { type: '', qty: 1, detail: '' }]
-        } : item
-      )
-    }));
-  };
-
-  const removeKitchenNote = (itemIndex, noteIndex) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          kitchen_notes: item.kitchen_notes.filter((_, ni) => ni !== noteIndex)
-        } : item
-      )
-    }));
-  };
-
-  const updateKitchenNote = (itemIndex, noteIndex, field, value) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          kitchen_notes: item.kitchen_notes.map((note, ni) => 
-            ni === noteIndex ? { ...note, [field]: value } : note
-          )
-        } : item
-      )
-    }));
-  };
-
-  const addIngredientModification = (itemIndex) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          item_ingredients: [...item.item_ingredients, { 
-            itemId: '', 
-            qty: 1, 
-            isAddon: false,
-            modifierGroupId: '',
-            isModified: false,
-            initialItemId: ''
-          }]
-        } : item
-      )
-    }));
-  };
-
-  const removeIngredientModification = (itemIndex, ingIndex) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          item_ingredients: item.item_ingredients.filter((_, ii) => ii !== ingIndex)
-        } : item
-      )
-    }));
-  };
-
-  const updateIngredientModification = (itemIndex, ingIndex, field, value) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          item_ingredients: item.item_ingredients.map((ing, ii) => 
-            ii === ingIndex ? { ...ing, [field]: value } : ing
-          )
-        } : item
-      )
-    }));
-  };
-
-  // Helper function to add an ingredient replacement
-  const addIngredientReplacement = (itemIndex, originalIngredientId, newIngredientId, quantity, modifierGroupId) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          item_ingredients: [...item.item_ingredients, {
-            itemId: newIngredientId,
-            qty: quantity || 1,
-            isAddon: false,
-            modifierGroupId: modifierGroupId || 'replacement',
-            isModified: true,
-            initialItemId: originalIngredientId
-          }]
-        } : item
-      )
-    }));
-  };
-
-  // Helper function to add an ingredient addon
-  const addIngredientAddon = (itemIndex, ingredientId, quantity) => {
-    setPosOrderData(prev => ({
-      items: prev.items.map((item, i) => 
-        i === itemIndex ? {
-          ...item,
-          item_ingredients: [...item.item_ingredients, {
-            itemId: ingredientId,
-            qty: quantity || 1,
-            isAddon: true,
-            modifierGroupId: 'AddOns'
-          }]
-        } : item
-      )
-    }));
-  };
-
-  // Lookup ingredient name by id from ingredientsByCategory
-  const getIngredientNameById = (id) => {
-    for (const arr of Object.values(ingredientsByCategory)) {
-      const found = arr.find(x => String(x.ingredient_id) === String(id));
-      if (found) return found.name || found.type || String(id);
-    }
-    return String(id);
-  };
-
-  // Lightweight details getter used to check category when listing current add-ons
-  const getIngredientDetailsById = (id) => {
-    for (const [category, arr] of Object.entries(ingredientsByCategory)) {
-      const found = arr.find(x => String(x.ingredient_id) === String(id));
-      if (found) return { ...found, category };
-    }
-    return null;
-  };
-
   const formatOrderForDisplay = (order) => {
     return {
       ...order,
@@ -1001,12 +688,6 @@ const handleDeleteOrder = async (orderId) => {
     return true;
   });
 
-  // Build unique drink list for two-step selection
-  const uniqueDrinkNames = React.useMemo(() => {
-    const names = menuItems.map(m => m.name).filter(Boolean);
-    return Array.from(new Set(names));
-  }, [menuItems]);
-
   return (
     <div className="bg-white rounded-lg shadow-xl  flex flex-col h-full">
       {/* Header */}
@@ -1014,7 +695,7 @@ const handleDeleteOrder = async (orderId) => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
           <div className="flex items-center">
             <h2 className="text-lg md:text-xl font-bold flex items-center ">
-              {showNewOrder ? 'New Order' : 'Order Queue'}
+              Order Queue
               <div
                 className={`w-2 h-2 rounded-full mx-3 ${
                   connectionStatus ? 'bg-green-500' : 'bg-red-500'
@@ -1038,54 +719,43 @@ const handleDeleteOrder = async (orderId) => {
             </h2>
             
             <button
-              onClick={() => setShowNewOrder(!showNewOrder)}
-              className={`text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-2
-                ${
-                  showNewOrder
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'barns-dark-bg text-white hover:barns-bg'
-                }`}
+              onClick={() => {
+                navigate?.('newOrder');
+                window.location.hash = '#/newOrder';
+              }}
+              className="text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-2 barns-dark-bg text-white hover:barns-bg"
               style={{color:'white'}}
             >
-              {showNewOrder ? (
-                <>
-                  <img src={backarrow} alt="Back" className="w-4 h-4" />
-                  <span>Back</span>
-                </>
-              ) : (
-                'New Order'
-              )}
+              New Order
             </button>
           </div>
         </div>
         
-        {!showNewOrder && (
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-            <input
-              type="text"
-              placeholder="Search orders..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-3 py-2 barns-border-dark   focus:ring-0  text-sm"
-            />
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 barns-border-dark focus:ring-2  text-sm sm:w-auto"
-            >
-              <option value="ALL">All Orders</option>
-              <option value="QUEUED">Queued</option>
-              <option value="PROCESSING">Processing</option>
-              <option value="STOPPING">Stopping</option>
-              <option value="HALTED">Halted</option>
-              <option value="COMPLETED">Completed</option>
-              <option value="STOPPED">Stopped</option>
-              <option value="ERROR">Error</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-            
-          </div>
-        )}
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+          <input
+            type="text"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="flex-1 px-3 py-2 barns-border-dark   focus:ring-0  text-sm"
+          />
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-4 py-2 barns-border-dark focus:ring-2  text-sm sm:w-auto"
+          >
+            <option value="ALL">All Orders</option>
+            <option value="QUEUED">Queued</option>
+            <option value="PROCESSING">Processing</option>
+            <option value="STOPPING">Stopping</option>
+            <option value="HALTED">Halted</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="STOPPED">Stopped</option>
+            <option value="ERROR">Error</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+          
+        </div>
       </div>
       
       {/* API Error display */}
@@ -1107,45 +777,7 @@ const handleDeleteOrder = async (orderId) => {
       {/* Scrollable content area */}
       <div className="flex-1 overflow-hidden">
         <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4">
-          {showNewOrder ? (
-            <NewPOSOrderForm
-              posOrderData={posOrderData}
-              setPosOrderData={setPosOrderData}
-              menuItems={menuItems}
-              ingredientsByCategory={ingredientsByCategory}
-              isLoading={isLoading}
-              uniqueDrinkNames={uniqueDrinkNames}
-              handleSubmitPOSOrder={handleSubmitPOSOrder}
-              addPOSItem={addPOSItem}
-              removePOSItem={removePOSItem}
-              updatePOSItem={updatePOSItem}
-              addKitchenNote={addKitchenNote}
-              updateKitchenNote={updateKitchenNote}
-              removeKitchenNote={removeKitchenNote}
-              addIngredientReplacement={addIngredientReplacement}
-              addIngredientAddon={addIngredientAddon}
-              removeIngredientModification={removeIngredientModification}
-              getIngredientDetailsById={getIngredientDetailsById}
-              getIngredientNameById={getIngredientNameById}
-              onCancel={() => {
-                setShowNewOrder(false);
-                setPosOrderData({
-                  items: [{
-                    item_id: '',
-                    quantity: 1,
-                    kitchen_notes: [],
-                    item_ingredients: [],
-                    selectedDrinkName: '',
-                    selectedSize: '',
-                    isExpanded: false,
-                    isCustomizeOpen: false
-                  }]
-                });
-              }}
-            />
-          ) : (
-            /* Orders List */
-            <>
+          {/* Orders List */}
               {isLoading ? (
                 <div className="flex justify-center items-center p-8">
                   <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1192,7 +824,7 @@ const handleDeleteOrder = async (orderId) => {
               )}
               
               {/* Show More Button */}
-              {!showNewOrder && filteredOrders.length > 0 && ordersHasMore && (
+              {filteredOrders.length > 0 && ordersHasMore && (
                 <div className="mt-4 flex justify-center">
                   <button
                     onClick={handleLoadMore}
@@ -1218,8 +850,6 @@ const handleDeleteOrder = async (orderId) => {
                   </button>
                 </div>
               )}
-            </>
-          )}
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import AlertsPage from "./pages/alerts";
 import InventoryPage from "./pages/inventory";
 import CamerasPage from "./pages/cameras";
 import LogsPage from "./pages/logs";
+import NewOrderPage from "./pages/newOrder";
 import barnsLogo from "./assets/barns.png";
 import qssLogo from "./assets/qss.png";
 import notification from "./assets/notification.png";
@@ -316,6 +317,7 @@ export default function App() {
         {activeTab === "inventory" && <InventoryPage />}
         {activeTab === "cameras" && <CamerasPage />}
         {activeTab === "logs" && <LogsPage />}
+        {activeTab === "newOrder" && <NewOrderPage />}
       </div>
     </div>
   );

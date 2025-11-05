@@ -53,17 +53,18 @@ export default function useStore() {
     // Navigation functions
     setNavigationHandler,
     navigateToTab,
+    navigate: navigateToTab, // Alias for convenience
     
     // Dashboard state and actions
-    orders: dashboard.orders,
-    ordersTotal: dashboard.ordersTotal,
-    ordersOffset: dashboard.ordersOffset,
-    ordersHasMore: dashboard.ordersHasMore,
-    ordersPageSize: dashboard.ordersPageSize,
-    orderStats: dashboard.orderStats,
-    recipes: dashboard.recipes,
-    menuItems: dashboard.menuItems,
-    ingredientsByCategory: dashboard.ingredientsByCategory,
+    orders: dashboard.orders || [],
+    ordersTotal: dashboard.ordersTotal || 0,
+    ordersOffset: dashboard.ordersOffset || 0,
+    ordersHasMore: dashboard.ordersHasMore || false,
+    ordersPageSize: dashboard.ordersPageSize || 20,
+    orderStats: dashboard.orderStats || {},
+    recipes: dashboard.recipes || [],
+    menuItems: dashboard.menuItems || [],
+    ingredientsByCategory: dashboard.ingredientsByCategory || {},
     systemStatus: dashboard.systemStatus,
     schedulerStatus: dashboard.schedulerStatus,
     schedulerTasks: dashboard.schedulerTasks || { Arm1: [], Arm2: [] },
