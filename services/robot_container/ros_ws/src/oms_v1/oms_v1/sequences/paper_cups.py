@@ -10,97 +10,27 @@ and staging area management.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.params import (
-    GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS, DEFAULT_CUP_POSITION,
-    _extract_cup_position
+    GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS,
+    ESPRESSO_HOME,
+    _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-
-# Predefined home positions for paper cup operations
-Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
-Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-
 
 def _normalize_paper_cup_size(cups_dict: Any) -> str:
     """
     Parse paper cup size from new JSON format.
     
-    Expected format: {'cup_H12': 1.0} or {'cup_H7': 1.0}
-    Extracts H7/H9/H12 and maps to paper cup sizes (7oz/9oz/12oz).
+    This is a wrapper around the unified _normalize_cup_size function.
+    Use this for backward compatibility in paper cup operations.
     
     Args:
-        cups_dict: Dictionary containing cup information, or a simple string/value for backward compatibility
+        cups_dict: Dictionary containing cup information, or a simple string/value
         
     Returns:
         str: Normalized cup size (e.g., '7oz', '9oz', '12oz')
     """
-    print(f"[DEBUG _normalize] Input cups_dict: {cups_dict}, type: {type(cups_dict)}")
-    
-    # Handle new dictionary format
-    if isinstance(cups_dict, dict):
-        # Get the first key from the cups dictionary
-        cup_key = next(iter(cups_dict.keys()), None)
-        print(f"[DEBUG _normalize] Extracted cup_key: {cup_key}")
-        if not cup_key:
-            print("[DEBUG _normalize] No cup_key found, defaulting to 7oz")
-            return "7oz"
-        
-        # Extract cup code from key like 'cup_H12' -> 'H12'
-        cup_key_str = str(cup_key).upper()
-        print(f"[DEBUG _normalize] cup_key_str (uppercase): {cup_key_str}")
-        
-        if 'CUP_' in cup_key_str:
-            # Extract code after 'CUP_'
-            cup_code = cup_key_str.split('CUP_', 1)[1] if 'CUP_' in cup_key_str else cup_key_str
-        else:
-            cup_code = cup_key_str
-        
-        print(f"[DEBUG _normalize] Extracted cup_code: {cup_code}")
-        
-        # Check if it's a paper cup (starts with H)
-        if not cup_code.startswith('H'):
-            print(f"[DEBUG _normalize] Cup code doesn't start with 'H', defaulting to 7oz")
-            return "7oz"
-        
-        # Map to size
-        size = cup_code
-    else:
-        # Backward compatibility: handle direct string/value
-        if not cups_dict:
-            print("[DEBUG _normalize] cups_dict is empty/None, defaulting to 7oz")
-            return "7oz"
-        size = str(cups_dict).strip().upper()
-        print(f"[DEBUG _normalize] Backward compatibility mode, size: {size}")
-    
-    # Normalize the size string
-    s = str(size).strip().lower()
-    print(f"[DEBUG _normalize] Normalizing '{size}' -> '{s}'")
-    
-    mapping = {
-        "h7": "7oz",
-        "h9": "9oz",
-        "h12": "12oz",
-        "7oz": "7oz",
-        "9oz": "9oz",
-        "12oz": "12oz",
-    }
-    result = mapping.get(s, "7oz")
-    print(f"[DEBUG _normalize] Final result: {result}")
-    return result
-
-def _normalize_stage(stage_value: str) -> str:
-    """Return 'stage_1'..'stage_4' from flexible input like 1/1.0/'1'/stage_1."""
-    if stage_value is None:
-        return "stage_1"
-    if isinstance(stage_value, str) and stage_value.startswith("stage_"):
-        return stage_value
-    try:
-        n = int(float(stage_value))
-        if n in (1, 2, 3, 4):
-            return f"stage_{n}"
-    except Exception:
-        pass
-    return stage_value
+    return _normalize_cup_size(cups_dict, cup_type='paper')
 
 def grab_paper_cup(**params) -> bool:
     """
@@ -128,38 +58,9 @@ def grab_paper_cup(**params) -> bool:
             print("Paper cup grabbed successfully")
     """
     try:
-        # Extract and validate size parameter
-        # Handle multiple parameter formats:
-        # 1. New format with ingredients: {'ingredients': {'cups': {'cup_H9': 1.0}}}
-        # 2. Direct cups dict: {'cups': {'cup_H9': 1.0}}
-        # 3. Old format: {'size': '9oz'}
-        
-        cups_dict = None
-        
-        # First check if ingredients exists (nested format from scheduler)
-        if 'ingredients' in params and isinstance(params['ingredients'], dict):
-            cups_dict = params['ingredients'].get('cups')
-            print(f"[DEBUG] Extracted cups from ingredients: {cups_dict}")
-        
-        # Otherwise check for direct cups parameter
-        if not cups_dict:
-            cups_dict = params.get("cups")
-            # If cups is a list (top-level array), try to extract from first item
-            if isinstance(cups_dict, list) and len(cups_dict) > 0:
-                first_cup = cups_dict[0]
-                if isinstance(first_cup, dict) and 'ingredients' in first_cup:
-                    cups_dict = first_cup['ingredients'].get('cups')
-                    print(f"[DEBUG] Extracted cups from array ingredients: {cups_dict}")
-                elif isinstance(first_cup, dict) and 'size' in first_cup:
-                    cups_dict = first_cup.get('size')
-                    print(f"[DEBUG] Extracted size from array: {cups_dict}")
-        
-        # Fallback to old 'size' parameter
-        if not cups_dict or not isinstance(cups_dict, dict):
-            cups_dict = params.get("size")
-        
+        # Extract and validate size parameter using unified helper
+        cups_dict = _extract_cups_dict(params)
         size = _normalize_paper_cup_size(cups_dict if cups_dict else "7oz")
-        print(f"[DEBUG] Final normalized size: {size}")
         if not size:
             print("[ERROR] No size parameter provided")
             return False
@@ -181,7 +82,7 @@ def grab_paper_cup(**params) -> bool:
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/8: Moving to espresso home position...")
-        home_result = run_skill("gotoJ_deg", *Espresso_home)
+        home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
         if home_result is False:
             print("[ERROR] Failed to move to espresso home")
             return False
@@ -431,7 +332,6 @@ def dispense_paper_cup(**params) -> bool:
     """
     try:
         print("🥤🚚 Starting paper cup dispense sequence")
-        print(f"[DEBUG dispense] Received params: {params}")
         print("=" * 50)
 
         # Pass full params to grab_paper_cup so it can extract cup size properly
@@ -468,36 +368,13 @@ def pick_paper_cup_station(**params) -> bool:
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
 
-        # Extract cup size from multiple possible formats
-        cups_dict = None
-        
-        # First check if ingredients exists (nested format from scheduler)
-        if 'ingredients' in params and isinstance(params['ingredients'], dict):
-            cups_dict = params['ingredients'].get('cups')
-            print(f"[DEBUG pick_station] Extracted cups from ingredients: {cups_dict}")
-        
-        # Otherwise check for direct cups parameter
-        if not cups_dict:
-            cups_dict = params.get("cups")
-            # If cups is a list, try to extract from first item
-            if isinstance(cups_dict, list) and len(cups_dict) > 0:
-                first_cup = cups_dict[0]
-                if isinstance(first_cup, dict) and 'ingredients' in first_cup:
-                    cups_dict = first_cup['ingredients'].get('cups')
-                    print(f"[DEBUG pick_station] Extracted cups from array ingredients: {cups_dict}")
-        
-        # Fallback to old 'cup_size' parameter
-        if not cups_dict:
-            cups_dict = params.get("cup_size")
-        
-        # Default to 12oz if no cup size provided
+        # Extract cup size using unified helper
+        cups_dict = _extract_cups_dict(params)
         if not cups_dict:
             print("[INFO] No cup_size parameter provided, defaulting to 12oz")
             cups_dict = {"cup_H12": 1.0}
-
-        # Map H-codes to legacy sizes
-        size_mapped = _normalize_paper_cup_size(cups_dict)  # H7/H9/H12 -> 7oz/9oz/12oz
-        print(f"[DEBUG pick_station] Final normalized size: {size_mapped}")
+        
+        size_mapped = _normalize_paper_cup_size(cups_dict)
 
         # Validate parameters
         valid_stages = ('1', '2', '3', '4')
@@ -572,17 +449,18 @@ def pick_paper_cup_station(**params) -> bool:
         run_skill("moveEE_movJ", 0, 0, 200, 0, 0, 0)
         
         # Step 5: Return to safe position
-        print("🏠 Step 5/6: Returning to safe position...")
+        print("🏠 Step 5/6: Returning to east home...")
         if not home(position="east"):
             print("[ERROR] Failed to return to east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to east home")
 
-        print("🏠 Step 5/6: Returning to safe position...")
+        # Step 6: Return to north-east home
+        print("🏠 Step 6/6: Returning to north-east home...")
         if not home(position="north_east"):
-            print("[ERROR] Failed to return to east home")
+            print("[ERROR] Failed to return to north-east home")
             return False
-        print("   ✅ Successfully returned to safe position")
+        print("   ✅ Successfully returned to north-east home")
 
         # Final success summary
         print("=" * 50)
@@ -627,10 +505,11 @@ def place_paper_cup_station(**params) -> bool:
         print("   ✅ Successfully moved to east home")
 
         if stage in ("3", "4"):
+            print("🏠 Step 2.5/5: Moving to south-east home...")
             if not home(position="south_east"):
                 print("[ERROR] Failed to move to south-east home")
                 return False
-        print("   ✅ Successfully moved to south-east home")
+            print("   ✅ Successfully moved to south-east home")
 
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
@@ -704,38 +583,16 @@ def pick_paper_cup_sauces(**params) -> bool:
     Pick the paper cup from the sauces station.
 
     Args:
-        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+        cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0} - supports H7, H9, H12 (7oz, 9oz, 12oz)
     """
     try:
-        # Extract cup size from multiple possible formats
-        cups_dict = None
-        
-        # First check if ingredients exists (nested format from scheduler)
-        if 'ingredients' in params and isinstance(params['ingredients'], dict):
-            cups_dict = params['ingredients'].get('cups')
-            print(f"[DEBUG pick_sauces] Extracted cups from ingredients: {cups_dict}")
-        
-        # Otherwise check for direct cups parameter
-        if not cups_dict:
-            cups_dict = params.get("cups")
-            # If cups is a list, try to extract from first item
-            if isinstance(cups_dict, list) and len(cups_dict) > 0:
-                first_cup = cups_dict[0]
-                if isinstance(first_cup, dict) and 'ingredients' in first_cup:
-                    cups_dict = first_cup['ingredients'].get('cups')
-                    print(f"[DEBUG pick_sauces] Extracted cups from array ingredients: {cups_dict}")
-        
-        # Fallback to old 'cup_size' parameter
-        if not cups_dict:
-            cups_dict = params.get("cup_size")
-        
-        # Default to 12oz if no cup size provided
+        # Extract cup size using unified helper
+        cups_dict = _extract_cups_dict(params)
         if not cups_dict:
             print("[INFO] No cup_size parameter provided, defaulting to 12oz")
             cups_dict = {"cup_H12": 1.0}
         
         cup_size = _normalize_paper_cup_size(cups_dict)
-        print(f"[DEBUG pick_sauces] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -785,38 +642,16 @@ def pick_paper_cup_milk(**params) -> bool:
     Pick the paper cup from the milk station.
 
     Args:
-        cup_size (str): One of '7oz', '9oz', '12oz', '16oz' (required)
+        cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0} - supports H7, H9, H12 (7oz, 9oz, 12oz)
     """
     try:
-        # Extract cup size from multiple possible formats
-        cups_dict = None
-        
-        # First check if ingredients exists (nested format from scheduler)
-        if 'ingredients' in params and isinstance(params['ingredients'], dict):
-            cups_dict = params['ingredients'].get('cups')
-            print(f"[DEBUG pick_milk] Extracted cups from ingredients: {cups_dict}")
-        
-        # Otherwise check for direct cups parameter
-        if not cups_dict:
-            cups_dict = params.get("cups")
-            # If cups is a list, try to extract from first item
-            if isinstance(cups_dict, list) and len(cups_dict) > 0:
-                first_cup = cups_dict[0]
-                if isinstance(first_cup, dict) and 'ingredients' in first_cup:
-                    cups_dict = first_cup['ingredients'].get('cups')
-                    print(f"[DEBUG pick_milk] Extracted cups from array ingredients: {cups_dict}")
-        
-        # Fallback to old 'cup_size' parameter
-        if not cups_dict:
-            cups_dict = params.get("cup_size")
-        
-        # Default to 12oz if no cup size provided
+        # Extract cup size using unified helper
+        cups_dict = _extract_cups_dict(params)
         if not cups_dict:
             print("[INFO] No cup_size parameter provided, defaulting to 12oz")
             cups_dict = {"cup_H12": 1.0}
         
         cup_size = _normalize_paper_cup_size(cups_dict)
-        print(f"[DEBUG pick_milk] Final normalized size: {cup_size}")
         valid_sizes = ("7oz", "9oz", "12oz")
         if cup_size not in valid_sizes:
             print(f"[ERROR] Invalid cup size: {cup_size!r}")
@@ -842,7 +677,6 @@ def pick_paper_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_paper_cup_milk failed: {e}")
         return False
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

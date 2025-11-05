@@ -19,26 +19,6 @@ approach_angles: Optional[Tuple[float, ...]] = None
 grab_angles: Optional[Tuple[float, ...]] = None
 
 
-def _normalize_stage(stage_value: Any) -> str:
-    """Return stage key as '1'|'2'|'3'|'4' from flexible input (accept 1/1.0/'stage_1' etc.)."""
-    if stage_value is None:
-        return '1'
-    # if provided like 'stage_1', 'stage_2', map to '1'..'4'
-    if isinstance(stage_value, str) and stage_value.startswith('stage_'):
-        try:
-            n = int(stage_value.split('_', 1)[1])
-            if n in (1, 2, 3, 4):
-                return str(n)
-        except Exception:
-            pass
-    try:
-        n = int(float(stage_value))
-        if n in (1, 2, 3, 4):
-            return str(n)
-    except Exception:
-        pass
-    return str(stage_value)
-
 def get_frother_position(**params) -> bool:
     """
     Calibrate and record the milk frother position for future operations.
@@ -241,11 +221,11 @@ def pick_frother(**params) -> bool:
         active_frother = 'milk_frother_1'
         
         if not approach_result or elapsed_time >= 2.0:
-            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_1...")
-            active_frother = 'milk_frother_1'
-            approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
+            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_2...")
+            active_frother = 'milk_frother_2'
+            approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
             if not approach_result:
-                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_1")
+                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_2")
                 return False
         
         print(f"   ✅ Successfully approached {active_frother}")
@@ -923,8 +903,6 @@ def return_frother(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Unexpected error during frother return: {e}")
         return False
-
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

@@ -19,10 +19,6 @@ from oms_v1.params import (
     _extract_cup_position
 )
 
-# Predefined home positions for espresso operations
-Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
-Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-
 # Global variables to store captured positions during unmount sequence
 below_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_port: Optional[Tuple[float, ...]] = None
@@ -85,22 +81,6 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
         print(f"[WARNING] Error parsing espresso parameters: {e}")
         return None
     
-    return None
-
-def _normalize_stage_with_prefix(stage_value: Any) -> Optional[str]:
-    """Return stage key like 'stage_1'|'stage_2'|'stage_3'|'stage_4' from flexible input."""
-    if stage_value is None:
-        return None
-    # already correct
-    if isinstance(stage_value, str) and stage_value.startswith("stage_"):
-        return stage_value
-    # numeric or numeric string → stage_N
-    try:
-        n = int(float(stage_value))
-        if n in (1, 2, 3, 4):
-            return f"stage_{n}"
-    except Exception:
-        pass
     return None
 
 def unmount(**params) -> bool:
@@ -1490,10 +1470,6 @@ def return_espresso_pitcher(**params) -> bool:
         print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
         print("[INFO] Pitcher return process terminated due to error")
         return False
-
-
-
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
