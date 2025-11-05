@@ -19,26 +19,6 @@ approach_angles: Optional[Tuple[float, ...]] = None
 grab_angles: Optional[Tuple[float, ...]] = None
 
 
-def _normalize_stage(stage_value: Any) -> str:
-    """Return stage key as '1'|'2'|'3'|'4' from flexible input (accept 1/1.0/'stage_1' etc.)."""
-    if stage_value is None:
-        return '1'
-    # if provided like 'stage_1', 'stage_2', map to '1'..'4'
-    if isinstance(stage_value, str) and stage_value.startswith('stage_'):
-        try:
-            n = int(stage_value.split('_', 1)[1])
-            if n in (1, 2, 3, 4):
-                return str(n)
-        except Exception:
-            pass
-    try:
-        n = int(float(stage_value))
-        if n in (1, 2, 3, 4):
-            return str(n)
-    except Exception:
-        pass
-    return str(stage_value)
-
 def get_frother_position(**params) -> bool:
     """
     Calibrate and record the milk frother position for future operations.
@@ -923,8 +903,6 @@ def return_frother(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Unexpected error during frother return: {e}")
         return False
-
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

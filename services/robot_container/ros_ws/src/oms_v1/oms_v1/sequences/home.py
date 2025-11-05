@@ -8,12 +8,8 @@ and system diagnostics for the BARNS coffee automation system.
 
 import time
 from typing import Dict, Any, Union
-from oms_v1.params import HOME_ANGLES
+from oms_v1.params import HOME_ANGLES, ESPRESSO_HOME, ESPRESSO_GRINDER_HOME
 from oms_v1.manipulate_node import run_skill
-
-# Predefined home positions for specific operational contexts
-Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
-Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
 
 def home(**params) -> bool:
@@ -380,7 +376,6 @@ def check_aruco_status(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Error during ArUco status check: {e}")
         return False
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

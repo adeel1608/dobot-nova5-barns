@@ -17,11 +17,6 @@ from oms_v1.params import (
 )
 
 
-# Predefined home positions for cleaning operations
-Espresso_home = (42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
-Espresso_grinder_home = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-
-
 def clean_portafilter(**params) -> bool:
     """
     Very simple cleaning flow:

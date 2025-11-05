@@ -13,9 +13,7 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
-    SLUSH_PARAMS, VALID_STAGES, VALID_CUP_SIZES, VALID_DISPENSERS,
-    validate_stage, validate_cup_size, log_step, log_success, log_error, log_info,
-    SPEED_NORMAL, _extract_cup_position
+    log_step, log_success, log_error, _extract_cup_position
 )
 
 
@@ -255,10 +253,7 @@ def place_slush(**params) -> bool:
         print(f"[ERROR] Unexpected error during slush placement: {e}")
         print("[INFO] Slush placement process terminated due to error")
         return False
-
       
-
-
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_slush': get_slush,

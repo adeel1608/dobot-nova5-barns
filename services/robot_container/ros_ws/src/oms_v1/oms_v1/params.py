@@ -1,10 +1,16 @@
 # params.py
+from typing import Any
+
 # ─── ROBOT CONSTANTS ──────────────────────────────────────────────────────────
 # Common constants used across all robot sequences
 SPEED_PRECISE = 10      # For precise operations
 SPEED_CAREFUL = 25      # For careful handling  
 SPEED_NORMAL = 50       # Normal operation speed
 SPEED_FAST = 100        # Fast movements
+
+# Common home positions used across multiple sequences
+ESPRESSO_HOME = (42.159162, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214)
+ESPRESSO_GRINDER_HOME = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
 GRIPPER_OPEN = 0        # Fully open gripper
 GRIPPER_LIGHT = 100     # Light grip
@@ -34,8 +40,26 @@ DEFAULT_PORT = 'port_2'
 DEFAULT_CUP_POSITION = 4  # Changed from 1 to test parameter passing
 DEFAULT_STAGE = '4'  # Legacy support - changed to match
 DEFAULT_CUP_SIZE = '12oz'
+DEFAULT_PAPER_CUP_SIZE = '7oz'  # Default for paper cups (H-codes)
+DEFAULT_PLASTIC_CUP_SIZE = '16oz'  # Default for plastic cups (C-codes)
 DEFAULT_DISPENSER = '1'
 DEFAULT_HOME = 'north'
+
+# ─── STATE TRACKER FOR AUTO-DETECTION ────────────────────────────────────────
+# Global state to track if we're coming from dispense_plastic_cup or go_home_with_ice
+_cup_dispensed_flag = False
+
+def _set_cup_dispensed():
+    """Set flag indicating cup was just dispensed or came from ice."""
+    global _cup_dispensed_flag
+    _cup_dispensed_flag = True
+    
+def _check_and_clear_cup_dispensed() -> bool:
+    """Check if cup was just dispensed, then clear the flag."""
+    global _cup_dispensed_flag
+    was_dispensed = _cup_dispensed_flag
+    _cup_dispensed_flag = False  # Clear flag after checking
+    return was_dispensed
 
 # ─── HELPER FUNCTIONS ─────────────────────────────────────────────────────────
 def _extract_cup_position(params: dict) -> int:
@@ -75,6 +99,114 @@ def _extract_cup_position(params: dict) -> int:
     
     # Default to position 1
     return DEFAULT_CUP_POSITION
+
+def _extract_cups_dict(params: dict) -> dict:
+    """
+    Extract cups dictionary from various parameter formats.
+    
+    Handles multiple input formats:
+    - New nested format: {'ingredients': {'cups': {'cup_H12': 1.0}}}
+    - Direct format: {'cups': {'cup_H12': 1.0}}
+    - Array format: [{'ingredients': {'cups': ...}}]
+    - Legacy format: {'size': '12oz'} or {'cup_size': '12oz'}
+    
+    Returns:
+        dict: Cups dictionary or empty dict if not found
+    """
+    cups_dict = None
+    
+    # Try nested ingredients format first
+    if 'ingredients' in params and isinstance(params['ingredients'], dict):
+        cups_dict = params['ingredients'].get('cups')
+        if cups_dict:
+            return cups_dict if isinstance(cups_dict, dict) else {}
+    
+    # Try direct cups parameter
+    cups_dict = params.get("cups")
+    
+    # Handle list format (array of cup items)
+    if isinstance(cups_dict, list) and len(cups_dict) > 0:
+        first_cup = cups_dict[0]
+        if isinstance(first_cup, dict):
+            # Check for nested ingredients
+            if 'ingredients' in first_cup:
+                cups_dict = first_cup['ingredients'].get('cups')
+            # Check for direct size
+            elif 'size' in first_cup:
+                cups_dict = first_cup.get('size')
+    
+    # Fallback to legacy parameters
+    if not cups_dict or not isinstance(cups_dict, dict):
+        # Try old 'size' or 'cup_size' parameters
+        size_param = params.get("size") or params.get("cup_size")
+        if size_param:
+            return {'legacy_size': size_param}  # Wrap for consistent handling
+    
+    return cups_dict if isinstance(cups_dict, dict) else {}
+
+def _normalize_cup_size(cups_dict: Any, cup_type: str = 'paper', default_size: str = None) -> str:
+    """
+    Unified cup size normalizer for paper (H-codes) and plastic (C-codes) cups.
+    
+    Args:
+        cups_dict: Dictionary containing cup information, or a simple string/value
+        cup_type: Either 'paper' (H-codes: H7, H9, H12) or 'plastic' (C-codes: C7, C9, C12, C16)
+        default_size: Default size to return if parsing fails (uses DEFAULT_PAPER_CUP_SIZE or DEFAULT_PLASTIC_CUP_SIZE if None)
+        
+    Returns:
+        str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
+        
+    Example:
+        >>> _normalize_cup_size({'cup_H12': 1.0}, 'paper')
+        '12oz'
+        >>> _normalize_cup_size({'cup_C16': 1.0}, 'plastic')
+        '16oz'
+    """
+    # Set defaults based on cup type
+    if default_size is None:
+        default_size = DEFAULT_PAPER_CUP_SIZE if cup_type == 'paper' else DEFAULT_PLASTIC_CUP_SIZE
+    
+    # Define expected prefix and valid sizes
+    expected_prefix = 'H' if cup_type == 'paper' else 'C'
+    valid_sizes = {
+        'paper': {'h7': '7oz', 'h9': '9oz', 'h12': '12oz', '7oz': '7oz', '9oz': '9oz', '12oz': '12oz'},
+        'plastic': {'c7': '7oz', 'c9': '9oz', 'c12': '12oz', 'c16': '16oz', 
+                   '7oz': '7oz', '9oz': '9oz', '12oz': '12oz', '16oz': '16oz'}
+    }
+    mapping = valid_sizes.get(cup_type, {})
+    
+    # Handle dictionary format
+    if isinstance(cups_dict, dict):
+        # Check for legacy_size wrapper
+        if 'legacy_size' in cups_dict:
+            size = str(cups_dict['legacy_size']).strip().upper()
+        else:
+            # Get the first key from the cups dictionary
+            cup_key = next(iter(cups_dict.keys()), None)
+            if not cup_key:
+                return default_size
+            
+            # Extract cup code from key like 'cup_H12' -> 'H12'
+            cup_key_str = str(cup_key).upper()
+            if 'CUP_' in cup_key_str:
+                cup_code = cup_key_str.split('CUP_', 1)[1]
+            else:
+                cup_code = cup_key_str
+            
+            # Validate prefix matches expected cup type
+            if not cup_code.startswith(expected_prefix):
+                return default_size
+            
+            size = cup_code
+    else:
+        # Backward compatibility: handle direct string/value
+        if not cups_dict:
+            return default_size
+        size = str(cups_dict).strip().upper()
+    
+    # Normalize the size string
+    normalized = str(size).strip().lower()
+    return mapping.get(normalized, default_size)
 
 def validate_port(port):
     """Validate port parameter"""
@@ -209,20 +341,20 @@ MILK_FROTHING_PARAMS = {
     },
     'pouring': {
         'stage1': {
-            'position':  (-95.949852,-20.821946,-106.709842,-55.985835,-81.062922,-37.128536),
-            'adjust1':   (-80.883979,-23.263983,-107.916020,-53.484168,-76.026952,-108.220795),
+            'position':  (-96.038133,-16.779600,-104.255018,-62.483484,-81.154254,-37.125368),
+            'adjust1':   (-80.742955,-20.628923,-107.592269,-56.447117,-75.887376,-108.203675),
         },
         'stage2': {
-            'position':  (-112.666408,-29.385208,-92.754193,-61.369251,-97.753561,-38.158473),
-            'adjust1':   (-101.772892,-29.283470,-97.707904,-57.570302,-96.850195,-109.900827),
+            'position':  (-110.625841,-24.341315,-92.985758,-66.165623,-95.718015,-38.024363),
+            'adjust1':   (-99.369913,-24.209976,-97.719323,-62.612256,-94.456415,-109.700141),
         },
         'stage3': {
-            'position':  (-124.900410,-40.864034,-72.206375,-70.635035,-109.976656,-38.961175),
-            'adjust1':   (-115.722689,-38.111257,-81.742865,-64.996239,-110.761056,-111.085017),
+            'position':  (-122.820854,-36.136456,-73.316114,-74.204156,-107.900885,-38.813036),
+            'adjust1':   (-113.296795,-33.403078,-82.373956,-68.997752,-108.344130,-110.861340),
         }, 
         'stage4': {
-            'position':  (-133.977141,-57.956580,-38.767288,-87.271176,-119.062158,-39.646586),
-            'adjust1':   (-127.245806,-52.165244,-54.503853,-78.706376,-122.258725,-112.244271),
+            'position':  (-132.368953,-52.469645,-42.776132,-88.685925,-117.453260,-39.514638),
+            'adjust1':   (-125.360518,-47.083181,-57.256980,-80.924584,-120.379033,-112.033018),
         }, 
     },
     'return': {
