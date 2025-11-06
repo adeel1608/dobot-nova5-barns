@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies only
+COPY services/robot_arm/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Expose ports (though robot service uses RabbitMQ primarily)
+EXPOSE 50051
+
+# Run the robot arm service
+# Source code will be mounted as volume
+CMD ["python", "-m", "services.robot_arm.app"]
+

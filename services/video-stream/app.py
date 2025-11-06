@@ -4,10 +4,12 @@ from fastapi.responses import StreamingResponse
 import cv2
 import numpy as np
 import time
-from typing import Dict
+from typing import Dict, Set
 import logging
 import sys
 import os
+import asyncio
+from threading import Lock
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from shared.logger import log
 import math
@@ -47,11 +49,16 @@ class Camera:
         self._initialize()
     
     def _initialize(self):
-        """Try to initialize camera, fallback to test pattern or error frame."""
+        """Try to initialize camera with timeout, fallback to test pattern or error frame."""
         if self.source is not None:
             try:
-                log("INFO", "Attempting to initialize camera {self.name} with source {self.source}", service="video_stream")
+                log("INFO", f"Attempting to initialize camera {self.name} with source {self.source}", service="video_stream")
                 self.cap = cv2.VideoCapture(self.source)
+                
+                # Set timeout properties for RTSP streams to prevent hanging
+                if isinstance(self.source, str) and self.source.startswith('rtsp'):
+                    self.cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)  # 5 second connection timeout
+                    self.cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)  # 5 second read timeout
                 
                 # Set some properties for better webcam compatibility
                 if self.cap.isOpened():
@@ -59,27 +66,27 @@ class Camera:
                     self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
                     self.cap.set(cv2.CAP_PROP_FPS, 30)
                     
-                    # Test reading a frame
+                    # Test reading a frame with timeout
                     ret, frame = self.cap.read()
                     if ret and frame is not None:
                         self.active = True
-                        log("INFO", "Camera {self.name} initialized successfully - Frame size: {frame.shape}", service="video_stream")
+                        log("INFO", f"Camera {self.name} initialized successfully - Frame size: {frame.shape}", service="video_stream")
                         return
                     else:
-                        log("ERROR", "Camera {self.name} opened but failed to read frame", service="video_stream")
+                        log("ERROR", f"Camera {self.name} opened but failed to read frame", service="video_stream")
                 else:
-                    log("ERROR", "Camera {self.name} failed to open", service="video_stream")
+                    log("ERROR", f"Camera {self.name} failed to open", service="video_stream")
                     
             except Exception as e:
-                log("ERROR", "Camera {self.name} failed to initialize: {e}", service="video_stream")
+                log("ERROR", f"Camera {self.name} failed to initialize: {e}", service="video_stream")
         
         # Create test pattern or error frame
         self.active = False
         if self.use_test_pattern:
-            log("INFO", "Camera {self.name} using test pattern", service="video_stream")
+            log("INFO", f"Camera {self.name} using test pattern", service="video_stream")
         else:
             self._create_error_frame()
-            log("INFO", "Camera {self.name} using error frame", service="video_stream")
+            log("INFO", f"Camera {self.name} using error frame", service="video_stream")
     
     def _create_error_frame(self):
         """Create a simple error frame."""
@@ -125,7 +132,7 @@ class Camera:
                     if success:
                         return jpeg.tobytes()
             except Exception as e:
-                log("ERROR", "Error reading from {self.name}: {e}", service="video_stream")
+                log("ERROR", f"Error reading from {self.name}: {e}", service="video_stream")
                 self.active = False
         
         if self.use_test_pattern:
@@ -141,7 +148,51 @@ class Camera:
         if self.cap:
             self.cap.release()
         self.active = False
-        log("INFO", "Camera {self.name} stopped", service="video_stream")
+        log("INFO", f"Camera {self.name} stopped", service="video_stream")
+    
+    def restart(self):
+        """Restart camera connection."""
+        self.stop()
+        self._initialize()
+
+# Stream session management
+class StreamManager:
+    """Manages active stream sessions to optimize resource usage."""
+    
+    def __init__(self):
+        self.active_streams: Dict[str, Set[str]] = {}  # camera_id -> set of session_ids
+        self.lock = Lock()
+    
+    def start_stream(self, camera_id: str, session_id: str = "default"):
+        """Register a new stream session."""
+        with self.lock:
+            if camera_id not in self.active_streams:
+                self.active_streams[camera_id] = set()
+            self.active_streams[camera_id].add(session_id)
+            log("INFO", f"Stream started for {camera_id}, session: {session_id}, active sessions: {len(self.active_streams[camera_id])}", service="video_stream")
+    
+    def stop_stream(self, camera_id: str, session_id: str = "default"):
+        """Unregister a stream session."""
+        with self.lock:
+            if camera_id in self.active_streams:
+                self.active_streams[camera_id].discard(session_id)
+                if not self.active_streams[camera_id]:
+                    del self.active_streams[camera_id]
+                    log("INFO", f"All streams stopped for {camera_id}", service="video_stream")
+                else:
+                    log("INFO", f"Stream session {session_id} stopped for {camera_id}, remaining: {len(self.active_streams[camera_id])}", service="video_stream")
+    
+    def is_stream_active(self, camera_id: str) -> bool:
+        """Check if any sessions are active for a camera."""
+        with self.lock:
+            return camera_id in self.active_streams and len(self.active_streams[camera_id]) > 0
+    
+    def get_active_cameras(self) -> Set[str]:
+        """Get set of all cameras with active streams."""
+        with self.lock:
+            return set(self.active_streams.keys())
+
+stream_manager = StreamManager()
 
 # Initialize cameras with test patterns for demonstration
 RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
@@ -155,7 +206,7 @@ cameras: Dict[str, Camera] = {
 
 @app.on_event("startup")
 async def startup_event():
-    log("INFO", "BARNS Video service starting with {len(cameras)} cameras", service="video_stream")
+    log("INFO", f"BARNS Video service starting with {len(cameras)} cameras", service="video_stream")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -163,62 +214,146 @@ async def shutdown_event():
     for camera in cameras.values():
         camera.stop()
 
-def gen_frames(camera_id: str):
-    """Generate video frames."""
+def gen_frames(camera_id: str, session_id: str = "default"):
+    """Generate video frames - only when stream is active."""
     camera = cameras.get(camera_id)
     if not camera:
         return
     
-    while True:
-        try:
-            frame_bytes = camera.get_frame()
-            if frame_bytes:
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(0.1)  # ~10 FPS - reduced for lower CPU usage
-        except Exception as e:
-            log("ERROR", "Error streaming {camera_id}: {e}", service="video_stream")
-            break
+    # Register this stream session
+    stream_manager.start_stream(camera_id, session_id)
+    log("INFO", f"Stream generator started for {camera_id}, session: {session_id}", service="video_stream")
+    
+    try:
+        while stream_manager.is_stream_active(camera_id):
+            try:
+                frame_bytes = camera.get_frame()
+                if frame_bytes:
+                    # Yield frame - if client disconnected, this will raise an exception
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                time.sleep(0.1)  # ~10 FPS - reduced for lower CPU usage
+            except GeneratorExit:
+                # Client disconnected - this is the clean way to exit
+                log("INFO", f"Client disconnected from {camera_id}, session: {session_id}", service="video_stream")
+                break
+            except Exception as e:
+                log("ERROR", f"Error streaming {camera_id}: {e}", service="video_stream")
+                break
+    finally:
+        # Cleanup: unregister this stream session
+        stream_manager.stop_stream(camera_id, session_id)
+        log("INFO", f"Stream generator ended for {camera_id}, session: {session_id}", service="video_stream")
 
 @app.get("/cameras")
 def list_cameras():
-    """List all cameras."""
+    """List all cameras with stream status."""
     camera_info = {}
+    active_cameras = stream_manager.get_active_cameras()
     for cam_id, camera in cameras.items():
         camera_info[cam_id] = {
             "name": camera.name,
             "status": "active" if camera.active else ("test_pattern" if camera.use_test_pattern else "error"),
             "stream_url": f"/stream/{cam_id}",
-            "type": "real" if camera.active else ("test_pattern" if camera.use_test_pattern else "error")
+            "type": "real" if camera.active else ("test_pattern" if camera.use_test_pattern else "error"),
+            "streaming": cam_id in active_cameras
         }
     return {"cameras": camera_info}
 
 @app.get("/stream/{camera_id}")
 async def get_stream(camera_id: str):
-    """Stream video from camera."""
+    """Stream video from camera - stream will auto-start when client connects."""
     if camera_id not in cameras:
         raise HTTPException(status_code=404, detail=f"Camera {camera_id} not found")
     
+    # Generate a unique session ID for this stream connection
+    import uuid
+    session_id = str(uuid.uuid4())
+    
     return StreamingResponse(
-        gen_frames(camera_id),
+        gen_frames(camera_id, session_id),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
+@app.post("/stream/start/{camera_id}")
+async def start_stream(camera_id: str):
+    """Manually start a stream (for pre-warming)."""
+    if camera_id not in cameras:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id} not found")
+    
+    stream_manager.start_stream(camera_id, "manual")
+    return {
+        "status": "success",
+        "message": f"Stream started for {camera_id}",
+        "camera": camera_id
+    }
+
+@app.post("/stream/stop/{camera_id}")
+async def stop_stream(camera_id: str):
+    """Manually stop a stream."""
+    if camera_id not in cameras:
+        raise HTTPException(status_code=404, detail=f"Camera {camera_id} not found")
+    
+    stream_manager.stop_stream(camera_id, "manual")
+    return {
+        "status": "success",
+        "message": f"Stream stopped for {camera_id}",
+        "camera": camera_id
+    }
+
+@app.post("/stream/stop-all")
+async def stop_all_streams():
+    """Stop all active streams."""
+    active_cameras = list(stream_manager.get_active_cameras())
+    for cam_id in active_cameras:
+        stream_manager.stop_stream(cam_id, "manual")
+    
+    log("INFO", f"Stopped all streams - {len(active_cameras)} cameras affected", service="video_stream")
+    return {
+        "status": "success",
+        "message": "All streams stopped",
+        "stopped_cameras": active_cameras
+    }
+
+@app.get("/stream/active")
+async def get_active_streams():
+    """Get currently active streams."""
+    active_cameras = stream_manager.get_active_cameras()
+    stream_details = {}
+    
+    with stream_manager.lock:
+        for cam_id in active_cameras:
+            session_count = len(stream_manager.active_streams.get(cam_id, set()))
+            stream_details[cam_id] = {
+                "camera_name": cameras[cam_id].name if cam_id in cameras else "Unknown",
+                "active_sessions": session_count
+            }
+    
+    return {
+        "status": "success",
+        "active_camera_count": len(active_cameras),
+        "active_cameras": list(active_cameras),
+        "details": stream_details
+    }
+
 @app.get("/status")
 def get_status():
-    """Get service status."""
+    """Get service status with stream information."""
     camera_status = {}
+    active_cameras = stream_manager.get_active_cameras()
     for cam_id, camera in cameras.items():
         camera_status[cam_id] = {
             "name": camera.name,
             "active": camera.active,
-            "type": "real" if camera.active else ("test_pattern" if camera.use_test_pattern else "error")
+            "type": "real" if camera.active else ("test_pattern" if camera.use_test_pattern else "error"),
+            "streaming": cam_id in active_cameras
         }
     
     return {
         "status": "operational",
         "cameras": camera_status,
-        "message": "Video streaming service with test patterns for development"
+        "active_streams": len(active_cameras),
+        "message": "Video streaming service with on-demand streaming"
     }
 
 @app.get("/still/{camera_id}")

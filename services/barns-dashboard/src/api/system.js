@@ -32,11 +32,12 @@ export const systemAPI = {
         });
       }
 
-      // Check video stream separately
+      // Check video stream separately (longer timeout for RTSP camera init)
       try {
-        const videoResult = await videoClient.get('/status', {}, { timeout: 3000 });
+        const videoResult = await videoClient.get('/status', {}, { timeout: 10000 });
         healthStatus.videoStream = videoResult.success ? 'online' : 'offline';
       } catch (error) {
+        console.warn('Video stream health check failed:', error.message);
         healthStatus.videoStream = 'offline';
       }
 
