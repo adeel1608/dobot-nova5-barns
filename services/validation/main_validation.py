@@ -1015,16 +1015,12 @@ class MainValidation:
                             continue
                         
                         elif ingredient_key == "syrups":
-                            # Map numeric ID to syrup/sauce subtype
+                            # Map numeric ID to syrup subtype
                             if numeric_id in SYRUP_ID_TO_SUBTYPE:
                                 inventory_subtype = SYRUP_ID_TO_SUBTYPE[numeric_id]
-                                # Determine if it's a syrup or sauce based on the subtype name
-                                if "sauce" in inventory_subtype:
-                                    inventory_category = "sauces"
-                                else:
-                                    inventory_category = "syrups"
+                                inventory_category = "syrups"
                             else:
-                                log("WARNING", f"Unknown syrup/sauce ID: {numeric_id}", service="validation")
+                                log("WARNING", f"Unknown syrup ID: {numeric_id}", service="validation")
                                 continue
                         
                         # If we have a valid mapping, check inventory
@@ -1284,16 +1280,12 @@ class MainValidation:
                             continue  # Skip inventory deduction for water
                         
                         elif ingredient_key == "syrups":
-                            # Map numeric ID to syrup/sauce subtype
+                            # Map numeric ID to syrup subtype
                             if numeric_id in SYRUP_ID_TO_SUBTYPE:
                                 inventory_subtype = SYRUP_ID_TO_SUBTYPE[numeric_id]
-                                # Determine if it's a syrup or sauce based on the subtype name
-                                if "sauce" in inventory_subtype:
-                                    inventory_category = "sauces"
-                                else:
-                                    inventory_category = "syrups"
+                                inventory_category = "syrups"
                             else:
-                                log("WARNING", f"Unknown syrup/sauce ID: {numeric_id}", service="validation")
+                                log("WARNING", f"Unknown syrup ID: {numeric_id}", service="validation")
                                 result["details"][f"syrup_id_{numeric_id}"] = {
                                     "id": numeric_id,
                                     "status": "unknown_id",

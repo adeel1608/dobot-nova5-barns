@@ -6,14 +6,12 @@ import milk from '../assets/milk.png';
 import beans from '../assets/beans.png';
 import syrups from '../assets/syrup.png';
 import cups from '../assets/cup.png';
-import sauces from '../assets/sauce.png';
 import premixes from '../assets/cup.png';
 export const INVENTORY_CATEGORIES = {
   MILK: 'milk',
   BEANS: 'beans', 
   SYRUPS: 'syrups',
   CUPS: 'cups',
-  Sauces: 'sauces',
   Premixes: 'premixes'
 };
 
@@ -62,11 +60,6 @@ export const INVENTORY_ITEMS = {
     plastic_cup_16oz: { name: '16oz Plastic Cup', icon: '🥤', category: 'cups', size: '16oz', material: 'plastic' }
   },
 
-  sauces: {
-    white_chocolate: { name: 'white chocolate', icon: '🥤', category: 'sauces' },
-    caramel: { name: 'caramel', icon: '🥤', category: 'sauces'},
-    condense_milk: { name: 'condense_milk', icon: '🥤', category: 'sauces'}
-  },
   premixes: {
     mocha_frappe: { name: 'mocha frappe', icon: '🥤', category: 'premixes' },
     chocolate_frappe: { name: 'chocolate frappe', icon: '🥤', category: 'premixes'},
@@ -80,7 +73,6 @@ export const ALL_INVENTORY_ITEMS = {
   ...INVENTORY_ITEMS.beans,
   ...INVENTORY_ITEMS.syrups,
   ...INVENTORY_ITEMS.cups,
-  ...INVENTORY_ITEMS.sauces,
   ...INVENTORY_ITEMS.premixes
 };
 
@@ -103,12 +95,6 @@ export const CATEGORY_INFO = {
     icon: '🍯',
     description: 'Flavor syrups and additives',
     avatar: syrups
-  },
-  sauces: {
-    title: 'Sauces',
-    icon: '🍯',
-    description: 'Caramel, chocolate, and other sauces',
-    avatar: sauces
   },
   premixes: {
     title: 'Premixes',

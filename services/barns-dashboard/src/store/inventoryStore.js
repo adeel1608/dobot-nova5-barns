@@ -20,7 +20,6 @@ export const useInventoryStore = create((set, get) => ({
     coffee_beans: { level: 'unknown', numeric: 0, last_refilled: null },
     syrups: { level: 'unknown', numeric: 0, last_refilled: null },
     cups: { level: 'unknown', numeric: 0, last_refilled: null },
-    sauces: { level: 'unknown', numeric: 0, last_refilled: null },
     premixes: { level: 'unknown', numeric: 0, last_refilled: null }
   },
   isLoading: false,
@@ -68,8 +67,14 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.fetchCategoryInfo();
     //console.log('🧠 Inventory full categories info:', result);
     if (result.success) {
+      // Filter out sauces category (merged into syrups)
+      const filteredData = result.data ? 
+        Object.fromEntries(
+          Object.entries(result.data).filter(([key]) => key !== 'sauces')
+        ) : {};
+      
       set(state => ({ 
-        FullCategoryInfo: result.data, 
+        FullCategoryInfo: filteredData, 
         isLoading: false
       }));
       // Removed verbose INFO log - only log errors
@@ -96,8 +101,14 @@ export const useInventoryStore = create((set, get) => ({
     const result = await inventoryAPI.fetchFullStockSummary();
    
     if (result.success) {
+      // Filter out sauces category (merged into syrups)
+      const filteredDetails = result.data.details ? 
+        Object.fromEntries(
+          Object.entries(result.data.details).filter(([key]) => key !== 'sauces')
+        ) : {};
+      
       set(state => ({ 
-        FullStockSummary: result.data.details, 
+        FullStockSummary: filteredDetails, 
         isLoading: false
       }));
       // Removed verbose INFO log - only log errors
@@ -153,9 +164,14 @@ export const useInventoryStore = create((set, get) => ({
 
     const result = await inventoryAPI.fetchInventoryStatus();
     if (result.success) {
-      const itemCount = Object.keys(result.data || {}).length;
+      // Filter out any sauces-related items (they should be under syrups now)
+      const filteredData = result.data ? 
+        Object.fromEntries(
+          Object.entries(result.data).filter(([key]) => !key.includes('sauce'))
+        ) : {};
+      
       set(state => ({ 
-        inventoryStatus: result.data, 
+        inventoryStatus: filteredData, 
         isLoading: false
       }));
       // Removed verbose INFO log - only log errors
@@ -179,12 +195,18 @@ export const useInventoryStore = create((set, get) => ({
   updateCategorySummary: async () => {
     const result = await inventoryAPI.getCategorySummary();
     if (result.success) {
-      const lowCategories = Object.entries(result.data || {})
+      // Filter out sauces category (merged into syrups)
+      const filteredSummary = result.data ? 
+        Object.fromEntries(
+          Object.entries(result.data).filter(([key]) => key !== 'sauces')
+        ) : {};
+      
+      const lowCategories = Object.entries(filteredSummary || {})
         .filter(([_, data]) => data.level === 'low')
         .map(([name]) => name);
         
       set(state => ({
-        categorySummary: { ...state.categorySummary, ...result.data }
+        categorySummary: { ...state.categorySummary, ...filteredSummary }
       }));
       
       // Only log if there are low categories (warning) - removed INFO spam

@@ -44,7 +44,7 @@ export default function Dashboard() {
 
             {/* Right Column */}
             <div className="lg:col-span-3 h-full flex flex-col space-y-3 md:space-y-3 min-h-0 order-2 lg:order-3">
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 overflow-hidden">
                 <AlertsPanel />
               </div>
               {/* <div className="flex-1 min-h-0">
@@ -52,8 +52,8 @@ export default function Dashboard() {
               </div> */}
            
 
-                 {/* IngredientsIndicator takes content height only */}
-              <div className="flex-shrink-0">
+                 {/* IngredientsIndicator takes flexible height with min/max constraints */}
+              <div className="flex-shrink-0 min-h-0 max-h-[50vh] overflow-hidden">
                 <IngredientsIndicator />
               </div>
             </div>
