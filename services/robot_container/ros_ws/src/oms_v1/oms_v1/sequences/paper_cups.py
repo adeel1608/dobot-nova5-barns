@@ -133,7 +133,7 @@ def grab_paper_cup(**params) -> bool:
         print("🤏 Step 6/8: Gripping paper cup...")
         if 'grip_width' in cup_params:
             print(f"   📏 Setting gripper width to: {cup_params['grip_width']}")
-            run_skill("sync")
+            # run_skill("sync")
             grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
             if grip_result is False:
                 print("[ERROR] Failed to grip paper cup")
@@ -255,7 +255,7 @@ def place_paper_cup(**params) -> bool:
         
         # Step 4: Open gripper to release paper cup
         print("🤏 Step 4/7: Releasing paper cup...")
-        run_skill("sync")
+        # run_skill("sync")
         release_result = run_skill("set_gripper_position", 50, 0)
         
         if release_result is False:
@@ -264,8 +264,8 @@ def place_paper_cup(**params) -> bool:
         print("   ✅ Paper cup released successfully")
         
         # Allow settling time
-        print("   ⏰ Allowing cup settling time...")
-        time.sleep(1.0)
+        # print("   ⏰ Allowing cup settling time...")
+        # time.sleep(0.2)
         
         # Step 5: Move up after placing paper cup
         print("⬆️ Step 5/7: Moving up after placement...")

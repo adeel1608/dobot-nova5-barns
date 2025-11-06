@@ -144,10 +144,6 @@ def unmount(**params) -> bool:
         # Step 2: Conditional approach based on port type
         if port == 'port_1' or port == 'port_3':
             print(f"🎯 Step 2/13: Approaching portafilter {port_params['portafilter_number']}...")
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])
             if approach_result is False:
                 print("[ERROR] Failed to approach portafilter")
@@ -355,11 +351,7 @@ def grinder(**params) -> bool:
             print("   ⏭️ Skipping grinder home movement for this port")
         
         # Step 2: Approach the grinder
-        print("🎯 Step 2/7: Approaching grinder...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
+        print("🎯 Step 2/7: Approaching grinder...")        
         approach_result = run_skill("approach_machine", "espresso_grinder", "grinder")
         if approach_result is False:
             print("[ERROR] Failed to approach grinder")
@@ -396,10 +388,6 @@ def grinder(**params) -> bool:
 
         # Step 7: Open gripper to complete process
         print("🤏 Step 7/7: Opening gripper...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
         open_gripper = run_skill("set_gripper_position", 255, 0)
         if open_gripper is False:
             print("[ERROR] Failed to open gripper")
@@ -682,14 +670,10 @@ def mount(**params) -> bool:
             print("[ERROR] Failed to mount to espresso group")
             return False
         print("   ✅ Successfully mounted to espresso group")
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
 
         # Step 5.1: Move end effector up to fix portafilter
         print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
-        print(f"   📍 Executing: moveEE_movJ(0, 0, 10, 0, 0, 0)")
+        print(f"   📍 Executing: moveEE_movJ(0, 0, 5, 0, 0, 0)")
         clear_result = run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0)
         
         if clear_result is False:
@@ -736,10 +720,6 @@ def mount(**params) -> bool:
         # Step 9: Conditional retreat for ports 1 and 3
         if port == 'port_1' or port == 'port_3':
             print("⬅️ Step 9/10: Moving back from portafilter...")
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             back_approach_result = run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])
             if back_approach_result is False:
                 print("[ERROR] Failed to move back from portafilter")
@@ -827,10 +807,6 @@ def pick_espresso_pitcher(**params) -> bool:
         
         # Step 2: Approach espresso pitcher area
         print("🎯 Step 2/5: Approaching espresso pitcher area...")
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
-        
         approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")
         if approach_result is False:
             print("[ERROR] Failed to approach espresso pitcher area")
@@ -1271,14 +1247,6 @@ def with_hot_water(**params) -> bool:
     try:
         print("🚰 Completing hot water dispensing sequence")
         print("=" * 50)
-        
-        # # Step 1: Move away from hot water outlet
-        # print("⬆️ Step 1/2: Moving away from hot water outlet...")
-        # retreat_result = run_skill("gotoJ_deg", *ESPRESSO_HOT_WATER_PARAMS['retreat'])
-        # if retreat_result is False:
-        #     print("[ERROR] Failed to move away from hot water outlet")
-        #     return False
-        # print("   ✅ Successfully moved away from outlet")
 
         run_skill("set_speed_factor", 50)
         

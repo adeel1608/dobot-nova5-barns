@@ -208,27 +208,18 @@ def pick_frother(**params) -> bool:
             return False
         print("   ✅ Successfully moved to frother area")
         
-        # Step 2: Approach the milk frother with timeout
+        # Step 2: Approach the milk frother
         print("🎯 Step 2/6: Approaching milk frother...")
         
-        # Try milk_frother_1 first with timeout
-        print("   📍 Attempting to find milk_frother_1 (2 second timeout)...")
-        start_time = time.time()
+        # Approach milk_frother_1 (no timeout, let it stabilize properly)
+        print("   📍 Moving to milk_frother_1...")
         approach_result = run_skill("move_to", 'milk_frother_1', 0.29)
-        elapsed_time = time.time() - start_time
         
-        # Determine which frother to use for all subsequent operations
-        active_frother = 'milk_frother_1'
+        if not approach_result:
+            print("[ERROR] Failed to approach milk_frother_1")
+            return False
         
-        if not approach_result or elapsed_time >= 2.0:
-            print(f"[WARNING] milk_frother_1 not found within 2 seconds (took {elapsed_time:.1f}s), switching to milk_frother_2...")
-            active_frother = 'milk_frother_2'
-            approach_result = run_skill("move_to", 'milk_frother_2', 0.29)
-            if not approach_result:
-                print("[ERROR] Failed to approach both milk_frother_1 and milk_frother_2")
-                return False
-        
-        print(f"   ✅ Successfully approached {active_frother}")
+        print("   ✅ Successfully approached milk_frother_1")
         
         # Step 3: Move to approach position for frother
         print("📍 Step 3/6: Moving to frother approach position...")
@@ -236,7 +227,7 @@ def pick_frother(**params) -> bool:
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        approach_tool_result = run_skill("approach_tool", active_frother)
+        approach_tool_result = run_skill("approach_tool", 'milk_frother_1')
         if approach_tool_result is False:
             print("[ERROR] Failed to move to frother approach position")
             return False
@@ -264,14 +255,14 @@ def pick_frother(**params) -> bool:
             approach_angles = None
         time.sleep(5)
         # Step 5: Grab the frother
-        print(f"🤏 Step 5/6: Grabbing {active_frother}...")
+        print(f"🤏 Step 5/6: Grabbing {'milk_frother_1'}...")
         sync_result = run_skill("sync")
         if sync_result is False:
             print("[WARNING] Sync operation failed - continuing...")
         
-        grab_result = run_skill("grab_tool", active_frother, 100, 100,-5,-10.5)
+        grab_result = run_skill("grab_tool", 'milk_frother_1', 100, 100,-5,-10.5)
         if grab_result is False:
-            print(f"[ERROR] Failed to grab {active_frother}")
+            print(f"[ERROR] Failed to grab {'milk_frother_1'}")
             return False
         
         sync_result = run_skill("sync")
@@ -297,7 +288,7 @@ def pick_frother(**params) -> bool:
         
         # Final success summary
         print("=" * 50)
-        print(f"✅ MILK FROTHER PICKUP COMPLETED SUCCESSFULLY ({active_frother.upper()})")
+        print(f"✅ MILK FROTHER PICKUP COMPLETED SUCCESSFULLY ({'milk_frother_1'.upper()})")
         print("   ✓ Frother securely gripped and positioned")
         print("   ✓ Position data recorded for safe return")
         print("   ✓ Ready for mounting to steam wand")
