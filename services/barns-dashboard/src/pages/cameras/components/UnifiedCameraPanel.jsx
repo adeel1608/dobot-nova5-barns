@@ -23,7 +23,7 @@ export default function UnifiedCameraPanel() {
         setError(null);
       } catch (err) {
         const fallback = {
-          webcam: { name: 'Live Webcam', type: 'Test Video Stream', status: 'active' },
+          ceiling: { name: 'Ceiling Camera', type: 'RTSP Stream', status: 'active' },
           pattern: { name: 'Pattern Demo', type: 'Test Video Stream', status: 'active' },
           camera1: { name: 'Camera 1', type: 'Main Area', status: 'offline' },
           camera2: { name: 'Camera 2', type: 'Secondary View', status: 'offline' }

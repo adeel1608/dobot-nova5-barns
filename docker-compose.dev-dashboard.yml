@@ -7,7 +7,8 @@ services:
     container_name: barns-rabbitmq
     ports:
       - "5672:5672"    # AMQP port
-      - "15672:15672"  # Management UI
+      - "15672:15672"  # Management UIf
+      - "1883:1883"    # MQTT port      
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: admin123
@@ -15,11 +16,21 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
     networks:
       - barns-network
+    command: >
+      sh -c "
+        rabbitmq-plugins enable --offline rabbitmq_mqtt &&
+        rabbitmq-server
+      "
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Redis for OMS queue management
   redis:
@@ -36,6 +47,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # PostgreSQL for OMS data persistence
   postgres:
@@ -51,6 +67,7 @@ services:
       - ./database_init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
       - ./services/validation/validation_schema.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
+      # - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     networks:
       - barns-network
     healthcheck:
@@ -58,6 +75,93 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # InfluxDB for centralized logging
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: barns-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: barns_influx_pass
+      DOCKER_INFLUXDB_INIT_ORG: barns
+      DOCKER_INFLUXDB_INIT_BUCKET: logs
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: barns-super-secret-token
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - barns-network
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Telegraf for log aggregation
+  telegraf:
+    image: telegraf:1.28-alpine
+    container_name: barns-telegraf
+    ports:
+      - "8094:8094/udp"
+    environment:
+      DOCKER_INFLUXDB_INIT_ORG: barns
+      DOCKER_INFLUXDB_INIT_BUCKET: logs
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: barns-super-secret-token
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    networks:
+      - barns-network
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Grafana for log visualization
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: barns-grafana
+    ports:
+      - "3006:3000"  # Map host port 3006 to container port 3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: barns_grafana_pass
+      GF_INSTALL_PLUGINS: ""
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - barns-network
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Validation Service
   validation-service:
@@ -65,10 +169,11 @@ services:
       context: .
       dockerfile: services/validation/Dockerfile.rabbitmq
     container_name: barns-validation
+    network_mode: host  # Use host network to access external RTSP cameras
     environment:
-      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      RABBITMQ_URL: amqp://admin:admin123@localhost:5672/  # Changed to localhost for host network
       # database config 
-      POSTGRES_HOST: postgres
+      POSTGRES_HOST: localhost  # Changed to localhost for host network
       POSTGRES_PORT: 5432
       POSTGRES_DB: barns_validation
       POSTGRES_USER: validation_user
@@ -80,24 +185,35 @@ services:
       MAX_DETECTION_WORKERS: 3
       # python path
       PYTHONPATH: /app
+      # logging
+      DEBUG: "false"
+      TELEGRAF_HOST: localhost
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
+      ####
       postgres:
         condition: service_healthy
+      ####
     volumes:
-      # Mount debug directories so you can access debug frames on host
+      # Mount debug directories so you can access debug frames on Windows
       - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
       - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
-    networks:
-      - barns-network
+      - ./services/validation/cup_detection/models:/app/services/validation/cup_detection/models
+    # networks removed - host mode doesn't use custom networks
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"localhost\", 5672), timeout=5)'"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Automation Service
   automation-service:
@@ -108,6 +224,9 @@ services:
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -116,6 +235,11 @@ services:
     networks:
       - barns-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Routine Service
   routine-service:
@@ -127,6 +251,9 @@ services:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       ROUTINE_CONFIG_PATH: /app/config/tasks.json
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -145,6 +272,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 45s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Robot Arm Service
   robot-arm-service:
@@ -156,6 +288,9 @@ services:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       ROBOT_SIMULATION: "true"  # Set to false for hardware mode
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -163,11 +298,16 @@ services:
       - barns-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=5)'"]
+      test: ["CMD-SHELL", "python -c 'import socket; socket.create_connection((\"rabbitmq\", 5672), timeout=10)'"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 45s
+      timeout: 20s  # Increased from 10s to handle parallel loads
+      retries: 5  # Increased from 3 to be more resilient
+      start_period: 60s  # Increased from 45s to allow more startup time
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Scheduler Service
   scheduler-service:
@@ -178,6 +318,9 @@ services:
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -196,6 +339,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 50s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # OMS Service
   oms-service:
@@ -213,6 +361,9 @@ services:
       POSTGRES_USER: barns_user
       POSTGRES_PASSWORD: barns_pass
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -222,7 +373,15 @@ services:
         condition: service_healthy
     networks:
       - barns-network
+    ports:
+      - "8002:8000"
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 
   # API Bridge Service (HTTP to RabbitMQ translator for dashboard)
   api-bridge:
@@ -231,10 +390,13 @@ services:
       dockerfile: services/api-bridge/Dockerfile
     container_name: barns-api-bridge
     ports:
-      - "8000:8000"  # Exposed to localhost for external dashboard access
+      - "8000:8000"
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -255,6 +417,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Video Stream Service (keeping HTTP for streaming)
   video-stream-service:
@@ -263,9 +430,12 @@ services:
       dockerfile: services/video-stream/Dockerfile
     container_name: barns-video-stream
     ports:
-      - "8001:8000"  # Exposed to localhost for external dashboard access
+      - "8001:8000"
     environment:
       PYTHONPATH: /app
+      DEBUG: "false"
+      TELEGRAF_HOST: telegraf
+      TELEGRAF_PORT: 8094
     devices:
       - /dev/video0:/dev/video0  # Primary webcam
       - /dev/video1:/dev/video1  # Secondary webcam (if available)
@@ -275,35 +445,13 @@ services:
     networks:
       - barns-network
     restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # Dashboard (commented out - run externally with npm start for live edits)
-  # dashboard:
-  #   build:
-  #     context: .
-  #     dockerfile: services/barns-dashboard/Dockerfile.rabbitmq
-  #   container_name: barns-dashboard
-  #   ports:
-  #     - "3000:80"
-  #   environment:
-  #     RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
-  #     VIDEO_STREAM_URL: http://video-stream-service:8000
-  #     API_BRIDGE_URL: http://api-bridge:8000
-  #   depends_on:
-  #     rabbitmq:
-  #       condition: service_healthy
-  #     api-bridge:
-  #       condition: service_healthy
-  #     oms-service:
-  #       condition: service_started
-  #   networks:
-  #     - barns-network
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -s http://localhost:80/ > /dev/null"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 40s
+
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:
@@ -319,11 +467,18 @@ services:
     profiles:
       - tools
     command: ["tail", "-f", "/dev/null"]  # Keep container running for CLI access
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   rabbitmq_data:
   redis_data:
   postgres_data:
+  influxdb_data:
+  grafana_data:
 
 networks:
   barns-network:

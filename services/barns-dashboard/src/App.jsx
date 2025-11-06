@@ -4,7 +4,8 @@ import DashboardPage from "./pages/dashboard";
 import AlertsPage from "./pages/alerts";
 import InventoryPage from "./pages/inventory";
 import CamerasPage from "./pages/cameras";
-import LogsPage from "./pages/logs";
+import SettingsPage from "./pages/settings";
+import NewOrderPage from "./pages/newOrder";
 import barnsLogo from "./assets/barns.png";
 import qssLogo from "./assets/qss.png";
 import notification from "./assets/notification.png";
@@ -177,17 +178,17 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => {
-                    setActiveTab("logs");
-                    window.location.hash = "#/logs";
+                    setActiveTab("settings");
+                    window.location.hash = "#/settings";
                   }}
                   style={{ boxShadow: 'none' }}
                   className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "logs" 
+                    activeTab === "settings" 
                       ? "bg-green-800 text-white" 
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
                   }`}
                 >
-                  Logs
+                  Settings
                 </button>
               </div>
             </div>
@@ -253,7 +254,7 @@ export default function App() {
                 { key: "alerts", label: "Notifications" },
                 { key: "inventory", label: "Inventory" },
                 { key: "cameras", label: "Cameras" },
-                { key: "logs", label: "Logs" }
+                { key: "settings", label: "Settings" }
               ].map(({ key, label }) => (
                 <button
                   key={key}
@@ -301,7 +302,7 @@ export default function App() {
               </div>
               <p className="text-sm text-red-700 mt-1">
                 Some BARNS services are experiencing connectivity issues. Check
-                the Logs tab for detailed information.
+                the Settings tab (Logs) for detailed information.
               </p>
             </div>
           </div>
@@ -315,7 +316,8 @@ export default function App() {
         {activeTab === "alerts" && <AlertsPage />}
         {activeTab === "inventory" && <InventoryPage />}
         {activeTab === "cameras" && <CamerasPage />}
-        {activeTab === "logs" && <LogsPage />}
+        {activeTab === "settings" && <SettingsPage />}
+        {activeTab === "newOrder" && <NewOrderPage />}
       </div>
     </div>
   );
