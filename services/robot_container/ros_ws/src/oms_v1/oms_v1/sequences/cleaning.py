@@ -18,16 +18,12 @@ from oms_v1.params import (
 
 def clean_portafilter(**params) -> bool:
     """
-    Clean portafilter at cleaning station.
-    
-    Note: This function assumes the portafilter is already unmounted. 
-    Call unmount() separately before calling this function.
-    
-    Cleaning flow:
-      1) Move to grinder home
-      2) Hard brush: approach → adjust → mount → motion1 → motion2 → retreat_hard
-      3) Soft brush: approach → mount → motion1 → motion2 → retreat_soft
-      4) Return to grinder home
+    Very simple cleaning flow:
+      1) unmount
+      2) grinder home
+      3) hard brush: approach → adjust → mount → motion1 → motion2 → retreat_hard
+      4) soft brush: approach → mount → motion1 → motion2 → retreat_soft
+      5) grinder home
     """
     # Normalize from espresso shot if provided
     # New format: {'espresso': {'espresso_shot_double': 2.0}}
@@ -55,9 +51,9 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
         return False
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_1'])):
+    if not ok(run_skill("moveEE_movJ", 0,0,-2.5,0,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_2'])):
+    if not ok(run_skill("moveEE_movJ", 0,0,-2.5,0,0,0)):
         return False
     if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
         return False
@@ -67,9 +63,9 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
         return False
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_1'])):
+    if not ok(run_skill("moveEE_movJ", 0,0,-2.5,0,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['cleaning_motion_2'])):
+    if not ok(run_skill("moveEE_movJ", 0,0,-2.5,0,0,0)):
         return False
     if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_soft'])):
         return False
@@ -79,7 +75,7 @@ def clean_portafilter(**params) -> bool:
         return False
 
     return True
-
+    
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'clean_portafilter': clean_portafilter,
