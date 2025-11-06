@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
 
 export default function UnifiedCameraPanel() {
@@ -10,6 +10,10 @@ export default function UnifiedCameraPanel() {
   const [streamErrors, setStreamErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isTabVisible, setIsTabVisible] = useState(true);
+  const [streamsEnabled, setStreamsEnabled] = useState(true);
+  const hasStoppedStreams = useRef(false);
+  const unmountTimeoutRef = useRef(null);
 
   useEffect(() => {
     const fetchCameras = async () => {
@@ -42,6 +46,70 @@ export default function UnifiedCameraPanel() {
     return () => clearInterval(interval);
   }, [addLog]);
 
+  // Function to stop all streams
+  const stopAllStreams = async () => {
+    try {
+      const response = await fetch('http://localhost:8001/stream/stop-all', {
+        method: 'POST',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        addLog('VideoStream', 'info', `Stopped ${data.stopped_cameras?.length || 0} streams to save resources`);
+        hasStoppedStreams.current = true;
+      }
+    } catch (err) {
+      addLog('VideoStream', 'warning', `Failed to stop streams: ${err.message}`);
+    }
+  };
+
+  // Handle Page Visibility API - stop streams when tab is hidden
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsTabVisible(isVisible);
+      
+      if (!isVisible) {
+        // Tab is hidden - disable streams and stop them
+        addLog('VideoStream', 'info', 'Tab hidden - stopping streams');
+        setStreamsEnabled(false); // Unmount img elements first
+        
+        // Wait a bit for unmount, then call stop
+        unmountTimeoutRef.current = setTimeout(() => {
+          stopAllStreams();
+        }, 100);
+      } else {
+        // Tab is visible - re-enable streams
+        addLog('VideoStream', 'info', 'Tab visible - resuming streams');
+        if (unmountTimeoutRef.current) {
+          clearTimeout(unmountTimeoutRef.current);
+        }
+        hasStoppedStreams.current = false;
+        setStreamsEnabled(true); // Remount img elements
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (unmountTimeoutRef.current) {
+        clearTimeout(unmountTimeoutRef.current);
+      }
+    };
+  }, [addLog]);
+
+  // Cleanup: Stop all streams when component unmounts
+  useEffect(() => {
+    // Component mounted - ensure streams are enabled
+    setStreamsEnabled(true);
+    
+    return () => {
+      addLog('VideoStream', 'info', 'Camera panel unmounted - stopping all streams');
+      setStreamsEnabled(false); // Unmount img elements
+      // Use setTimeout to ensure img elements are unmounted before calling stop
+      setTimeout(() => stopAllStreams(), 100);
+    };
+  }, [addLog]);
+
   const handleFullscreen = (id, camera) => {
     setIsFullscreen(true);
     setFullscreenCamera({ id, ...camera });
@@ -68,8 +136,34 @@ export default function UnifiedCameraPanel() {
 
   const CameraStream = ({ cameraId, camera }) => {
     const [imageError, setImageError] = useState(false);
+    const [imgKey, setImgKey] = useState(Date.now());
     const isOffline = camera.status === 'offline' || streamErrors[cameraId] || imageError;
     const streamUrl = `http://localhost:8001/stream/${cameraId}`;
+
+    // Force reload when streams are re-enabled
+    useEffect(() => {
+      if (streamsEnabled) {
+        setImgKey(Date.now()); // Force image reload with new key
+        setImageError(false); // Reset error state
+      }
+    }, [streamsEnabled]);
+
+    // Don't render stream if streams are disabled (tab hidden or component unmounting)
+    if (!streamsEnabled) {
+      return (
+        <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden relative group hover:shadow-lg transition-all duration-300 w-full h-full">
+          <div className="w-full h-full relative bg-gray-900">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+              <svg className="w-14 h-14 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <p className="text-sm font-semibold">{camera.name}</p>
+              <p className="text-xs text-gray-400">Stream paused (saving resources)</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden relative group hover:shadow-lg transition-all duration-300 w-full h-full">
@@ -85,6 +179,7 @@ export default function UnifiedCameraPanel() {
             </div>
           ) : (
             <img
+              key={imgKey}
               src={streamUrl}
               alt={`${camera.name} feed`}
               className="w-full h-full object-cover"
@@ -154,13 +249,19 @@ export default function UnifiedCameraPanel() {
           </button>
         </div>
         <div className="flex-1 relative bg-black">
-          {isOffline ? (
+          {!streamsEnabled ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+              <p className="text-lg font-semibold mb-2">Stream Paused</p>
+              <p className="text-sm text-gray-400">Streams disabled to save resources.</p>
+            </div>
+          ) : isOffline ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
               <p className="text-lg font-semibold mb-2">Stream Unavailable</p>
               <p className="text-sm text-gray-400">Please check the camera feed or connection.</p>
             </div>
           ) : (
             <img
+              key={`fullscreen-${streamsEnabled ? Date.now() : 'disabled'}`}
               src={streamUrl}
               alt="fullscreen camera"
               className="w-full h-full object-contain"

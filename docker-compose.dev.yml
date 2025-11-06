@@ -167,7 +167,7 @@ services:
   validation-service:
     build:
       context: .
-      dockerfile: services/validation/Dockerfile.rabbitmq
+      dockerfile: services/validation/Dockerfile.dev
     container_name: barns-validation
     network_mode: host  # Use host network to access external RTSP cameras
     environment:
@@ -197,6 +197,9 @@ services:
         condition: service_healthy
       ####
     volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/validation:/app/services/validation
       # Mount debug directories so you can access debug frames on Windows
       - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
       - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
@@ -219,7 +222,7 @@ services:
   automation-service:
     build:
       context: .
-      dockerfile: services/automation/Dockerfile.rabbitmq
+      dockerfile: services/automation/Dockerfile.dev
     container_name: barns-automation
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
@@ -232,6 +235,10 @@ services:
         condition: service_healthy
       validation-service:
         condition: service_healthy
+    volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/automation:/app/services/automation
     networks:
       - barns-network
     restart: unless-stopped
@@ -245,7 +252,7 @@ services:
   routine-service:
     build:
       context: .
-      dockerfile: services/routine/Dockerfile.rabbitmq
+      dockerfile: services/routine/Dockerfile.dev
     container_name: barns-routine
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
@@ -262,6 +269,9 @@ services:
       robot-arm-service:
         condition: service_healthy
     volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/routine:/app/services/routine
       - ./config:/app/config
     networks:
       - barns-network
@@ -282,7 +292,7 @@ services:
   robot-arm-service:
     build:
       context: .
-      dockerfile: services/robot_arm/Dockerfile.rabbitmq
+      dockerfile: services/robot_arm/Dockerfile.dev
     container_name: barns-robot-arm
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
@@ -294,6 +304,10 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/robot_arm:/app/services/robot_arm
     networks:
       - barns-network
     restart: unless-stopped
@@ -313,7 +327,7 @@ services:
   scheduler-service:
     build:
       context: .
-      dockerfile: services/scheduler/Dockerfile.rabbitmq
+      dockerfile: services/scheduler/Dockerfile.dev
     container_name: barns-scheduler
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
@@ -329,6 +343,9 @@ services:
       routine-service:
         condition: service_healthy
     volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/scheduler:/app/services/scheduler
       - ./data:/app/data
     networks:
       - barns-network
@@ -349,7 +366,7 @@ services:
   oms-service:
     build:
       context: .
-      dockerfile: services/oms/Dockerfile.rabbitmq
+      dockerfile: services/oms/Dockerfile.dev
     container_name: barns-oms
     environment:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
@@ -371,6 +388,10 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/oms:/app/services/oms
     networks:
       - barns-network
     ports:
@@ -387,7 +408,7 @@ services:
   api-bridge:
     build:
       context: .
-      dockerfile: services/api-bridge/Dockerfile
+      dockerfile: services/api-bridge/Dockerfile.dev
     container_name: barns-api-bridge
     ports:
       - "8000:8000"
@@ -407,6 +428,9 @@ services:
       scheduler-service:
         condition: service_healthy
     volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/api-bridge:/app/services/api-bridge
       - ./data:/app/data
     networks:
       - barns-network
@@ -427,7 +451,7 @@ services:
   video-stream-service:
     build:
       context: .
-      dockerfile: services/video-stream/Dockerfile
+      dockerfile: services/video-stream/Dockerfile.dev
     container_name: barns-video-stream
     ports:
       - "8001:8000"
@@ -441,17 +465,65 @@ services:
       - /dev/video1:/dev/video1  # Secondary webcam (if available)
     privileged: true  # Required for camera access
     volumes:
+      # Mount source code for real-time editing
+      - ./shared:/app/shared
+      - ./services/video-stream:/app/services/video-stream
       - /dev:/dev  # Access to device files
     networks:
       - barns-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/status', timeout=10).read()"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-
+  # Dashboard (dev mode with hot reload)
+  dashboard:
+    build:
+      context: .
+      dockerfile: services/barns-dashboard/Dockerfile.dev
+    container_name: barns-dashboard
+    ports:
+      - "3000:5173"  # Map to Vite dev server port
+    environment:
+      RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
+      VIDEO_STREAM_URL: http://video-stream-service:8000
+      API_BRIDGE_URL: http://api-bridge:8000
+      VITE_API_BRIDGE_URL: http://localhost:8000
+      VITE_VIDEO_STREAM_URL: http://localhost:8001
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api-bridge:
+        condition: service_healthy
+      oms-service:
+        condition: service_started
+    volumes:
+      # Mount source code for real-time editing with hot reload
+      - ./services/barns-dashboard:/app
+      # Use named volume for node_modules to avoid conflicts
+      - barns-dashboard-node-modules:/app/node_modules
+    networks:
+      - barns-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:5173/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # RabbitMQ Management Tools (optional)
   rabbitmq-cli:
@@ -479,6 +551,7 @@ volumes:
   postgres_data:
   influxdb_data:
   grafana_data:
+  barns-dashboard-node-modules:
 
 networks:
   barns-network:

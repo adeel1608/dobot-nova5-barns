@@ -1,0 +1,24 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies only
+COPY services/oms/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r ./requirements.txt
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Expose port (not used for RabbitMQ but kept for compatibility)
+EXPOSE 8000
+
+# Run the updated OMS service with RabbitMQ integration
+# Source code will be mounted as volume
+CMD ["python", "-m", "services.oms.app"]
+
