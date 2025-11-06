@@ -196,7 +196,7 @@ function CameraStreamComponent({
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 opacity-90">
           <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
             <div className="bg-black/70 px-3 py-2 rounded-lg">
-              <h3 className="text-white font-semibold text-sm">{camera.name}</h3>
+              <p className="text-white text-sm">{camera.name}</p>
               <p className="text-gray-300 text-xs">{camera.type}</p>
             </div>
             <div className="flex items-center space-x-2">

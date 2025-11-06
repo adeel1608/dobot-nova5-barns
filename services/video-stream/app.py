@@ -47,6 +47,7 @@ class Camera:
         self.frame_lock = Lock()
         self.latest_jpeg: bytes | None = None
         self.last_init_attempt_ts = 0.0
+        self.last_frame_ts = 0.0  # Last successful frame timestamp
         self._initialize()
     
     def _initialize(self):
@@ -149,25 +150,57 @@ class Camera:
         log("INFO", f"Starting capture thread for {self.name}", service="video_stream")
         
         def _loop():
-            delay = 1.0 / 15.0  # ~15 FPS
+            delay = 1.0 / 15.0  # ~15 FPS target
+            stall_reset_seconds = 3.0  # If no fresh frame for this long, force reconnect
+            consecutive_failures = 0
             while self.running and self.cap and self.cap.isOpened():
                 try:
                     with self.read_lock:
                         ret, frame = self.cap.read()
+
                     if ret and frame is not None:
-                        success, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                        consecutive_failures = 0
+                        success, jpeg = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                         if success:
                             with self.frame_lock:
                                 self.latest_jpeg = jpeg.tobytes()
+                                self.last_frame_ts = time.time()
                     else:
-                        # Failed to read, mark inactive
+                        consecutive_failures += 1
+                        # Back off slightly on read failure
+                        time.sleep(0.05)
+
+                    # Detect capture stall even if cap remains open
+                    if self.last_frame_ts and (time.time() - self.last_frame_ts) > stall_reset_seconds:
+                        log("WARNING", f"Capture appears stalled for {self.name} (> {stall_reset_seconds}s) - forcing reconnect", service="video_stream")
                         self.active = False
-                        log("WARNING", f"Failed to read frame from {self.name} in capture thread", service="video_stream")
-                        time.sleep(0.5)
+                        try:
+                            with self.read_lock:
+                                if self.cap:
+                                    self.cap.release()
+                        except Exception:
+                            pass
+                        break
+
+                    # Too many consecutive failures, force reconnect
+                    if consecutive_failures > 30:
+                        log("WARNING", f"Consecutive capture failures for {self.name} - forcing reconnect", service="video_stream")
+                        self.active = False
+                        try:
+                            with self.read_lock:
+                                if self.cap:
+                                    self.cap.release()
+                        except Exception:
+                            pass
+                        break
+
                 except Exception as e:
                     log("ERROR", f"Capture loop error for {self.name}: {e}", service="video_stream")
-                    time.sleep(0.2)
+                    time.sleep(0.1)
+
                 time.sleep(delay)
+
+            self.running = False
             log("INFO", f"Capture thread ended for {self.name}", service="video_stream")
         
         self.capture_thread = Thread(target=_loop, name=f"cap-{self.camera_id}", daemon=True)
@@ -189,6 +222,12 @@ class Camera:
                         return self.latest_jpeg
             return None
         
+        # If frames are stale, mark camera inactive to trigger quick reconnect
+        if self.last_frame_ts and (time.time() - self.last_frame_ts) > 3.0:
+            log("WARNING", f"Stale frame detected for {self.name} - marking inactive for reconnect", service="video_stream")
+            self.active = False
+            return None
+
         with self.frame_lock:
             return self.latest_jpeg
     
