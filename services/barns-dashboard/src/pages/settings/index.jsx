@@ -6,12 +6,22 @@
 import React, { useState } from 'react';
 import LogsPanel from './components/LogsPanel';
 import IngredientSettings from './components/IngredientSettings';
+import MonitoringPanel from './components/MonitoringPanel';
 import './styles.css';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('logs');
+  const [activeTab, setActiveTab] = useState('monitoring');
 
   const tabs = [
+    { 
+      id: 'monitoring', 
+      name: 'Monitoring', 
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
     { 
       id: 'logs', 
       name: 'System Logs', 
@@ -34,12 +44,14 @@ export default function SettingsPage() {
 
   const renderContent = () => {
     switch (activeTab) {
+      case 'monitoring':
+        return <MonitoringPanel />;
       case 'logs':
         return <LogsPanel />;
       case 'ingredients':
         return <IngredientSettings />;
       default:
-        return <LogsPanel />;
+        return <MonitoringPanel />;
     }
   };
 
@@ -50,12 +62,6 @@ export default function SettingsPage() {
           
           {/* Settings Header with Tabs */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-3">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Manage system configuration and monitor operations
-              </p>
-            </div>
             
             {/* Tab Navigation */}
             <div className="px-6" style={{ margin: '10px'}}>
