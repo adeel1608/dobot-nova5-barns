@@ -59,7 +59,7 @@ def get_frother_position(**params) -> bool:
         
         # Step 1: Move to home position for setup
         print("🏠 Step 1/5: Moving to north-east home position...")
-        home_result = home(position="north_east")#run_skill("gotoJ_deg", -67.357964, -23.709629, -89.522377, -84.038696, -113.021690, 8.468687)
+        home_result = home(position="north_east")
         if home_result is False:
             print("[ERROR] Failed to move to north-east home position")
             return False
@@ -110,10 +110,6 @@ def get_frother_position(**params) -> bool:
         if positioning_result is False:
             print("[ERROR] Failed to move to calibration position")
             return False
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
 
         print("   🤏 Releasing grip for calibration...")
         release_result = run_skill("set_gripper_position", 255, 0)
@@ -121,10 +117,6 @@ def get_frother_position(**params) -> bool:
             print("[ERROR] Failed to release grip")
             return False
         print("   ✅ Steam wand positioning completed")
-
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
         
         move_ee_result = run_skill("moveEE_movJ", -20, 0, 0, 0, 0, 0)
         if move_ee_result is False:
@@ -401,10 +393,6 @@ def mount_frother(**params) -> bool:
             print("[WARNING] Failed to set servo timing - continuing with default...")
         else:
             print("   ✅ Servo timing set for precise movements")
-
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
         
         print("🎯 Step 3/4: Approaching steam wand (deep position)...")
         approach_result = run_skill("approach_machine", "left_steam_wand", "deep_froth")
@@ -471,7 +459,7 @@ def unmount_and_swirl_milk(**params) -> bool:
         print("🌀 Starting milk swirling sequence")
         print("=" * 50)
 
-        time.sleep(2.5)
+        time.sleep(2.0)
 
         # Step 1: Approach steam wand position
         print("🎯 Step 1/4: Approaching steam wand (deep position)...")
@@ -491,8 +479,6 @@ def unmount_and_swirl_milk(**params) -> bool:
         else:
             print("   ✅ Servo timing adjusted for swirling")
 
-        run_skill("sync")
-        
         # Step 3: Position sequence for optimal swirling location
         print("📍 Step 3/4: Moving through positioning sequence...")
         
@@ -522,10 +508,6 @@ def unmount_and_swirl_milk(**params) -> bool:
             ["tool=0"])
         if circle_result is False:
             print("[WARNING] Circular motion may not have completed optimally")
-        
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
         
         # Final success summary
         print("=" * 50)
@@ -649,8 +631,6 @@ def pour_milk(**params) -> bool:
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
-            run_skill("sync")
-            
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['adjust1'])
             if adjust1_result is False:
@@ -661,15 +641,11 @@ def pour_milk(**params) -> bool:
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             print("   ⏰ Allowing pour completion time...")
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 125, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -704,9 +680,7 @@ def pour_milk(**params) -> bool:
             speed_result = run_skill("set_speed_factor", 9)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
-            
-            run_skill("sync")
-            
+                
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['adjust1'])
             if adjust1_result is False:
@@ -717,15 +691,11 @@ def pour_milk(**params) -> bool:
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             print("   ⏰ Allowing pour completion time...")
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 250, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -760,9 +730,7 @@ def pour_milk(**params) -> bool:
             speed_result = run_skill("set_speed_factor", 9)
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
-            
-            run_skill("sync")
-            
+                
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['adjust1'])
             if adjust1_result is False:
@@ -773,15 +741,11 @@ def pour_milk(**params) -> bool:
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             print("   ⏰ Allowing pour completion time...")
             time.sleep(3.0)
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 375, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -832,7 +796,7 @@ def clean_milk_pitcher(**params) -> bool:
         if run_skill("gotoJ_deg", -42.960231,-73.262903,-40.519041,-64.811101,-134.418391,-170.149991) is False:
             print("[ERROR] Failed to reach clean pose 3")
             return False
-        if run_skill("moveEE_movJ", 0, 0, -150, 0, 0, 0) is False:
+        if run_skill("moveEE_movJ", 0, 5, -150, 0, 0, 0) is False:
             print("[ERROR] Failed to execute cleaning motion")
             return False
         if run_skill("sync") is False:

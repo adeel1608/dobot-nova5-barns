@@ -377,6 +377,7 @@ def check_aruco_status(**params) -> bool:
         print(f"[ERROR] Error during ArUco status check: {e}")
         return False
 
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'home': home,

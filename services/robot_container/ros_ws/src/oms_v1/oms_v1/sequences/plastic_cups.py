@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.params import (
-    DEFAULT_PLASTIC_CUP_SIZE, validate_cup_size, log_step, log_success, log_error,
+    DEFAULT_PLASTIC_CUP_SIZE, validate_cup_size,
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size,
     _set_cup_dispensed, _check_and_clear_cup_dispensed
 )

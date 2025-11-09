@@ -208,15 +208,13 @@ def unmount(**params) -> bool:
         print("   ✅ Tension released after rotation")
             
         time.sleep(0.2)  # Allow settling time
-        # run_skill("sync")
-        
+
         # Step 9: Capture mount position for later use
         print("📸 Step 9/13: Capturing mount position...")
         mount_espresso_port = run_skill("current_angles")
         if mount_espresso_port is None:
             print("[ERROR] Failed to capture mount position")
             return False
-        # run_skill("sync")
         # Validate captured position data
         if not isinstance(mount_espresso_port, (tuple, list)) or len(mount_espresso_port) != 6:
             print(f"[ERROR] Invalid mount position data: {mount_espresso_port} (expected 6 joint angles)")
@@ -232,14 +230,12 @@ def unmount(**params) -> bool:
             print("[ERROR] Failed to move down to clear portafilter")
             return False
         print("   ✅ Successfully moved down to clear portafilter")
-        # run_skill("sync")    
         # Step 11: Capture below position for later use
         print("📸 Step 11/13: Capturing below position...")
         below_espresso_port = run_skill("current_angles")
         if below_espresso_port is None:
             print("[ERROR] Failed to capture below position")
             return False
-        # run_skill("sync")
         # Validate captured position data
         if not isinstance(below_espresso_port, (tuple, list)) or len(below_espresso_port) != 6:
             print(f"[ERROR] Invalid below position data: {below_espresso_port} (expected 6 joint angles)")
@@ -393,10 +389,6 @@ def grinder(**params) -> bool:
             print("[ERROR] Failed to open gripper")
             return False
         print("   ✅ Gripper opened successfully")
-
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
 
         # Step 8: Approach specified portafilter tool with fallback
         print(f"🎯 Step 8/8: Approaching {portafilter_tool}...")
@@ -1205,9 +1197,7 @@ def get_hot_water(**params) -> bool:
             return False
         print("   ✅ Successfully positioned under hot water outlet")
 
-        run_skill("moveEE_movJ", -35, 0, 0, 0, 0, 0)
-        # run_skill("sync")
-        
+        run_skill("moveEE_movJ", -35, 0, 0, 0, 0, 0)        
         # Final success summary
         print("=" * 50)
         print("✅ HOT WATER DISPENSING POSITION READY")
@@ -1335,10 +1325,6 @@ def return_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully positioned pitcher 1 for return")
             
             print("🤏 Releasing espresso pitcher 1...")
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             release_result = run_skill("set_gripper_position", 75, 0)
             
             if release_result is False:
@@ -1347,10 +1333,6 @@ def return_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully released pitcher 1")
             
             print("⬅️ Retreating from espresso pitcher 1...")
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            
             retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
             
             if retreat_result is False:
