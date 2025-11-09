@@ -29,7 +29,6 @@ class InventoryManager:
             "cups": {},
             "milk": {},
             "syrups": {},
-            "sauces": {},
             "premixes": {}
         }
         
