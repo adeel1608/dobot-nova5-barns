@@ -4,11 +4,11 @@
  */
 
 const INFLUX_CONFIG = {
-  // Use window.location to determine if we're in Docker or local dev
-  // In local dev, use proxy. In Docker, this should be configured via env var
-  url: import.meta.env.VITE_INFLUX_URL || (
-    window.location.hostname === 'localhost' ? '/api/v2' : 'http://localhost:8086/api/v2'
-  ),
+  // Priority:
+  // 1. explicit VITE_INFLUX_URL env var
+  // 2. during local development (vite) use relative path '/api/v2' so the Vite proxy forwards to localhost:8086
+  // 3. in containerized runtime use the docker service name
+  url: import.meta.env.VITE_INFLUX_URL || (import.meta.env && import.meta.env.DEV ? '/api/v2' : (window.location.hostname === 'localhost' ? '/api/v2' : 'http://influxdb:8086/api/v2')),
   token: import.meta.env.VITE_INFLUX_TOKEN || 'barns-super-secret-token',
   org: import.meta.env.VITE_INFLUX_ORG || 'barns',
   bucket: import.meta.env.VITE_INFLUX_BUCKET || 'logs'
@@ -86,7 +86,7 @@ export const queryInflux = async (fluxQuery) => {
     const queryUrl = `${INFLUX_CONFIG.url}/query?org=${INFLUX_CONFIG.org}`;
     
     // Debug logging (set to false in production)
-    const DEBUG = false;
+    const DEBUG = true;
     
     if (DEBUG) {
       console.log('📡 InfluxDB Query URL:', queryUrl);
