@@ -1577,5 +1577,6 @@ AUTOMATION_FUNCTIONS = {
     "clean_frother": clean_frother,
     "rinser_machine": rinser_machine,
     "automation_test": automation_test,
+    "dispense_hot_water": dispense_hot_water,
     # Add more automation functions as needed
 }
