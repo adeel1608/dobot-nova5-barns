@@ -272,8 +272,7 @@ HOME_ANGLES = {
 }
 
 # ─── ESPRESSO PARAMETERS ───────────────────────────────────────────────────────────
-ESPRESSO_HOME = (42.159162, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214)
-ESPRESSO_GRINDER_HOME = (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+# Note: ESPRESSO_HOME and ESPRESSO_GRINDER_HOME are defined at the top of this file (lines 12-13)
 
 PULL_ESPRESSO_PARAMS = {
     'port_1': {
@@ -421,8 +420,8 @@ GRAB_PAPER_CUP_PARAMS = {
     },
     '9oz': {
         'twist_back':   ( -92.886268, 7.237848, -6.756920, 3.452408, -1.172608, 0.187942),
-        'approach':     ( 307.5,         -15,           0,          0,          0,         0),
-        'grip_width':   140,
+        'approach':     ( 307.5,         -18,           5.0,          0,          0,         0),
+        'grip_width':   160,
         'retreat':      (-300,         0,           0,          0,          0,         0),
     },
     '7oz': {

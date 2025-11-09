@@ -133,7 +133,6 @@ def grab_paper_cup(**params) -> bool:
         print("🤏 Step 6/8: Gripping paper cup...")
         if 'grip_width' in cup_params:
             print(f"   📏 Setting gripper width to: {cup_params['grip_width']}")
-            # run_skill("sync")
             grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
             if grip_result is False:
                 print("[ERROR] Failed to grip paper cup")
@@ -255,17 +254,12 @@ def place_paper_cup(**params) -> bool:
         
         # Step 4: Open gripper to release paper cup
         print("🤏 Step 4/7: Releasing paper cup...")
-        # run_skill("sync")
         release_result = run_skill("set_gripper_position", 50, 0)
         
         if release_result is False:
             print("[ERROR] Failed to release paper cup")
             return False
         print("   ✅ Paper cup released successfully")
-        
-        # Allow settling time
-        # print("   ⏰ Allowing cup settling time...")
-        # time.sleep(0.2)
         
         # Step 5: Move up after placing paper cup
         print("⬆️ Step 5/7: Moving up after placement...")
@@ -514,10 +508,10 @@ def place_paper_cup_station(**params) -> bool:
         # Step 3: Move to stage-specific position (re-using paper station positions)
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
-            "1": (-88.048157,-43.392315,-122.686608,-21.629447,-92.608930,-1.040377),
-            "2": (-105.795646,-47.724084,-107.146702,-33.353721,-110.187785,-3.536224),
-            "3": (-120.111216,-54.092813,-89.175854,-46.102535,-124.341571,-5.992437),
-            "4": (-130.631169,-64.634756,-63.002881,-63.277542,-134.713357,-8.394235)
+            "1": (-82.350214,-52.505954,-126.196674,-1.090475,-82.250159,-0.103364),
+            "2": (-102.385087,-53.365893,-116.767921,-9.682041,-102.286850,-0.028823),
+            "3": (-118.186155,-56.698592,-101.309618,-21.804371,-118.094850,0.033187),
+            "4": (-129.712707,-63.412577,-80.074947,-36.306427,-129.636056,0.087909)
         }
 
         stage_result = run_skill("gotoJ_deg", *stage_positions[stage])
