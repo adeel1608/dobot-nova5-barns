@@ -6,8 +6,7 @@ import useStore from '../../../store';
 
 const IngredientsIndicator = () => {
   const {
-    categorySummary,
-    updateCategorySummary,
+    inventoryStatus,
     fetchInventoryStatus,
   } = useInventoryStore();
 
@@ -47,19 +46,6 @@ const IngredientsIndicator = () => {
   useEffect(() => {
     fetchInventoryStatus();
 
-    const handleInventorySummary = (data) => {
-      if (!data || typeof data !== 'object' || !data.summary) {
-        console.warn('Invalid inventory.summary event payload:', data);
-        return;
-      }
-
-      // console.log('✅ Received inventory summary:', data);
-      const mapped = transformSummary(data.summary);
-
-      //  console.log('✅maped data from socketio:', mapped);
-      updateSummaryFromSocket(data.summary);
-    };
-
     // Old Socket.IO code - commented out, using WebSocket now
     // const handleConnect = () => {
     //   setSocketConnected(true);
@@ -85,59 +71,14 @@ const IngredientsIndicator = () => {
     // };
   }, []);
 
-  const transformSummary = (summary) => {
-    return {
-      milk: {
-        level: summary.milk?.status || 'unknown',
-        numeric: summary.milk?.percentage || 0,
-        last_refilled: summary.milk?.last_updated || null,
-        lowest_subtype: summary.milk?.lowest_subtype || ''
-      },
-      coffee_beans: {
-        level: summary.coffee_beans?.status || 'unknown',
-        numeric: summary.coffee_beans?.percentage || 0,
-        last_refilled: summary.coffee_beans?.last_updated || null,
-        lowest_subtype: summary.coffee_beans?.lowest_subtype || ''
-      },
-      syrups: {
-        level: summary.syrups?.status || 'unknown',
-        numeric: summary.syrup?.percentage || 0,
-        last_refilled: summary.syrup?.last_updated || null,
-        lowest_subtype: summary.syrup?.lowest_subtype || ''
-      },
-      premixes: {
-        level: summary.premixes?.status || 'unknown',
-        numeric: summary.premixes?.percentage || 0,
-        last_refilled: summary.premixes?.last_updated || null,
-        lowest_subtype: summary.premixes?.lowest_subtype || ''
-      },
-      cups: {
-        level: summary.cups?.status || 'unknown',
-        numeric: summary.cups?.percentage || 0,
-        last_refilled: summary.cups?.last_updated || null,
-        lowest_subtype: summary.cups?.lowest_subtype || ''
-      }
-    };
-  };
-
-  const updateSummaryFromSocket = (updatedData) => {
-    console.log('🧠 Updating category summary state:', updatedData);
-    useInventoryStore.setState((state) => ({
-      categorySummary: {
-        ...state.categorySummary,
-        ...updatedData
-      }
-    }));
-  };
-
   const handleNavigate = () => {
     navigateToTab('inventory');
     window.location.hash = '#/inventory';
   };
 
   // Helper function to format ingredient names
-  const formatIngredientName = (subtype, categoryTitle) => {
-    if (!subtype) return categoryTitle;
+  const formatIngredientName = (subtype, categoryKey) => {
+    if (!subtype) return categoryKey;
     
     // Replace underscores with spaces
     let formatted = subtype.replace(/_/g, ' ');
@@ -151,37 +92,67 @@ const IngredientsIndicator = () => {
     return formatted;
   };
 
-  const getProgressColor = (level, numeric) => {
-    if (level === 'low' || numeric < 20) return 'text-red-500';
-    if (level === 'medium' || numeric < 60) return 'text-yellow-500';
-    return 'text-green-500';
-  };
-
-  const getStatusBadge = (level) => {
-    switch (level) {
-      case 'low': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'high': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+  // Flatten inventoryStatus to get all individual ingredients
+  const flattenIngredients = () => {
+    const ingredients = [];
+    
+    if (!inventoryStatus || Object.keys(inventoryStatus).length === 0) {
+      return ingredients;
     }
+
+    // Iterate through each category
+    Object.entries(inventoryStatus).forEach(([categoryKey, subtypes]) => {
+      // Get the icon for this category
+      const icon = categoryIcons[categoryKey] || categoryIcons.premixes;
+      
+      // Iterate through each subtype/ingredient
+      Object.entries(subtypes).forEach(([subtypeKey, data]) => {
+        ingredients.push({
+          key: `${categoryKey}_${subtypeKey}`,
+          categoryKey: categoryKey,
+          subtypeKey: subtypeKey,
+          name: formatIngredientName(subtypeKey, categoryKey),
+          percentage: data?.percentage || 0,
+          status: data?.status || 'unknown',
+          last_updated: data?.last_updated || null,
+          icon: icon
+        });
+      });
+    });
+
+    return ingredients;
   };
 
-  const allCategories = [
-    { key: 'milk', title: CATEGORY_INFO.milk.title, data: categorySummary.milk, icon: categoryIcons.milk },
-    { key: 'coffee_beans', title: CATEGORY_INFO.coffee_beans.title, data: categorySummary.coffee_beans, icon: categoryIcons.coffee_beans },
-    { key: 'syrup', title: CATEGORY_INFO.syrups.title, data: categorySummary.syrups, icon: categoryIcons.syrup },
-    { key: 'cups', title: CATEGORY_INFO.cups.title, data: categorySummary.cups, icon: categoryIcons.cups },
-    { key: 'premixes', title: CATEGORY_INFO.premixes.title, data: categorySummary.premixes, icon: categoryIcons.premixes },
-  ];
+  // Helper function to shuffle array (for randomizing items with same percentage)
+  const shuffleArray = (array) => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
 
-  // Sort by percentage (lowest first), and take top 6
-  const categories = allCategories
-    .sort((a, b) => {
-      const percentA = a.data?.percentage || 0;
-      const percentB = b.data?.percentage || 0;
-      return percentA - percentB;
-    })
-    .slice(0, 6);
+  // Get all ingredients, sort by percentage, randomize same values, and take top 6
+  const allIngredients = flattenIngredients();
+  
+  // Group by percentage
+  const groupedByPercentage = {};
+  allIngredients.forEach(ingredient => {
+    const percent = ingredient.percentage;
+    if (!groupedByPercentage[percent]) {
+      groupedByPercentage[percent] = [];
+    }
+    groupedByPercentage[percent].push(ingredient);
+  });
+
+  // Sort percentages and shuffle within each group
+  const sortedIngredients = Object.keys(groupedByPercentage)
+    .sort((a, b) => Number(a) - Number(b)) // Sort percentages ascending (lowest first)
+    .flatMap(percent => shuffleArray(groupedByPercentage[percent])); // Shuffle items with same percentage
+
+  // Take top 6 lowest
+  const ingredients = sortedIngredients.slice(0, 6);
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 flex flex-col max-h-full">
@@ -201,9 +172,8 @@ const IngredientsIndicator = () => {
 
       {/* Grid Layout for Inventory Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto flex-1">
-        {categories.map(({ key, title, data, icon }) => {
-          const level = data?.status || 'unknown';
-          const numeric = data?.percentage || 0;
+        {ingredients.map((ingredient) => {
+          const { key, name, percentage: numeric, status: level, icon } = ingredient;
           const percentage = Math.max(0, Math.min(100, numeric));
           
           // Get card colors based on stock level (lighter, more subtle)
@@ -220,13 +190,6 @@ const IngredientsIndicator = () => {
             return 'bg-green-500';
           };
 
-          // Get icon bg color
-          const getIconBgColor = (level, numeric) => {
-            if (level === 'low' || numeric < 20) return 'bg-red-100 text-red-600';
-            if (level === 'medium' || numeric < 60) return 'bg-yellow-100 text-yellow-600';
-            return 'bg-green-100 text-green-600';
-          };
-
           return (
             <div
               key={key}
@@ -235,12 +198,9 @@ const IngredientsIndicator = () => {
             >
               {/* Icon and Title Row */}
               <div className="flex items-center gap-2 mb-2">
-                <div className={`p-1.5 ${getIconBgColor(level, numeric)} rounded-md`}>
-                  {icon}
-                </div>
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-700 text-xs">
-                    {formatIngredientName(data?.lowest_subtype, title)}
+                    {name}
                   </h4>
                 </div>
               </div>
@@ -248,25 +208,7 @@ const IngredientsIndicator = () => {
               {/* Percentage Display */}
               <div className="mb-2">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-2xl font-semibold text-gray-800">{percentage}%</span>
-                  <span className={`text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5 ${getStatusBadge(level)}`}>
-                    {level === 'low' && (
-                      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {level === 'medium' && (
-                      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {level === 'high' && (
-                      <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {level.toUpperCase()}
-                  </span>
+                  <span className="text-l font-semibold text-gray-800">{percentage}%</span>
                 </div>
               </div>
               
@@ -283,7 +225,7 @@ const IngredientsIndicator = () => {
       </div>
 
       {/* Empty State */}
-      {categories.length === 0 && (
+      {ingredients.length === 0 && (
         <div className="text-center py-6">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
             <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
