@@ -44,7 +44,7 @@ async def dispense_hot_water(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_coffee_machine_hot_water/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -171,7 +171,7 @@ async def dispense_sauce(params: dict):
 
         def on_connect(client, userdata, flags, rc, props=None):
             log("INFO", f"Connected with code {rc}", service="automation")
-            client.subscribe("automation/response", qos=1)
+            client.subscribe("automation_syrup/response", qos=1)
 
         def on_message(client, userdata, msg):
             try:
@@ -292,7 +292,7 @@ async def dispense_ice(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_ice/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -425,7 +425,7 @@ async def dispense_milk(params: dict):
 
         def on_connect(client, userdata, flags, rc, props=None):
             logger.info(f"Connected with code {rc}")
-            client.subscribe("automation/response", qos=1)
+            client.subscribe("automation_milk/response", qos=1)
 
         def on_message(client, userdata, msg):
             try:
@@ -536,7 +536,7 @@ async def slush_machine(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_slush/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -653,7 +653,7 @@ async def coffee_machine(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("DEBUG", f"Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_coffee_machine/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -771,7 +771,7 @@ async def coffee_machine_wait(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("DEBUG", f"Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_coffee_machine/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -872,7 +872,7 @@ async def grinding_machine(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_grinding/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -989,7 +989,7 @@ async def tampering_machine(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_tampering/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -1114,7 +1114,7 @@ async def froth_milk(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_frother/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -1206,7 +1206,7 @@ async def initialize_frother(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_frother_init/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -1297,7 +1297,7 @@ async def clean_frother(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_clean_frother/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -1395,7 +1395,7 @@ async def rinser_machine(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_rinser/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
@@ -1487,7 +1487,7 @@ async def dispense_ingredient(params: dict):
 
     def on_connect(client, userdata, flags, rc, props=None):
         log("INFO", "Connected with code {rc}", service="automation")
-        client.subscribe("automation/response", qos=1)
+        client.subscribe("automation_dispensing/response", qos=1)
 
     def on_message(client, userdata, msg):
         try:
