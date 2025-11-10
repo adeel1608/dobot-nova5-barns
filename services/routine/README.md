@@ -506,6 +506,6 @@ Broadcasts to `barns_events` exchange:
 - Task retry with exponential backoff
 - Parallel task execution within single arm
 - Task execution history and analytics
-- Grafana/Prometheus metrics integration
+- Integrated monitoring panel with InfluxDB metrics
 - Circuit breaker pattern for downstream services
 - Task execution time prediction

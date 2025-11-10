@@ -16,4 +16,15 @@ export default defineConfig({
       '@assets': path.resolve(__dirname, 'src/assets'),
     },
   },
+  server: {
+    proxy: {
+      // Proxy InfluxDB requests to avoid CORS issues
+      '/api/v2': {
+        target: 'http://localhost:8086',
+        changeOrigin: true,
+        secure: false,
+        ws: true
+      }
+    }
+  }
 })

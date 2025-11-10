@@ -132,37 +132,6 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Grafana for log visualization
-  grafana:
-    image: grafana/grafana:10.2.3
-    container_name: barns-grafana
-    ports:
-      - "3006:3000"  # Map host port 3006 to container port 3000
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: barns_grafana_pass
-      GF_INSTALL_PLUGINS: ""
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
-    networks:
-      - barns-network
-    depends_on:
-      influxdb:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # Validation Service
   validation-service:
     build:
@@ -463,6 +432,10 @@ services:
       RABBITMQ_URL: amqp://admin:admin123@rabbitmq:5672/
       VIDEO_STREAM_URL: http://video-stream-service:8000
       API_BRIDGE_URL: http://api-bridge:8000
+      VITE_INFLUX_URL: http://influxdb:8086/api/v2
+      VITE_INFLUX_TOKEN: barns-super-secret-token
+      VITE_INFLUX_ORG: barns
+      VITE_INFLUX_BUCKET: logs
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -510,7 +483,6 @@ volumes:
   redis_data:
   postgres_data:
   influxdb_data:
-  grafana_data:
 
 networks:
   barns-network:
