@@ -826,16 +826,16 @@ def place_plastic_cup_milk(**params) -> bool:
             # 9oz after dispense
             if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
                 return False
-            if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
-                return False
+            # if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
+            #     return False
             if run_skill("gotoJ_deg", -25.749681,-69.288589,-90.343018,-18.333176,-116.565109,-2.363535) is False:
                 return False
         elif cup_size == "9oz" and not after_dispense:
             # 9oz NOT after dispense
             if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
                 return False
-            if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
-                return False
+            # if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
+            #     return False
             if run_skill("gotoJ_deg", -25.749681,-69.288589,-90.343018,-18.333176,-116.565109,-2.363535) is False:
                 return False
         elif cup_size == "12oz" and after_dispense:

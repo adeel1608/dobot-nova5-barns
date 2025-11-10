@@ -90,7 +90,7 @@ def grab_paper_cup(**params) -> bool:
         
         # Step 2: Twist to avoid hitting the espresso machine during navigation
         print("🔄 Step 2/8: Navigating around espresso machine...")
-        twist_result = run_skill("moveJ_deg", 64.012928, 0, 0, 0, 0, 0)
+        twist_result = run_skill("gotoJ_deg", 106.17209, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214)
         if twist_result is False:
             print("[ERROR] Failed to twist around espresso machine")
             return False
@@ -153,14 +153,6 @@ def grab_paper_cup(**params) -> bool:
             print("   ✅ Successfully retracted with paper cup")
         else:
             print("   ⏭️ No retreat movement defined for this size")
-        
-        # Step 8: Move to intermediate position ready for placement
-        print("📍 Step 8/8: Moving to intermediate position...")
-        intermediate_result = run_skill("gotoJ_deg", 88.657143, 21.041538, -74.451630, -36.522381, 90.145508, -91.183128)
-        if intermediate_result is False:
-            print("[ERROR] Failed to move to intermediate position")
-            return False
-        print("   ✅ Successfully moved to intermediate position")
         
         # Final success summary
         print("=" * 50)
@@ -287,7 +279,7 @@ def place_paper_cup(**params) -> bool:
         print("🔄 Step 7/7: Untwisting back towards machine...")
         if 'twist_back' in stage_params:
             print(f"   📍 Executing untwist movement for {stage}")
-            twist_back_result = run_skill("moveJ_deg", *stage_params['twist_back'])
+            twist_back_result = run_skill("gotoJ_deg", 42.427441,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379)
             
             if twist_back_result is False:
                 print("[ERROR] Failed to untwist back")
