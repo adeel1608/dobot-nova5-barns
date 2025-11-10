@@ -824,7 +824,7 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to grip espresso pitcher 1")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 50)
+            speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -850,7 +850,7 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to grip espresso pitcher 2")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 50)
+            speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -882,7 +882,7 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to grip espresso pitcher 3")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 50)
+            speed_result = run_skill("set_speed_factor", 25)
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -972,7 +972,7 @@ def pour_espresso_pitcher(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 1")
             run_skill("sync")
-            run_skill("set_speed_factor", 10)
+            run_skill("set_speed_factor", 15)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])
@@ -1012,7 +1012,7 @@ def pour_espresso_pitcher(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 2")
             run_skill("sync")
-            run_skill("set_speed_factor", 10)
+            run_skill("set_speed_factor", 15)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])
@@ -1052,7 +1052,7 @@ def pour_espresso_pitcher(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 3")
             run_skill("sync")
-            run_skill("set_speed_factor", 10)
+            run_skill("set_speed_factor", 15)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])
@@ -1092,7 +1092,7 @@ def pour_espresso_pitcher(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 4")
             run_skill("sync")
-            run_skill("set_speed_factor", 10)
+            run_skill("set_speed_factor", 5)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])
@@ -1238,7 +1238,7 @@ def with_hot_water(**params) -> bool:
         print("🚰 Completing hot water dispensing sequence")
         print("=" * 50)
 
-        run_skill("set_speed_factor", 50)
+        run_skill("set_speed_factor", 15)
         
         # Step 2: Return to holding position
         print("🏠 Step 2/2: Returning to holding position...")

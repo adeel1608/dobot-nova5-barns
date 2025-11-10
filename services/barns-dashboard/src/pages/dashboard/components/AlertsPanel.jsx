@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import useStore from '../../../store';
 import viewAll from '../../../assets/viewall.png';
 
@@ -13,6 +13,32 @@ export default function AlertsPanel() {
   } = useStore();
   
   const [acknowledging, setAcknowledging] = useState(new Set());
+  const [playedAlerts, setPlayedAlerts] = useState(new Set());
+
+  // Function to play buzz sound using Web Audio API
+  const playBuzzSound = useCallback(() => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      // Configure buzz sound (low frequency, short duration)
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (error) {
+      console.error('Failed to play buzz sound:', error);
+    }
+  }, []);
 
   // Fetch alerts on component mount and set up refresh interval
   useEffect(() => {
@@ -143,6 +169,32 @@ export default function AlertsPanel() {
   }
 
   const unacknowledgedAlerts = mappedAlerts; // All alerts from the store are unacknowledged
+  
+  // Play buzz sound when alerts are present
+  useEffect(() => {
+    if (!isLoading && unacknowledgedAlerts.length > 0) {
+      // Get current alert IDs
+      const currentAlertIds = new Set(unacknowledgedAlerts.map(alert => alert.id));
+      
+      // Check if there are any new alerts that haven't triggered the sound yet
+      const hasNewAlerts = Array.from(currentAlertIds).some(id => !playedAlerts.has(id));
+      
+      if (hasNewAlerts) {
+        // Play buzz sound for new alerts
+        playBuzzSound();
+        
+        // Update played alerts set
+        setPlayedAlerts(prev => {
+          const newSet = new Set(prev);
+          currentAlertIds.forEach(id => newSet.add(id));
+          return newSet;
+        });
+      }
+    } else if (unacknowledgedAlerts.length === 0) {
+      // Clear played alerts when there are no alerts
+      setPlayedAlerts(new Set());
+    }
+  }, [unacknowledgedAlerts, isLoading, playedAlerts, playBuzzSound]);
   
   const getAlertIcon = (type) => {
     switch (type) {

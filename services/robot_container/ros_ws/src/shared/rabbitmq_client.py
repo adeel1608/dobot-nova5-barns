@@ -472,15 +472,68 @@ class EventListener:
                 event_type = body.get("event_type")
                 data = body.get("data", {})
                 
+                result = None
+                handler_error = None
+                
                 if event_type in self.event_handlers:
                     handler = self.event_handlers[event_type]
-                    if asyncio.iscoroutinefunction(handler):
-                        await handler(data)
+                    try:
+                        if asyncio.iscoroutinefunction(handler):
+                            result = await handler(data)
+                        else:
+                            result = handler(data)
+                    except Exception as handler_ex:
+                        handler_error = handler_ex
+                        self.logger.error(f"Error in event handler for {event_type}: {handler_ex}")
+                
+                # Send acknowledgment if reply_to is specified (for send_event_with_ack)
+                if message.reply_to and message.correlation_id:
+                    if handler_error:
+                        # Send error acknowledgment
+                        ack_response = {
+                            "success": False,
+                            "acknowledged": False,
+                            "error": str(handler_error)
+                        }
+                    elif result is not None:
+                        # Send the result from the handler as acknowledgment
+                        ack_response = result if isinstance(result, dict) else {"success": True, "acknowledged": True}
                     else:
-                        handler(data)
+                        # Send default success acknowledgment
+                        ack_response = {"success": True, "acknowledged": True}
+                    
+                    ack_message = Message(
+                        json.dumps(ack_response).encode(),
+                        correlation_id=message.correlation_id,
+                        delivery_mode=DeliveryMode.PERSISTENT
+                    )
+                    await self.channel.default_exchange.publish(
+                        ack_message, routing_key=message.reply_to
+                    )
+                    self.logger.info(f"📨 {self.service_name} sent acknowledgment for event {event_type}")
                         
             except Exception as e:
                 self.logger.error(f"Error handling event: {e}")
+                
+                # Try to send error acknowledgment if possible
+                if message.reply_to and message.correlation_id:
+                    try:
+                        error_ack = {
+                            "success": False,
+                            "acknowledged": False,
+                            "error": str(e)
+                        }
+                        ack_message = Message(
+                            json.dumps(error_ack).encode(),
+                            correlation_id=message.correlation_id,
+                            delivery_mode=DeliveryMode.PERSISTENT
+                        )
+                        await self.channel.default_exchange.publish(
+                            ack_message, routing_key=message.reply_to
+                        )
+                        self.logger.info(f"📨 {self.service_name} sent error acknowledgment")
+                    except Exception as ack_error:
+                        self.logger.error(f"Failed to send error acknowledgment: {ack_error}")
     
     async def disconnect(self):
         """Close connection"""
