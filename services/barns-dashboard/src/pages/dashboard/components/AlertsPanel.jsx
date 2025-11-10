@@ -23,7 +23,7 @@ export default function AlertsPanel() {
   const ttsQueueRef = useRef([]);
   const isSpeakingRef = useRef(false);
 
-  // Start alternating alarm pattern while alerts are active
+  // Start friendly notification beep pattern for alerts
   function startBuzz() {
     if (isBuzzingRef.current) return;
     try {
@@ -34,70 +34,69 @@ export default function AlertsPanel() {
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
       
-      // Create two oscillators for alternating tones
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
+      // Create oscillator for notification beeps
+      const osc = ctx.createOscillator();
+      osc.type = 'sine'; // Pleasant, smooth tone
+      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 - pleasant notification tone
       
-      // Configure first oscillator (higher tone)
-      osc1.type = 'sine'; // Smoother, less harsh than sawtooth
-      osc1.frequency.setValueAtTime(800, ctx.currentTime); // High pitch
+      osc.connect(gain);
+      osc.start();
       
-      // Configure second oscillator (lower tone)
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(600, ctx.currentTime); // Lower pitch
-      
-      // Connect both to gain
-      osc1.connect(gain);
-      osc2.connect(gain);
-      
-      // Start both oscillators
-      osc1.start();
-      osc2.start();
-      
-      // Initial state: start with first oscillator
-      gain.gain.setValueAtTime(0.5, ctx.currentTime);
+      // Start silent
+      gain.gain.setValueAtTime(0, ctx.currentTime);
       
       audioContextRef.current = ctx;
-      oscillator1Ref.current = osc1;
-      oscillator2Ref.current = osc2;
+      oscillator1Ref.current = osc;
       gainRef.current = gain;
       isBuzzingRef.current = true;
       
-      // Create alternating pattern: 400ms on, 100ms off, repeat with different frequencies
-      let isHigh = true;
-      alarmIntervalRef.current = setInterval(() => {
+      // Create a pleasant triple-beep pattern that repeats every 3 seconds
+      // Pattern: beep-beep-beep ... pause ... beep-beep-beep
+      const playBeepPattern = () => {
         if (!audioContextRef.current) return;
         
         const ctx = audioContextRef.current;
         const now = ctx.currentTime;
-        const osc1 = oscillator1Ref.current;
-        const osc2 = oscillator2Ref.current;
+        const g = gainRef.current;
         
-        if (isHigh) {
-          // High tone
-          osc1.frequency.setValueAtTime(800, now);
-          osc2.frequency.setValueAtTime(800, now);
-          gain.gain.cancelScheduledValues(now);
-          gain.gain.setValueAtTime(0.5, now);
-          gain.gain.linearRampToValueAtTime(0.6, now + 0.05);
-        } else {
-          // Low tone
-          osc1.frequency.setValueAtTime(600, now);
-          osc2.frequency.setValueAtTime(600, now);
-          gain.gain.cancelScheduledValues(now);
-          gain.gain.setValueAtTime(0.5, now);
-          gain.gain.linearRampToValueAtTime(0.6, now + 0.05);
-        }
+        // Triple beep pattern with pleasant frequency
+        const beepDuration = 0.15; // Short beep
+        const beepGap = 0.15; // Gap between beeps
+        const volume = 0.3; // Gentle volume
         
-        isHigh = !isHigh;
-      }, 500); // Alternate every 500ms
+        // First beep
+        g.gain.cancelScheduledValues(now);
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(volume, now + 0.02);
+        g.gain.linearRampToValueAtTime(0, now + beepDuration);
+        
+        // Second beep
+        const secondBeepStart = now + beepDuration + beepGap;
+        g.gain.setValueAtTime(0, secondBeepStart);
+        g.gain.linearRampToValueAtTime(volume, secondBeepStart + 0.02);
+        g.gain.linearRampToValueAtTime(0, secondBeepStart + beepDuration);
+        
+        // Third beep
+        const thirdBeepStart = secondBeepStart + beepDuration + beepGap;
+        g.gain.setValueAtTime(0, thirdBeepStart);
+        g.gain.linearRampToValueAtTime(volume, thirdBeepStart + 0.02);
+        g.gain.linearRampToValueAtTime(0, thirdBeepStart + beepDuration);
+      };
+      
+      // Play pattern immediately
+      playBeepPattern();
+      
+      // Repeat pattern every 3 seconds
+      alarmIntervalRef.current = setInterval(() => {
+        playBeepPattern();
+      }, 3000);
       
     } catch (error) {
-      console.error('Failed to start buzz:', error);
+      console.error('Failed to start notification sound:', error);
     }
   }
 
-  // Stop the alarm
+  // Stop the notification sound
   function stopBuzz() {
     try {
       // Clear the interval
@@ -108,31 +107,26 @@ export default function AlertsPanel() {
       
       if (isBuzzingRef.current) {
         const ctx = audioContextRef.current;
-        const osc1 = oscillator1Ref.current;
-        const osc2 = oscillator2Ref.current;
+        const osc = oscillator1Ref.current;
         const gain = gainRef.current;
         
         if (gain && ctx) {
           gain.gain.cancelScheduledValues(ctx.currentTime);
-          gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-          gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0, ctx.currentTime);
         }
         
-        if (osc1) {
-          osc1.stop(ctx ? ctx.currentTime + 0.15 : undefined);
-        }
-        if (osc2) {
-          osc2.stop(ctx ? ctx.currentTime + 0.15 : undefined);
+        if (osc) {
+          osc.stop(ctx ? ctx.currentTime + 0.05 : undefined);
         }
         
         if (ctx && typeof ctx.close === 'function') {
           setTimeout(() => {
             ctx.close().catch(() => {});
-          }, 200);
+          }, 100);
         }
       }
     } catch (error) {
-      console.error('Failed to stop buzz:', error);
+      console.error('Failed to stop notification sound:', error);
     } finally {
       audioContextRef.current = null;
       oscillator1Ref.current = null;
