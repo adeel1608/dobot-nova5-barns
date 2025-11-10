@@ -17,12 +17,16 @@ import json
 
 async def dispense_hot_water(params: dict):
     """Dispense hot water using MQTT communication."""
+
+    cups_dict = params["cups"]
+    print(f"cups_dict: {cups_dict}")
+    print(f"params: {params}")
     # Parameter example: {'water': {'hot_water': 160.0}, 'cups': {'cup_H9': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_single': 1.0}}
-    log("INFO", f"Calling dispense_hot_water function with params:{params}", service="automation")
-    
+    log("INFO", f"Calling dispense_hot_water function with params:{cups_dict}", service="automation")
+    logger.info(f"Calling dispense_hot_water function with params:{cups_dict}")
     # Handle nested cups dictionary format
     if "cups" in params and isinstance(params["cups"], dict):
-        cups_dict = params["cups"]
+        
         # Extract cup type from first key (e.g., "cup_H9" or "cup_H12")
         cup_type = list(cups_dict.keys())[0]
         
@@ -33,7 +37,7 @@ async def dispense_hot_water(params: dict):
             calibration = 1
         else:
             # Default to calibration 2 if unknown cup type
-            log("ERROR", f"Unknown cup type: {cup_type}, defaulting to calibration 2", service="automation")
+            log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to calibration 2", service="automation")
             calibration = 2
     else:
         # Fallback to flat parameter format
@@ -135,7 +139,7 @@ async def dispense_sauce(params: dict):
     """Dispense multiple syrups using MQTT communication."""
     # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
     # Loops through all pumps in the syrups dictionary
-    log("INFO", f"Calling dispense_syrup function with params:{params}", service="automation")
+    log("INFO", f"Calling dispense_syrup function with params:{json.dumps(params)}", service="automation")
     
     # Extract syrups dictionary
     if "syrups" not in params or not isinstance(params["syrups"], dict):
@@ -270,7 +274,7 @@ async def dispense_ice(params: dict):
     """Dispense ice using MQTT communication."""
     # example params: {"ice": 8, "timeout": 300}
     # OR nested format: {"ice": {"ice_cubes_16oz": 11.0}, "timeout": 300}
-    log("INFO", f"Calling dispense_ice function with params:{params}", service="automation")
+    log("INFO", f"Calling dispense_ice function with params:{json.dumps(params)}", service="automation")
     log("INFO", "dispensing imaginary ice", service="automation")
     time.sleep(5)
     return {
@@ -384,7 +388,7 @@ async def dispense_milk(params: dict):
     # example params: {"milk": {1: 260.0}, ...} or {"water": {5: 100.0}, ...}
     # Loops through all pumps in the milk/water dictionary
     # Both use the same milk dispenser hardware
-    logger.info(f"Calling dispense_milk function with params:{params}")
+    logger.info(f"Calling dispense_milk function with params:{json.dumps(params)}")
     
     # Extract milk or water dictionary (both use milk dispenser hardware)
     milk_dict = None
@@ -1085,7 +1089,7 @@ async def froth_milk(params: dict):
     """Froth milk using MQTT communication."""
     # example params: {"temperature": "standard", "timeout": 300}
     # OR nested format: {"temperature": {"regular_temperature": 73.0}, "timeout": 300}
-    log("INFO", f"Calling froth_milk function with params:{params}", service="automation")
+    log("INFO", f"Calling froth_milk function with params:{json.dumps(params)}", service="automation")
     
     # Handle nested temperature dictionary format
     if "temperature" in params and isinstance(params["temperature"], dict):
