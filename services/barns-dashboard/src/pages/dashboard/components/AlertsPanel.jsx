@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
 import viewAll from '../../../assets/viewall.png';
 
@@ -13,32 +13,77 @@ export default function AlertsPanel() {
   } = useStore();
   
   const [acknowledging, setAcknowledging] = useState(new Set());
-  const [playedAlerts, setPlayedAlerts] = useState(new Set());
+  const audioContextRef = useRef(null);
+  const oscillatorRef = useRef(null);
+  const gainRef = useRef(null);
+  const isBuzzingRef = useRef(false);
+  const spokenAlertsRef = useRef(new Set());
+  const ttsQueueRef = useRef([]);
+  const isSpeakingRef = useRef(false);
 
-  // Function to play buzz sound using Web Audio API
-  const playBuzzSound = useCallback(() => {
+  // Start continuous buzz while alerts are active
+  function startBuzz() {
+    if (isBuzzingRef.current) return;
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      // Configure buzz sound (low frequency, short duration)
-      oscillator.type = 'sawtooth';
-      oscillator.frequency.setValueAtTime(150, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(100, audioContext.currentTime + 0.1);
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      // Continuous buzz configuration
+      osc.type = 'sawtooth'; // harsher and more piercing than square
+      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4 for higher perceived loudness
+      // Short ramp-up to avoid clicks, then go VERY loud
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.05); // LOUD
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+
+      audioContextRef.current = ctx;
+      oscillatorRef.current = osc;
+      gainRef.current = gain;
+      isBuzzingRef.current = true;
     } catch (error) {
-      console.error('Failed to play buzz sound:', error);
+      console.error('Failed to start buzz:', error);
     }
-  }, []);
+  }
+
+  // Stop the continuous buzz
+  function stopBuzz() {
+    try {
+      if (isBuzzingRef.current) {
+        const ctx = audioContextRef.current;
+        const osc = oscillatorRef.current;
+        const gain = gainRef.current;
+        if (gain && ctx) {
+          gain.gain.cancelScheduledValues(ctx.currentTime);
+          gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
+        }
+        if (osc) {
+          // Stop shortly after ramp-down
+          osc.stop(ctx ? ctx.currentTime + 0.06 : undefined);
+        }
+        if (ctx && typeof ctx.close === 'function') {
+          // Close context after giving time to stop to release audio resources
+          setTimeout(() => {
+            ctx.close().catch(() => {});
+          }, 100);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to stop buzz:', error);
+    } finally {
+      audioContextRef.current = null;
+      oscillatorRef.current = null;
+      gainRef.current = null;
+      isBuzzingRef.current = false;
+    }
+  }
 
   // Fetch alerts on component mount and set up refresh interval
   useEffect(() => {
@@ -170,32 +215,93 @@ export default function AlertsPanel() {
 
   const unacknowledgedAlerts = mappedAlerts; // All alerts from the store are unacknowledged
   
-  // Play buzz sound when alerts are present
+  // Keep buzzer ON while there are active alerts, OFF otherwise
   useEffect(() => {
     if (!isLoading && unacknowledgedAlerts.length > 0) {
-      // Get current alert IDs
-      const currentAlertIds = new Set(unacknowledgedAlerts.map(alert => alert.id));
-      
-      // Check if there are any new alerts that haven't triggered the sound yet
-      const hasNewAlerts = Array.from(currentAlertIds).some(id => !playedAlerts.has(id));
-      
-      if (hasNewAlerts) {
-        // Play buzz sound for new alerts
-        playBuzzSound();
-        
-        // Update played alerts set
-        setPlayedAlerts(prev => {
-          const newSet = new Set(prev);
-          currentAlertIds.forEach(id => newSet.add(id));
-          return newSet;
-        });
-      }
-    } else if (unacknowledgedAlerts.length === 0) {
-      // Clear played alerts when there are no alerts
-      setPlayedAlerts(new Set());
+      startBuzz();
+    } else {
+      stopBuzz();
     }
-  }, [unacknowledgedAlerts, isLoading, playedAlerts, playBuzzSound]);
+    // Cleanup on unmount
+    return () => {
+      stopBuzz();
+    };
+  }, [unacknowledgedAlerts.length, isLoading]);
   
+  // Helper: build speech text for an alert
+  function getAlertSpeechText(alert) {
+    const title = alert.title || 'Alert';
+    const severity = alert.severity ? `Severity ${alert.severity}.` : '';
+    const message = alert.message ? alert.message : '';
+    return `${title}. ${severity} ${message}`.replace(/\s+/g, ' ').trim();
+  }
+
+  // Speak next item in queue if not already speaking
+  function processTtsQueue() {
+    if (isSpeakingRef.current) return;
+    if (!window || !window.speechSynthesis) return;
+    const q = ttsQueueRef.current;
+    if (q.length === 0) return;
+    const text = q.shift();
+    try {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = 1;   // normal speed
+      utter.pitch = 1;  // normal pitch
+      utter.volume = 1; // max volume
+      // Prefer an English voice if available
+      const synth = window.speechSynthesis;
+      const voices = synth.getVoices ? synth.getVoices() : [];
+      const enVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+      if (enVoice) utter.voice = enVoice;
+      isSpeakingRef.current = true;
+      utter.onend = () => {
+        isSpeakingRef.current = false;
+        // Continue with next queued item
+        processTtsQueue();
+      };
+      utter.onerror = () => {
+        isSpeakingRef.current = false;
+        processTtsQueue();
+      };
+      synth.speak(utter);
+    } catch {
+      // Ignore TTS failures; continue
+      isSpeakingRef.current = false;
+    }
+  }
+
+  // Queue speaking of newly arrived alerts (once per alert id)
+  useEffect(() => {
+    if (!isLoading && unacknowledgedAlerts.length > 0) {
+      const newAlerts = unacknowledgedAlerts.filter(a => !spokenAlertsRef.current.has(a.id));
+      newAlerts.forEach(a => {
+        spokenAlertsRef.current.add(a.id);
+        const text = getAlertSpeechText(a);
+        if (text) {
+          ttsQueueRef.current.push(text);
+        }
+      });
+      // Start/continue processing queue
+      processTtsQueue();
+    } else if (unacknowledgedAlerts.length === 0) {
+      // Reset spoken ids and cancel any ongoing speech
+      spokenAlertsRef.current = new Set();
+      try {
+        if (window && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } catch { /* no-op */ }
+    }
+    // Cleanup on unmount: stop speaking
+    return () => {
+      try {
+        if (window && window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
+      } catch { /* no-op */ }
+    };
+  }, [unacknowledgedAlerts.length, isLoading]);
+
   const getAlertIcon = (type) => {
     switch (type) {
       case 'error':
