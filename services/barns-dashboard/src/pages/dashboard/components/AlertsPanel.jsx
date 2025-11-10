@@ -14,72 +14,129 @@ export default function AlertsPanel() {
   
   const [acknowledging, setAcknowledging] = useState(new Set());
   const audioContextRef = useRef(null);
-  const oscillatorRef = useRef(null);
+  const oscillator1Ref = useRef(null);
+  const oscillator2Ref = useRef(null);
   const gainRef = useRef(null);
   const isBuzzingRef = useRef(false);
+  const alarmIntervalRef = useRef(null);
   const spokenAlertsRef = useRef(new Set());
   const ttsQueueRef = useRef([]);
   const isSpeakingRef = useRef(false);
 
-  // Start continuous buzz while alerts are active
+  // Start alternating alarm pattern while alerts are active
   function startBuzz() {
     if (isBuzzingRef.current) return;
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
+      
       const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-
-      // Continuous buzz configuration
-      osc.type = 'sawtooth'; // harsher and more piercing than square
-      osc.frequency.setValueAtTime(440, ctx.currentTime); // A4 for higher perceived loudness
-      // Short ramp-up to avoid clicks, then go VERY loud
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.05); // LOUD
-
-      osc.connect(gain);
       gain.connect(ctx.destination);
-
-      osc.start();
-
+      
+      // Create two oscillators for alternating tones
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      
+      // Configure first oscillator (higher tone)
+      osc1.type = 'sine'; // Smoother, less harsh than sawtooth
+      osc1.frequency.setValueAtTime(800, ctx.currentTime); // High pitch
+      
+      // Configure second oscillator (lower tone)
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(600, ctx.currentTime); // Lower pitch
+      
+      // Connect both to gain
+      osc1.connect(gain);
+      osc2.connect(gain);
+      
+      // Start both oscillators
+      osc1.start();
+      osc2.start();
+      
+      // Initial state: start with first oscillator
+      gain.gain.setValueAtTime(0.5, ctx.currentTime);
+      
       audioContextRef.current = ctx;
-      oscillatorRef.current = osc;
+      oscillator1Ref.current = osc1;
+      oscillator2Ref.current = osc2;
       gainRef.current = gain;
       isBuzzingRef.current = true;
+      
+      // Create alternating pattern: 400ms on, 100ms off, repeat with different frequencies
+      let isHigh = true;
+      alarmIntervalRef.current = setInterval(() => {
+        if (!audioContextRef.current) return;
+        
+        const ctx = audioContextRef.current;
+        const now = ctx.currentTime;
+        const osc1 = oscillator1Ref.current;
+        const osc2 = oscillator2Ref.current;
+        
+        if (isHigh) {
+          // High tone
+          osc1.frequency.setValueAtTime(800, now);
+          osc2.frequency.setValueAtTime(800, now);
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.linearRampToValueAtTime(0.6, now + 0.05);
+        } else {
+          // Low tone
+          osc1.frequency.setValueAtTime(600, now);
+          osc2.frequency.setValueAtTime(600, now);
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(0.5, now);
+          gain.gain.linearRampToValueAtTime(0.6, now + 0.05);
+        }
+        
+        isHigh = !isHigh;
+      }, 500); // Alternate every 500ms
+      
     } catch (error) {
       console.error('Failed to start buzz:', error);
     }
   }
 
-  // Stop the continuous buzz
+  // Stop the alarm
   function stopBuzz() {
     try {
+      // Clear the interval
+      if (alarmIntervalRef.current) {
+        clearInterval(alarmIntervalRef.current);
+        alarmIntervalRef.current = null;
+      }
+      
       if (isBuzzingRef.current) {
         const ctx = audioContextRef.current;
-        const osc = oscillatorRef.current;
+        const osc1 = oscillator1Ref.current;
+        const osc2 = oscillator2Ref.current;
         const gain = gainRef.current;
+        
         if (gain && ctx) {
           gain.gain.cancelScheduledValues(ctx.currentTime);
           gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
-          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.05);
+          gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
         }
-        if (osc) {
-          // Stop shortly after ramp-down
-          osc.stop(ctx ? ctx.currentTime + 0.06 : undefined);
+        
+        if (osc1) {
+          osc1.stop(ctx ? ctx.currentTime + 0.15 : undefined);
         }
+        if (osc2) {
+          osc2.stop(ctx ? ctx.currentTime + 0.15 : undefined);
+        }
+        
         if (ctx && typeof ctx.close === 'function') {
-          // Close context after giving time to stop to release audio resources
           setTimeout(() => {
             ctx.close().catch(() => {});
-          }, 100);
+          }, 200);
         }
       }
     } catch (error) {
       console.error('Failed to stop buzz:', error);
     } finally {
       audioContextRef.current = null;
-      oscillatorRef.current = null;
+      oscillator1Ref.current = null;
+      oscillator2Ref.current = null;
       gainRef.current = null;
       isBuzzingRef.current = false;
     }
