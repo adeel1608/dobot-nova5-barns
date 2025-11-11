@@ -5,7 +5,7 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
-RFDETR_CONFIDENCE = 0.1        # 0..1 (lowered to catch more cups at milk dispenser)
+RFDETR_CONFIDENCE = 0.07        # 0..1 (lowered to catch more cups at milk dispenser)
 ALLOWED_CLASSES = ["cup", "bowl"]     # Include bowl (cups sometimes detected as bowls)
 
 # Local model paths (set to None to use default download behavior)
