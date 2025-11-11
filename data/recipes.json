@@ -20,7 +20,7 @@
     {
       "action": "Clean_Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso", "Espresso"]
+      "depends_on": ["Pour_Espresso"]
     }
   ],
   "Americano": [

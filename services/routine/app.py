@@ -32,6 +32,10 @@ task_queues: dict[int, asyncio.Queue] = {
 
 task_configs = {}
 
+# Shared lock for cup_station robot functions to prevent collisions between arms
+cup_station_lock = asyncio.Lock()
+cup_station_lock_holder: int | None = None  # Track which arm currently holds the lock
+
 class RoutineService:
     """Routine service for BARNS task orchestration."""
     

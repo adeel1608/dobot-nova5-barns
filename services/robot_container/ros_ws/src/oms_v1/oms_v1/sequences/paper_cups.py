@@ -302,7 +302,7 @@ def place_paper_cup(**params) -> bool:
         print("[INFO] Paper cup placement process terminated due to error")
         return False
 
-def dispense_paper_cup(**params) -> bool:
+def dispense_paper_cup_station(**params) -> bool:
     """
     Dispense a paper cup by grabbing it from the dispenser and placing it at the requested stage.
 
@@ -668,7 +668,7 @@ def pick_paper_cup_milk(**params) -> bool:
 SEQUENCES = {
     'grab_paper_cup': grab_paper_cup,
     'place_paper_cup': place_paper_cup,
-    'dispense_paper_cup': dispense_paper_cup,
+    'dispense_paper_cup_station': dispense_paper_cup_station,
     'pick_paper_cup_station': pick_paper_cup_station,
     'place_paper_cup_station': place_paper_cup_station,
     'place_paper_cup_sauces': place_paper_cup_sauces,

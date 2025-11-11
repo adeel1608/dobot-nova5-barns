@@ -171,7 +171,7 @@
       },
       {
         "type": "robot",
-        "function": "dispense_paper_cup",
+        "function": "dispense_paper_cup_station",
         "params": {}
       },
       {
@@ -246,7 +246,7 @@
     "steps":[
       {
       "type": "robot",
-      "function": "pour_espresso_pitcher",
+      "function": "pour_espresso_pitcher_cup_station",
       "params": {
         "stage": "stage_1"
       }
@@ -323,7 +323,7 @@
     "steps": [
       {
         "type": "robot",
-        "function": "pour_milk",
+        "function": "pour_milk_cup_station",
         "params": {
           "stage": "1"
         }
@@ -423,7 +423,7 @@
       },
       {
         "type": "robot",
-        "function": "dispense_paper_cup",
+        "function": "dispense_paper_cup_station",
         "params": {}
       }
     ]
@@ -522,7 +522,7 @@
       }
     ]
   },
-  "Place_Paper_Cup_Station": {
+  "Place_Paper_Cup": {
     "steps": [
       {
         "type": "validation",

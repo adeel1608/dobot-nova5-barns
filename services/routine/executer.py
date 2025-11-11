@@ -15,6 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
+from .app import cup_station_lock, cup_station_lock_holder
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -276,6 +277,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     """
     Executes the configured steps for a high-level function on a given arm.
     """
+    global cup_station_lock_holder
     cup_id = task.get("item", {}).get("cup_id", "unknown")
     function = task.get("function")
     success = True
@@ -444,37 +446,66 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     break  # abort on validation failure
                     
             elif step_type == "robot":
-                # Add retry logic for robot actions to handle transient failures during parallel execution
-                max_retries = 2
-                retry_delay = 3  # seconds
+                # Check if this is a cup_station function that requires mutual exclusion
+                is_cup_station = "cup_station" in func_name
                 
-                for attempt in range(max_retries):
-                    res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
-                    
-                    if res.get("success", False):
-                        break  # Success, exit retry loop
-                    
-                    # Check if it's a transient error (timeout, connection issues)
-                    error_msg = res.get('message', '').lower()
-                    is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
-                    
-                    if is_transient and attempt < max_retries - 1:
-                        log("ERROR", f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}", service="routine")
-                        log("INFO", f"[ARM-{arm_id}] Retrying in {retry_delay}s...", service="routine")
-                        await asyncio.sleep(retry_delay)
-                        continue
-                    else:
-                        # Non-transient error or final retry failed
-                        message = f"Robot error: {res.get('message', '')}"
-                        log("ERROR", f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}", service="routine")
-                        await publish_event("robot.error", 
-                                    {"arm": arm_id, "cup": cup_id,
-                                    "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
-                        success = False
-                        break  # abort on robot error
+                # For cup_station functions, acquire lock with polling
+                if is_cup_station:
+                    # Poll every second until lock is available
+                    lock_acquired = False
+                    while not lock_acquired:
+                        if not cup_station_lock.locked():
+                            # Try to acquire the lock (non-blocking check, then acquire)
+                            # Since we just checked it's not locked, acquire should succeed immediately
+                            # but we use acquire() which will wait if another arm got it first
+                            await cup_station_lock.acquire()
+                            cup_station_lock_holder = arm_id
+                            lock_acquired = True
+                            log("INFO", f"[ARM-{arm_id}] Acquired cup_station lock for function: {func_name}", service="routine")
+                        else:
+                            # Lock is held by another arm, wait and check again
+                            current_holder = cup_station_lock_holder
+                            log("INFO", f"[ARM-{arm_id}] Waiting for cup_station lock (currently held by Arm {current_holder}) for function: {func_name}", service="routine")
+                            await asyncio.sleep(1)  # Check every second
                 
-                if not res.get("success", False):
-                    break  # Exit step loop if robot action ultimately failed
+                try:
+                    # Add retry logic for robot actions to handle transient failures during parallel execution
+                    max_retries = 2
+                    retry_delay = 3  # seconds
+                    
+                    for attempt in range(max_retries):
+                        res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
+                        
+                        if res.get("success", False):
+                            break  # Success, exit retry loop
+                        
+                        # Check if it's a transient error (timeout, connection issues)
+                        error_msg = res.get('message', '').lower()
+                        is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
+                        
+                        if is_transient and attempt < max_retries - 1:
+                            log("ERROR", f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}", service="routine")
+                            log("INFO", f"[ARM-{arm_id}] Retrying in {retry_delay}s...", service="routine")
+                            await asyncio.sleep(retry_delay)
+                            continue
+                        else:
+                            # Non-transient error or final retry failed
+                            message = f"Robot error: {res.get('message', '')}"
+                            log("ERROR", f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}", service="routine")
+                            await publish_event("robot.error", 
+                                        {"arm": arm_id, "cup": cup_id,
+                                        "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
+                            success = False
+                            break  # abort on robot error
+                    
+                    if not res.get("success", False):
+                        break  # Exit step loop if robot action ultimately failed
+                finally:
+                    # Always release the lock for cup_station functions (only release if we acquired it)
+                    if is_cup_station and cup_station_lock.locked() and cup_station_lock_holder == arm_id:
+                        cup_station_lock_holder = None
+                        cup_station_lock.release()
+                        log("INFO", f"[ARM-{arm_id}] Released cup_station lock for function: {func_name}", service="routine")
                     
             elif step_type == "automation":
                 log("INFO", "Action", service="routine")

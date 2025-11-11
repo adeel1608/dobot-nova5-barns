@@ -919,7 +919,7 @@ def pick_espresso_pitcher(**params) -> bool:
         print("[INFO] Pitcher pickup process terminated due to error")
         return False    
 
-def pour_espresso_pitcher(**params) -> bool:
+def pour_espresso_pitcher_cup_station(**params) -> bool:
     """
     Pour milk from espresso pitcher into cup at specified position.
     
@@ -939,7 +939,7 @@ def pour_espresso_pitcher(**params) -> bool:
         Exception: If unexpected error occurs during pouring process
         
     Example:
-        success = pour_espresso_pitcher(position={'cup_position': 1.0})
+        success = pour_espresso_pitcher_cup_station(position={'cup_position': 1.0})
         if success:
             print("Milk poured successfully")
     """
@@ -1427,7 +1427,7 @@ SEQUENCES = {
     'grinder': grinder,
     'mount': mount,
     'pick_espresso_pitcher': pick_espresso_pitcher,
-    'pour_espresso_pitcher': pour_espresso_pitcher,
+    'pour_espresso_pitcher_cup_station': pour_espresso_pitcher_cup_station,
     'get_hot_water': get_hot_water,
     'with_hot_water': with_hot_water,
     'return_espresso_pitcher': return_espresso_pitcher,

@@ -523,7 +523,7 @@ def unmount_and_swirl_milk(**params) -> bool:
         print("[INFO] Milk swirling process terminated due to error")
         return False
 
-def pour_milk(**params) -> bool:
+def pour_milk_cup_station(**params) -> bool:
     """
     Pour frothed milk into cup at specified stage.
     
@@ -545,7 +545,7 @@ def pour_milk(**params) -> bool:
         Exception: If unexpected error occurs during pouring process
         
     Example:
-        success = pour_milk(position={'cup_position': 1.0})
+        success = pour_milk_cup_station(position={'cup_position': 1.0})
         if success:
             print("Milk poured successfully")
     """
@@ -864,7 +864,7 @@ SEQUENCES = {
     'get_frother_position': get_frother_position,
     'pick_frother': pick_frother,
     'unmount_and_swirl_milk': unmount_and_swirl_milk,
-    'pour_milk': pour_milk,
+    'pour_milk_cup_station': pour_milk_cup_station,
     'mount_frother': mount_frother,
     'clean_milk_pitcher': clean_milk_pitcher,
     'return_frother': return_frother,
