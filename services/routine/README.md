@@ -13,6 +13,8 @@ The Routine Service is the task execution coordinator that manages per-arm task 
 - **Event Publishing**: Real-time completion/failure notifications
 - **Error Handling**: Graceful failure recovery and reporting
 - **Queue Management**: Status queries, queue clearing, order cancellation
+- **Resource Lock Retry**: Automatic retry for locked resources to maintain strict queue order
+- **Strict Queue Adherence**: Arms never skip tasks - they retry until resources become available
 
 ## Architecture
 
@@ -177,6 +179,66 @@ Defines validation, automation, and robot steps for each task:
 volumes:
   - ./config:/app/config  # Task configurations
 ```
+
+## Retry Logic & Queue Adherence
+
+### Resource Lock Retry (Cup Station)
+
+The routine service implements **strict queue adherence** - robotic arms will **never skip tasks** in their queue, even when resources are temporarily unavailable.
+
+**Cup Station Lock Behavior:**
+- Cup station functions (`place_cup_at_station`, `pick_cup_from_station`, etc.) require mutual exclusion between arms
+- When a cup station resource is locked by another arm, the requesting arm will:
+  1. **Retry every 1 second** until the lock becomes available
+  2. Continue retrying up to **5 minutes** (configurable via `RESOURCE_LOCK_MAX_WAIT_TIME`)
+  3. Log retry attempts every 5 retries to avoid log spam
+  4. Only timeout and fail after exceeding maximum wait time
+
+**Configuration Constants (in `executer.py`):**
+```python
+RESOURCE_LOCK_RETRY_INTERVAL = 1    # seconds between retry attempts
+RESOURCE_LOCK_MAX_WAIT_TIME = 300   # maximum 5 minutes before timeout
+```
+
+**Example Log Output:**
+```
+[ARM-1] 🔒 Attempting to acquire cup_station lock for place_cup_at_station (cup 123-1)
+[ARM-1] ✅ Acquired cup_station lock for place_cup_at_station (no wait)
+...
+[ARM-2] 🔒 Attempting to acquire cup_station lock for place_cup_at_station (cup 123-2)
+[ARM-2] ⏳ Retry 1: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (1.0s elapsed)
+[ARM-2] ⏳ Retry 5: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (5.2s elapsed)
+[ARM-2] ✅ Acquired cup_station lock for place_cup_at_station after 8 retries (8.1s)
+```
+
+### Validation Retry
+
+The **validation service** handles its own internal retries for operations like:
+- `cup_detection`: Retries when all cup stations are occupied, waiting for a station to become available
+- Other validation checks with transient failures
+
+The routine service respects validation retry outcomes and only fails tasks when validation explicitly reports `retries_exhausted`.
+
+### Robot Action Retry
+
+Robot actions automatically retry on **transient failures**:
+- Connection timeouts
+- Health check failures
+- Temporary RabbitMQ issues
+
+**Retry Configuration:**
+- Maximum 2 retry attempts (3 total attempts)
+- 3 second delay between retries
+- Only retries on transient errors (not hardware/logic errors)
+
+### Feedback Retry
+
+Feedback to the scheduler is critical for maintaining system state. The routine service retries feedback delivery:
+- Maximum 3 retry attempts
+- 2 second delay between retries
+- Falls back to event-based notification if all retries fail
+
+This ensures the scheduler always knows about task completion/failure, even during temporary network issues.
 
 ## API/Endpoints
 

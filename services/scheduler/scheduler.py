@@ -98,7 +98,13 @@ def parse_orders(order_file: str):
     return orders
 
 def setup_tasks(orders, recipes):
-    """Create task entries for each order based on the recipes."""
+    """Create task entries for each order based on the recipes.
+    
+    IMPORTANT: Tasks are added to the global tasks list in STRICT QUEUE ORDER.
+    The order in which tasks are appended here determines the execution sequence
+    for each arm. The scheduler will select tasks in this exact order (respecting
+    dependencies and cup-priority rules).
+    """
     global tasks, tasks_by_cup, completed, tasks_total, failed_tasks, failed_count, per_arm_current_cups, cup_completion_status
     tasks = []
     tasks_by_cup = {}
@@ -207,60 +213,79 @@ def select_task_with_per_arm_cup_priority(arm_name: str):
     This algorithm allows parallel processing across arms while ensuring each arm
     completes all its tasks for a cup before starting a new cup.
     
+    STRICT QUEUE ORDER: Tasks are selected in the exact order they were added to
+    the queue (tasks list), respecting dependencies and cup-priority rules.
+    
     Priority order:
-    1. Tasks from the cup this arm is currently working on
-    2. Tasks from new cups (only if arm has no current cup)
+    1. Tasks from the cup this arm is currently working on (in queue order)
+    2. Tasks from new cups (only if arm has no current cup AND no earlier cups have pending tasks, in queue order)
     
     Returns the selected task or None if no task is available.
     """
     global tasks, per_arm_current_cups, completed, cup_completion_status
     
-    # Get all pending tasks for this arm
-    pending_tasks = [t for t in tasks if t["assigned_arm"] == arm_name and t["status"] == "pending"]
-    
-    # Filter to tasks whose dependencies are satisfied
-    available_tasks = []
-    for task in pending_tasks:
-        cup_id = task["cup"]
-        deps = task["depends_on"]
-        if all(dep in completed[cup_id] for dep in deps):
-            available_tasks.append(task)
-    
-    if not available_tasks:
-        return None
-    
-    # Priority 1: Tasks from cups this arm is currently working on
     current_cup_id = per_arm_current_cups[arm_name]
-    current_cup_tasks = [t for t in available_tasks if t["cup"] == current_cup_id]
     
-    if current_cup_tasks:
-        # Select the first available task from current cups
-        task = current_cup_tasks[0]
-        task["status"] = "in_progress"
-        log("DEBUG", f"{arm_name} continuing work on cup {task['cup']} - {task['action']}", service="scheduler")
-        return task
+    # Track the first pending cup we encounter (for strict cup priority)
+    first_pending_cup_for_arm = None
     
-    # Priority 2: Tasks from new cups (only if arm has no current cup)
-    if current_cup_id is None:
-        # Start working on a new cup - prefer pending cups, but also allow in-progress cups
-        new_cup_tasks = [t for t in available_tasks if cup_completion_status[t["cup"]] in ["pending", "in_progress"]]
+    # Iterate through tasks in their original queue order
+    # This ensures we maintain strict sequence adherence
+    for task in tasks:
+        # Skip if not for this arm
+        if task["assigned_arm"] != arm_name:
+            continue
         
-        if new_cup_tasks:
-            task = new_cup_tasks[0]
-            task["status"] = "in_progress"
-            cup_id = task["cup"]
-            
-            # Mark this cup as being worked on by this arm
-            per_arm_current_cups[arm_name] = cup_id
-            if cup_completion_status[cup_id] == "pending":
-                cup_completion_status[cup_id] = "in_progress"
-            
-            log("DEBUG", f"{arm_name} starting new cup {cup_id} - {task['action']}", service="scheduler")
-            return task
+        # Skip if not pending
+        if task["status"] != "pending":
+            continue
+        
+        cup_id = task["cup"]
+        
+        # Track first pending cup encountered (for strict cup priority)
+        if first_pending_cup_for_arm is None:
+            first_pending_cup_for_arm = cup_id
+        
+        # Check if dependencies are satisfied
+        deps = task["depends_on"]
+        deps_satisfied = all(dep in completed[cup_id] for dep in deps)
+        
+        # Priority 1: Task from current cup (first in queue with deps satisfied)
+        if cup_id == current_cup_id:
+            if deps_satisfied:
+                task["status"] = "in_progress"
+                log("DEBUG", f"{arm_name} continuing cup {cup_id} - {task['action']} (strict queue order)", service="scheduler")
+                return task
+            else:
+                # Dependencies not met for current cup - wait for them
+                continue
+        
+        # Priority 2: Task from new cup (only if arm has no current cup)
+        if current_cup_id is None and deps_satisfied:
+            # STRICT CUP PRIORITY: Only pick up this cup if it's the first pending cup we encountered
+            # This prevents skipping cups that have tasks with unmet dependencies
+            if cup_id == first_pending_cup_for_arm:
+                # Check if cup is available to start
+                if cup_completion_status[cup_id] in ["pending", "in_progress"]:
+                    task["status"] = "in_progress"
+                    
+                    # Mark this cup as being worked on by this arm
+                    per_arm_current_cups[arm_name] = cup_id
+                    if cup_completion_status[cup_id] == "pending":
+                        cup_completion_status[cup_id] = "in_progress"
+                    
+                    log("DEBUG", f"{arm_name} starting cup {cup_id} - {task['action']} (strict queue order)", service="scheduler")
+                    return task
+            # If this is not the first pending cup, don't pick it up (maintain cup priority)
     
-    # If we get here, the arm has a current cup but no available tasks for it
-    # This means we're waiting for dependencies to be satisfied
-    log("DEBUG", "Arm waiting for dependencies", service="scheduler", arm=arm_name)
+    # No available tasks found in queue order
+    if current_cup_id is not None:
+        log("DEBUG", f"{arm_name} waiting for dependencies on cup {current_cup_id}", service="scheduler")
+    elif first_pending_cup_for_arm is not None:
+        log("DEBUG", f"{arm_name} waiting for dependencies on first pending cup {first_pending_cup_for_arm}", service="scheduler")
+    else:
+        log("DEBUG", f"{arm_name} waiting for available tasks", service="scheduler")
+    
     return None
 
 async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_type: str):

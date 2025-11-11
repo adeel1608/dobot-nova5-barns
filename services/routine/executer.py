@@ -15,8 +15,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
+
+# Resource lock for cup_station functions (prevents arm collisions)
 cup_station_lock = asyncio.Lock()
 cup_station_lock_holder = None
+
+# RESOURCE LOCK RETRY CONFIGURATION
+# These settings ensure strict queue adherence - arms will retry instead of skipping tasks
+RESOURCE_LOCK_RETRY_INTERVAL = 1  # seconds between retry attempts
+RESOURCE_LOCK_MAX_WAIT_TIME = 300  # maximum wait time (5 minutes) before timeout
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -450,10 +457,16 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 # Check if this is a cup_station function that requires mutual exclusion
                 is_cup_station = "cup_station" in func_name
                 
-                # For cup_station functions, acquire lock with polling
+                # For cup_station functions, acquire lock with polling and retry logic
                 if is_cup_station:
-                    # Poll every second until lock is available
+                    # STRICT QUEUE ADHERENCE: Retry to maintain queue order
+                    # The arm will NOT skip this task - it will wait until the resource is available
                     lock_acquired = False
+                    retry_count = 0
+                    start_wait_time = asyncio.get_event_loop().time()
+                    
+                    log("INFO", f"[ARM-{arm_id}] 🔒 Attempting to acquire cup_station lock for {func_name} (cup {cup_id})", service="routine")
+                    
                     while not lock_acquired:
                         if not cup_station_lock.locked():
                             # Try to acquire the lock (non-blocking check, then acquire)
@@ -462,12 +475,39 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                             await cup_station_lock.acquire()
                             cup_station_lock_holder = arm_id
                             lock_acquired = True
-                            log("INFO", f"[ARM-{arm_id}] Acquired cup_station lock for function: {func_name}", service="routine")
+                            
+                            if retry_count > 0:
+                                wait_duration = asyncio.get_event_loop().time() - start_wait_time
+                                log("INFO", f"[ARM-{arm_id}] ✅ Acquired cup_station lock for {func_name} after {retry_count} retries ({wait_duration:.1f}s)", service="routine")
+                            else:
+                                log("INFO", f"[ARM-{arm_id}] ✅ Acquired cup_station lock for {func_name} (no wait)", service="routine")
                         else:
-                            # Lock is held by another arm, wait and check again
+                            # Lock is held by another arm, retry with exponential backoff notification
+                            retry_count += 1
                             current_holder = cup_station_lock_holder
-                            log("INFO", f"[ARM-{arm_id}] Waiting for cup_station lock (currently held by Arm {current_holder}) for function: {func_name}", service="routine")
-                            await asyncio.sleep(1)  # Check every second
+                            elapsed_time = asyncio.get_event_loop().time() - start_wait_time
+                            
+                            # Log every 5 retries to avoid spam, but always log first retry
+                            if retry_count == 1 or retry_count % 5 == 0:
+                                log("INFO", f"[ARM-{arm_id}] ⏳ Retry {retry_count}: Waiting for cup_station lock (held by Arm {current_holder}) - {func_name} on cup {cup_id} ({elapsed_time:.1f}s elapsed)", service="routine")
+                            
+                            # Check if we've exceeded maximum wait time
+                            if elapsed_time > RESOURCE_LOCK_MAX_WAIT_TIME:
+                                log("ERROR", f"[ARM-{arm_id}] ❌ Cup station lock timeout after {retry_count} retries ({elapsed_time:.1f}s) for {func_name} on cup {cup_id}", service="routine")
+                                message = f"Resource lock timeout: cup_station unavailable after {elapsed_time:.1f}s"
+                                success = False
+                                break  # Exit retry loop and fail this step
+                            
+                            # Wait before retry (strict queue order - keep retrying)
+                            await asyncio.sleep(RESOURCE_LOCK_RETRY_INTERVAL)
+                    
+                    # If lock acquisition failed (timeout), skip robot execution
+                    if not lock_acquired:
+                        log("ERROR", f"[ARM-{arm_id}] Failed to acquire cup_station lock for {func_name}, skipping robot execution", service="routine")
+                        await publish_event("robot.error", 
+                                    {"arm": arm_id, "cup": cup_id,
+                                    "step": func_name, "error": "Cup station lock timeout"}, rabbitmq_client)
+                        break  # Exit step loop
                 
                 try:
                     # Add retry logic for robot actions to handle transient failures during parallel execution
