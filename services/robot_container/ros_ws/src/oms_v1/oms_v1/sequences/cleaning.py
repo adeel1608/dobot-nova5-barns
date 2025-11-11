@@ -51,9 +51,9 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
         return False
-    if not ok(run_skill("moveEE_movJ", 2.5,2.5,-5,0,0,0)):
+    if not ok(run_skill("moveEE_movJ", 0,0,50,0,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", -2.5,-2.5,-2.5,0,0,0)):
+    if not ok(run_skill("moveEE_movJ", 0,0,-55,0,0,0)):
         return False
     if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
         return False
