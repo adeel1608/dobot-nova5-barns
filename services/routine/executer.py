@@ -15,7 +15,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
-from .app import cup_station_lock, cup_station_lock_holder
+cup_station_lock = asyncio.Lock()
+cup_station_lock_holder = None
 
 # Configure logging
 logger = logging.getLogger(__name__)

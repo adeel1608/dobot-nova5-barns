@@ -522,7 +522,7 @@
       }
     ]
   },
-  "Place_Paper_Cup": {
+  "Place_Paper_Cup_Station": {
     "steps": [
       {
         "type": "validation",

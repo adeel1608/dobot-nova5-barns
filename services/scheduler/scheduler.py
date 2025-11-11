@@ -874,9 +874,11 @@ async def handle_routine_feedback(cup_id: str, action: str, success: bool):
                         
                         # Check if this arm has completed all its tasks for this cup
                         arm_tasks_for_cup = [t for t in tasks_by_cup[cup_id] if t["assigned_arm"] == arm_name]
-                        arm_completed_tasks = [t for t in arm_tasks_for_cup if t["status"] == "done"]
+                        # Count remaining tasks (any status other than done/failed/cancelled)
+                        arm_remaining_tasks = [t for t in arm_tasks_for_cup if t["status"] not in ["done", "failed", "cancelled"]]
                         
-                        if len(arm_completed_tasks) == len(arm_tasks_for_cup):
+                        # Only release arm if NO tasks remain (includes submitted tasks)
+                        if len(arm_remaining_tasks) == 0:
                             # This arm has finished all its tasks for this cup - release it to work on next cup
                             if arm_name in per_arm_current_cups and per_arm_current_cups[arm_name] == cup_id:
                                 per_arm_current_cups[arm_name] = None
