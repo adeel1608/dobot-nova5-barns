@@ -75,11 +75,22 @@ class Config:
         self.milk_roi_polygon = np.array(g.get("MILK_ROI_POLYGON", []), dtype=np.int32)
         self.milk_cup_positions = list(g.get("MILK_CUP_POSITIONS", [(0, 0), (0, 0), (0, 0), (0, 0)]))
         self.milk_debug_folder = g.get("MILK_DEBUG_FOLDER", "debug_frames/milk")
+        milk_classes = g.get("MILK_ALLOWED_CLASSES", None)
+        self.milk_allowed_classes = milk_classes if milk_classes is not None else g.get("ALLOWED_CLASSES", [])
 
         # Sauce dispenser specific config
         self.sauce_roi_polygon = np.array(g.get("SAUCE_ROI_POLYGON", []), dtype=np.int32)
         self.sauce_cup_positions = list(g.get("SAUCE_CUP_POSITIONS", [(0, 0), (0, 0), (0, 0), (0, 0)]))
         self.sauce_debug_folder = g.get("SAUCE_DEBUG_FOLDER", "debug_frames/sauce")
+        sauce_classes = g.get("SAUCE_ALLOWED_CLASSES", None)
+        self.sauce_allowed_classes = sauce_classes if sauce_classes is not None else g.get("ALLOWED_CLASSES", [])
+
+        # Station detection classes (all classes if None or empty)
+        station_classes = g.get("STATION_ALLOWED_CLASSES", None)
+        self.station_allowed_classes = station_classes if station_classes is not None else g.get("ALLOWED_CLASSES", [])
+
+        # ROI cropping padding
+        self.roi_padding = int(g.get("ROI_PADDING", 50))
 
         # Filters / heuristics
         self.min_cup_size = int(g.get("MIN_CUP_SIZE", 16))
@@ -247,6 +258,9 @@ def _build_roi_integral(h: int, w: int, roi_poly: np.ndarray):
 # Main detector
 # ------------------------------
 
+# Sentinel to distinguish between "not provided" and "explicitly None" for allowed_classes
+_SENTINEL_ALLOWED_CLASSES = object()
+
 class RFDETRDetector:
     def __init__(self, config_path: str = "config.py"):
         mod = _load_config_module(config_path)
@@ -254,6 +268,17 @@ class RFDETRDetector:
         self.config_path = config_path  # Store for path resolution
 
         self._validate_config()
+        
+        # Warn if ROIs are identical (likely configuration error)
+        if self.config.debug_mode:
+            if (self.config.roi_polygon.size > 0 and 
+                self.config.milk_roi_polygon.size > 0 and
+                np.array_equal(self.config.roi_polygon, self.config.milk_roi_polygon)):
+                log.warning("⚠️  Station ROI and Milk ROI are identical! Milk detection will use the same area as station.")
+            if (self.config.roi_polygon.size > 0 and 
+                self.config.sauce_roi_polygon.size > 0 and
+                np.array_equal(self.config.roi_polygon, self.config.sauce_roi_polygon)):
+                log.warning("⚠️  Station ROI and Sauce ROI are identical! Sauce detection will use the same area as station.")
 
         # Stream
         self.reader = RTSPStreamReader(
@@ -327,12 +352,30 @@ class RFDETRDetector:
         else:
             self.name2id = {name.lower(): i for i, name in enumerate(COCO_CLASSES)}
 
+        # Legacy: kept for backward compatibility
+        # Load legacy ALLOWED_CLASSES from config module for backward compatibility
+        mod = _load_config_module(self.config_path)
+        allowed_classes_legacy = mod.__dict__.get("ALLOWED_CLASSES", [])
         self.target_ids = set()
-        if self.config.allowed_classes:
-            missing = [n for n in self.config.allowed_classes if n.lower() not in self.name2id]
+        if allowed_classes_legacy:
+            missing = [n for n in allowed_classes_legacy if n.lower() not in self.name2id]
             if missing:
                 log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
-            self.target_ids = {self.name2id[n.lower()] for n in self.config.allowed_classes if n.lower() in self.name2id}
+            self.target_ids = {self.name2id[n.lower()] for n in allowed_classes_legacy if n.lower() in self.name2id}
+
+    def _get_class_ids(self, allowed_classes):
+        """
+        Convert class names to class IDs.
+        If allowed_classes is None or empty, returns None (all classes allowed).
+        """
+        if not allowed_classes:
+            return None  # None means all classes
+        target_ids = set()
+        missing = [n for n in allowed_classes if n.lower() not in self.name2id]
+        if missing:
+            log.warning(f"Unknown class names: {missing}")
+        target_ids = {self.name2id[n.lower()] for n in allowed_classes if n.lower() in self.name2id}
+        return target_ids if target_ids else None
 
     def get_connection_status(self):
         return self.reader.status()
@@ -400,7 +443,7 @@ class RFDETRDetector:
 
     # --------------- Generic Detection Method ---------------
     def _detect_generic(self, roi_polygon, cup_positions, debug_folder=None, label_prefix="", 
-                        return_dict=True, num_positions=4, max_distance=None):
+                        return_dict=True, num_positions=4, max_distance=None, allowed_classes=_SENTINEL_ALLOWED_CLASSES):
         """
         Generic detection method used by all detection functions.
         
@@ -412,6 +455,7 @@ class RFDETRDetector:
             return_dict: If True, return dict. If False, return bool (for single cup)
             num_positions: Number of cup positions (4 for station, 1 for milk/sauce)
             max_distance: Maximum distance for cup assignment (uses config default if None)
+            allowed_classes: List of class names to allow (None = all classes)
             
         Returns:
             dict {0: bool, 1: bool, ...} or bool or {"error": "..."}
@@ -422,6 +466,39 @@ class RFDETRDetector:
                 return {"error": "No frame available yet."}
 
             orig_h, orig_w = frame.shape[:2]
+            
+            # Crop to ROI bounding box + padding if ROI is defined
+            crop_x1, crop_y1, crop_x2, crop_y2 = 0, 0, orig_w, orig_h
+            crop_offset_x, crop_offset_y = 0, 0
+            
+            if roi_polygon.size > 0:
+                # Get bounding box of ROI
+                roi_x_min = int(np.min(roi_polygon[:, 0]))
+                roi_y_min = int(np.min(roi_polygon[:, 1]))
+                roi_x_max = int(np.max(roi_polygon[:, 0]))
+                roi_y_max = int(np.max(roi_polygon[:, 1]))
+                
+                # Add padding
+                padding = self.config.roi_padding
+                crop_x1 = max(0, roi_x_min - padding)
+                crop_y1 = max(0, roi_y_min - padding)
+                crop_x2 = min(orig_w, roi_x_max + padding)
+                crop_y2 = min(orig_h, roi_y_max + padding)
+                
+                # Crop frame
+                frame = frame[crop_y1:crop_y2, crop_x1:crop_x2]
+                crop_offset_x = crop_x1
+                crop_offset_y = crop_y1
+                
+                # Adjust ROI polygon and cup positions relative to cropped frame
+                roi_polygon = roi_polygon.copy()
+                roi_polygon[:, 0] -= crop_offset_x
+                roi_polygon[:, 1] -= crop_offset_y
+                
+                # Update dimensions
+                orig_h = crop_y2 - crop_y1
+                orig_w = crop_x2 - crop_x1
+
             scale = min(1.0, float(self.config.max_side) / float(max(orig_h, orig_w)))
             new_w = int(orig_w * scale)
             new_h = int(orig_h * scale)
@@ -437,10 +514,14 @@ class RFDETRDetector:
                 roi_poly_resized = np.array([], dtype=np.int32)
             roi_mask, roi_integral = _build_roi_integral(new_h, new_w, roi_poly_resized)
 
-            # Resize cup positions
+            # Resize cup positions (already adjusted for crop)
             cups = np.array(cup_positions, dtype=np.float32)
             if len(cups.shape) == 1:  # Handle single position
                 cups = cups.reshape(1, -1)
+            # Adjust for crop offset first
+            cups[:, 0] -= crop_offset_x
+            cups[:, 1] -= crop_offset_y
+            # Then resize
             cups[:, 0] *= (new_w / float(orig_w))
             cups[:, 1] *= (new_h / float(orig_h))
             cups_resized = cups.astype(np.float32)
@@ -465,12 +546,22 @@ class RFDETRDetector:
             keep = scores >= self.config.confidence
             boxes_xyxy, scores, class_ids = boxes_xyxy[keep], scores[keep], class_ids[keep]
 
-            # Class filter
-            if self.target_ids:
+            # Class filter (use dynamic allowed_classes if provided)
+            # Use sentinel to distinguish between "not provided" and "explicitly None"
+            if allowed_classes is not _SENTINEL_ALLOWED_CLASSES:
+                # Explicitly provided (could be None, empty list, or list of classes)
+                target_ids = self._get_class_ids(allowed_classes)
+                # target_ids will be None if allowed_classes is None or empty (all classes allowed)
+            else:
+                # Not provided (default parameter), use legacy filter
+                target_ids = self.target_ids
+            
+            # Only filter if target_ids is set (not None and not empty)
+            if target_ids:
                 try:
-                    mask = torch.isin(class_ids, torch.tensor(list(self.target_ids), dtype=class_ids.dtype))
+                    mask = torch.isin(class_ids, torch.tensor(list(target_ids), dtype=class_ids.dtype))
                 except AttributeError:
-                    mask = torch.tensor([int(int(cid) in self.target_ids) for cid in class_ids], dtype=torch.bool)
+                    mask = torch.tensor([int(int(cid) in target_ids) for cid in class_ids], dtype=torch.bool)
                 
                 # Track filtered by class
                 for i, keep_det in enumerate(mask):
@@ -622,14 +713,15 @@ class RFDETRDetector:
         if self.config.debug_mode or self.config.save_frames:
             self._frame_count += 1
         
-        # Use generic detection method
+        # Use generic detection method (station uses all classes)
         present = self._detect_generic(
             roi_polygon=self.config.roi_polygon,
             cup_positions=self.config.cup_positions,
             debug_folder=self.config.debug_folder,
             label_prefix="",
             return_dict=True,
-            num_positions=4
+            num_positions=4,
+            allowed_classes=self.config.station_allowed_classes
         )
         
         # Apply voting/history if it's a valid result
@@ -680,13 +772,20 @@ class RFDETRDetector:
         Milk dispenser detection using MILK_ROI_POLYGON and MILK_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
+        # Debug: log which ROI is being used
+        if self.config.debug_mode:
+            log.info(f"Milk detection using ROI polygon with {len(self.config.milk_roi_polygon)} points")
+            if self.config.milk_roi_polygon.size > 0:
+                log.info(f"Milk ROI bounds: x=[{np.min(self.config.milk_roi_polygon[:, 0])}, {np.max(self.config.milk_roi_polygon[:, 0])}], y=[{np.min(self.config.milk_roi_polygon[:, 1])}, {np.max(self.config.milk_roi_polygon[:, 1])}]")
+        
         return self._detect_generic(
             roi_polygon=self.config.milk_roi_polygon,
             cup_positions=self.config.milk_cup_positions,
             debug_folder=self.config.milk_debug_folder,
             label_prefix="Milk ",
             return_dict=False,
-            num_positions=1
+            num_positions=1,
+            allowed_classes=self.config.milk_allowed_classes
         )
 
     # --------------- Sauce Detection Method ---------------
@@ -701,7 +800,8 @@ class RFDETRDetector:
             debug_folder=self.config.sauce_debug_folder,
             label_prefix="Sauce ",
             return_dict=False,
-            num_positions=1
+            num_positions=1,
+            allowed_classes=self.config.sauce_allowed_classes
         )
 
 

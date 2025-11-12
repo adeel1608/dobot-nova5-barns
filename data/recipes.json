@@ -8,739 +8,824 @@
   ],
   "Espresso": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
+    },
+    {
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     }
   ],
   "Americano": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Get_Hot_Water",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Get Hot Water",
       "assigned_arm": "Arm1",
-      "depends_on": ["Get_Hot_Water"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Get Hot Water"]
+    },
+    {
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     }
   ],
   "Iced Americano": [
     {
-      "action": "Dispense_Plastic_Cup",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "Go_to_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
-    },
-    {
-      "action": "dispense_ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_to_Ice"]
-    },
-    {
-      "action": "Go_Home_With_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_ice"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_Home_With_Ice"]
-    },
-    {
-      "action": "dispense_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Pick_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_milk"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Station",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Espresso_Only",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
+      "action": "Dispense Plastic Cup",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Go To Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Plastic Cup"]
+    },
+    {
+      "action": "Dispense Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go To Ice"]
+    },
+    {
+      "action": "Go Home With Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Ice"]
+    },
+    {
+      "action": "Place Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go Home With Ice"]
+    },
+    {
+      "action": "Dispense Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Place Plastic Cup Milk"]
+    },
+    {
+      "action": "Pick Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Milk"]
+    },
+    {
+      "action": "Place Plastic Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Milk"]
+    },
+    {
+      "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Validate Ingredients"]
+    },
+    {
+      "action": "Pour Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Make Espresso Only", "Place Plastic Cup Station"]
+    },
+    {
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     }
   ],
   "Macchiato": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": []
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Cortado": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": []
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Cappuccino": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": []
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Caramel Macchiato": [
     {
-    "action": "Dispense_Paper_Cup",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Espresso_Only",
+    "action": "Dispense Paper Cup",
       "assigned_arm": "Arm1",
-      "depends_on": ["Dispense_Paper_Cup"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pick_Paper_Cup_Station",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Paper_Cup"]
-    },
-    {
-      "action": "Place_Paper_Cup_Sauces",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Paper_Cup_Station"]
-    },
-    {
-      "action": "dispense_sauce",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Paper_Cup_Sauces"]
-    },
-    {
-      "action": "Pick_Paper_Cup_Sauces",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_sauce"]
-    },
-    {
-      "action": "Place_Paper_Cup_Station",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Paper_Cup_Sauces"]
-    },
-    {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
+      "depends_on": ["Dispense Paper Cup"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pick Paper Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Paper Cup"]
+    },
+    {
+      "action": "Place Paper Cup Sauces",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Paper Cup Station"]
+    },
+    {
+      "action": "Dispense Sauce",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Place Paper Cup Sauces"]
+    },
+    {
+      "action": "Pick Paper Cup Sauces",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Sauce"]
+    },
+    {
+      "action": "Place Paper Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Paper Cup Sauces"]
+    },
+    {
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Place Paper Cup Station", "Make Espresso Only"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Paper_Cup_Station"]
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Place Paper Cup Station"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Flat White": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": []
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Latte": [
     {
-      "action": "Espresso",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
+      "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Espresso"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Pour Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Make Espresso"]
     },
     {
-      "action": "Milk_Dispensing_Frother",
-      "assigned_arm": "Arm2",
-      "depends_on": []
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     },
     {
-      "action": "Froth_Milk",
+      "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Milk_Dispensing_Frother"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Pour_Frothed_Milk",
+      "action": "Froth Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Froth_Milk", "Pour_Espresso"]
+      "depends_on": ["Dispense Milk Pitcher"]
     },
     {
-      "action": "Clean_Milk_Pitcher",
+      "action": "Pour Frothed Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+      "depends_on": ["Froth Milk", "Pour Espresso"]
+    },
+    {
+      "action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
     }
   ],
   "Iced Latte": [
     {
-      "action": "Dispense_Plastic_Cup",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "Go_to_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
-    },
-    {
-      "action": "dispense_ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_to_Ice"]
-    },
-    {
-      "action": "Go_Home_With_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_ice"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_Home_With_Ice"]
-    },
-    {
-      "action": "dispense_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Pick_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_milk"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Station",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Espresso_Only",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
+      "action": "Dispense Plastic Cup",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Go To Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Plastic Cup"]
+    },
+    {
+      "action": "Dispense Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go To Ice"]
+    },
+    {
+      "action": "Go Home With Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Ice"]
+    },
+    {
+      "action": "Place Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go Home With Ice"]
+    },
+    {
+      "action": "Dispense Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Place Plastic Cup Milk"]
+    },
+    {
+      "action": "Pick Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Milk"]
+    },
+    {
+      "action": "Place Plastic Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Milk"]
+    },
+    {
+      "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Validate Ingredients"]
+    },
+    {
+      "action": "Pour Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Make Espresso Only", "Place Plastic Cup Station"]
+    },
+    {
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     }
   ],  
   "Passion Fruit Iced Tea": [
     {
-      "action": "Dispense_Plastic_Cup",
-      "assigned_arm": "Arm2",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Go_to_Ice",
+      "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "dispense_ice",
+      "action": "Go To Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Go_to_Ice"]
+      "depends_on": ["Dispense Plastic Cup"]
     },
     {
-      "action": "Go_Home_With_Ice",
+      "action": "Dispense Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_ice"]
+      "depends_on": ["Go To Ice"]
     },
     {
-      "action": "Place_Plastic_Cup_Sauces",
+      "action": "Go Home With Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Go_Home_With_Ice"]
+      "depends_on": ["Dispense Ice"]
     },
     {
-      "action": "dispense_sauce",
+      "action": "Place Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Sauces"]
+      "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Pick_Plastic_Cup_Sauces",
+      "action": "Dispense Sauce",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_sauce"]
+      "depends_on": ["Place Plastic Cup Sauces"]
     },
     {
-      "action": "Place_Plastic_Cup_Milk",
+      "action": "Pick Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Sauces"]
+      "depends_on": ["Dispense Sauce"]
     },
     {
-      "action": "dispense_milk",
+      "action": "Place Plastic Cup Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Milk"]
+      "depends_on": ["Pick Plastic Cup Sauces"]
     },
     {
-      "action": "Pick_Plastic_Cup_Milk",
+      "action": "Dispense Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_milk"]
+      "depends_on": ["Place Plastic Cup Milk"]
     },
     {
-      "action": "Place_Plastic_Cup_Station",
+      "action": "Pick Plastic Cup Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
+      "depends_on": ["Dispense Milk"]
+    },
+    {
+      "action": "Place Plastic Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Milk"]
     }
   ],
   "Peach Iced Tea": [
     {
-      "action": "Dispense_Plastic_Cup",
-      "assigned_arm": "Arm2",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Go_to_Ice",
+      "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "dispense_ice",
+      "action": "Go To Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Go_to_Ice"]
+      "depends_on": ["Dispense Plastic Cup"]
     },
     {
-      "action": "Go_Home_With_Ice",
+      "action": "Dispense Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_ice"]
+      "depends_on": ["Go To Ice"]
     },
     {
-      "action": "Place_Plastic_Cup_Sauces",
+      "action": "Go Home With Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Go_Home_With_Ice"]
+      "depends_on": ["Dispense Ice"]
     },
     {
-      "action": "dispense_sauce",
+      "action": "Place Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Sauces"]
+      "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Pick_Plastic_Cup_Sauces",
+      "action": "Dispense Sauce",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_sauce"]
+      "depends_on": ["Place Plastic Cup Sauces"]
     },
     {
-      "action": "Place_Plastic_Cup_Milk",
+      "action": "Pick Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Sauces"]
+      "depends_on": ["Dispense Sauce"]
     },
     {
-      "action": "dispense_milk",
+      "action": "Place Plastic Cup Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Milk"]
+      "depends_on": ["Pick Plastic Cup Sauces"]
     },
     {
-      "action": "Pick_Plastic_Cup_Milk",
+      "action": "Dispense Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["dispense_milk"]
+      "depends_on": ["Place Plastic Cup Milk"]
     },
     {
-      "action": "Place_Plastic_Cup_Station",
+      "action": "Pick Plastic Cup Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
+      "depends_on": ["Dispense Milk"]
+    },
+    {
+      "action": "Place Plastic Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Milk"]
     }
   ],
   "Iced Spanish Latte": [
     {
-      "action": "Dispense_Plastic_Cup",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
-    {
-      "action": "Place_Plastic_Cup_Sauces",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense_Plastic_Cup"]
-    },
-    {
-      "action": "dispense_sauce",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Sauces"]
-    },
-    {
-      "action": "Pick_Plastic_Cup_Sauces",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_sauce"]
-    },
-    {
-      "action": "Go_to_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Sauces"]
-    },
-    {
-      "action": "dispense_ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_to_Ice"]
-    },
-    {
-      "action": "Go_Home_With_Ice",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_ice"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Go_Home_With_Ice"]
-    },
-    {
-      "action": "dispense_milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Place_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Pick_Plastic_Cup_Milk",
-      "assigned_arm": "Arm2",
-      "depends_on": ["dispense_milk"]
-    },
-    {
-      "action": "Place_Plastic_Cup_Station",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Pick_Plastic_Cup_Milk"]
-    },
-    {
-      "action": "Espresso_Only",
+      "action": "Validate Ingredients",
       "assigned_arm": "Arm1",
       "depends_on": []
     },
     {
-      "action": "Pour_Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Espresso_Only", "Place_Plastic_Cup_Station"]
+      "action": "Dispense Plastic Cup",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Validate Ingredients"]
     },
     {
-      "action": "Clean_Portafilter",
+      "action": "Place Plastic Cup Sauces",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Plastic Cup"]
+    },
+    {
+      "action": "Dispense Sauce",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Place Plastic Cup Sauces"]
+    },
+    {
+      "action": "Pick Plastic Cup Sauces",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Sauce"]
+    },
+    {
+      "action": "Go To Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Sauces"]
+    },
+    {
+      "action": "Dispense Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go To Ice"]
+    },
+    {
+      "action": "Go Home With Ice",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Ice"]
+    },
+    {
+      "action": "Place Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Go Home With Ice"]
+    },
+    {
+      "action": "Dispense Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Place Plastic Cup Milk"]
+    },
+    {
+      "action": "Pick Plastic Cup Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Milk"]
+    },
+    {
+      "action": "Place Plastic Cup Station",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pick Plastic Cup Milk"]
+    },
+    {
+      "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour_Espresso"]
+      "depends_on": ["Validate Ingredients"]
+    },
+    {
+      "action": "Pour Espresso",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Make Espresso Only", "Place Plastic Cup Station"]
+    },
+    {
+      "action": "Clean Portafilter",
+      "assigned_arm": "Arm1",
+      "depends_on": ["Pour Espresso"]
     }
   ],
   "Spanish Latte": [
     {
-      "action": "Dispense_Paper_Cup",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
-        "depends_on": []
+        "depends_on": ["Validate Ingredients"]
       },
       {
-        "action": "Espresso_Only",
+        "action": "Make Espresso Only",
         "assigned_arm": "Arm1",
-        "depends_on": ["Dispense_Paper_Cup"]
+        "depends_on": ["Dispense Paper Cup"]
       },
       {
-        "action": "Pick_Paper_Cup_Station",
+        "action": "Pick Paper Cup Station",
         "assigned_arm": "Arm2",
-        "depends_on": ["Dispense_Paper_Cup"]
+        "depends_on": ["Dispense Paper Cup"]
       },
       {
-        "action": "Place_Paper_Cup_Sauces",
+        "action": "Place Paper Cup Sauces",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pick_Paper_Cup_Station"]
+        "depends_on": ["Pick Paper Cup Station"]
       },
       {
-        "action": "dispense_sauce",
+        "action": "Dispense Sauce",
         "assigned_arm": "Arm2",
-        "depends_on": ["Place_Paper_Cup_Sauces"]
+        "depends_on": ["Place Paper Cup Sauces"]
       },
       {
-        "action": "Pick_Paper_Cup_Sauces",
+        "action": "Pick Paper Cup Sauces",
         "assigned_arm": "Arm2",
-        "depends_on": ["dispense_sauce"]
+        "depends_on": ["Dispense Sauce"]
       },
       {
-        "action": "Place_Paper_Cup_Station",
+        "action": "Place Paper Cup Station",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pick_Paper_Cup_Sauces"]
+        "depends_on": ["Pick Paper Cup Sauces"]
       },
       {
-        "action": "Pour_Espresso",
+        "action": "Pour Espresso",
         "assigned_arm": "Arm1",
-        "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
+        "depends_on": ["Place Paper Cup Station", "Make Espresso Only"]
       },
       {
-        "action": "Clean_Portafilter",
+        "action": "Clean Portafilter",
         "assigned_arm": "Arm1",
-        "depends_on": ["Pour_Espresso"]
+        "depends_on": ["Pour Espresso"]
       },
       {
-        "action": "Milk_Dispensing_Frother",
+        "action": "Dispense Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Place_Paper_Cup_Station"]
+        "depends_on": ["Place Paper Cup Station"]
       },
       {
-        "action": "Froth_Milk",
+        "action": "Froth Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Milk_Dispensing_Frother"]
+        "depends_on": ["Dispense Milk Pitcher"]
       },
       {
-        "action": "Pour_Frothed_Milk",
+        "action": "Pour Frothed Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Froth_Milk", "Pour_Espresso"]
+        "depends_on": ["Froth Milk", "Pour Espresso"]
       },
       {
-        "action": "Clean_Milk_Pitcher",
+        "action": "Clean Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+        "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
       }
   ],
   "White Mocha": [
     {
-      "action": "Dispense_Paper_Cup",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
-        "depends_on": []
+        "depends_on": ["Validate Ingredients"]
       },
       {
-        "action": "Espresso_Only",
+        "action": "Make Espresso Only",
         "assigned_arm": "Arm1",
-        "depends_on": ["Dispense_Paper_Cup"]
+        "depends_on": ["Dispense Paper Cup"]
       },
       {
-        "action": "Pick_Paper_Cup_Station",
+        "action": "Pick Paper Cup Station",
         "assigned_arm": "Arm2",
-        "depends_on": ["Dispense_Paper_Cup"]
+        "depends_on": ["Dispense Paper Cup"]
       },
       {
-        "action": "Place_Paper_Cup_Sauces",
+        "action": "Place Paper Cup Sauces",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pick_Paper_Cup_Station"]
+        "depends_on": ["Pick Paper Cup Station"]
       },
       {
-        "action": "dispense_sauce",
+        "action": "Dispense Sauce",
         "assigned_arm": "Arm2",
-        "depends_on": ["Place_Paper_Cup_Sauces"]
+        "depends_on": ["Place Paper Cup Sauces"]
       },
       {
-        "action": "Pick_Paper_Cup_Sauces",
+        "action": "Pick Paper Cup Sauces",
         "assigned_arm": "Arm2",
-        "depends_on": ["dispense_sauce"]
+        "depends_on": ["Dispense Sauce"]
       },
       {
-        "action": "Place_Paper_Cup_Station",
+        "action": "Place Paper Cup Station",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pick_Paper_Cup_Sauces"]
+        "depends_on": ["Pick Paper Cup Sauces"]
       },
       {
-        "action": "Pour_Espresso",
+        "action": "Pour Espresso",
         "assigned_arm": "Arm1",
-        "depends_on": ["Place_Paper_Cup_Station", "Espresso_Only"]
+        "depends_on": ["Place Paper Cup Station", "Make Espresso Only"]
       },
       {
-        "action": "Clean_Portafilter",
+        "action": "Clean Portafilter",
         "assigned_arm": "Arm1",
-        "depends_on": ["Pour_Espresso"]
+        "depends_on": ["Pour Espresso"]
       },
       {
-        "action": "Milk_Dispensing_Frother",
+        "action": "Dispense Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Place_Paper_Cup_Station"]
+        "depends_on": ["Place Paper Cup Station"]
       },
       {
-        "action": "Froth_Milk",
+        "action": "Froth Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Milk_Dispensing_Frother"]
+        "depends_on": ["Dispense Milk Pitcher"]
       },
       {
-        "action": "Pour_Frothed_Milk",
+        "action": "Pour Frothed Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Froth_Milk", "Pour_Espresso"]
+        "depends_on": ["Froth Milk", "Pour Espresso"]
       },
       {
-        "action": "Clean_Milk_Pitcher",
+        "action": "Clean Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour_Frothed_Milk", "Clean_Portafilter"]
+        "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
       }
   ],
   "Mocha Frappe": [
     {
-      "action": "Slushie",
-      "assigned_arm": "Arm2",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
       "depends_on": []
+    },
+    {
+      "action": "Get Slush",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Validate Ingredients"]
     }
   ],
   "Chocolate Frappe": [
     {
-      "action": "Calibrate",
+      "action": "Validate Ingredients",
+      "assigned_arm": "Arm1",
+      "depends_on": []
+    },
+    {
+      "action": "Get Slush",
       "assigned_arm": "Arm1",
       "depends_on": []
     }

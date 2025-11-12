@@ -29,6 +29,7 @@ const pngAssets = {
 
 const CategoryInventoryCard = ({ category, isAllView, count }) => {
   const [expanded, setExpanded] = useState(!isAllView);
+  const [refillingCategory, setRefillingCategory] = useState(false);
 
   const {
     FullCategoryInfo,
@@ -68,7 +69,15 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
   };
 
   const handleRefillCategory = async () => {
-    await refillCategory(category, 100);
+    setRefillingCategory(true);
+    try {
+      await refillCategory(category, 100);
+    } finally {
+      // Keep loading state for a brief moment to show success feedback
+      setTimeout(() => {
+        setRefillingCategory(false);
+      }, 500);
+    }
   };
 
   const getProgressColor = (level, numeric) => {
@@ -174,10 +183,10 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
           <div className="flex items-center justify-end sm:justify-start gap-2 sm:gap-3 flex-shrink-0">
             <button
               onClick={handleRefillCategory}
-              disabled={isLoading}
+              disabled={refillingCategory || isLoading}
               className="px-4 py-2.5 bg-[#00784B] text-white text-sm font-semibold rounded-lg hover:bg-[#00784B]/90 focus:outline-none focus:ring-2 focus:ring-[#00784B]/50 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-0.5 active:translate-y-0"
             >
-              {isLoading ? (
+              {refillingCategory ? (
                 <div className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

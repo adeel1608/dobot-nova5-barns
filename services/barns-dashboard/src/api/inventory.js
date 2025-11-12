@@ -126,23 +126,30 @@ export const inventoryAPI = {
 
   // Refill entire category
   refillCategory: async (category, amount = 100) => {
-    // Import here to avoid circular dependency
-    const { getCategoryItems } = await import('../utils/inventoryData');
-    const categoryItems = getCategoryItems(category);
-    const results = [];
+    // Map frontend category names to backend ingredient_type names
+    const categoryMapping = {
+      'milk': 'milk',
+      'beans': 'coffee_beans',
+      'coffee_beans': 'coffee_beans',
+      'syrups': 'syrups',
+      'cups': 'cups',
+      'premixes': 'premixes'
+    };
     
-    for (const itemKey of Object.keys(categoryItems)) {
-      const result = await inventoryAPI.refillInventory(itemKey, amount);
-      results.push({ item: itemKey, result });
-    }
+    // Get the backend ingredient_type name
+    const ingredientType = categoryMapping[category] || category;
     
-    const successCount = results.filter(r => r.result.success).length;
-    const totalCount = results.length;
+    // Send a single request to refill the entire category (subtype=None means refill all subtypes)
+    // This ensures we refill only items that exist in the database, not frontend-only items
+    const result = await inventoryAPI.refillInventory(ingredientType, amount);
     
     return {
-      success: successCount === totalCount,
-      data: results,
-      message: `Refilled ${successCount}/${totalCount} items in ${category} category`
+      success: result.success,
+      data: result.data,
+      message: result.success 
+        ? `Successfully refilled all items in ${category} category`
+        : `Failed to refill ${category} category: ${result.error || 'Unknown error'}`,
+      error: result.error
     };
   },
 

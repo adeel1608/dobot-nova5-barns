@@ -8,7 +8,7 @@
       }
     ]
   },
-  "dispense_milk": {
+  "Dispense Milk": {
     "steps": [
       {
         "type": "automation",
@@ -17,7 +17,7 @@
       }
     ]
   },
-  "dispense_sauce": {
+  "Dispense Sauce": {
     "steps": [
       {
         "type": "automation",
@@ -26,7 +26,7 @@
       }
     ]
   },
-  "dispense_slush": {
+  "Dispense Slush": {
     "steps": [
       {
         "type": "automation",
@@ -35,7 +35,7 @@
       }
     ]
   },
-  "dispensese_coffee": {
+  "Dispense Coffee": {
     "steps": [
       {
         "type": "automation",
@@ -44,7 +44,7 @@
       }
     ]
   },
-  "dispense_ice": {
+  "Dispense Ice": {
     "steps": [
       {
         "type": "automation",
@@ -55,7 +55,7 @@
       }
     ]
   },
-  "grind_coffee": {
+  "Grind Coffee": {
     "steps": [
       {
         "type": "automation",
@@ -66,7 +66,7 @@
       }
     ]
   },
-  "clean_steam_wand": {
+  "Clean Steam Wand": {
     "steps": [
       {
         "type": "robot",
@@ -77,7 +77,7 @@
       }
     ]
   },
-  "tamper_coffee": {
+  "Tamper Coffee": {
     "steps": [
       {
         "type": "automation",
@@ -86,26 +86,8 @@
       }
     ]
   },
-  "Validate_Cup": {
+  "Validate Ingredients": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "cup_detection",
-        "params": {}
-      }
-    ]
-  },
-  "Calibrate": {
-    "steps": [
-      {
-        "type": "robot",
-        "function": "get_machine_position",
-        "params": {}
-      }
-    ]
-  },
-  "Espresso": {
-      "steps": [
       {
         "type": "validation",
         "function": "validate_ingredients",
@@ -115,7 +97,22 @@
         "type": "validation",
         "function": "update_ingredients",
         "params": {}
-      },
+      }
+    ]
+  },
+
+  
+  "Calibrate": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "get_machine_position",
+        "params": {}
+      }
+    ]
+  },
+  "Make Espresso": {
+      "steps": [
       {
           "type": "automation",
           "function": "grinding_machine",
@@ -183,7 +180,7 @@
       }
       ]
   },
-  "Espresso_Only": {
+  "Make Espresso Only": {
     "steps": [
     {
         "type": "automation",
@@ -242,7 +239,7 @@
     }
     ]
   },
-  "Pour_Espresso": {
+  "Pour Espresso": {
     "steps":[
       {
       "type": "robot",
@@ -260,7 +257,7 @@
     }
     ]
   },
-  "Milk_Dispensing_Frother": {
+  "Dispense Milk Pitcher": {
     "steps": [
       {
         "type": "robot",
@@ -290,7 +287,7 @@
       }
     ]
   },
-  "Froth_Milk": {
+  "Froth Milk": {
     "steps": [
         {
           "type": "automation",
@@ -319,7 +316,7 @@
         }
     ]
   },
-  "Pour_Frothed_Milk": {
+  "Pour Frothed Milk": {
     "steps": [
       {
         "type": "robot",
@@ -330,7 +327,7 @@
       }
     ]
   },
-  "Clean_Portafilter": {
+  "Clean Portafilter": {
     "steps": [
       {
         "type": "robot",
@@ -355,7 +352,7 @@
       }
     ]
   },
-  "Mount_Portafilter": {
+  "Mount Portafilter": {
     "steps": [
       {
         "type": "robot",
@@ -366,7 +363,7 @@
       }
     ]
   },
-  "Clean_Milk_Pitcher": {
+  "Clean Milk Pitcher": {
     "steps": [
       {
         "type": "robot",
@@ -385,7 +382,7 @@
       }      
     ]
   },
-  "Slushie": {
+  "Get Slush": {
     "steps": [
       {
         "type": "robot",
@@ -414,7 +411,7 @@
         }
     ]
   },
-  "Dispense_Paper_Cup": {
+  "Dispense Paper Cup": {
     "steps": [
       {
         "type": "validation",
@@ -428,7 +425,7 @@
       }
     ]
   },
-  "Dispense_Plastic_Cup": {
+  "Dispense Plastic Cup": {
     "steps": [
 
       {
@@ -440,7 +437,7 @@
       }
     ]
   },
-  "Pick_Plastic_Cup_Milk": {
+  "Pick Plastic Cup Milk": {
     "steps": [
       {
         "type": "robot",
@@ -451,7 +448,7 @@
       }
     ]
   },
-  "Place_Plastic_Cup_Milk": {
+  "Place Plastic Cup Milk": {
     "steps": [
       {
         "type": "robot",
@@ -462,7 +459,7 @@
       }
     ]
   },
-  "Pick_Paper_Cup_Sauces": {
+  "Pick Paper Cup Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -473,7 +470,7 @@
       }
     ]
   },
-  "Pick_Plastic_Cup_Sauces": {
+  "Pick Plastic Cup Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -484,7 +481,7 @@
       }
     ]
   },
-  "Place_Plastic_Cup_Sauces": {
+  "Place Plastic Cup Sauces": {
     "steps": [
       {
         "type": "validation",
@@ -500,7 +497,7 @@
       }
     ]
   },
-  "Place_Paper_Cup_Sauces": {
+  "Place Paper Cup Sauces": {
     "steps": [
       {
         "type": "robot",
@@ -511,7 +508,7 @@
       }
     ]
   },
-  "Pick_Paper_Cup_Station": {
+  "Pick Paper Cup Station": {
     "steps": [
       {
         "type": "robot",
@@ -522,7 +519,7 @@
       }
     ]
   },
-  "Place_Paper_Cup_Station": {
+  "Place Paper Cup Station": {
     "steps": [
       {
         "type": "validation",
@@ -538,7 +535,7 @@
       }
     ]
   },
-  "Place_Plastic_Cup_Station": {
+  "Place Plastic Cup Station": {
     "steps": [
       {
         "type": "validation",
@@ -554,7 +551,7 @@
       }
     ]
   },
-  "Get_Hot_Water": {
+  "Get Hot Water": {
     "steps": [
       {
         "type": "robot",
@@ -573,7 +570,7 @@
       }
     ]
   },
-  "Go_to_Ice": {
+  "Go To Ice": {
     "steps": [
       {
         "type": "robot",
@@ -582,7 +579,7 @@
       }
     ]
   },
-  "Go_Home_With_Ice": {
+  "Go Home With Ice": {
     "steps": [
       {
         "type": "robot",

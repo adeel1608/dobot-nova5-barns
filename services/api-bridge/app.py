@@ -9,7 +9,7 @@ import logging
 import os
 import sys
 from datetime import datetime
-from typing import Dict, Any, Optional, Set
+from typing import Dict, Any, Optional, Set, Tuple
 import uuid
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
@@ -764,10 +764,142 @@ async def get_inventory_category_info():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Mapping from frontend ingredient names to database subtype names
+# Based on validation_schema.sql - only items that exist in the database
+FRONTEND_TO_DB_SUBTYPE = {
+    # Milk mappings (frontend name -> database subtype)
+    "whole_milk": "whole_fat_milk",
+    "skim_milk": "low_fat_milk",  # skim_milk maps to low_fat_milk in DB
+    "almond_milk": "almond_milk",  # matches
+    "lactose_free_milk": "lactose_free_milk",  # matches
+    "low_fat_milk": "low_fat_milk",  # matches
+    "whole_fat_milk": "whole_fat_milk",  # matches
+    # Note: soy_milk, oat_milk, coconut_milk, rice_milk, heavy_cream don't exist in DB
+    
+    # Syrup mappings (frontend name -> database subtype)
+    "vanilla_syrup": "vanilla_syrup",  # matches
+    "caramel_syrup": "caramel_syrup",  # matches
+    "hazelnut_syrup": "hazelnut_syrup",  # matches
+    "white_chocolate_sauce": "white_chocolate_sauce",  # matches
+    "caramel_sauce": "caramel_sauce",  # matches
+    "condense_milk_sauce": "condense_milk_sauce",  # matches
+    "peached_iced_syrup": "peached_iced_syrup",  # matches
+    "passion_fruit_iced_syrup": "passion_fruit_iced_syrup",  # matches
+    "ice_tea_syrup": "ice_tea_syrup",  # matches
+    # Note: cinnamon_syrup, peppermint_syrup, irish_cream_syrup, amaretto_syrup,
+    # coconut_syrup, raspberry_syrup, lavender_syrup, maple_syrup don't exist in DB
+    
+    # Premixes (frontend name -> database subtype)
+    "mocha_frappe": "mocha_frappe",  # matches
+    "chocolate_frappe": "chocolate_frappe",  # matches
+    "half_and_half": "half_and_half",  # matches
+}
+
+def parse_ingredient_string(ingredient: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Parse ingredient string into ingredient_type and subtype.
+    Maps frontend ingredient names to database subtype names.
+    
+    Handles formats like:
+    - "coffee_beans_regular" -> ("coffee_beans", "regular")
+    - "whole_milk" -> ("milk", "whole_fat_milk")  # mapped to DB name
+    - "cup_H7" -> ("cups", "cup_H7")
+    - "vanilla_syrup" -> ("syrups", "vanilla_syrup")
+    - "milk" -> ("milk", None)  # refill all milk
+    - "cup" or "cups" -> ("cups", None)  # refill all cups
+    - "beans" -> ("coffee_beans", None)  # refill all coffee beans
+    - "syrup" -> ("syrups", None)  # refill all syrups
+    """
+    if not ingredient:
+        return None, None
+    
+    ingredient_lower = ingredient.lower().strip()
+    
+    # Handle simple category names (refill entire category)
+    if ingredient_lower in ["milk"]:
+        return "milk", None
+    elif ingredient_lower in ["cup", "cups"]:
+        return "cups", None
+    elif ingredient_lower in ["beans", "coffee", "coffee_beans"]:
+        return "coffee_beans", None
+    elif ingredient_lower in ["syrup", "syrups"]:
+        return "syrups", None
+    elif ingredient_lower in ["premix", "premixes"]:
+        return "premixes", None
+    
+    # Handle compound names with underscores
+    parts = ingredient.split("_")
+    
+    # Coffee beans: "coffee_beans_regular" or "coffee_beans_decaf"
+    if len(parts) >= 3 and parts[0] == "coffee" and parts[1] == "beans":
+        subtype = "_".join(parts[2:])  # "regular" or "decaf"
+        return "coffee_beans", subtype
+    elif len(parts) == 2 and parts[0] == "coffee" and parts[1] == "beans":
+        # "coffee_beans" without subtype - refill all coffee beans
+        return "coffee_beans", None
+    
+    # Cups: "cup_H7", "cup_H9", "cup_C7", etc.
+    if len(parts) >= 2 and parts[0] == "cup":
+        subtype = ingredient  # Keep full name like "cup_H7"
+        return "cups", subtype
+    
+    # Milk: Map frontend names to database subtypes
+    if ingredient_lower.endswith("_milk") or ingredient_lower in ["heavy_cream"]:
+        # Map frontend name to database subtype name
+        db_subtype = FRONTEND_TO_DB_SUBTYPE.get(ingredient_lower)
+        if db_subtype:
+            return "milk", db_subtype
+        else:
+            # Ingredient doesn't exist in database - log warning and return None to skip
+            log("WARNING", f"Ingredient '{ingredient}' (milk) not found in database, skipping refill", service="api_bridge")
+            return None, None
+    
+    # Syrups: Map frontend names to database subtypes
+    if ingredient_lower.endswith("_syrup") or ingredient_lower.endswith("_sauce"):
+        # Map frontend name to database subtype name
+        db_subtype = FRONTEND_TO_DB_SUBTYPE.get(ingredient_lower)
+        if db_subtype:
+            return "syrups", db_subtype
+        else:
+            # Ingredient doesn't exist in database - log warning and return None to skip
+            log("WARNING", f"Ingredient '{ingredient}' (syrup) not found in database, skipping refill", service="api_bridge")
+            return None, None
+    
+    # Premixes: Map frontend names to database subtypes
+    if ingredient_lower.endswith("_frappe") or "premix" in ingredient_lower or ingredient_lower == "half_and_half":
+        # Map frontend name to database subtype name
+        db_subtype = FRONTEND_TO_DB_SUBTYPE.get(ingredient_lower)
+        if db_subtype:
+            return "premixes", db_subtype
+        else:
+            # Ingredient doesn't exist in database - log warning and return None to skip
+            log("WARNING", f"Ingredient '{ingredient}' (premix) not found in database, skipping refill", service="api_bridge")
+            return None, None
+    
+    # Default: assume it's a subtype of unknown category
+    # Try to infer category from common patterns
+    log("WARNING", f"Could not parse ingredient '{ingredient}', treating as subtype only", service="api_bridge")
+    return None, ingredient
+
 @app.post("/api/inventory/refill")
-async def refill_inventory(ingredient_type: Optional[str] = None, subtype: Optional[str] = None):
-    """Refill inventory"""
+async def refill_inventory(request: InventoryRefill):
+    """Refill inventory - accepts ingredient string and parses it into ingredient_type and subtype"""
     try:
+        # Parse the ingredient string
+        ingredient_type, subtype = parse_ingredient_string(request.ingredient)
+        
+        # If ingredient doesn't exist in database, return success (skip it)
+        if ingredient_type is None and subtype is None:
+            log("INFO", f"Ingredient '{request.ingredient}' not found in database, skipping refill", service="api_bridge")
+            return {
+                "passed": True,
+                "details": {"message": f"Ingredient '{request.ingredient}' not found in database, skipped"},
+                "request_id": uuid.uuid4(),
+                "client_type": "api_bridge"
+            }
+        
+        log("INFO", f"Refilling inventory: ingredient='{request.ingredient}' -> ingredient_type='{ingredient_type}', subtype='{subtype}'", service="api_bridge")
+        
         response = await rabbitmq_client.send_request(
             target_service="validation",
             action="inventory_refill",
