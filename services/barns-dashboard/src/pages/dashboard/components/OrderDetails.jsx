@@ -395,17 +395,18 @@ function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, curren
           <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
             Cup {cup.split('-')[1] || cup}
           </span>
-          {elapsedTime && (
-            <span className="text-xs font-mono text-gray-500 bg-gray-100 px-1.5 sm:px-2 py-0.5 rounded flex-shrink-0">
-              {elapsedTime}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-          <span className="text-xs sm:text-sm font-medium text-gray-900 break-words line-clamp-2">{action}</span>
           <div className="flex-shrink-0">
             {getBadge(status)}
           </div>
+        </div>
+        <div className="flex flex-col justify-between sm:flex-row sm:items-center gap-1 sm:gap-3">
+          <span className="text-xs sm:text-sm font-medium text-gray-900 break-words line-clamp-2">{action}</span>
+          {elapsedTime && (
+            <span className="text-xs font-mono text-gray-500 flex-shrink-0 pr-3">
+              {elapsedTime}
+            </span>
+            
+          )}
         </div>
       </div>
     </div>
