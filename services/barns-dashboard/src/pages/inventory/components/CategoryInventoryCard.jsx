@@ -233,12 +233,12 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
       {expanded && (
         <div className="p-4 sm:p-6">
           {Object.keys(items).length > 0 ? (
-            <div className="h-[520px] overflow-y-auto scrollbar-thin scrollbar-track-[#233746]/5 scrollbar-thumb-[#00784B]/60 hover:scrollbar-thumb-[#00784B]/80 pr-2">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 auto-rows-[250px]">
+            <div className="max-h-[80vh] min-h-[200px] overflow-y-auto scrollbar-thin scrollbar-track-[#233746]/5 scrollbar-thumb-[#00784B]/60 hover:scrollbar-thumb-[#00784B]/80 pr-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6 auto-rows-[220px]">
                 {Object.entries(items).map(([itemKey, itemData]) => (
                   <div
                     key={itemKey}
-                    className="group bg-gradient-to-br from-white to-gray-50/50 rounded-xl p-4 border-2 border-[#00784B]/10 hover:border-[#00784B]/30 shadow-sm hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 h-full"
+                    className="group bg-gradient-to-br from-white to-gray-50/50 rounded-xl p-4 border-2 border-[#00784B]/10 hover:border-[#00784B]/30 shadow-sm hover:shadow-md transition-all duration-300 h-full flex flex-col"
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3 flex-1 min-w-0">
@@ -265,7 +265,7 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
                       </span>
                     </div>
 
-                    <div className="mb-4">
+                    <div className={itemData.last_refilled ? "mb-4" : "mb-0"}>
                       <div className="flex justify-between text-sm text-[#233746]/70 mb-2">
                         <span className="font-medium">Level</span>
                         <span className="font-semibold text-[#00784B]">
@@ -286,7 +286,7 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
                     </div>
 
                     {itemData.last_refilled && (
-                      <div className="text-xs text-[#233746]/60 mb-4 flex items-center">
+                      <div className="text-xs text-[#233746]/60 mb-0 flex items-center">
                         <svg
                           className="w-3.5 h-3.5 mr-1.5 text-[#00784B]"
                           fill="none"
@@ -314,7 +314,7 @@ Object.entries(categoryInfo).forEach(([itemKey, meta]) => {
                     <button
                       onClick={() => handleRefillItem(itemKey)}
                       disabled={isLoading}
-                      className={`w-full py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 ${
+                      className={`w-full py-2.5 px-4 text-sm font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0 mt-auto ${
                         itemData.level === "low"
                           ? "bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
                           : "bg-[#00784B] text-white hover:bg-[#00784B]/90 focus:ring-[#00784B]/50"
