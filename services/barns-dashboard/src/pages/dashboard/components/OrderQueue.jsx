@@ -89,13 +89,16 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
     }
   };
 
-  // Visual highlight for processing/stopping orders
+  // Visual highlight for processing/stopping/stopped orders
   const isProcessing = order.status === 'PROCESSING';
   const isInStoppingState = order.status === 'STOPPING';
+  const isStopped = order.status === 'STOPPED';
   const containerClasses = isProcessing
     ? 'mb-2 p-4 rounded-lg border-2 border-orange-400 bg-orange-50 shadow-lg transition-all duration-200 ring-2 ring-orange-200'
     : isInStoppingState
     ? 'mb-2 p-4 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
+    : isStopped
+    ? 'mb-2 p-4 rounded-lg border-2 border-red-300 shadow-lg ring-2 ring-red-200 animate-blink-red'
     : 'mb-2 p-4 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
 
   return (
@@ -138,10 +141,6 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
               title="Stopping - waiting for current task to complete"
             >
               <span className="inline-flex items-center">
-                <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
                 Stopping...
               </span>
             </button>
@@ -281,6 +280,7 @@ function OrderQueue({ connectionStatus }) {
     orders,
     ordersTotal,
     ordersHasMore,
+    fetchOrders,
     sendReorder,
     createOrder,
     startOrder,
@@ -315,7 +315,7 @@ function OrderQueue({ connectionStatus }) {
       // Poll every 2 seconds while there are active stopping/processing orders
       const interval = setInterval(() => {
         console.log('🔄 Polling for order updates (STOPPING/PROCESSING active)');
-        useStore.getState().fetchOrders();
+        fetchOrders();
       }, 2000);
       
       return () => {
@@ -323,7 +323,7 @@ function OrderQueue({ connectionStatus }) {
         clearInterval(interval);
       };
     }
-  }, [orders]);
+  }, [orders, fetchOrders]);
 
   const displayOrders = orders;
 
@@ -624,7 +624,7 @@ const handleDeleteOrder = async (orderId) => {
 
   const retryFetchOrders = () => {
     clearError('orders');
-    useStore.getState().fetchOrders();
+    fetchOrders();
   };
 
   const handleLoadMore = async () => {

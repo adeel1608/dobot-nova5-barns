@@ -37,16 +37,16 @@ export const useAlertsStore = create((set, get) => ({
   },
 
   // Fetch active alerts
-  fetchAlerts: async () => {
+  fetchAlerts: async (options = {}) => {
     const startTime = performance.now();
-    console.log('[AlertsStore] Starting fetchAlerts...');
+    console.log('[AlertsStore] Starting fetchAlerts...', options.noCache ? '(noCache)' : '');
     
     set(state => ({ 
       isLoading: true, 
       errors: { ...state.errors, alerts: null }
     }));
 
-    const result = await alertsAPI.fetchActiveAlerts();
+    const result = await alertsAPI.fetchActiveAlerts(options);
     const endTime = performance.now();
     const duration = (endTime - startTime).toFixed(2);
     

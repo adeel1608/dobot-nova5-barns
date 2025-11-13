@@ -199,8 +199,22 @@ class APIClient {
   /**
    * Helper for list operations with count
    */
-  async getList(url, params = {}, itemName = 'items') {
-    const result = await this.get(url, params);
+  async getList(url, params = {}, options = {}) {
+    // Handle both old format (itemName as string) and new format (options object)
+    let itemName = 'items';
+    let getOptions = {};
+    
+    if (typeof options === 'string') {
+      // Old format: getList(url, params, 'itemName')
+      itemName = options;
+    } else {
+      // New format: getList(url, params, { itemName: 'items', noCache: false, ... })
+      itemName = options.itemName || 'items';
+      getOptions = { ...options };
+      delete getOptions.itemName; // Remove itemName from options passed to get()
+    }
+    
+    const result = await this.get(url, params, getOptions);
     if (result.success && Array.isArray(result.data)) {
       result.message = `Successfully fetched ${result.data.length} ${itemName}`;
     }

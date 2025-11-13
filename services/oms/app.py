@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 rabbitmq_client: Optional[RabbitMQClient] = None
 event_listener: Optional[EventListener] = None
 
+# Lock for alert creation to prevent race conditions
+alert_creation_lock = asyncio.Lock()
+
 # Additional models for request/response data
 class TaskCreate(BaseModel):
     order_id: int
@@ -162,8 +165,10 @@ async def lifespan(app: FastAPI):
         register_rabbitmq_handlers()
         
         # Subscribe to relevant events
+        # Note: Use # for multi-level matching (e.g., validation.failed.dashboard)
+        # * matches single word, # matches zero or more words
         await event_listener.subscribe_to_events([
-            "scheduler.*", "validation.*", "automation.*", "routine.*", "system.*"
+            "scheduler.#", "validation.#", "automation.*", "routine.*", "system.*"
         ])
         register_event_handlers()
         
@@ -242,6 +247,7 @@ def register_event_handlers():
     event_listener.register_event_handler("validation.threshold_warning", handle_threshold_warning_event)
     event_listener.register_event_handler("validation.all_stations_occupied", handle_all_stations_occupied_event)
     event_listener.register_event_handler("validation.retry_status", handle_retry_status_event)
+    event_listener.register_event_handler("validation.failed.dashboard", handle_validation_failed_dashboard_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
     log("INFO", "Registered all event handlers", service="oms")
@@ -466,7 +472,7 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        log("INFO", "Resume", service="oms")
+        log("INFO", f"Resuming order {order_id}", service="oms")
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
@@ -493,37 +499,54 @@ async def handle_resume_order_mq(data: Dict) -> Dict:
             return {"success": False, "error": f"Order {order_id} not found"}
         
         current_status = order.get("status")
-        log("INFO", "Resume", service="oms")
-        
+        # Allow resuming orders that are STOPPED or HALTED
         if current_status not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
             log("ERROR", f"Cannot resume order {order_id} in {current_status} state", service="oms")
-            return {"success": False, "error": f"Order is not in stopped or halted state"}
-        
-        log("INFO", "Resume", service="oms")
+            return {"success": False, "error": f"Order is not in stopped or halted state (current: {current_status})"}
         
         # Update status back to processing
         db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
         
-        # Log the resume event
+        # Send resume request to scheduler via RabbitMQ to clear stop flag
+        if rabbitmq_client:
+            try:
+                log("INFO", f"Sending resume request to scheduler for order {order_id}...", service="oms")
+                response = await rabbitmq_client.send_request(
+                    target_service="scheduler",
+                    action="resume_order",
+                    data={"order_id": order_id},
+                    timeout=10
+                )
+                
+                if response.get("success"):
+                    log("INFO", f"Scheduler resume successful for order {order_id}", service="oms")
+                else:
+                    log("ERROR", f"Scheduler resume failed for order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
+                    # Continue with resume anyway - workers will pick up when they can
+            except asyncio.TimeoutError:
+                log("ERROR", f"Scheduler resume request timed out for order {order_id}", service="oms")
+            except Exception as e:
+                log("ERROR", f"Scheduler resume request exception for order {order_id}: {str(e)[:100]}", service="oms")
+        
+        # Log resume event
         db.log_event("order_resumed", {
             "order_id": order_id,
             "timestamp": "now"
         })
         
-        # Broadcast the resume event
+        # Broadcast resume event
         broadcast({
             "event": "order_resumed",
             "order": order_id
         })
         
-        # Re-send order to scheduler to resume processing (restarts from beginning)
-        await send_to_scheduler(order)
-        
-        log("INFO", "Success", service="oms")
+        log("INFO", f"Successfully resumed order {order_id}", service="oms")
         return {"success": True, "message": "order_resumed", "order_id": order_id}
         
     except Exception as e:
-        log("ERROR", "Error", service="oms")
+        log("ERROR", f"Error resuming order via MQ: {e}", service="oms")
+        import traceback
+        log("ERROR", f"Traceback: {traceback.format_exc()}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_halt_order_mq(data: Dict) -> Dict:
@@ -701,64 +724,6 @@ async def handle_halt_order_mq(data: Dict) -> Dict:
         
     except Exception as e:
         log("ERROR", f"Error halting order via MQ: {e}", service="oms")
-        return {"success": False, "error": str(e)}
-
-async def handle_resume_order_mq(data: Dict) -> Dict:
-    """Handle resume order requests via RabbitMQ"""
-    try:
-        order_id = data.get("order_id")
-        if not order_id:
-            return {"success": False, "error": "Missing order_id"}
-            
-        order = db.get_order(order_id)
-        if not order:
-            return {"success": False, "error": f"Order {order_id} not found"}
-        
-        current_status = order.get("status")
-        # Allow resuming orders that are STOPPED or HALTED
-        if current_status not in [ORDER_STATUS['HALTED'], ORDER_STATUS['STOPPED']]:
-            return {"success": False, "error": f"Order is not in stopped or halted state (current: {current_status})"}
-        
-        # Update status back to processing
-        db.update_order_status(order_id, ORDER_STATUS['PROCESSING'])
-        
-        # Send resume request to scheduler via RabbitMQ to clear stop flag
-        if rabbitmq_client:
-            try:
-                log("INFO", f"Sending resume request to scheduler for order {order_id}...", service="oms")
-                response = await rabbitmq_client.send_request(
-                    target_service="scheduler",
-                    action="resume_order",
-                    data={"order_id": order_id},
-                    timeout=10
-                )
-                
-                if response.get("success"):
-                    log("INFO", f"Scheduler resume successful for order {order_id}", service="oms")
-                else:
-                    log("ERROR", f"Scheduler resume failed for order {order_id}: {response.get('error', 'Unknown')[:50]}", service="oms")
-                    # Continue with resume anyway - workers will pick up when they can
-            except asyncio.TimeoutError:
-                log("ERROR", f"Scheduler resume request timed out for order {order_id}", service="oms")
-            except Exception as e:
-                log("ERROR", f"Scheduler resume request exception for order {order_id}: {str(e)[:100]}", service="oms")
-        
-        # Log resume event
-        db.log_event("order_resumed", {
-            "order_id": order_id,
-            "timestamp": "now"
-        })
-        
-        # Broadcast resume event
-        broadcast({
-            "event": "order_resumed",
-            "order": order_id
-        })
-        
-        return {"success": True, "message": "order_resumed", "order_id": order_id}
-        
-    except Exception as e:
-        log("ERROR", f"Error resuming order via MQ: {e}", service="oms")
         return {"success": False, "error": str(e)}
 
 async def handle_bulk_reorder_queue_mq(data: Dict) -> Dict:
@@ -1185,6 +1150,65 @@ async def handle_retry_status_event(data: Dict):
     }
     log("INFO", f"Broadcasting retry_status to dashboard: {broadcast_payload}", service="oms")
     broadcast(broadcast_payload)
+
+async def handle_validation_failed_dashboard_event(data: Dict):
+    """Handle validation failure event from routine service for dashboard display"""
+    validation_function = data.get("validation_function")
+    cup_id = data.get("cup_id")
+    message = data.get("message")
+    
+    # Extract order_id from cup_id (format: "order_id-item_number")
+    order_id = cup_id.split("-")[0] if cup_id and "-" in cup_id else cup_id
+    
+    log("INFO", f"Validation failure: {validation_function} for order {order_id} (cup: {cup_id})", service="oms")
+    
+    # Use lock to prevent race condition when multiple validation events arrive simultaneously
+    async with alert_creation_lock:
+        # Create ONE alert per order (not per cup/item) to avoid spam
+        # Check if we already have an active alert for this order and validation function
+        existing_alerts = db.get_active_alerts()
+        for alert in existing_alerts:
+            payload = alert.get("payload", {})
+            if (alert.get("alert_type") == "order_halted" and 
+                payload.get("validation_function") == validation_function and
+                payload.get("order_id") == order_id):
+                log("INFO", f"Alert already exists for order {order_id} - skipping duplicate", service="oms")
+                return
+        
+        # Create alert with order_id for deduplication
+        event_payload = {
+            "validation_function": validation_function,
+            "order_id": order_id,
+            "cup_id": cup_id,
+            "message": message,
+            "timestamp": "now"
+        }
+        
+        event_id = db.log_event("validation_failed", event_payload)
+        alert_id = db.create_alert(event_id, "order_halted", "high")
+        
+        log("INFO", f"Created alert {alert_id} for order {order_id}", service="oms")
+    
+    # Broadcast outside the lock (don't hold lock during WebSocket send)
+    broadcast_payload = {
+        "type": "alert",
+        "event": "validation_failed",
+        "validation_function": validation_function,
+        "order_id": order_id,
+        "cup_id": cup_id,
+        "message": message,
+        "alert_id": alert_id,
+        "severity": "high",
+        "timestamp": "now"
+    }
+    broadcast(broadcast_payload)
+    
+    # Publish event for API Bridge to forward to dashboard
+    if rabbitmq_client:
+        try:
+            await rabbitmq_client.send_event("oms.alert_created", broadcast_payload)
+        except Exception as e:
+            log("ERROR", f"Failed to publish alert event: {e}", service="oms")
 
 async def handle_shutdown_event(data: Dict):
     """Handle system shutdown events"""
@@ -2318,7 +2342,7 @@ def broadcast(message: dict):
         
         # Broadcast alerts to alert connections (if it's an alert event)
         # Include all alert-related events: alert_created, alert_acknowledged, threshold_warning, etc.
-        alert_events = ["alert_created", "alert_acknowledged", "threshold_warning", "all_stations_occupied", "retry_status"]
+        alert_events = ["alert_created", "alert_acknowledged", "threshold_warning", "all_stations_occupied", "retry_status", "validation_failed"]
         is_alert_event = message.get("event") in alert_events or message.get("type") == "alert"
         
         if is_alert_event:

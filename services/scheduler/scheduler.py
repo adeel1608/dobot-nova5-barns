@@ -1047,6 +1047,106 @@ def reset_scheduler_state_sync():
         import traceback
         log("ERROR", f"Traceback: {traceback.format_exc()[:200]}", service="scheduler")
 
+async def revert_previous_step_for_cup(cup_id: str, current_action: str):
+    """
+    Revert the previous completed step for a cup to pending status.
+    This allows the recipe to retry from the previous step when validation fails.
+    
+    Args:
+        cup_id: The cup ID to revert steps for
+        current_action: The current action that failed (validation step)
+    
+    Returns:
+        dict with success status and reverted action name if found
+    """
+    global completed, tasks, completed_count
+    
+    log("INFO", f"[REVERT STEP] Starting revert process for cup {cup_id}", service="scheduler")
+    log("INFO", f"[REVERT STEP] Current action: {current_action}", service="scheduler")
+    
+    try:
+        with lock:
+            # Get all tasks for this cup in order
+            cup_tasks = [t for t in tasks if t["cup"] == cup_id]
+            log("INFO", f"[REVERT STEP] Found {len(cup_tasks)} tasks for cup {cup_id}", service="scheduler")
+            
+            # Find the current task (may be in submitted or in_progress status)
+            current_task = None
+            current_task_index = -1
+            log("INFO", f"[REVERT STEP] Searching for current task: {current_action}", service="scheduler")
+            
+            for idx, task in enumerate(cup_tasks):
+                if task["action"] == current_action and task["status"] in ["submitted", "in_progress", "pending"]:
+                    current_task = task
+                    current_task_index = idx
+                    log("INFO", f"[REVERT STEP] Found current task at index {idx}, status: {task['status']}", service="scheduler")
+                    break
+            
+            # If not found, try to find by action only (might be in different status)
+            if current_task_index == -1:
+                log("INFO", f"[REVERT STEP] Task not found with expected status, searching by action only", service="scheduler")
+                for idx, task in enumerate(cup_tasks):
+                    if task["action"] == current_action:
+                        current_task = task
+                        current_task_index = idx
+                        log("INFO", f"[REVERT STEP] Found current task at index {idx}, status: {task['status']}", service="scheduler")
+                        break
+            
+            if current_task_index == -1:
+                log("WARNING", f"[REVERT STEP] Current task {current_action} not found for cup {cup_id}", service="scheduler")
+                return {"success": False, "error": "Current task not found"}
+            
+            # Reset current task to pending so it can be retried
+            if current_task["status"] != "pending":
+                log("INFO", f"[REVERT STEP] Resetting current task '{current_action}' from '{current_task['status']}' to 'pending'", service="scheduler")
+                current_task["status"] = "pending"
+            else:
+                log("INFO", f"[REVERT STEP] Current task '{current_action}' already pending", service="scheduler")
+            
+            # Find the previous completed task (go backwards from current task)
+            log("INFO", f"[REVERT STEP] Searching for previous completed task before index {current_task_index}", service="scheduler")
+            previous_task = None
+            for i in range(current_task_index - 1, -1, -1):
+                task = cup_tasks[i]
+                log("DEBUG", f"[REVERT STEP] Checking task at index {i}: {task['action']}, status: {task['status']}", service="scheduler")
+                if task["status"] == "done" and task["action"] in completed.get(cup_id, set()):
+                    previous_task = task
+                    log("INFO", f"[REVERT STEP] Found previous completed task: {task['action']}", service="scheduler")
+                    break
+            
+            if previous_task is None:
+                log("WARNING", f"[REVERT STEP] No previous completed step found to revert for cup {cup_id}", service="scheduler")
+                log("INFO", f"[REVERT STEP] Current task has been reset to pending, no previous task to revert", service="scheduler")
+                # Still return success since we reset the current task
+                return {
+                    "success": True,
+                    "reverted_action": None,
+                    "message": f"Reset current task to pending (no previous step to revert)"
+                }
+            
+            # Revert the previous task
+            previous_action = previous_task["action"]
+            log("INFO", f"[REVERT STEP] Reverting previous task '{previous_action}' from 'done' to 'pending'", service="scheduler")
+            previous_task["status"] = "pending"
+            
+            if cup_id in completed and previous_action in completed[cup_id]:
+                completed[cup_id].remove(previous_action)
+                completed_count -= 1
+                log("INFO", f"[REVERT STEP] Removed '{previous_action}' from completed set for cup {cup_id}", service="scheduler")
+                log("INFO", f"[REVERT STEP] Updated completed_count: {completed_count}", service="scheduler")
+            
+            log("INFO", f"[REVERT STEP] Successfully reverted step '{previous_action}' for cup {cup_id}", service="scheduler")
+            
+            return {
+                "success": True,
+                "reverted_action": previous_action,
+                "message": f"Reverted previous step: {previous_action}"
+            }
+            
+    except Exception as e:
+        log("ERROR", f"Error reverting previous step for cup {cup_id}: {str(e)[:100]}", service="scheduler")
+        return {"success": False, "error": str(e)}
+
 async def check_and_notify_order_completion():
     """Check if the current order is complete and notify OMS if so."""
     global completed_count, failed_count, tasks_total, current_status, order_completion_notified, order_stopped
