@@ -402,7 +402,7 @@ def place_plastic_cup_station(**params) -> bool:
         print(f"   ✅ Successfully positioned at stage {stage}")
         
         # Apply height adjustment for freshly dispensed cups (7oz and 12oz only)
-        if cup_size in ("7oz", "12oz") and after_dispense:
+        if cup_size in ("7oz", "12oz"):
             print(f"   📏 Applying {cup_size} height adjustment for freshly dispensed cup...")
             run_skill("sync")
             run_skill("moveEE", 0.0, 12.5, 0.0, 0, 0, 0)
@@ -881,7 +881,7 @@ def place_plastic_cup_milk(**params) -> bool:
             if run_skill("gotoJ_deg", -25.749441,-68.598046,-90.711592,-18.654852,-116.564002,-2.362884) is False:
                 return False
         
-        if run_skill("set_gripper_position", 255, 0) is False:
+        if run_skill("set_gripper_position", 25, 0) is False:
             return False
         return True
     except Exception as e:
@@ -918,7 +918,7 @@ def pick_plastic_cup_milk(**params) -> bool:
         gripper_positions = {
             "7oz": 145,
             "9oz": 145,
-            "12oz": 145,
+            "12oz": 150,
             "16oz": 118,
         }
 
