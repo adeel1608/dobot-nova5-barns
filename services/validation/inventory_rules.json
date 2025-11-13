@@ -22,7 +22,7 @@
     "cups": {
         "subtypes": {
             "cup_H7": {
-                "max_capacity": 1,
+                "max_capacity": 25,
                 "warning_threshold": 50,
                 "critical_threshold": 25
             },

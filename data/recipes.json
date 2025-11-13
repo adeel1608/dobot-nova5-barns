@@ -39,15 +39,9 @@
       "assigned_arm": "Arm1",
       "depends_on": ["Validate Ingredients"]
     },
-    {
-      "action": "Get Hot Water",
+    {"action":"Pour Americano",
       "assigned_arm": "Arm1",
       "depends_on": ["Make Espresso"]
-    },
-    {
-      "action": "Pour Espresso",
-      "assigned_arm": "Arm1",
-      "depends_on": ["Get Hot Water"]
     },
     {
       "action": "Clean Portafilter",
