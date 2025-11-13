@@ -673,7 +673,7 @@ def place_plastic_cup_sauces(**params) -> bool:
             if run_skill("gotoJ_deg", -38.389674,-76.801670,-65.297393,-34.488698,-127.238516,-0.950287) is False:
                 return False
         
-        if run_skill("set_gripper_position", 255, 0) is False:
+        if run_skill("set_gripper_position", 1, 100) is False:
             return False
         return True
     except Exception as e:
@@ -710,7 +710,7 @@ def pick_plastic_cup_sauces(**params) -> bool:
         gripper_positions = {
             "7oz": 145,
             "9oz": 145,
-            "12oz": 145,
+            "12oz": 150,
             "16oz": 118,
         }
 
@@ -881,7 +881,7 @@ def place_plastic_cup_milk(**params) -> bool:
             if run_skill("gotoJ_deg", -25.749441,-68.598046,-90.711592,-18.654852,-116.564002,-2.362884) is False:
                 return False
         
-        if run_skill("set_gripper_position", 25, 0) is False:
+        if run_skill("set_gripper_position", 1, 100) is False:
             return False
         return True
     except Exception as e:
