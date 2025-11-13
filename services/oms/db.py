@@ -620,10 +620,26 @@ def get_active_alerts() -> List[Dict[str, Any]]:
                         alert_dict[key] = value.isoformat()
                 
                 # Extract message from payload if it exists
-                if alert_dict.get('payload') and isinstance(alert_dict['payload'], dict):
-                    payload = alert_dict['payload']
-                    if 'message' in payload:
-                        alert_dict['message'] = payload['message']
+                # Payload is stored as JSON string in database, so parse it first
+                payload_raw = alert_dict.get('payload')
+                if payload_raw:
+                    # If payload is a string, parse it as JSON
+                    if isinstance(payload_raw, str):
+                        try:
+                            payload = json.loads(payload_raw)
+                        except (json.JSONDecodeError, ValueError):
+                            payload = None
+                    elif isinstance(payload_raw, dict):
+                        payload = payload_raw
+                    else:
+                        payload = None
+                    
+                    # If we have a parsed payload, extract message and update alert_dict
+                    if payload and isinstance(payload, dict):
+                        if 'message' in payload:
+                            alert_dict['message'] = payload['message']
+                        # Keep the parsed payload for reference
+                        alert_dict['payload'] = payload
                 
                 result_alerts.append(alert_dict)
             

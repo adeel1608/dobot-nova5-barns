@@ -7,8 +7,11 @@ import { apiClient } from './base';
 
 export const alertsAPI = {
   // Fetch active alerts
-  fetchActiveAlerts: () =>
-    apiClient.getList('/alerts/active', {}, 'active alerts')
+  fetchActiveAlerts: (options = {}) =>
+    apiClient.getList('/alerts/active', {}, { 
+      itemName: 'active alerts',
+      ...options // Allow passing noCache option to bypass cache
+    })
       .then(result => ({
         ...result,
         data: result.data?.alerts || result.data || []

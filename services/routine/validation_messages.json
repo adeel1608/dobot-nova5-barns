@@ -1,0 +1,8 @@
+{
+  "cup_detection": "Cup detection validation failed. Please ensure a cup is properly placed.",
+  "sauce_detection": "Sauce detection validation failed. Please check sauce levels.",
+  "check_coffee_beans": "Coffee beans validation failed. Please refill coffee beans.",
+  "validate_ingredients": "Ingredient validation failed. Please check ingredient availability.",
+  "milk_detection": "Milk detection validation failed. Please check milk levels."
+}
+

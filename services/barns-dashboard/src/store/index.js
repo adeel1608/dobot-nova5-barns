@@ -11,6 +11,8 @@ import { useCamerasStore } from './camerasStore';
 import { useLogsStore, addLog } from './logsStore';
 import { UI_CONFIG } from '../utils/config';
 import { wsManager } from '../utils/websocket';
+import { apiClient } from '../api/base';
+import { alertsAPI } from '../api/alerts';
 
 // Enhanced WebSocket management store using the centralized WebSocket manager
 export const useWebSocketStore = create((set, get) => ({
@@ -104,18 +106,68 @@ export const useWebSocketStore = create((set, get) => ({
           // Removed verbose INFO log - only log errors
           // Refresh inventory when we get updates
           useInventoryStore.getState().fetchInventoryStatus();
-        } else if (data.type === 'alert' || data.event?.includes('threshold_warning') || data.event?.includes('all_stations_occupied') || data.event?.includes('retry_status')) {
+        } else if (data.type === 'alert' || data.event === 'validation_failed' || data.event?.includes('threshold_warning') || data.event?.includes('all_stations_occupied') || data.event?.includes('retry_status')) {
           // Alert/warning events - refresh alerts immediately
           console.log('[WebSocket] Alert event received, refreshing alerts:', data);
-          // Removed verbose INFO log - only log errors
           
-          // Force immediate refresh
+          // Log validation failures specifically for debugging
+          if (data.event === 'validation_failed' || data.type === 'alert') {
+            console.log('[WebSocket] Validation failure alert received:', {
+              validation_function: data.validation_function,
+              cup_id: data.cup_id,
+              message: data.message
+            });
+          }
+          
+          // Debounce: Only refresh if we haven't refreshed recently
           const alertsStore = useAlertsStore.getState();
-          alertsStore.fetchAlerts().then(() => {
-            console.log('[WebSocket] Alerts refreshed successfully');
-          }).catch((err) => {
-            console.error('[WebSocket] Failed to refresh alerts:', err);
-          });
+          const now = Date.now();
+          if (!alertsStore._lastRefreshTime || (now - alertsStore._lastRefreshTime) > 2000) {
+            // Clear cache to force fresh fetch (bypass 3-second cache)
+            apiClient.clearCache('/alerts/active');
+            
+            // Mark that we're refreshing
+            alertsStore._lastRefreshTime = now;
+            
+            // Retry logic: Try fetching alerts multiple times with increasing delays
+            const alertId = data.alert_id; // Get alert_id from WebSocket message if available
+            const maxRetries = 3;
+            let retryCount = 0;
+            
+            const fetchWithRetry = () => {
+              const delay = retryCount === 0 ? 1500 : 1000; // First attempt after 1.5s, retries after 1s
+              
+              setTimeout(() => {
+                // Use the store's fetchAlerts method with noCache to bypass cache
+                alertsStore.fetchAlerts({ noCache: true }).then((alerts) => {
+                  const alertCount = alerts?.length || 0;
+                  console.log(`[WebSocket] Alerts refreshed successfully, found ${alertCount} alerts (attempt ${retryCount + 1}/${maxRetries})`);
+                  
+                  // If we found alerts or this is the last retry, stop
+                  if (alertCount > 0 || retryCount >= maxRetries - 1) {
+                    alertsStore._lastRefreshTime = null;
+                  } else {
+                    // Retry if no alerts found and we haven't exceeded max retries
+                    retryCount++;
+                    fetchWithRetry();
+                  }
+                }).catch((err) => {
+                  console.error('[WebSocket] Failed to refresh alerts:', err);
+                  // Retry on error if we haven't exceeded max retries
+                  if (retryCount < maxRetries - 1) {
+                    retryCount++;
+                    fetchWithRetry();
+                  } else {
+                    alertsStore._lastRefreshTime = null;
+                  }
+                });
+              }, delay);
+            };
+            
+            fetchWithRetry();
+          } else {
+            console.log('[WebSocket] Skipping alert refresh (debounced, last refresh was', (now - alertsStore._lastRefreshTime), 'ms ago)');
+          }
         } else if (data.type === 'connection') {
           // Connection messages are already logged in onOpen, skip duplicate logging
           return;

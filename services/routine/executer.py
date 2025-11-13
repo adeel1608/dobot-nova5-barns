@@ -16,6 +16,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
 
+# Path to validation messages mapping
+VALIDATION_MESSAGES_PATH = os.path.join(os.path.dirname(__file__), "validation_messages.json")
+
 # Resource lock for cup_station functions (prevents arm collisions)
 cup_station_lock = asyncio.Lock()
 cup_station_lock_holder = None
@@ -30,6 +33,132 @@ logger = logging.getLogger(__name__)
 
 # Remove the global client - we'll use the one passed from the main service
 # rabbitmq_client = RabbitMQClient("routine_executor")
+
+# Cache for validation messages mapping
+_validation_messages_cache = None
+
+def load_validation_messages():
+    """Load validation function to dashboard message mapping from JSON file."""
+    global _validation_messages_cache
+    
+    if _validation_messages_cache is not None:
+        return _validation_messages_cache
+    
+    try:
+        if os.path.exists(VALIDATION_MESSAGES_PATH):
+            with open(VALIDATION_MESSAGES_PATH, 'r') as f:
+                _validation_messages_cache = json.load(f)
+                log("INFO", f"Loaded validation messages mapping: {list(_validation_messages_cache.keys())}", service="routine")
+                return _validation_messages_cache
+        else:
+            log("WARNING", f"Validation messages file not found: {VALIDATION_MESSAGES_PATH}", service="routine")
+            return {}
+    except Exception as e:
+        log("ERROR", f"Error loading validation messages: {str(e)}", service="routine")
+        return {}
+
+def get_validation_dashboard_message(func_name: str) -> str:
+    """Get dashboard message for a validation function name."""
+    messages = load_validation_messages()
+    return messages.get(func_name, f"Validation failed: {func_name}")
+
+async def send_validation_failure_to_dashboard(func_name: str, cup_id: str, rabbitmq_client: RabbitMQClient):
+    """Send validation failure message to dashboard."""
+    try:
+        message = get_validation_dashboard_message(func_name)
+        await publish_event("validation.failed.dashboard", {
+            "validation_function": func_name,
+            "cup_id": cup_id,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }, rabbitmq_client)
+        log("INFO", f"Sent validation failure message to dashboard: {func_name} - {message}", service="routine")
+    except Exception as e:
+        log("ERROR", f"Error sending validation failure to dashboard: {str(e)}", service="routine")
+
+async def revert_previous_step_and_stop(cup_id: str, current_action: str, rabbitmq_client: RabbitMQClient):
+    """
+    Revert the previous step and stop the order when validation fails.
+    
+    This function calls OMS to stop the order (not scheduler directly) so that:
+    1. Order status is properly updated in database (STOPPING -> STOPPED)
+    2. WebSocket events are broadcast to dashboard
+    3. The same flow is followed as when the UI stop button is clicked
+    
+    Args:
+        cup_id: The cup ID
+        current_action: The current validation action that failed
+        rabbitmq_client: RabbitMQ client for communication
+    
+    Returns:
+        dict with success status
+    """
+    try:
+        log("INFO", f"[VALIDATION FAILURE HANDLER] Starting revert and stop process for cup {cup_id}", service="routine")
+        log("INFO", f"[VALIDATION FAILURE HANDLER] Current action that failed: {current_action}", service="routine")
+        
+        # First, revert the previous step
+        log("INFO", f"[REVERT STEP] Sending revert request to scheduler for cup {cup_id}", service="routine")
+        revert_response = await rabbitmq_client.send_request(
+            target_service="scheduler",
+            action="revert_previous_step",
+            data={
+                "cup_id": cup_id,
+                "current_action": current_action
+            },
+            timeout=10
+        )
+        
+        log("INFO", f"[REVERT STEP] Received response from scheduler: {revert_response}", service="routine")
+        
+        if revert_response and revert_response.get("success"):
+            reverted_action = revert_response.get('reverted_action')
+            log("INFO", f"[REVERT STEP] Successfully reverted previous step: {reverted_action}", service="routine")
+        else:
+            error_msg = revert_response.get('error', 'Unknown error') if revert_response else 'No response'
+            log("WARNING", f"[REVERT STEP] Failed to revert previous step: {error_msg}", service="routine")
+        
+        # Get order_id from cup_id (format: order_id-cup_index)
+        order_id = None
+        if '-' in cup_id:
+            try:
+                order_id = int(cup_id.split('-')[0])
+            except ValueError:
+                log("WARNING", f"Could not parse order_id from cup_id: {cup_id}", service="routine")
+        
+        if order_id:
+            # Stop the order via OMS (NOT scheduler directly)
+            # This ensures proper status updates and event broadcasts
+            log("INFO", f"[STOP ORDER] Extracted order_id {order_id} from cup_id {cup_id}", service="routine")
+            log("INFO", f"[STOP ORDER] Sending stop request to OMS for order {order_id}", service="routine")
+            log("INFO", f"[STOP ORDER] OMS will handle status updates and call scheduler", service="routine")
+            
+            stop_response = await rabbitmq_client.send_request(
+                target_service="oms",
+                action="stop_order",
+                data={
+                    "order_id": order_id
+                },
+                timeout=120  # Increased timeout to allow OMS to wait for tasks to complete
+            )
+            
+            log("INFO", f"[STOP ORDER] Received response from OMS: {stop_response}", service="routine")
+            
+            if stop_response and stop_response.get("success"):
+                log("INFO", f"[STOP ORDER] Successfully stopped order {order_id} via OMS", service="routine")
+                log("INFO", f"[STOP ORDER] Order status updated in database, events broadcast to dashboard", service="routine")
+            else:
+                error_msg = stop_response.get('error', 'Unknown error') if stop_response else 'No response'
+                log("WARNING", f"[STOP ORDER] Failed to stop order {order_id} via OMS: {error_msg}", service="routine")
+        else:
+            log("WARNING", f"[STOP ORDER] Could not extract order_id from cup_id: {cup_id}", service="routine")
+        
+        log("INFO", f"[VALIDATION FAILURE HANDLER] Completed revert and stop process for cup {cup_id}", service="routine")
+        return {"success": True}
+        
+    except Exception as e:
+        log("ERROR", f"[VALIDATION FAILURE HANDLER] Error reverting step and stopping order: {str(e)}", service="routine")
+        return {"success": False, "error": str(e)}
 
 async def call_validation(func_name: str, params: dict, rabbitmq_client: RabbitMQClient, cup_id: str = None):
     """
@@ -284,12 +413,20 @@ async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, ra
 async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: RabbitMQClient):
     """
     Executes the configured steps for a high-level function on a given arm.
+    
+    Returns:
+        dict: {
+            "success": bool - Whether task completed successfully,
+            "validation_failed_stopped": bool - Whether stopped due to validation failure,
+            "message": str - Error/status message
+        }
     """
     global cup_station_lock_holder
     cup_id = task.get("item", {}).get("cup_id", "unknown")
     function = task.get("function")
     success = True
     message = ""
+    validation_failed_stopped = False  # Flag to track if we stopped due to validation failure
     
     # Add small staggered delay for Arm 2 to prevent RabbitMQ overload when both arms start simultaneously
     if arm_id == 2:
@@ -327,8 +464,10 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 log("INFO", "No cup_position found in params", service="routine")
             
             if step_type == "validation":
-                log("INFO", f"Calling validation function '{func_name}' with params: {json.dumps(params)}", service="routine")
+                log("INFO", f"[VALIDATION STEP] Starting validation: {func_name} for cup {cup_id}", service="routine")
+                log("DEBUG", f"[VALIDATION STEP] Validation params: {json.dumps(params)}", service="routine")
                 res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
+                log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
                 
                 # Special handling for cup_detection - update cup position based on availability
                 if func_name == "cup_detection" and res.get("passed", False):
@@ -336,6 +475,11 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     if res.get("all_stations_occupied") and res.get("retries_exhausted"):
                         log("ERROR", f"All cup stations occupied after retries for cup {cup_id}. Cannot proceed with task.", service="routine")
                         message = "All cup stations are occupied. Please remove cups and try again."
+                        
+                        # Send dashboard message for all stations occupied
+                        log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
+                        await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
+                        
                         await publish_event("validation.failed", 
                                     {"arm": arm_id, "cup": cup_id,
                                     "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
@@ -446,12 +590,35 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                             log("ERROR", f"Invalid position detected in validation response for cup {cup_id}", service="routine")
                 
                 if not res.get("passed", False):
-                    message = f"Validation failed: {res.get('details', '')}"
+                    # Validation failed - revert previous step, stop order, and send dashboard message
+                    log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
+                    log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
+                    log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
+                    
+                    # Send dashboard message based on validation function mapping
+                    log("INFO", f"[VALIDATION FAILED] Sending dashboard notification for {func_name}", service="routine")
+                    await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
+                    
+                    # Publish validation failed event
+                    log("INFO", f"[VALIDATION FAILED] Publishing validation.failed event", service="routine")
                     await publish_event("validation.failed", 
                                 {"arm": arm_id, "cup": cup_id,
                                 "step": func_name, "reason": res}, rabbitmq_client)
-                    success = False
-                    break  # abort on validation failure
+                    
+                    # Revert previous step and stop the order
+                    # The current validation step will remain pending (not marked as failed)
+                    # so it can be retried when the order is resumed
+                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process", service="routine")
+                    await revert_previous_step_and_stop(cup_id, function, rabbitmq_client)
+                    
+                    # Set flag to prevent sending feedback - keep validation step pending for retry
+                    validation_failed_stopped = True
+                    log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True", service="routine")
+                    
+                    # Break from step loop to stop execution
+                    log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
+                    log("INFO", f"[VALIDATION FAILED] Task {function} remains PENDING and will retry when order is resumed", service="routine")
+                    break  # Stop execution - order is stopped, validation step remains pending
                     
             elif step_type == "robot":
                 # Check if this is a cup_station function that requires mutual exclusion
@@ -572,14 +739,24 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         message = f"Exception in routine: {str(e)}"
         log("ERROR", f"Error processing task: {e}", service="routine")
     
-    # Send feedback to scheduler
-    log("INFO", f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
-    await send_feedback_to_scheduler(cup_id, function, success, rabbitmq_client, message)
-    
-    # all steps done
-    if success:
-        log("INFO", f"Task completed successfully: {function} for cup {cup_id}", service="routine")
-        await publish_event("routine.completed", 
-                    {"arm": arm_id, "cup": cup_id, "function": function}, rabbitmq_client)
+    # Send feedback to scheduler (skip if validation failed and we stopped - step remains pending)
+    if not validation_failed_stopped:
+        log("INFO", f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
+        await send_feedback_to_scheduler(cup_id, function, success, rabbitmq_client, message)
+        
+        # all steps done
+        if success:
+            log("INFO", f"Task completed successfully: {function} for cup {cup_id}", service="routine")
+            await publish_event("routine.completed", 
+                        {"arm": arm_id, "cup": cup_id, "function": function}, rabbitmq_client)
+        else:
+            log("ERROR", f"Task failed: {function} for cup {cup_id} - {message}", service="routine")
     else:
-        log("ERROR", f"Task failed: {function} for cup {cup_id} - {message}", service="routine")
+        log("INFO", f"Skipping feedback for cup {cup_id} - validation failed, step remains pending for retry", service="routine")
+    
+    # Return task execution status
+    return {
+        "success": success,
+        "validation_failed_stopped": validation_failed_stopped,
+        "message": message
+    }

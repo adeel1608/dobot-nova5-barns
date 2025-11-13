@@ -100,8 +100,10 @@ async def startup_event():
         await event_listener.connect()
         
         # Subscribe to events for real-time dashboard updates
+        # Note: Use # for multi-level matching (e.g., validation.failed.dashboard)
+        # * matches single word, # matches zero or more words
         await event_listener.subscribe_to_events([
-            "oms.*", "scheduler.*", "validation.*", "automation.*", "routine.*"
+            "oms.#", "scheduler.*", "validation.#", "automation.*", "routine.*"
         ])
         
         # Register event handlers for all order-related events
@@ -114,6 +116,7 @@ async def startup_event():
         event_listener.register_event_handler("oms.order_completed", handle_order_event)
         event_listener.register_event_handler("oms.order_failed", handle_order_event)
         event_listener.register_event_handler("oms.order_deleted", handle_order_event)
+        event_listener.register_event_handler("oms.alert_created", handle_alert_event)
         
         # Scheduler Events
         event_listener.register_event_handler("scheduler.order_received", handle_order_event)
@@ -136,7 +139,10 @@ async def startup_event():
         event_listener.register_event_handler("validation.threshold_warning", handle_validation_alert_event)
         event_listener.register_event_handler("validation.all_stations_occupied", handle_validation_alert_event)
         event_listener.register_event_handler("validation.retry_status", handle_validation_alert_event)
-
+        # validation.failed.dashboard is handled by OMS (creates alert and broadcasts)
+        
+        # Log all registered handlers for debugging
+        log("INFO", f"Registered event handlers: {list(event_listener.event_handlers.keys())}", service="api_bridge")
         log("INFO", "API Bridge service started successfully", service="api_bridge")
         
     except Exception as e:
@@ -212,11 +218,12 @@ async def handle_inventory_event(data: Dict):
 async def broadcast_to_websockets(message: Dict):
     """Broadcast message to all connected WebSocket clients"""
     if active_websockets:
-        log("DEBUG", "Broadcasting", service="api_bridge")
+        log("INFO", f"Broadcasting to {len(active_websockets)} WebSocket clients: {message.get('type', 'unknown')}/{message.get('event', 'unknown')}", service="api_bridge")
         disconnected = []
         for websocket in active_websockets:
             try:
                 await websocket.send_text(json.dumps(message))
+                log("DEBUG", f"Successfully sent message to WebSocket client", service="api_bridge")
             except Exception as e:
                 log("ERROR", f"Failed to send WebSocket message: {e}", service="api_bridge")
                 disconnected.append(websocket)
@@ -225,9 +232,9 @@ async def broadcast_to_websockets(message: Dict):
         for ws in disconnected:
             if ws in active_websockets:
                 active_websockets.remove(ws)
-                log("INFO", "Removed disconnected WebSocket client. {len(active_websockets)} clients remaining.", service="api_bridge")
+                log("INFO", f"Removed disconnected WebSocket client. {len(active_websockets)} clients remaining.", service="api_bridge")
     else:
-        log("DEBUG", "No active WebSocket clients to broadcast to", service="api_bridge")
+        log("WARNING", f"No active WebSocket clients to broadcast to. Message: {message.get('type', 'unknown')}/{message.get('event', 'unknown')}", service="api_bridge")
 
 # HTTP API Endpoints (translating to RabbitMQ)
 
@@ -1341,6 +1348,16 @@ async def handle_validation_alert_event(data: Dict):
         "data": data,
         "timestamp": datetime.now().isoformat()
     })
+
+async def handle_alert_event(data: Dict):
+    """Handle alert events from OMS (alert_created, validation_failed, etc)"""
+    log("INFO", f"Received alert from OMS: {data.get('event', 'unknown')}", service="api_bridge")
+    # Forward alert directly to dashboard via WebSocket
+    await broadcast_to_websockets(data)
+
+# Note: validation.failed.dashboard is handled entirely by OMS service
+# OMS creates the alert in database and broadcasts to all WebSocket clients
+# No need for API Bridge to duplicate this functionality
 
 # Add Socket.IO stats endpoint
 @app.get("/api/socketio/stats")
