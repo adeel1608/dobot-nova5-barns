@@ -53,7 +53,7 @@ class AutomationService:
         try:
             await asyncio.Future()  # Run forever
         except KeyboardInterrupt:
-            log("INFO", "Shutting down automation service...", service="automation")
+            pass
         finally:
             await self.stop()
     
@@ -61,15 +61,12 @@ class AutomationService:
         """Stop the automation service."""
         await self.rabbitmq_client.disconnect()
         await self.event_listener.disconnect()
-        log("INFO", "Automation service stopped", service="automation")
     
     async def handle_automate(self, data: Dict) -> Dict:
         """Handle automation requests."""
         try:
             function = data.get("function")
             params = data.get("params", {})
-            
-            log("INFO", "Action", service="automation")
             
             if function not in AUTOMATION_FUNCTIONS:
                 log("ERROR", "Unknown automation function", service="automation", function=function)
@@ -78,8 +75,6 @@ class AutomationService:
                     "error": f"No such automation function '{function}'",
                     "message": f"Available functions: {list(AUTOMATION_FUNCTIONS.keys())}"
                 }
-            
-            log("INFO", "Starting", service="automation")
             
             # Send start event
             await self.rabbitmq_client.send_event("automation.started", {
@@ -90,8 +85,6 @@ class AutomationService:
             
             # Execute automation function
             result = await AUTOMATION_FUNCTIONS[function](params)
-            
-            log("INFO", f"Success: {result}", service="automation")
             
             # Send completion event
             await self.rabbitmq_client.send_event("automation.completed", {
@@ -157,7 +150,6 @@ class AutomationService:
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        log("INFO", "Received shutdown event, stopping automation service...", service="automation")
         await self.stop()
     
     async def handle_emergency_stop(self, data: Dict):

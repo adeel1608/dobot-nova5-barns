@@ -43,7 +43,6 @@ class RobotArmService:
                 break
             except Exception as e:
                 log("ERROR", f"Service error: {e}", service="robot_arm")
-                log("INFO", "Restarting service in 10 seconds...", service="robot_arm")
                 await self._cleanup()
                 await asyncio.sleep(10)
 
@@ -52,14 +51,11 @@ class RobotArmService:
         # Retry connection logic for RabbitMQ
         while True:
             try:
-                log("INFO", "Connecting to RabbitMQ...", service="robot_arm")
                 await self.rabbitmq_client.connect()
                 await self.event_listener.connect()
-                log("INFO", "RabbitMQ connections established", service="robot_arm")
                 break
             except Exception as e:
                 log("ERROR", f"RabbitMQ connection failed: {str(e)[:100]}", service="robot_arm")
-                log("INFO", "Retrying RabbitMQ connection in 10 seconds...", service="robot_arm")
                 await asyncio.sleep(10)
         
         # Register message handlers
@@ -104,7 +100,6 @@ class RobotArmService:
     async def stop(self):
         """Stop the robot arm service."""
         await self._cleanup()
-        log("INFO", "Robot arm service stopped", service="robot_arm")
     
     async def handle_robot_action(self, data: Dict) -> Dict:
         """Handle robot action requests."""
@@ -329,7 +324,6 @@ class RobotArmService:
     
     async def handle_shutdown_event(self, data: Dict):
         """Handle system shutdown events."""
-        log("INFO", "Received shutdown event, stopping robot arm service...", service="robot_arm")
         await self.stop()
     
     async def handle_emergency_stop_event(self, data: Dict):
@@ -344,7 +338,6 @@ async def main():
     try:
         await service.start()
     except KeyboardInterrupt:
-        log("INFO", "Received interrupt signal, shutting down...", service="robot_arm")
         await service.stop()
 
 if __name__ == "__main__":

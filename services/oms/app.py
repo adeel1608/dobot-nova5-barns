@@ -22,7 +22,6 @@ from .pos_core import parse_transaction, load_reference_data_from_db
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Global RabbitMQ clients
 rabbitmq_client: Optional[RabbitMQClient] = None
@@ -230,7 +229,6 @@ def register_rabbitmq_handlers():
     rabbitmq_client.register_handler("mark_processing_orders_failed", handle_mark_processing_orders_failed_mq)
     rabbitmq_client.register_handler("health", handle_health_mq)
     
-    log("INFO", "Registered all RabbitMQ message handlers", service="oms")
 
 def register_event_handlers():
     """Register event handlers"""
@@ -250,7 +248,6 @@ def register_event_handlers():
     event_listener.register_event_handler("validation.failed.dashboard", handle_validation_failed_dashboard_event)
     event_listener.register_event_handler("system.shutdown", handle_shutdown_event)
     
-    log("INFO", "Registered all event handlers", service="oms")
 
 # RabbitMQ Message Handlers
 async def handle_create_order_mq(data: Dict) -> Dict:
@@ -316,7 +313,6 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        log("INFO", "Starting", service="oms")
         
         # Concurrency guard: allow only one processing/stopping order at a time
         try:
@@ -371,7 +367,6 @@ async def handle_start_order_mq(data: Dict) -> Dict:
         # Send order to Scheduler for processing (async to avoid blocking response)
         asyncio.create_task(send_to_scheduler(order))
         
-        log("INFO", "Success", service="oms")
         return {"success": True, "message": "order_sent_to_scheduler", "order_id": order_id}
         
     except Exception as e:
@@ -385,7 +380,6 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
         if not order_id:
             return {"success": False, "error": "Missing order_id"}
         
-        log("INFO", "Stop", service="oms")
         
         # Call the HTTP endpoint logic
         order = db.get_order(order_id)
@@ -394,11 +388,9 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
             return {"success": False, "error": f"Order {order_id} not found"}
         
         current_status = order.get("status")
-        log("INFO", "Stop", service="oms")
         
         # If order is already in a terminal state, return success (idempotent)
         if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
-            log("INFO", "Stop", service="oms")
             return {"success": True, "message": "order_already_stopped", "order_id": order_id, "status": current_status}
         
         # If order is in ERROR state, we can still mark it as STOPPED
@@ -406,7 +398,6 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
             log("ERROR", f"Cannot stop order {order_id} in {current_status} state", service="oms")
             return {"success": False, "error": f"Cannot stop order in {current_status} state"}
         
-        log("INFO", "Stop", service="oms")
         
         # Update status to stopping first
         db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
@@ -458,7 +449,6 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
             "timestamp": "now"
         })
         
-        log("INFO", "Success", service="oms")
         return {"success": True, "message": "order_stopped", "order_id": order_id}
         
     except Exception as e:
@@ -930,7 +920,6 @@ async def handle_order_completed_event(data: Dict):
         if current_status not in ['PROCESSING', 'STOPPING']:
             log("ERROR", "Warning", service="oms")
         
-        log("INFO", "Success", service="oms")
         db.update_order_status(order_id, ORDER_STATUS['COMPLETED'])
         
         log("DEBUG", "Broadcasting", service="oms")
@@ -1483,7 +1472,6 @@ def halt_order(
 @app.post("/orders/{order_id}/stop")
 async def stop_order(order_id: int = Path(..., title="The ID of the order to stop")):
     """Manually stop a processing order."""
-    log("INFO", "Stop", service="oms")
     
     order = db.get_order(order_id)
     if not order:
@@ -1491,11 +1479,9 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
         raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
     
     current_status = order.get("status")
-    log("INFO", "Stop", service="oms")
     
     # If order is already in a terminal state, return success (idempotent)
     if current_status in [ORDER_STATUS['STOPPED'], ORDER_STATUS['COMPLETED'], ORDER_STATUS['CANCELLED']]:
-        log("INFO", "Stop", service="oms")
         return {"msg": "order_already_stopped", "order": order_id, "status": current_status}
     
     # If order is in ERROR state, we can still mark it as STOPPED
@@ -1503,7 +1489,6 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
         log("ERROR", f"Cannot stop order {order_id} in {current_status} state", service="oms")
         raise HTTPException(status_code=400, detail=f"Cannot stop order in {current_status} state")
     
-    log("INFO", "Stop", service="oms")
     
     # Update status to stopping first
     db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")

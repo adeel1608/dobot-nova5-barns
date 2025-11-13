@@ -71,8 +71,6 @@ async def call_robot_container(action_name: str, params: dict):
             arm_id = params.get("arm_id", 1)
             robot_service = f"robot_container_{arm_id}"  # robot_container_1 or robot_container_2
             
-            log("INFO", f"[PHASE 1] Calling robot container '{robot_service}' for action '{action_name}'", service="robot_arm")
-            
             # PHASE 1: Robust health check with retry logic
             health_check_success = False
             max_health_retries = 3
@@ -80,8 +78,6 @@ async def call_robot_container(action_name: str, params: dict):
             
             for health_attempt in range(max_health_retries):
                 try:
-                    log("INFO", f"[PHASE 1] Health check attempt {health_attempt + 1}/{max_health_retries} for {robot_service}", service="robot_arm")
-                    
                     health_response = await robot_client.send_request(
                         target_service=robot_service,
                         action="health",
@@ -89,35 +85,29 @@ async def call_robot_container(action_name: str, params: dict):
                         timeout=15  # Increased timeout for health check
                     )
                     
-                    log("INFO", f"[PHASE 1] Health check response received from {robot_service}: {health_response}", service="robot_arm")
-                    
                     # More flexible health check - accept if we get any valid response
                     if health_response and (
                         health_response.get("status") == "healthy" or 
                         health_response.get("robot_id") is not None or
                         health_response.get("service") is not None
                     ):
-                        log("INFO", f"[PHASE 1] Health check successful for {robot_service}", service="robot_arm")
                         health_check_success = True
                         break
                     else:
                         log("ERROR", f"[PHASE 1] Health check returned unhealthy status for {robot_service}: {health_response}", service="robot_arm")
                         if health_attempt < max_health_retries - 1:
-                            log("INFO", f"[PHASE 1] Retrying health check in {health_retry_delay} seconds...", service="robot_arm")
                             await asyncio.sleep(health_retry_delay)
                             continue
                         
                 except asyncio.TimeoutError:
                     log("ERROR", f"[PHASE 1] Health check timeout for {robot_service} (attempt {health_attempt + 1}/{max_health_retries})", service="robot_arm")
                     if health_attempt < max_health_retries - 1:
-                        log("INFO", f"[PHASE 1] Retrying health check in {health_retry_delay} seconds...", service="robot_arm")
                         await asyncio.sleep(health_retry_delay)
                         continue
                         
                 except Exception as health_error:
                     log("ERROR", f"[PHASE 1] Health check error for {robot_service}: {str(health_error)[:100]}", service="robot_arm")
                     if health_attempt < max_health_retries - 1:
-                        log("INFO", f"[PHASE 1] Retrying health check in {health_retry_delay} seconds...", service="robot_arm")
                         await asyncio.sleep(health_retry_delay)
                         continue
             
@@ -131,16 +121,11 @@ async def call_robot_container(action_name: str, params: dict):
                 }
             
             # PHASE 2: Execute the actual action with retry logic
-            log("INFO", f"[PHASE 2] Starting action execution: '{action_name}' on {robot_service}", service="robot_arm")
-            log("INFO", f"[PHASE 2] Action params: {params}", service="robot_arm")
-            
             max_execution_retries = 2
             execution_retry_delay = 3
             
             for exec_attempt in range(max_execution_retries):
                 try:
-                    log("INFO", f"[PHASE 2] Execution attempt {exec_attempt + 1}/{max_execution_retries} for action '{action_name}'", service="robot_arm")
-                    
                     response = await robot_client.send_request(
                         target_service=robot_service,
                         action="execute_action",
@@ -161,13 +146,11 @@ async def call_robot_container(action_name: str, params: dict):
                             "phase": "execution_failed"
                         }
                     
-                    log("INFO", f"[PHASE 2] Action '{action_name}' completed successfully on {robot_service}", service="robot_arm")
                     return response
                     
                 except asyncio.TimeoutError:
                     log("ERROR", f"[PHASE 2] Action execution timeout for '{action_name}' (attempt {exec_attempt + 1}/{max_execution_retries})", service="robot_arm")
                     if exec_attempt < max_execution_retries - 1:
-                        log("INFO", f"[PHASE 2] Retrying action execution in {execution_retry_delay} seconds...", service="robot_arm")
                         await asyncio.sleep(execution_retry_delay)
                         continue
                     else:
@@ -181,7 +164,6 @@ async def call_robot_container(action_name: str, params: dict):
                 except Exception as exec_error:
                     log("ERROR", f"[PHASE 2] Action execution exception for '{action_name}': {str(exec_error)[:100]}", service="robot_arm")
                     if exec_attempt < max_execution_retries - 1:
-                        log("INFO", f"[PHASE 2] Retrying action execution in {execution_retry_delay} seconds...", service="robot_arm")
                         await asyncio.sleep(execution_retry_delay)
                         continue
                     else:
@@ -253,8 +235,6 @@ def perform(action_name: str, params: dict):
     try:
         if action_name not in TEST_ACTIONS:
             # For non-test actions, call robot container
-            log("INFO", f"[LEGACY] Calling robot container for action: '{action_name}'", service="robot_arm")
-            
             # Run the async function synchronously for legacy compatibility
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -266,8 +246,6 @@ def perform(action_name: str, params: dict):
             return result
         else:
             # For test actions, run locally
-            log("INFO", f"[LEGACY] Executing test action locally: '{action_name}'", service="robot_arm")
-            
             # Run the async function synchronously for legacy compatibility
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -276,7 +254,6 @@ def perform(action_name: str, params: dict):
             finally:
                 loop.close()
             
-            log("INFO", f"[LEGACY] Robot action '{action_name}' completed successfully", service="robot_arm")
             return result
         
     except Exception as e:
@@ -297,13 +274,10 @@ async def execute_robot_action(action_name: str, params: dict):
     try:
         if action_name in TEST_ACTIONS:
             # Execute test actions locally
-            log("INFO", f"[LOCAL-TEST] Executing test action locally: '{action_name}'", service="robot_arm")
             result = await TEST_ACTIONS[action_name](params)
-            log("INFO", f"[LOCAL-TEST] Test action '{action_name}' completed successfully", service="robot_arm")
             return result
         else:
             # Call robot container for real robot actions
-            log("INFO", f"[ROBOT-CONTAINER] Forwarding action '{action_name}' to robot container for arm {arm_id}", service="robot_arm")
             result = await call_robot_container(action_name, params)
             
             # Add more context to the result based on which phase failed
@@ -323,8 +297,6 @@ async def execute_robot_action(action_name: str, params: dict):
                 else:
                     log("ERROR", f"Robot communication error on Arm {arm_id} for action '{action_name}' (phase: {phase})", service="robot_arm")
                     result["user_message"] = f"Communication error with Robot Arm {arm_id}"
-            else:
-                log("INFO", f"[ROBOT-CONTAINER] Action '{action_name}' completed successfully on Arm {arm_id}", service="robot_arm")
             
             return result
         
