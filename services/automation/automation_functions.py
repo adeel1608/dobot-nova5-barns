@@ -31,9 +31,9 @@ async def dispense_hot_water(params: dict):
         cup_type = list(cups_dict.keys())[0]
         
         # Map cup type to calibration value
-        if "cup_H9" in cup_type.lower():
+        if "cup_h9" in cup_type.lower():
             calibration = 2
-        elif "cup_H12" in cup_type.lower():
+        elif "cup_h12" in cup_type.lower():
             calibration = 1
         else:
             # Default to calibration 2 if unknown cup type

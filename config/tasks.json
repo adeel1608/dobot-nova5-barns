@@ -239,6 +239,46 @@
     }
     ]
   },
+  "Pour Americano": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher_cup_station",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "get_hot_water",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "dispense_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "with_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "pour_espresso_pitcher_cup_station",
+        "params": {
+          "stage": "stage_1"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      }
+    ]
+  },
   "Pour Espresso": {
     "steps":[
       {
@@ -483,11 +523,6 @@
   },
   "Place Plastic Cup Sauces": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "cup_detection",
-        "params": {}
-      },
       {
         "type": "robot",
         "function": "place_plastic_cup_sauces",
