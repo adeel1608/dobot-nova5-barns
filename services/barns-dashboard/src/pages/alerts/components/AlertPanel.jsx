@@ -106,6 +106,34 @@ export default function AlertPanel() {
     return ingredients.find(ing => message.toLowerCase().includes(ing));
   };
 
+  const getAlertMessage = (alert) => {
+    // For order_halted alerts, try to extract message from payload
+    if (alert.alert_type === 'order_halted') {
+      if (alert.payload && typeof alert.payload === 'string') {
+        try {
+          const payload = JSON.parse(alert.payload);
+          // Check for validation failure message
+          if (payload.message) {
+            return payload.message;
+          }
+          // Check for validation_function to create a descriptive message
+          if (payload.validation_function) {
+            const validationFunction = payload.validation_function;
+            const cupId = payload.cup_id || '';
+            return `Validation failed: ${validationFunction}${cupId ? ` (${cupId})` : ''}. ${payload.message || 'Please check the system and resolve the issue.'}`;
+          }
+        } catch (e) {
+          // If parsing fails, fall through to default message
+        }
+      }
+      // Return default message if no custom message found
+      return alert.message || 'Order processing has been halted due to system issue';
+    }
+    
+    // For other alert types, return the message or alert_type
+    return alert.message || alert.alert_type;
+  };
+
   // Helper function to get the severity badge
   const getSeverityBadge = (severity) => {
     switch (severity?.toLowerCase()) {
@@ -226,7 +254,7 @@ export default function AlertPanel() {
                             <p className="font-medium text-sm text-gray-900 truncate">
                               {alert.alert_type === 'ingredient_threshold' 
                                 ? `Low ${getIngredientFromAlert(alert) || 'ingredient'} level`
-                                : alert.message || alert.alert_type}
+                                : getAlertMessage(alert)}
                             </p>
                             {alert.severity && getSeverityBadge(alert.severity)}
                           </div>
@@ -363,7 +391,7 @@ export default function AlertPanel() {
                             <p className="font-medium text-sm text-gray-900 truncate">
                               {alert.alert_type === 'ingredient_threshold' 
                                 ? `Low ${getIngredientFromAlert(alert) || 'ingredient'} level`
-                                : alert.message || alert.alert_type}
+                                : getAlertMessage(alert)}
                             </p>
                             {alert.severity && getSeverityBadge(alert.severity)}
                           </div>

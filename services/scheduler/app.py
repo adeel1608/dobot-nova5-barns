@@ -75,6 +75,7 @@ class SchedulerService:
         self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
         self.rabbitmq_client.register_handler("stop_order", self.handle_stop_order)
         self.rabbitmq_client.register_handler("resume_order", self.handle_resume_order)
+        self.rabbitmq_client.register_handler("revert_previous_step", self.handle_revert_previous_step)
         log("DEBUG", "Handlers registered", service="scheduler")
         
         # Register event handlers for the event listener
@@ -386,19 +387,27 @@ class SchedulerService:
         """Handle stop order request - signals workers to halt processing gracefully."""
         try:
             order_id = data.get("order_id")
+            log("INFO", f"[STOP ORDER] Received stop order request for order {order_id}", service="scheduler")
+            
             if not order_id:
+                log("ERROR", f"[STOP ORDER] Missing order_id in request", service="scheduler")
                 return {"success": False, "error": "Missing order_id"}
             
             from . import scheduler as core
             
             with core.lock:
-                if core.current_status.get("order_id") != order_id:
+                current_order = core.current_status.get("order_id")
+                log("INFO", f"[STOP ORDER] Current order in scheduler: {current_order}", service="scheduler")
+                
+                if current_order != order_id:
+                    log("WARNING", f"[STOP ORDER] Order {order_id} is not currently processing (current: {current_order})", service="scheduler")
                     return {"success": False, "error": f"Order {order_id} is not currently processing"}
                 
                 # Set stop flag to signal workers (they'll finish current task then stop)
+                log("INFO", f"[STOP ORDER] Setting order_stopped flag to True for order {order_id}", service="scheduler")
                 core.order_stopped = True
                 core.current_status["status"] = "stopping"
-                log("INFO", f"Order {order_id} stopping signal sent", service="scheduler")
+                log("INFO", f"[STOP ORDER] Order {order_id} status set to 'stopping'", service="scheduler")
             
             # Send stopping status to dashboard
             try:
@@ -478,6 +487,23 @@ class SchedulerService:
             return {"success": True, "message": "Order resumed"}
         except Exception as e:
             log("ERROR", f"Resume order handler exception for order {order_id}: {str(e)[:100]}", service="scheduler")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_revert_previous_step(self, data: Dict) -> Dict:
+        """Handle revert previous step request from routine service."""
+        try:
+            cup_id = data.get("cup_id")
+            current_action = data.get("current_action")
+            
+            if not cup_id or not current_action:
+                return {"success": False, "error": "Missing cup_id or current_action"}
+            
+            from . import scheduler as core
+            result = await core.revert_previous_step_for_cup(cup_id, current_action)
+            
+            return result
+        except Exception as e:
+            log("ERROR", f"Revert previous step handler exception: {str(e)[:100]}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):

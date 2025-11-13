@@ -152,15 +152,30 @@ class RoutineService:
             try:
                 task_data = await q.get()
                 try:
-                    await process_task(arm_id, task_data, task_configs, self.rabbitmq_client)
+                    # Process task and get execution status
+                    log("INFO", f"[WORKER] Arm{arm_id} processing task: {task_data.get('function', 'unknown')}", service="routine")
+                    result = await process_task(arm_id, task_data, task_configs, self.rabbitmq_client)
+                    log("INFO", f"[WORKER] Arm{arm_id} task result: success={result.get('success')}, validation_failed_stopped={result.get('validation_failed_stopped')}", service="routine")
                     
-                    # Send completion event
-                    await self._send_task_event("routine.task_completed", task_data, arm_id)
+                    # Only send events if task actually completed or failed
+                    # Skip events if validation failed (task remains pending for retry)
+                    if result.get("validation_failed_stopped", False):
+                        log("INFO", f"[WORKER] Arm{arm_id} validation failure detected - skipping event emission", service="routine")
+                        log("INFO", f"[WORKER] Arm{arm_id} task remains PENDING in scheduler for retry", service="routine")
+                        # Don't send any event - task remains pending in scheduler
+                    elif result.get("success", True):
+                        # Task completed successfully
+                        log("INFO", f"[WORKER] Arm{arm_id} task succeeded - sending completion event", service="routine")
+                        await self._send_task_event("routine.task_completed", task_data, arm_id)
+                    else:
+                        # Task failed (not due to validation)
+                        log("ERROR", f"[WORKER] Arm{arm_id} task failed - sending failure event", service="routine")
+                        await self._send_task_event("routine.task_failed", task_data, arm_id, result.get("message", "Task failed"))
                     
                 except Exception as e:
                     log("ERROR", "[Routine][Arm{arm_id}] error: {e}", service="routine")
                     
-                    # Send error event
+                    # Send error event for unexpected exceptions
                     await self._send_task_event("routine.task_failed", task_data, arm_id, str(e))
                 finally:
                     q.task_done()

@@ -933,7 +933,10 @@ class MainValidation:
                             current_amount = current_inventory[ingredient_type][subtype]["current_amount"]
                             critical_threshold = current_inventory[ingredient_type][subtype]["critical_threshold"]
                             
+                            log("INFO", f"[INGREDIENT CHECK] Checking {ingredient_key}: current={current_amount}g, needed={amount_grams}g, threshold={critical_threshold}g", service="validation")
+                            
                             if current_amount < amount_grams:
+                                log("WARNING", f"[INGREDIENT CHECK] INSUFFICIENT {ingredient_key}: current={current_amount}g < needed={amount_grams}g", service="validation")
                                 result["passed"] = False
                                 result["details"][ingredient_key] = {
                                     "subtype": subtype,
@@ -943,6 +946,7 @@ class MainValidation:
                                     "status": "insufficient"
                                 }
                             else:
+                                log("INFO", f"[INGREDIENT CHECK] SUFFICIENT {ingredient_key}: current={current_amount}g >= needed={amount_grams}g", service="validation")
                                 result["details"][ingredient_key] = {
                                     "subtype": subtype,
                                     "current": current_amount,
@@ -960,7 +964,10 @@ class MainValidation:
                             current_amount = current_inventory[ingredient_type][subtype]["current_amount"]
                             critical_threshold = current_inventory[ingredient_type][subtype]["critical_threshold"]
                             
+                            log("INFO", f"[INGREDIENT CHECK] Checking {subtype}: current={current_amount}, needed={amount}, threshold={critical_threshold}", service="validation")
+                            
                             if current_amount < amount:
+                                log("WARNING", f"[INGREDIENT CHECK] INSUFFICIENT {subtype}: current={current_amount} < needed={amount}", service="validation")
                                 result["passed"] = False
                                 result["details"]["cups"] = {
                                     "subtype": subtype,
@@ -970,6 +977,7 @@ class MainValidation:
                                     "status": "insufficient"
                                 }
                             else:
+                                log("INFO", f"[INGREDIENT CHECK] SUFFICIENT {subtype}: current={current_amount} >= needed={amount}", service="validation")
                                 result["details"]["cups"] = {
                                     "subtype": subtype,
                                     "current": current_amount,
@@ -1029,7 +1037,10 @@ class MainValidation:
                                 current_amount = current_inventory[inventory_category][inventory_subtype]["current_amount"]
                                 critical_threshold = current_inventory[inventory_category][inventory_subtype]["critical_threshold"]
                                 
+                                log("INFO", f"[INGREDIENT CHECK] Checking {ingredient_key} ({inventory_subtype}): current={current_amount}ml, needed={check_amount}ml, threshold={critical_threshold}ml", service="validation")
+                                
                                 if current_amount < check_amount:
+                                    log("WARNING", f"[INGREDIENT CHECK] INSUFFICIENT {ingredient_key} ({inventory_subtype}): current={current_amount}ml < needed={check_amount}ml", service="validation")
                                     result["passed"] = False
                                     result["details"][ingredient_key] = {
                                         "id": numeric_id,
@@ -1041,6 +1052,7 @@ class MainValidation:
                                         "status": "insufficient"
                                     }
                                 else:
+                                    log("INFO", f"[INGREDIENT CHECK] SUFFICIENT {ingredient_key} ({inventory_subtype}): current={current_amount}ml >= needed={check_amount}ml", service="validation")
                                     result["details"][ingredient_key] = {
                                         "id": numeric_id,
                                         "inventory_category": inventory_category,
@@ -1057,10 +1069,13 @@ class MainValidation:
             # Add summary message
             if result["passed"]:
                 result["details"]["message"] = "All ingredients available for this task"
+                log("INFO", f"[INGREDIENT VALIDATION] PASSED - All ingredients available", service="validation")
             else:
                 result["details"]["message"] = "Insufficient ingredients for this task"
+                log("WARNING", f"[INGREDIENT VALIDATION] FAILED - Insufficient ingredients detected", service="validation")
             
-            log("INFO", f"Ingredient validation result: {json.dumps(result, indent=2)}", service="validation")
+            log("INFO", f"[INGREDIENT VALIDATION] Final result: passed={result['passed']}", service="validation")
+            log("DEBUG", f"[INGREDIENT VALIDATION] Full result: {json.dumps(result, indent=2)}", service="validation")
             return result
             
         except Exception as e:

@@ -222,6 +222,20 @@ button:focus-visible {
   animation: barns-pulse 2s ease-in-out infinite;
 }
 
+/* Blinking red animation for stopped orders */
+@keyframes blink-red {
+  0%, 100% {
+    background-color: #fef2f2; /* red-50 */
+  }
+  50% {
+    background-color: #fee2e2; /* red-100 */
+  }
+}
+
+.animate-blink-red {
+  animation: blink-red 1s ease-in-out infinite;
+}
+
 /* Glow animation for active states */
 @keyframes barns-glow {
   0% {
