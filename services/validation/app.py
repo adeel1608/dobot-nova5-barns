@@ -191,11 +191,7 @@ class ValidationServiceApp:
             # Extract meaningful info for logging
             ingredient_type = data.get("payload", {}).get("ingredient_type", "unknown")
             subtype = data.get("payload", {}).get("subtype", "")
-            
-            if subtype:
-                log("INFO", f"Checking ingredient status: {ingredient_type} ({subtype})", service="validation")
-            else:
-                log("INFO", f"Checking ingredient status: {ingredient_type}", service="validation")
+        
             
             log("DEBUG", f"Ingredient status request details: {data}", service="validation")
             

@@ -91,7 +91,7 @@ class AutomationService:
             # Execute automation function
             result = await AUTOMATION_FUNCTIONS[function](params)
             
-            log("INFO", "Success", service="automation")
+            log("INFO", f"Success: {result}", service="automation")
             
             # Send completion event
             await self.rabbitmq_client.send_event("automation.completed", {
@@ -103,7 +103,7 @@ class AutomationService:
             return result
             
         except Exception as e:
-            log("ERROR", "Error", service="automation")
+            log("ERROR", f"Error: {e}", service="automation")
             
             # Send error event
             await self.rabbitmq_client.send_event("automation.error", {
