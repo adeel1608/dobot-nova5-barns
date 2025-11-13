@@ -125,16 +125,28 @@ export const useDashboardStore = create((set, get) => {
     // plan: { Arm1: [[action, cup_id], ...], Arm2: [...] }
     const format = (arr) => (arr || []).map(([action, cup]) => ({ action, cup_id: cup, status: 'pending' }));
     console.log(`[Store] Setting new plan for order ${orderId}`);
-    set({
-      schedulerCurrentOrderId: orderId,
-      schedulerTasks: {
-        Arm1: format(plan.Arm1),
-        Arm2: format(plan.Arm2)
-      },
-      schedulerTaskStatus: {},
-      taskTimings: {} // Clear timings when new plan starts
+    set(state => {
+      const newState = {
+        ...state,
+        schedulerCurrentOrderId: orderId,
+        schedulerTasks: {
+          Arm1: format(plan.Arm1),
+          Arm2: format(plan.Arm2)
+        },
+        schedulerTaskStatus: {},
+        taskTimings: {} // Clear timings when new plan starts
+      };
+      
+      // Save to storage using the new state directly, not get()
+      saveSchedulerToStorage(newState);
+      
+      return {
+        schedulerCurrentOrderId: newState.schedulerCurrentOrderId,
+        schedulerTasks: newState.schedulerTasks,
+        schedulerTaskStatus: {},
+        taskTimings: {}
+      };
     });
-    saveSchedulerToStorage(get());
   },
 
   updateSchedulerTask: ({ cup_id, action, success, message }) => {
@@ -161,7 +173,9 @@ export const useDashboardStore = create((set, get) => {
         }
         return t;
       });
-      return {
+      
+      const newState = {
+        ...state,
         schedulerTasks: {
           Arm1: updateList(state.schedulerTasks.Arm1),
           Arm2: updateList(state.schedulerTasks.Arm2)
@@ -171,23 +185,44 @@ export const useDashboardStore = create((set, get) => {
           [key]: { success, message, status: newStatus }
         }
       };
+      
+      // Save to storage using the new state directly, not get()
+      saveSchedulerToStorage(newState);
+      
+      return {
+        schedulerTasks: newState.schedulerTasks,
+        schedulerTaskStatus: newState.schedulerTaskStatus
+      };
     });
-    saveSchedulerToStorage(get());
   },
 
   setSchedulerStatusMessage: (message, statusObj) => {
-    set({ schedulerStatusMessage: message });
-    saveSchedulerToStorage(get());
+    set(state => {
+      const newState = { ...state, schedulerStatusMessage: message };
+      // Save to storage using the new state directly, not get()
+      saveSchedulerToStorage(newState);
+      return { schedulerStatusMessage: message };
+    });
   },
 
   updateTaskTiming: (taskKey, timing) => {
-    set(state => ({
-      taskTimings: {
-        ...state.taskTimings,
-        [taskKey]: timing
-      }
-    }));
-    saveSchedulerToStorage(get());
+    set(state => {
+      const newState = {
+        ...state,
+        taskTimings: {
+          ...state.taskTimings,
+          [taskKey]: timing
+        }
+      };
+      // Save to storage using the new state directly, not get()
+      saveSchedulerToStorage(newState);
+      return {
+        taskTimings: {
+          ...state.taskTimings,
+          [taskKey]: timing
+        }
+      };
+    });
   },
 
   // Mark all non-final tasks as cancelled after an order-level failure
@@ -198,23 +233,36 @@ export const useDashboardStore = create((set, get) => {
         if (t.status === 'cancelled') return t;
         return { ...t, status: 'cancelled' };
       });
-      return {
+      
+      const newState = {
+        ...state,
         schedulerTasks: {
           Arm1: cancelList(state.schedulerTasks.Arm1),
           Arm2: cancelList(state.schedulerTasks.Arm2)
         },
         schedulerStatusMessage: reason ? String(reason) : state.schedulerStatusMessage
       };
+      
+      // Save to storage using the new state directly, not get()
+      saveSchedulerToStorage(newState);
+      
+      return {
+        schedulerTasks: newState.schedulerTasks,
+        schedulerStatusMessage: newState.schedulerStatusMessage
+      };
     });
-    saveSchedulerToStorage(get());
   },
 
   // Freeze task state when order completes/fails/stops
   freezeSchedulerState: () => {
-    const state = get();
-    console.log(`[Store] Freezing scheduler state for order ${state.schedulerCurrentOrderId}`);
-    // Just save current state - it's already frozen by preventing updates in updateSchedulerTask
-    saveSchedulerToStorage(state);
+    // Use set with a callback to safely access and save state
+    set(state => {
+      console.log(`[Store] Freezing scheduler state for order ${state.schedulerCurrentOrderId}`);
+      // Just save current state - it's already frozen by preventing updates in updateSchedulerTask
+      saveSchedulerToStorage(state);
+      // Return empty object since we're not changing anything
+      return {};
+    });
   },
   clearError: (component) => {
     if (component) {

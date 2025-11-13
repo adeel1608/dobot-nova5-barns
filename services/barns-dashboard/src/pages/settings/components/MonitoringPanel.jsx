@@ -47,13 +47,17 @@ export default function MonitoringPanel() {
   const [selectedServices, setSelectedServices] = useState(['.*']);
   const [selectedLevels, setSelectedLevels] = useState(['.*']);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [refreshInterval, setRefreshInterval] = useState(5000);
+  const [refreshInterval, setRefreshInterval] = useState(2000); // Faster refresh for fast logs
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('checking'); // 'checking', 'connected', 'error'
   const [lastUpdate, setLastUpdate] = useState(null);
-  const [logLimit, setLogLimit] = useState(50);
+  const [logLimit, setLogLimit] = useState(100); // Increased default
   const [showServiceDropdown, setShowServiceDropdown] = useState(false);
+  const [newLogsCount, setNewLogsCount] = useState(0); // Track new logs since last view
+  const [autoScroll, setAutoScroll] = useState(true); // Auto-scroll to newest logs
+  const [searchQuery, setSearchQuery] = useState(''); // Search filter for logs
+  const logsContainerRef = React.useRef(null);
 
   // Data state
   const [recentLogs, setRecentLogs] = useState([]);
@@ -76,7 +80,7 @@ export default function MonitoringPanel() {
       const serviceFilter = selectedServices.includes('.*') ? '.*' : selectedServices.join('|');
       const levelFilter = selectedLevels.includes('.*') ? '.*' : selectedLevels.join('|');
 
-      // Fetch all data in parallel
+      // Fetch all data in parallel - Increased limit for fast logs
       const [
         logs,
         volume,
@@ -86,23 +90,40 @@ export default function MonitoringPanel() {
         services,
         stats
       ] = await Promise.all([
-        getRecentLogs(timeRange, serviceFilter, levelFilter, 500),
+        getRecentLogs(timeRange, serviceFilter, levelFilter, 1000), // Increased from 500 to 1000
         getLogVolumeByLevel(timeRange, serviceFilter, levelFilter, '30s'),
         getErrorDistributionByService(timeRange, serviceFilter),
-        getTopErrors(timeRange, serviceFilter, 10),
+        getTopErrors(timeRange, serviceFilter, 20), // Increased from 10 to 20
         getErrorRateByService(timeRange, serviceFilter, '30s'),
         getAvailableServices('-1h'),
         getLogStatistics(timeRange, serviceFilter)
       ]);
 
-      // Process recent logs
-      const processedLogs = logs.map(log => ({
-        time: new Date(log._time).toLocaleString(),
-        service: log.service,
-        level: log.level,
-        message: log.msg || log._value,
-        timestamp: log._time
-      }));
+      // Process recent logs - Handle JSON messages properly
+      const processedLogs = logs
+        .map(log => {
+          let message = log.msg || log._value || '';
+          
+          // If message is an object/JSON, stringify it
+          if (typeof message === 'object' && message !== null) {
+            try {
+              message = JSON.stringify(message);
+            } catch (e) {
+              message = String(message);
+            }
+          }
+          
+          return {
+            time: new Date(log._time).toLocaleString(),
+            service: log.service,
+            level: log.level,
+            message: String(message),
+            timestamp: log._time,
+            rawData: log // Keep raw data for debugging
+          };
+        })
+        // Sort by timestamp descending (newest first)
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
       // Process log volume (group by time and level)
       const volumeMap = {};
@@ -152,6 +173,15 @@ export default function MonitoringPanel() {
         processedStats[record.level] = record._value || 0;
       });
 
+      // Track new logs
+      const prevLogCount = recentLogs.length;
+      const newLogCount = processedLogs.length;
+      if (prevLogCount > 0 && newLogCount > prevLogCount) {
+        setNewLogsCount(newLogCount - prevLogCount);
+        // Reset counter after 3 seconds
+        setTimeout(() => setNewLogsCount(0), 3000);
+      }
+
       // Update state
       setRecentLogs(processedLogs);
       setLogVolume(processedVolume);
@@ -194,6 +224,13 @@ export default function MonitoringPanel() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showServiceDropdown]);
+
+  // Auto-scroll to top when new logs arrive (logs are newest first)
+  useEffect(() => {
+    if (autoScroll && logsContainerRef.current && recentLogs.length > 0) {
+      logsContainerRef.current.scrollTop = 0;
+    }
+  }, [recentLogs, autoScroll]);
 
   /**
    * Toggle service selection (multi-select)
@@ -253,6 +290,17 @@ export default function MonitoringPanel() {
   };
 
   const totalLogs = Object.values(logStats).reduce((sum, val) => sum + val, 0);
+
+  // Filter logs based on search query
+  const filteredLogs = React.useMemo(() => {
+    if (!searchQuery.trim()) return recentLogs;
+    const query = searchQuery.toLowerCase();
+    return recentLogs.filter(log => 
+      log.message?.toLowerCase().includes(query) ||
+      log.service?.toLowerCase().includes(query) ||
+      log.level?.toLowerCase().includes(query)
+    );
+  }, [recentLogs, searchQuery]);
 
   return (
     <div className="flex flex-col gap-3 h-full" style={{ height: 'calc(100vh - 180px)' }}>
@@ -444,16 +492,30 @@ export default function MonitoringPanel() {
               <option value="-24h">Last 24 hours</option>
             </select>
 
-            {/* Auto Refresh Toggle */}
-            <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4 rounded text-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-gray-700">Auto ({refreshInterval / 1000}s)</span>
-            </label>
+            {/* Auto Refresh Toggle with Interval Selector */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors">
+                <input
+                  type="checkbox"
+                  checked={autoRefresh}
+                  onChange={(e) => setAutoRefresh(e.target.checked)}
+                  className="w-4 h-4 rounded text-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Auto</span>
+              </label>
+              <select
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(parseInt(e.target.value))}
+                disabled={!autoRefresh}
+                className="px-2 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="1000">1s</option>
+                <option value="2000">2s</option>
+                <option value="3000">3s</option>
+                <option value="5000">5s</option>
+                <option value="10000">10s</option>
+              </select>
+            </div>
 
             {/* Refresh Button */}
             <button
@@ -618,46 +680,96 @@ export default function MonitoringPanel() {
         {/* Middle Column: Recent Logs (Full Height) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex flex-col h-full min-h-0">
           <div className="flex items-center justify-between mb-2 flex-shrink-0">
-            <h3 className="text-sm font-semibold text-gray-900">Recent Logs</h3>
-            <select
-              value={logLimit}
-              onChange={(e) => setLogLimit(parseInt(e.target.value))}
-              className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-            >
-              <option value="25">Show 25</option>
-              <option value="50">Show 50</option>
-              <option value="100">Show 100</option>
-              <option value="200">Show 200</option>
-              <option value="500">Show 500</option>
-            </select>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-gray-900">Recent Logs</h3>
+              {newLogsCount > 0 && (
+                <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full animate-pulse">
+                  +{newLogsCount} new
+                </span>
+              )}
+              {autoRefresh && connectionStatus === 'connected' && (
+                <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-medium rounded flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                  LIVE
+                </span>
+              )}
+              <span className="text-xs text-gray-500">
+                ({searchQuery ? `${filteredLogs.length} filtered, ` : ''}Showing {Math.min(logLimit, filteredLogs.length)} of {recentLogs.length})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer hover:text-gray-900">
+                <input
+                  type="checkbox"
+                  checked={autoScroll}
+                  onChange={(e) => setAutoScroll(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded text-blue-600 cursor-pointer"
+                />
+                Auto-scroll
+              </label>
+              <select
+                value={logLimit}
+                onChange={(e) => setLogLimit(parseInt(e.target.value))}
+                className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              >
+                <option value="25">Show 25</option>
+                <option value="50">Show 50</option>
+                <option value="100">Show 100</option>
+                <option value="200">Show 200</option>
+                <option value="500">Show 500</option>
+                <option value="1000">Show 1000</option>
+              </select>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0">
-            <div className="space-y-1">
-              {recentLogs.slice(0, logLimit).map((log, idx) => (
-                <div
-                  key={idx}
-                  className={`p-1.5 rounded border-l-3 ${
-                    log.level === 'ERROR' ? 'bg-red-50 border-red-500' :
-                    log.level === 'WARNING' ? 'bg-yellow-50 border-yellow-500' :
-                    log.level === 'INFO' ? 'bg-blue-50 border-blue-500' :
-                    log.level === 'DEBUG' ? 'bg-purple-50 border-purple-500' :
-                    'bg-gray-50 border-gray-500'
-                  }`}
+          
+          {/* Search Box */}
+          <div className="mb-2 flex-shrink-0">
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search logs by message, service, or level..."
+                className="w-full px-3 py-1.5 pl-8 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+              />
+              <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span
-                      className="text-xs font-medium px-1.5 py-0.5 rounded text-white"
-                      style={{ backgroundColor: SERVICE_COLORS[log.service] || '#94a3b8' }}
-                    >
-                      {log.service}
-                    </span>
-                    <span className="text-xs text-gray-500 font-mono">{log.time}</span>
-                  </div>
-                  <p className="text-xs text-gray-900 truncate" title={log.message}>
-                    {log.message}
-                  </p>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+          <div ref={logsContainerRef} className="flex-1 overflow-y-auto min-h-0">
+            <div className="space-y-1">
+              {recentLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p className="text-sm font-medium">No logs found</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Adjust filters or time range</p>
                 </div>
-              ))}
+              ) : filteredLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <p className="text-sm font-medium">No matching logs</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Try a different search query</p>
+                </div>
+              ) : (
+                filteredLogs.slice(0, logLimit).map((log, idx) => (
+                  <LogEntry key={`${log.timestamp}-${idx}`} log={log} searchQuery={searchQuery} />
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -696,6 +808,111 @@ export default function MonitoringPanel() {
             )}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Log Entry Component - Handles individual log display with expand/collapse
+ */
+function LogEntry({ log, searchQuery }) {
+  const [expanded, setExpanded] = useState(false);
+  const maxLength = 150;
+  const isLongMessage = log.message && log.message.length > maxLength;
+  
+  // Try to detect if message is JSON
+  const isJSON = log.message && (
+    log.message.startsWith('{') || 
+    log.message.startsWith('[')
+  );
+
+  // Highlight search query in text
+  const highlightText = (text, query) => {
+    if (!query || !text) return text;
+    
+    const parts = text.split(new RegExp(`(${query})`, 'gi'));
+    return parts.map((part, idx) => 
+      part.toLowerCase() === query.toLowerCase() ? (
+        <mark key={idx} className="bg-yellow-300 text-gray-900 px-0.5 rounded">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
+  
+  return (
+    <div
+      className={`p-1.5 rounded border-l-3 transition-all ${
+        log.level === 'ERROR' ? 'bg-red-50 border-red-500' :
+        log.level === 'WARNING' ? 'bg-yellow-50 border-yellow-500' :
+        log.level === 'INFO' ? 'bg-blue-50 border-blue-500' :
+        log.level === 'DEBUG' ? 'bg-purple-50 border-purple-500' :
+        'bg-gray-50 border-gray-500'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-0.5">
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs font-medium px-1.5 py-0.5 rounded text-white"
+            style={{ backgroundColor: SERVICE_COLORS[log.service] || '#94a3b8' }}
+          >
+            {log.service}
+          </span>
+          <span
+            className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+              log.level === 'ERROR' ? 'bg-red-600 text-white' :
+              log.level === 'WARNING' ? 'bg-yellow-600 text-white' :
+              log.level === 'INFO' ? 'bg-blue-600 text-white' :
+              log.level === 'DEBUG' ? 'bg-purple-600 text-white' :
+              'bg-gray-600 text-white'
+            }`}
+          >
+            {log.level}
+          </span>
+          {isJSON && (
+            <span className="text-xs px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-mono">
+              JSON
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-gray-500 font-mono">{log.time}</span>
+      </div>
+      
+      <div className="text-xs text-gray-900">
+        {isLongMessage && !expanded ? (
+          <div>
+            <p className="whitespace-pre-wrap break-words">
+              {searchQuery ? highlightText(log.message.substring(0, maxLength), searchQuery) : log.message.substring(0, maxLength)}...
+            </p>
+            <button
+              onClick={() => setExpanded(true)}
+              className="text-blue-600 hover:text-blue-700 font-medium mt-1 flex items-center gap-1"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              Show more
+            </button>
+          </div>
+        ) : (
+          <div>
+            <pre className="whitespace-pre-wrap break-words font-sans">
+              {searchQuery ? highlightText(log.message, searchQuery) : log.message}
+            </pre>
+            {isLongMessage && (
+              <button
+                onClick={() => setExpanded(false)}
+                className="text-blue-600 hover:text-blue-700 font-medium mt-1 flex items-center gap-1"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                </svg>
+                Show less
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

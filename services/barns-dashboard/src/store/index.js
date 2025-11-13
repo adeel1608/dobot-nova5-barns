@@ -20,6 +20,9 @@ export const useWebSocketStore = create((set, get) => ({
   connectionStatus: {
     websocket: 'disconnected'
   },
+  
+  // Debounce tracking for status updates
+  _lastStatusUpdateTime: 0,
 
   // Connect to the main WebSocket endpoint that handles all events
   connectWebSocket: () => {
@@ -97,7 +100,11 @@ export const useWebSocketStore = create((set, get) => ({
             });
           } else if (data.event === 'scheduler.status_update') {
             const payload = data.data || {};
-            useDashboardStore.getState().setSchedulerStatusMessage(payload.message, payload.status);
+            // Debounce status message updates to prevent excessive re-renders
+            if (!get()._lastStatusUpdateTime || (Date.now() - get()._lastStatusUpdateTime) > 100) {
+              set({ _lastStatusUpdateTime: Date.now() });
+              useDashboardStore.getState().setSchedulerStatusMessage(payload.message, payload.status);
+            }
           } else {
             // Fallback: refresh orders on generic updates
             useDashboardStore.getState().fetchOrders();
