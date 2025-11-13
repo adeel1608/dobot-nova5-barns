@@ -5,7 +5,7 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
-RFDETR_CONFIDENCE = 0.3        # 0..1 (lowered to catch more cups at milk dispenser)
+RFDETR_CONFIDENCE = 0.05        # 0..1 (lowered to catch more cups at milk dispenser)
 
 # Class filters per detection type
 # Station detection: use all classes (set to None or empty list)
