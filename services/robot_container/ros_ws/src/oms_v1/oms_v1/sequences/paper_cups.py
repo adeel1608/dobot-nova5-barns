@@ -16,6 +16,7 @@ from oms_v1.params import (
 )
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
+from oms_v1.sequences.computer_vision import detect_cup_gripper
 
 def _normalize_paper_cup_size(cups_dict: Any) -> str:
     """
@@ -117,43 +118,64 @@ def grab_paper_cup(**params) -> bool:
         else:
             print("   ⏭️ No twist back movement defined for this size")
         
-        # Step 5: Move end-effector into approach position
-        print("🎯 Step 5/8: Moving to approach position...")
-        if 'approach' in cup_params:
-            print(f"   📍 Executing approach movement: {cup_params['approach']}")
-            approach_result = run_skill("moveEE", *cup_params['approach'])
-            if approach_result is False:
-                print("[ERROR] Failed to move to approach position")
+        # Check if a cup is in the gripper
+        attempt_count = 0
+        while attempt_count < 3:
+            # Step 5: Move end-effector into approach position
+            print("🎯 Step 5/8: Moving to approach position...")
+            if 'approach' in cup_params:
+                print(f"   📍 Executing approach movement: {cup_params['approach']}")
+                approach_result = run_skill("moveEE", *cup_params['approach'])
+                if approach_result is False:
+                    print("[ERROR] Failed to move to approach position")
+                    return False
+                print("   ✅ Successfully moved to approach position")
+            else:
+                print("   ⏭️ No approach movement defined for this size")
+            
+            # Step 6: Close gripper to grasp the paper cup
+            print("🤏 Step 6/8: Gripping paper cup...")
+            if 'grip_width' in cup_params:
+                print(f"   📏 Setting gripper width to: {cup_params['grip_width']}")
+                grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
+                if grip_result is False:
+                    print("[ERROR] Failed to grip paper cup")
+                    return False
+                print("   ✅ Successfully gripped paper cup")
+            else:
+                print("[ERROR] No grip width defined for this size")
                 return False
-            print("   ✅ Successfully moved to approach position")
-        else:
-            print("   ⏭️ No approach movement defined for this size")
-        
-        # Step 6: Close gripper to grasp the paper cup
-        print("🤏 Step 6/8: Gripping paper cup...")
-        if 'grip_width' in cup_params:
-            print(f"   📏 Setting gripper width to: {cup_params['grip_width']}")
-            grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
-            if grip_result is False:
-                print("[ERROR] Failed to grip paper cup")
-                return False
-            print("   ✅ Successfully gripped paper cup")
-        else:
-            print("[ERROR] No grip width defined for this size")
-            return False
-        
-        # Step 7: Retract after gripping
-        print("⬆️ Step 7/8: Retracting with paper cup...")
-        if 'retreat' in cup_params:
-            print(f"   📍 Executing retreat movement: {cup_params['retreat']}")
-            retreat_result = run_skill("moveEE", *cup_params['retreat'])
-            if retreat_result is False:
-                print("[ERROR] Failed to retreat with paper cup")
-                return False
-            print("   ✅ Successfully retracted with paper cup")
-        else:
-            print("   ⏭️ No retreat movement defined for this size")
-        
+            
+            # Step 7: Retract after gripping
+            print("⬆️ Step 7/8: Retracting with paper cup...")
+            if 'retreat' in cup_params:
+                print(f"   📍 Executing retreat movement: {cup_params['retreat']}")
+                retreat_result = run_skill("moveEE", *cup_params['retreat'])
+                if retreat_result is False:
+                    print("[ERROR] Failed to retreat with paper cup")
+                    return False
+                print("   ✅ Successfully retracted with paper cup")
+            else:
+                print("   ⏭️ No retreat movement defined for this size")
+            
+            # Check if a cup is in the gripper
+            cup_detected = detect_cup_gripper()
+            if cup_detected:
+                print("✅ Cup detected in gripper")
+                break
+            else:
+                print("❌ No cup detected in gripper")
+                attempt_count += 1
+                # Step 8: Open gripper to release paper cup
+                print("🤏 Step 8/8: Releasing paper cup...")
+                release_result = run_skill("set_gripper_position", 50, 0)
+                
+                if release_result is False:
+                    print("[ERROR] Failed to release paper cup")
+                    return False
+                print("   ✅ Paper cup released successfully")
+
+                
         # Final success summary
         print("=" * 50)
         print(f"✅ PAPER CUP GRAB COMPLETED SUCCESSFULLY FOR {size.upper()}")
