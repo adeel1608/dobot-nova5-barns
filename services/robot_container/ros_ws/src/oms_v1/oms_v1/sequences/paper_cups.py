@@ -109,19 +109,19 @@ def grab_paper_cup(**params) -> bool:
         # Check if a cup is in the gripper
         attempt_count = 0
         while attempt_count < 3:        
-            if cup_size == "7oz":
+            if size == "7oz":
                 twist_back_result = run_skill("gotoJ_deg", 54.948658, 12.208040, -69.338005, -32.943398, 90.239655, -124.960251)
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
                     return False
                 print("   ✅ Successfully executed twist back movement")
-            elif cup_size == "9oz":
+            elif size == "9oz":
                 twist_back_result = run_skill("gotoJ_deg", 27.502762, 30.098457, -80.283768, -36.358551, 88.971786, -154.398346)
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
                     return False
                 print("   ✅ Successfully executed twist back movement")
-            elif cup_size == "12oz":
+            elif size == "12oz":
                 twist_back_result = run_skill("gotoJ_deg", -21.871843, 4.984756, -63.493607, -31.584101, 90.055153, -201.714615)
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
