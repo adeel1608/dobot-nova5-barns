@@ -16,7 +16,7 @@ from oms_v1.params import (
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size,
     _set_cup_dispensed, _check_and_clear_cup_dispensed
 )
-
+from oms_v1.sequences.computer_vision import detect_cup_gripper
 
 def _normalize_plastic_cup_size(cups_dict: Any) -> str:
     """
@@ -81,76 +81,89 @@ def dispense_plastic_cup(**params) -> bool:
         config = CUP_CONFIG[cup_size]
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)
-        
-        if cup_size == "16oz":
-            home(position=config['home'])
-            run_skill("set_gripper_position", 255, 255)
-            run_skill("gotoJ_deg", *config['coords'])
-            run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-            run_skill("set_speed_factor", 7)
-            run_skill("sync")
-            run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
-            run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
-            run_skill("set_gripper_position", 255, 0)
-            run_skill("moveEE", 0.0, 17.5, 65.0, 0, 0, 0)
-            run_skill("set_gripper_position", 255, config['gripper'])
-            run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-            run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
-            run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            home(position=config['home'])
-        elif cup_size == "12oz":
-            home(position=config['home'])
-            run_skill("set_gripper_position", 255, 255)
-            run_skill("gotoJ_deg", *config['coords'])
-            run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-            run_skill("set_speed_factor", 5)
-            run_skill("sync")
-            run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
-            run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
-            run_skill("set_gripper_position", 255, 0)
-            run_skill("moveEE", 0.0, 22.5, 59.5, 0, 0, 0)
-            run_skill("set_gripper_position", 255, config['gripper'])
-            run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-            run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
-            run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            home(position=config['home'])
-        if cup_size == "9oz":
-            home(position=config['home'])
-            run_skill("set_gripper_position", 255, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            run_skill("moveEE", 25.0, 395.0, -32.0, 0, 0, 0)  
-            run_skill("set_gripper_position", 255, config['gripper'])
-            run_skill("set_speed_factor", 3)
-            run_skill("sync")
-            run_skill("moveEE", 0, 0.0, config['extract_z'], 0, 0, 0)
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-            run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-            run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            home(position=config['home'])
-        if cup_size == "7oz":
-            home(position=config['home'])
-            run_skill("set_gripper_position", 255, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            run_skill("moveEE", 0.0, 403.0, 5.0, 0, 0, 0)  
-            run_skill("set_gripper_position", 255, config['gripper'])
-            run_skill("set_speed_factor", 7)
-            run_skill("sync")
-            run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0)
-            run_skill("set_speed_factor", 100)
-            run_skill("sync")
-            run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-            run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
-            run_skill("gotoJ_deg", *config['coords'])
-            home(position=config['home'])
-        
+        attempt_count = 0
+        while attempt_count < 3:
+            if cup_size == "16oz":
+                home(position=config['home'])
+                run_skill("set_gripper_position", 255, 255)
+                run_skill("gotoJ_deg", *config['coords'])
+                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
+                run_skill("set_speed_factor", 7)
+                run_skill("sync")
+                run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255, 0)
+                run_skill("moveEE", 0.0, 17.5, 65.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
+                run_skill("set_speed_factor", 100)
+                run_skill("sync")
+                run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
+                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                home(position=config['home'])
+            elif cup_size == "12oz":
+                home(position=config['home'])
+                run_skill("set_gripper_position", 255, 255)
+                run_skill("gotoJ_deg", *config['coords'])
+                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
+                run_skill("set_speed_factor", 5)
+                run_skill("sync")
+                run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255, 0)
+                run_skill("moveEE", 0.0, 22.5, 59.5, 0, 0, 0)
+                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
+                run_skill("set_speed_factor", 100)
+                run_skill("sync")
+                run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
+                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                home(position=config['home'])
+            if cup_size == "9oz":
+                home(position=config['home'])
+                run_skill("set_gripper_position", 255, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                run_skill("moveEE", 25.0, 395.0, -32.0, 0, 0, 0)  
+                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("set_speed_factor", 3)
+                run_skill("sync")
+                run_skill("moveEE", 0, 0.0, config['extract_z'], 0, 0, 0)
+                run_skill("set_speed_factor", 100)
+                run_skill("sync")
+                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
+                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                home(position=config['home'])
+            if cup_size == "7oz":
+                home(position=config['home'])
+                run_skill("set_gripper_position", 255, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                run_skill("moveEE", 0.0, 403.0, 5.0, 0, 0, 0)  
+                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("set_speed_factor", 7)
+                run_skill("sync")
+                run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0)
+                run_skill("set_speed_factor", 100)
+                run_skill("sync")
+                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
+                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("gotoJ_deg", *config['coords'])
+                home(position=config['home'])
+            
+            # Check if a cup is in the gripper
+            cup_detected = detect_cup_gripper()
+            if cup_detected:
+                print("✅ Cup detected in gripper")
+                break
+            else:
+                print("❌ No cup detected in gripper")
+                attempt_count += 1
+                if attempt_count == 3:
+                    print("[ERROR] Failed to grab plastic cup after 3 attempts")
+                    return False
+
         # Set flag to indicate cup was just dispensed
         _set_cup_dispensed()
         return True
