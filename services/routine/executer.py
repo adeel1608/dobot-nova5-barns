@@ -469,8 +469,12 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
                 log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
                 
+                # Debug: Log func_name and type for troubleshooting
+                log("INFO", f"[DEBUG] Checking func_name='{func_name}' (type: {type(func_name).__name__}) against 'cup_detection'", service="routine")
+                
                 # Special handling for cup_detection - check station availability FIRST
                 if func_name == "cup_detection":
+                    log("INFO", f"[CUP DETECTION] ✅ Entered cup_detection with results=  {res}", service="routine")
                     # Get detection_result from top level first, then from details
                     detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
                     log("INFO", f"[CUP DETECTION] Detection result: {detection_result}", service="routine")

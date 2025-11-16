@@ -21,7 +21,7 @@
     "steps": [
       {
         "type": "validation",
-        "function": "handle_sauce_cup_detection_present",
+        "function": "sauce_cup_detection_present",
         "params": {}
       },
       {
@@ -316,7 +316,7 @@
       },
       {
         "type": "validation",
-        "function": "handle_milk_cup_detection_absent",
+        "function": "milk_cup_detection_absent",
         "params": {}
       },
       {
@@ -327,7 +327,7 @@
       },
       {
         "type": "validation",
-        "function": "handle_milk_cup_detection_present",
+        "function": "milk_cup_detection_present",
         "params": {}
       },
       {
@@ -540,7 +540,7 @@
     "steps": [
       {
         "type": "validation",
-        "function": "handle_sauce_cup_detection_absent",
+        "function": "sauce_cup_detection_absent",
         "params": {}
       },
       {
@@ -556,7 +556,7 @@
     "steps": [
       {
         "type": "validation",
-        "function": "handle_sauce_cup_detection_absent",
+        "function": "sauce_cup_detection_absent",
         "params": {}
       },
       {
