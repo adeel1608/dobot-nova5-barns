@@ -654,6 +654,7 @@ class RFDETRDetector:
                 cy = 0.5 * (boxes_xyxy[:, 1] + boxes_xyxy[:, 3])
                 centers = torch.stack([cx, cy], dim=1).cpu().numpy()
                 cups_np = cups_resized.astype(np.float32)
+                boxes_np = boxes_xyxy.cpu().numpy()
                 
                 # Calculate distances
                 d2 = ((centers[:, None, :] - cups_np[None, :, :]) ** 2).sum(axis=2)
@@ -669,11 +670,24 @@ class RFDETRDetector:
                 for i, (is_valid, min_dist) in enumerate(zip(valid_assignments, min_distances)):
                     if is_valid:
                         cup_id = assign[i]
-                        if return_dict:
-                            result[cup_id] = True
+                        cup_pos = cups_np[cup_id]
+                        box = boxes_np[i]
+                        
+                        # Check if cup position point is inside the detected cup's bounding box
+                        x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+                        cup_x, cup_y = cup_pos[0], cup_pos[1]
+                        
+                        point_inside_box = (x1 <= cup_x <= x2) and (y1 <= cup_y <= y2)
+                        
+                        if point_inside_box:
+                            if return_dict:
+                                result[cup_id] = True
+                            else:
+                                result = True
+                            cup_assign[i] = int(cup_id)
                         else:
-                            result = True
-                        cup_assign[i] = int(cup_id)
+                            # Cup position point is not inside the bounding box
+                            filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "not_in_box"))
                     else:
                         # This detection is too far from any cup position
                         box = boxes_xyxy[i].cpu().numpy()
