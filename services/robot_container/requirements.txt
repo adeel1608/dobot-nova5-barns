@@ -20,4 +20,5 @@ sphinx-rtd-theme
 tf-transformations
 trimesh
 pygraphviz
+pyorbbecsdk==1.3.2
 

@@ -172,6 +172,7 @@ install_python_dependencies() {
         "transformations==2025.1.1"
         "aio-pika==9.4.3"
         "pika==1.3.2"
+        "pyorbbecsdk==1.3.2"
     )
     
     for package in "${python_packages[@]}"; do

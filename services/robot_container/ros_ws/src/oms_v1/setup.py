@@ -11,7 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'rclpy'],
+    install_requires=['setuptools', 'rclpy', 'pyorbbecsdk==1.3.2'],
     zip_safe=True,
     maintainer='Adeel Mohammed Khan',
     maintainer_email='adeel@qltyss.com',

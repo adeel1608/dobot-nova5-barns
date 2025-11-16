@@ -454,9 +454,11 @@ class EventListener:
         )
         
         for pattern in event_patterns:
-            await event_queue.bind(self.exchange, f"events.{pattern}")
-            self.logger.info(f"Subscribed to events: {pattern}")
+            routing_key_pattern = f"events.{pattern}"
+            await event_queue.bind(self.exchange, routing_key_pattern)
+            self.logger.info(f"📡 {self.service_name} subscribed to events: {pattern} (routing_key: {routing_key_pattern})")
         
+        self.logger.info(f"📡 {self.service_name} consuming events from queue: {event_queue.name}")
         await event_queue.consume(self._handle_event)
     
     def register_event_handler(self, event_type: str, handler: Callable):
@@ -472,19 +474,30 @@ class EventListener:
                 event_type = body.get("event_type")
                 data = body.get("data", {})
                 
+                # Log all received events for debugging
+                routing_key = message.routing_key if hasattr(message, 'routing_key') else 'unknown'
+                self.logger.info(f"📨 {self.service_name} received event: {event_type} (routing_key: {routing_key})")
+                self.logger.debug(f"Event data: {data}")
+                self.logger.debug(f"Registered handlers: {list(self.event_handlers.keys())}")
+                
                 result = None
                 handler_error = None
                 
                 if event_type in self.event_handlers:
                     handler = self.event_handlers[event_type]
+                    self.logger.info(f"✅ {self.service_name} found handler for {event_type}, calling handler...")
                     try:
                         if asyncio.iscoroutinefunction(handler):
                             result = await handler(data)
                         else:
                             result = handler(data)
+                        self.logger.info(f"✅ {self.service_name} handler for {event_type} completed successfully")
                     except Exception as handler_ex:
                         handler_error = handler_ex
-                        self.logger.error(f"Error in event handler for {event_type}: {handler_ex}")
+                        self.logger.error(f"❌ Error in event handler for {event_type}: {handler_ex}")
+                else:
+                    self.logger.warning(f"⚠️ {self.service_name} received event {event_type} but no handler registered for it")
+                    self.logger.warning(f"Available handlers: {list(self.event_handlers.keys())}")
                 
                 # Send acknowledgment if reply_to is specified (for send_event_with_ack)
                 if message.reply_to and message.correlation_id:

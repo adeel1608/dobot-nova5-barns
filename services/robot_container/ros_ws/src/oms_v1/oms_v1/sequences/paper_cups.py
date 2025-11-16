@@ -166,6 +166,7 @@ def grab_paper_cup(**params) -> bool:
             else:
                 print("❌ No cup detected in gripper")
                 attempt_count += 1
+
                 # Step 8: Open gripper to release paper cup
                 print("🤏 Step 8/8: Releasing paper cup...")
                 release_result = run_skill("set_gripper_position", 50, 0)
@@ -174,6 +175,9 @@ def grab_paper_cup(**params) -> bool:
                     print("[ERROR] Failed to release paper cup")
                     return False
                 print("   ✅ Paper cup released successfully")
+                if attempt_count == 3:
+                    print("[ERROR] Failed to grab paper cup after 3 attempts")
+                    return False
 
                 
         # Final success summary
