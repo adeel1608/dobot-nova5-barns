@@ -469,26 +469,36 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
                 log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
                 
-                # Special handling for cup_detection - update cup position based on availability
-                if func_name == "cup_detection" and res.get("passed", False):
-                    # Check if all stations are occupied after retries
-                    if res.get("all_stations_occupied") and res.get("retries_exhausted"):
-                        log("ERROR", f"All cup stations occupied after retries for cup {cup_id}. Cannot proceed with task.", service="routine")
-                        message = "All cup stations are occupied. Please remove cups and try again."
-                        
-                        # Send dashboard message for all stations occupied
-                        log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
-                        await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
-                        
-                        await publish_event("validation.failed", 
-                                    {"arm": arm_id, "cup": cup_id,
-                                    "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
-                        success = False
-                        break  # abort task
-                    
-                    # Try to get detection_result from top level first, then from details
+                # Special handling for cup_detection - check station availability FIRST
+                if func_name == "cup_detection":
+                    # Get detection_result from top level first, then from details
                     detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
+                    
                     if detection_result:
+                        # Check if ALL stations are occupied (all values are True)
+                        # detection_result format: {0: bool, 1: bool, 2: bool, 3: bool} where True = occupied
+                        all_occupied = all(detection_result.values())
+                        
+                        if all_occupied:
+                            log("ERROR", f"[ALL STATIONS OCCUPIED] All cup stations occupied for cup {cup_id}. Cannot proceed with task.", service="routine")
+                            message = "All cup stations are occupied. Please remove cups and try again."
+                            
+                            # Send dashboard message for all stations occupied
+                            log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
+                            await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
+                            
+                            await publish_event("validation.failed", 
+                                        {"arm": arm_id, "cup": cup_id,
+                                        "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
+                            
+                            # Mark validation as failed
+                            res["passed"] = False
+                            res["error"] = "All cup stations occupied"
+                            
+                            # Continue to standard validation failure handling below
+                        
+                    # Only update position if validation actually passed and we have detection results
+                    if res.get("passed", False) and detection_result:
                         log("INFO", f"Cup detection result: {detection_result}", service="routine")
                         # Get current cup_position from task ingredients (already retrieved on line 277)
                         current_position = None
