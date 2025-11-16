@@ -25,7 +25,7 @@ try:
     from oms_v1.sequences.plastic_cups import SEQUENCES as PLASTIC_SEQ
     from oms_v1.sequences.slush import SEQUENCES as SLUSH_SEQ
     from oms_v1.sequences.milk_frothing import SEQUENCES as MILK_SEQ
-    from oms_v1.sequence.computer_vision import SEQUENCES as COMPUTER_VISION
+    from oms_v1.sequences.computer_vision import SEQUENCES as COMPUTER_VISION
 
 
 except ImportError as e:
@@ -42,6 +42,7 @@ SEQUENCES.update(PAPER_SEQ)
 SEQUENCES.update(PLASTIC_SEQ)
 SEQUENCES.update(SLUSH_SEQ)
 SEQUENCES.update(MILK_SEQ)
+SEQUENCES.update(COMPUTER_VISION)
 # Map action names to actual callables
 ACTION_MAP = {}
 for name, fn in SEQUENCES.items():
