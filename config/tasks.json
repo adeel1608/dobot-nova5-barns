@@ -20,6 +20,11 @@
   "Dispense Sauce": {
     "steps": [
       {
+        "type": "validation",
+        "function": "handle_sauce_cup_detection_present",
+        "params": {}
+      },
+      {
         "type": "automation",
         "function": "dispense_sauce",
         "params": {}
@@ -310,10 +315,20 @@
         "params": {}
       },
       {
+        "type": "validation",
+        "function": "handle_milk_cup_detection_absent",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "place_frother_milk_station",
         "params": {
         }
+      },
+      {
+        "type": "validation",
+        "function": "handle_milk_cup_detection_present",
+        "params": {}
       },
       {
         "type": "automation",
@@ -524,6 +539,11 @@
   "Place Plastic Cup Sauces": {
     "steps": [
       {
+        "type": "validation",
+        "function": "handle_sauce_cup_detection_absent",
+        "params": {}
+      },
+      {
         "type": "robot",
         "function": "place_plastic_cup_sauces",
         "params": {
@@ -534,6 +554,11 @@
   },
   "Place Paper Cup Sauces": {
     "steps": [
+      {
+        "type": "validation",
+        "function": "handle_sauce_cup_detection_absent",
+        "params": {}
+      },
       {
         "type": "robot",
         "function": "place_paper_cup_sauces",
