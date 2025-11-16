@@ -25,6 +25,7 @@ try:
     from oms_v1.sequences.plastic_cups import SEQUENCES as PLASTIC_SEQ
     from oms_v1.sequences.slush import SEQUENCES as SLUSH_SEQ
     from oms_v1.sequences.milk_frothing import SEQUENCES as MILK_SEQ
+    from oms_v1.sequence.computer_vision import SEQUENCES as COMPUTER_VISION
 
 
 except ImportError as e:
