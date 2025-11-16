@@ -105,22 +105,32 @@ def grab_paper_cup(**params) -> bool:
             print("[ERROR] Failed to move to paper cup dispenser area")
             return False
         print("   ✅ Successfully positioned at paper cup dispenser")
-        
-        # Step 4: Rotate joint angles to back away before approach
-        print("⬅️ Step 4/8: Backing away for approach...")
-        if 'twist_back' in cup_params:
-            print(f"   📍 Executing twist back movement for {size}")
-            twist_back_result = run_skill("moveJ_deg", *cup_params['twist_back'])
-            if twist_back_result is False:
-                print("[ERROR] Failed to execute twist back movement")
-                return False
-            print("   ✅ Successfully executed twist back movement")
-        else:
-            print("   ⏭️ No twist back movement defined for this size")
-        
+
         # Check if a cup is in the gripper
         attempt_count = 0
-        while attempt_count < 3:
+        while attempt_count < 3:        
+            if cup_size == "7oz":
+                twist_back_result = run_skill("gotoJ_deg", 54.948658, 12.208040, -69.338005, -32.943398, 90.239655, -124.960251)
+                if twist_back_result is False:
+                    print("[ERROR] Failed to execute twist back movement")
+                    return False
+                print("   ✅ Successfully executed twist back movement")
+            elif cup_size == "9oz":
+                twist_back_result = run_skill("gotoJ_deg", 27.502762, 30.098457, -80.283768, -36.358551, 88.971786, -154.398346)
+                if twist_back_result is False:
+                    print("[ERROR] Failed to execute twist back movement")
+                    return False
+                print("   ✅ Successfully executed twist back movement")
+            elif cup_size == "12oz":
+                twist_back_result = run_skill("gotoJ_deg", -21.871843, 4.984756, -63.493607, -31.584101, 90.055153, -201.714615)
+                if twist_back_result is False:
+                    print("[ERROR] Failed to execute twist back movement")
+                    return False
+                print("   ✅ Successfully executed twist back movement")
+            else:
+                print("   ⏭️ No twist back movement defined for this size")
+                return False
+        
             # Step 5: Move end-effector into approach position
             print("🎯 Step 5/8: Moving to approach position...")
             if 'approach' in cup_params:
@@ -169,7 +179,7 @@ def grab_paper_cup(**params) -> bool:
 
                 # Step 8: Open gripper to release paper cup
                 print("🤏 Step 8/8: Releasing paper cup...")
-                release_result = run_skill("set_gripper_position", 50, 0)
+                release_result = run_skill("set_gripper_position", 255, 0)
                 
                 if release_result is False:
                     print("[ERROR] Failed to release paper cup")
