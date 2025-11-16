@@ -469,6 +469,126 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
                 log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
                 
+                # Special handling for cup_detection - update cup position based on availability
+                if func_name == "cup_detection" and res.get("passed", False):
+                    # Check if all stations are occupied after retries
+                    if res.get("all_stations_occupied") and res.get("retries_exhausted"):
+                        log("ERROR", f"All cup stations occupied after retries for cup {cup_id}. Cannot proceed with task.", service="routine")
+                        message = "All cup stations are occupied. Please remove cups and try again."
+                        
+                        # Send dashboard message for all stations occupied
+                        log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
+                        await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
+                        
+                        await publish_event("validation.failed", 
+                                    {"arm": arm_id, "cup": cup_id,
+                                    "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
+                        success = False
+                        break  # abort task
+                    
+                    # Try to get detection_result from top level first, then from details
+                    detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
+                    if detection_result:
+                        log("INFO", f"Cup detection result: {detection_result}", service="routine")
+                        # Get current cup_position from task ingredients (already retrieved on line 277)
+                        current_position = None
+                        
+                        # Look for cup_position in ingredients (check multiple possible locations)
+                        # Option 1: Direct key 'cup_position'
+                        if "cup_position" in ingredients:
+                            cup_pos_data = ingredients["cup_position"]
+                            if isinstance(cup_pos_data, dict):
+                                # Extract position value from nested dict: {'cup_position': 1.0}
+                                # Handle case where nested value might be string, int, or float
+                                nested_value = list(cup_pos_data.values())[0]
+                                current_position = int(float(nested_value))  # float() handles strings like "1.0"
+                            else:
+                                # Handle any other type (int, float, str) with robust conversion
+                                current_position = int(float(cup_pos_data))
+                        # Option 2: Nested under 'position' key
+                        elif "position" in ingredients and isinstance(ingredients["position"], dict):
+                            if "cup_position" in ingredients["position"]:
+                                cup_pos_value = ingredients["position"]["cup_position"]
+                                # Handle any type (int, float, str) with robust conversion
+                                current_position = int(float(cup_pos_value))
+                        
+                        if current_position:
+                            log("INFO", f"Current cup position from task: {current_position} (1-indexed)", service="routine")
+                            
+                            # CRITICAL: Convert 1-indexed cup_position to 0-indexed for detection_result comparison
+                            # Task uses: 1=Station1, 2=Station2, 3=Station3, 4=Station4 (1-indexed)
+                            # Detection returns: 0=Station1, 1=Station2, 2=Station3, 3=Station4 (0-indexed)
+                            current_position_0indexed = current_position - 1
+                            log("INFO", f"Converted to 0-indexed for detection comparison: {current_position_0indexed}", service="routine")
+                            
+                            # Find nearest available position (using 0-indexed)
+                            new_position_0indexed = find_nearest_available_position(current_position_0indexed, detection_result)
+                            # Convert back to 1-indexed for task storage
+                            new_position = new_position_0indexed + 1
+                            
+                            # Update task params with new position if it changed
+                            if new_position != current_position:
+                                log("INFO", f"📍 Position changed: Station {current_position} → Station {new_position} (task uses 1-indexed)", service="routine")
+                                
+                                # Update the task's ingredient data
+                                # Update direct 'cup_position' key if exists
+                                if "cup_position" in ingredients:
+                                    if isinstance(ingredients["cup_position"], dict):
+                                        # Update the nested dict format
+                                        ingredients["cup_position"]["cup_position"] = float(new_position)
+                                    else:
+                                        ingredients["cup_position"] = float(new_position)
+                                
+                                # Update nested 'position.cup_position' if exists
+                                if "position" in ingredients and isinstance(ingredients["position"], dict):
+                                    if "cup_position" in ingredients["position"]:
+                                        old_val = ingredients["position"]["cup_position"]
+                                        ingredients["position"]["cup_position"] = float(new_position)
+                                        log("INFO", "Success", service="routine")
+                                
+                                # Also update params for subsequent steps (will be used in line 276)
+                                if "cup_position" in params:
+                                    if isinstance(params["cup_position"], dict):
+                                        params["cup_position"]["cup_position"] = float(new_position)
+                                    else:
+                                        params["cup_position"] = float(new_position)
+                                
+                                # Update nested params.position.cup_position if exists
+                                if "position" in params and isinstance(params["position"], dict):
+                                    if "cup_position" in params["position"]:
+                                        params["position"]["cup_position"] = float(new_position)
+                                        log("INFO", "Success", service="routine")
+                                
+                                log("INFO", "Success", service="routine")
+                                log("INFO", f"Updated task_item['ingredients']: {json.dumps(task_item['ingredients'])}", service="routine")
+                                log("DEBUG", "Linking", service="routine")
+                                log("INFO", f"Current params after update: {json.dumps(params)}", service="routine")
+                                
+                                # CRITICAL: Notify scheduler about position change so ALL future tasks use updated position
+                                try:
+                                    log("INFO", f"Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}", service="routine")
+                                    position_update_response = await rabbitmq_client.send_request(
+                                        target_service="scheduler",
+                                        action="update_cup_position",
+                                        data={
+                                            "cup_id": cup_id,
+                                            "new_position": float(new_position),
+                                            "old_position": float(current_position),
+                                            "timestamp": datetime.now().isoformat()
+                                        },
+                                        timeout=5
+                                    )
+                                    if position_update_response and position_update_response.get("success"):
+                                        log("INFO", f"Scheduler acknowledged position update for cup {cup_id} to {new_position}", service="routine")
+                                    else:
+                                        log("ERROR", f"Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
+                                except Exception as e:
+                                    log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
+                            else:
+                                log("INFO", f"Station {current_position} (1-indexed) is available for cup {cup_id}, no position change needed", service="routine")
+                        else:
+                            log("ERROR", f"Invalid position detected in validation response for cup {cup_id}", service="routine")
+                
                 if not res.get("passed", False):
                     # Validation failed - revert previous step, stop order, and send dashboard message
                     log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
