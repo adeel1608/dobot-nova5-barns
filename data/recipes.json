@@ -46,7 +46,7 @@
     {
       "action": "Clean Portafilter",
       "assigned_arm": "Arm1",
-      "depends_on": ["Pour Espresso"]
+      "depends_on": ["Pour Americano"]
     }
   ],
   "Iced Americano": [
