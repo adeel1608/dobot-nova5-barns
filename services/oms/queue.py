@@ -1,6 +1,11 @@
 import os
+import sys
 import redis
 from typing import Optional, List
+
+# Add parent directory to path for shared imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+from shared.logger import log
 
 # Redis connection
 redis_client = None
@@ -123,7 +128,6 @@ def bulk_reorder(order_ids: List[int]) -> bool:
     
     # If the current queue is empty, just add all the order IDs
     if not current_queue:
-        print(f"Queue is empty, adding {len(order_ids)} orders: {order_ids}")
         for i, order_id in enumerate(order_ids):
             redis_client.rpush('order_queue', str(order_id))
             redis_client.hset('order_positions', str(order_id), i)
@@ -134,8 +138,8 @@ def bulk_reorder(order_ids: List[int]) -> bool:
         missing_from_new = current_queue_set - order_ids_set
         extra_in_new = order_ids_set - current_queue_set
         
-        print(f"Queue sync needed - Current: {current_queue}, New: {order_ids}")
-        print(f"Missing from new: {missing_from_new}, Extra in new: {extra_in_new}")
+        if missing_from_new or extra_in_new:
+            log("ERROR", f"Queue mismatch - missing: {missing_from_new}, extra: {extra_in_new}", service="oms")
         
         # Clear and rebuild the queue with the new order
         redis_client.delete('order_queue')
@@ -146,7 +150,6 @@ def bulk_reorder(order_ids: List[int]) -> bool:
             redis_client.rpush('order_queue', str(order_id))
             redis_client.hset('order_positions', str(order_id), i)
         
-        print(f"Queue rebuilt with {len(order_ids)} orders")
         return True
     
     # If sets match, just reorder normally
@@ -189,12 +192,9 @@ def sync_with_database():
         # Get current queue
         current_queue = get_queue()
         
-        print(f"Syncing queue - DB has {len(queued_order_ids)} queued orders: {queued_order_ids}")
-        print(f"Redis has {len(current_queue)} orders: {current_queue}")
-        
         # If they don't match, rebuild from database
         if set(queued_order_ids) != set(current_queue):
-            print("Queue out of sync with database, rebuilding...")
+            log("ERROR", f"Queue out of sync - DB: {len(queued_order_ids)} orders, Redis: {len(current_queue)} orders", service="oms")
             
             # Clear current queue
             redis_client.delete('order_queue')
@@ -205,12 +205,10 @@ def sync_with_database():
                 redis_client.rpush('order_queue', str(order_id))
                 redis_client.hset('order_positions', str(order_id), i)
             
-            print(f"Queue rebuilt with {len(queued_order_ids)} orders from database")
             return True
         else:
-            print("Queue is in sync with database")
             return True
             
     except Exception as e:
-        print(f"Error syncing queue with database: {e}")
+        log("ERROR", f"Error syncing queue with database: {e}", service="oms")
         return False
