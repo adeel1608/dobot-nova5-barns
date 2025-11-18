@@ -1,7 +1,7 @@
 {
   "cup_detection": "Please clear the cup station to proceed.",
-  "check_coffee_beans": "Coffee beans validation failed. Please refill coffee beans.",
-  "validate_ingredients": "Ingredient validation failed. Please check ingredient availability.",
+  "check_coffee_beans": "Please refill coffee beans.",
+  "validate_ingredients": "Please refill the ingredients.",
   "sauce_cup_detection_absent": "Remove the cup from the sauce dispenser to proceed.",
   "sauce_cup_detection_present": "Place the cup in the sauce dispenser to proceed.",
   "milk_cup_detection_absent": "Remove the cup from the milk dispenser to proceed.",
