@@ -10,7 +10,6 @@ with precise positioning and error handling.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.espresso import _normalize_espresso_shot
 from oms_v1.params import (
     ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT
 )
@@ -25,6 +24,9 @@ def clean_portafilter(**params) -> bool:
       4) soft brush: approach → mount → motion1 → motion2 → retreat_soft
       5) grinder home
     """
+    # Import here to avoid circular import with espresso.py
+    from oms_v1.sequences.espresso import _normalize_espresso_shot
+    
     # Normalize from espresso shot if provided
     # New format: {'espresso': {'espresso_shot_double': 2.0}}
     espresso_dict = params.get("espresso")

@@ -3036,7 +3036,7 @@ class robot_motion(Node):
     def move_portafilter_arc_movJ(
         self,
         angle_deg: float,
-        d_rel_z: float = 282.5,     # mm from Link-6 flange (+Z) to portafilter pivot
+        d_rel_z: float = 287.5,     # mm from Link-6 flange (+Z) to portafilter pivot
         velocity: int = 100,
         acceleration: int = 100,
     ) -> bool:
@@ -3138,7 +3138,7 @@ class robot_motion(Node):
         self,
         arc_size_deg: float = 45.0,
         axis: str = "z",
-        tcp_table: str = "{0,0,282.5,0,0,0}",
+        tcp_table: str = "{0,0,287.5,0,0,0}",
     ) -> bool:
         """
         1) Configure TCP via SetTool (tool index 1, tcp_table)

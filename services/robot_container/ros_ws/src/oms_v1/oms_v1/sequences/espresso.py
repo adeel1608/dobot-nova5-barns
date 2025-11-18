@@ -18,6 +18,7 @@ from oms_v1.params import (
     ESPRESSO_HOT_WATER_PARAMS,
     _extract_cup_position
 )
+from oms_v1.sequences.cleaning import clean_portafilter
 
 # Global variables to store captured positions during unmount sequence
 below_espresso_port: Optional[Tuple[float, ...]] = None
@@ -145,6 +146,9 @@ def unmount(**params) -> bool:
             return False
         print("   ✅ Successfully moved to espresso home")
 
+        run_skill("sync")
+        run_skill("set_speed_factor", 25)
+
         # Step 2: Conditional approach based on port type
         if port == 'port_1' or port == 'port_3':
             print(f"🎯 Step 2/13: Approaching portafilter {port_params['portafilter_number']}...")
@@ -170,6 +174,8 @@ def unmount(**params) -> bool:
             print("[ERROR] Failed to close gripper")
             return False
         print("   ✅ Gripper closed successfully")
+
+        run_skill("set_speed_factor", 100)
         
         # Step 5: Release tension for smooth operation
         print("😌 Step 5/13: Releasing tension...")
@@ -522,10 +528,15 @@ def tamper(**params) -> bool:
             print("[ERROR] Failed to close gripper")
             return False
         print("   ✅ Tool secured with gripper")
+
+        # Step 5.1: Move end effector down to fix portafilter
+        print("⬇️ Step 5.1/10: Moving down to fix portafilter...")
+        print(f"   📍 Executing: moveEE_movJ(0, 0, -5, 0, 0, 0)")
+        clear_result = run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)
         
         # Step 3: Lift tool slightly for positioning
         print("⬆️ Step 3/6: Lifting tool for positioning...")
-        lift_result = run_skill("moveEE", 0, 0, 10, 0, 0, 0)
+        lift_result = run_skill("moveEE", 0, 0, 20, 0, 0, 0)
         if lift_result is False:
             print("[ERROR] Failed to lift tool")
             return False
@@ -677,16 +688,6 @@ def mount(**params) -> bool:
             print("[ERROR] Failed to mount to espresso group")
             return False
         print("   ✅ Successfully mounted to espresso group")
-
-        # Step 5.1: Move end effector up to fix portafilter
-        print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
-        print(f"   📍 Executing: moveEE_movJ(0, 0, 5, 0, 0, 0)")
-        clear_result = run_skill("moveEE_movJ", 0, 0, 2.5, 0, 0, 0)
-        
-        if clear_result is False:
-            print("[ERROR] Failed to move up to fix portafilter")
-            return False
-        print("   ✅ Successfully moved up to fix portafilter")
         
         run_skill("sync")
 
@@ -760,6 +761,16 @@ def mount(**params) -> bool:
                 return True  # Exit current mount attempt, recovery handled
             else:
                 print(f"   ✅ Portafilter validation passed (Z difference within threshold)")
+
+                # Step 5.1: Move end effector up to fix portafilter
+                print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
+                print(f"   📍 Executing: moveEE_movJ(0, 0, 5, 0, 0, 0)")
+                clear_result = run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0)
+                
+                if clear_result is False:
+                    print("[ERROR] Failed to move up to fix portafilter")
+                    return False
+                print("   ✅ Successfully moved up to fix portafilter")
 
         sync_result = run_skill("sync")
         if sync_result is False:

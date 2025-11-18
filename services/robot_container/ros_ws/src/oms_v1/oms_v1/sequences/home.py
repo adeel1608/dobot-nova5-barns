@@ -294,7 +294,7 @@ def get_machine_position(**params) -> bool:
         
         # Perform multiple approaches to three-group espresso machine for accuracy
         print("☕ Calibrating three-group espresso machine position (5 approaches)...")
-        for i in range(5):
+        for i in range(15):
             print(f"   📍 Approach {i+1}/5...")
             time.sleep(1.0)  # Allow settling time between approaches
             
