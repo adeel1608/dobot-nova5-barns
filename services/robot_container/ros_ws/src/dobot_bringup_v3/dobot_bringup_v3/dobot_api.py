@@ -12,7 +12,23 @@ class DobotApi:
         if self.port == 29999 or self.port == 30003:
             try:
                 self.socket_dobot = socket.socket()
+                
+                # Enable TCP keepalive to prevent connection timeouts
+                self.socket_dobot.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                
+                # Set keepalive parameters (Linux-specific)
+                # Start sending keepalive probes after 10 seconds of idle time
+                self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 10)
+                # Send keepalive probes every 5 seconds
+                self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 5)
+                # Close connection after 3 failed probes
+                self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+                
+                # Set socket timeout to 5 seconds to prevent hanging indefinitely
+                self.socket_dobot.settimeout(5.0)
+                
                 self.socket_dobot.connect((self.ip, self.port))
+                print(f"Connected to Dobot at {self.ip}:{self.port} with keepalive enabled")
             except socket.error as e:
                 print(f"Failed to connect to Dobot at {self.ip}:{self.port} - {e}")
                 self.socket_dobot = None

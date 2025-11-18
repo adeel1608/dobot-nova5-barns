@@ -112,7 +112,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
                 run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255, 0)
-                run_skill("moveEE", 0.0, 22.5, 59.5, 0, 0, 0)
+                run_skill("moveEE", 0.0,17.5, 70, 0, 0, 0)
                 run_skill("set_gripper_position", 255, config['gripper'])
                 run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
                 run_skill("set_speed_factor", 100)
@@ -151,7 +151,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
-            
+            run_skill("sync")
             # Check if a cup is in the gripper
             cup_detected = detect_cup_gripper()
             if cup_detected:
@@ -894,7 +894,7 @@ def place_plastic_cup_milk(**params) -> bool:
             if run_skill("gotoJ_deg", -25.749441,-68.598046,-90.711592,-18.654852,-116.564002,-2.362884) is False:
                 return False
         
-        if run_skill("set_gripper_position", 1, 100) is False:
+        if run_skill("set_gripper_position", 10, 75) is False:
             return False
         return True
     except Exception as e:
@@ -1008,7 +1008,7 @@ def pick_plastic_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_plastic_cup_milk failed: {e}")
         return False
-
+        
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'dispense_plastic_cup': dispense_plastic_cup,
