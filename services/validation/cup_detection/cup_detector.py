@@ -87,7 +87,7 @@ class Config:
 
         # Station detection classes (all classes if None or empty)
         station_classes = g.get("STATION_ALLOWED_CLASSES", None)
-        self.station_allowed_classes = station_classes if station_classes is not None else g.get("ALLOWED_CLASSES", [])
+        self.station_allowed_classes = station_classes if station_classes is not None else None
 
         # ROI cropping padding
         self.roi_padding = int(g.get("ROI_PADDING", 50))
@@ -673,21 +673,36 @@ class RFDETRDetector:
                         cup_pos = cups_np[cup_id]
                         box = boxes_np[i]
                         
-                        # Check if cup position point is inside the detected cup's bounding box
+                        # Check if cup position point is in the middle of the detected cup's bounding box
                         x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
                         cup_x, cup_y = cup_pos[0], cup_pos[1]
                         
-                        point_inside_box = (x1 <= cup_x <= x2) and (y1 <= cup_y <= y2)
+                        # Calculate the center of the bounding box
+                        box_center_x = (x1 + x2) / 2.0
+                        box_center_y = (y1 + y2) / 2.0
                         
-                        if point_inside_box:
+                        # Calculate box dimensions
+                        box_width = x2 - x1
+                        box_height = y2 - y1
+                        
+                        # Calculate distance from cup position to box center
+                        dist_to_center = np.sqrt((cup_x - box_center_x)**2 + (cup_y - box_center_y)**2)
+                        
+                        # Only count if point is within 40% of the box size from the center
+                        # This ensures the point is in the middle of the cup, not just anywhere inside
+                        max_dist_from_center = 0.4 * min(box_width, box_height)
+                        
+                        point_in_middle = dist_to_center <= max_dist_from_center
+                        
+                        if point_in_middle:
                             if return_dict:
                                 result[cup_id] = True
                             else:
                                 result = True
                             cup_assign[i] = int(cup_id)
                         else:
-                            # Cup position point is not inside the bounding box
-                            filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "not_in_box"))
+                            # Cup position point is not in the middle of the bounding box
+                            filtered_dets.append((int(box[0]), int(box[1]), int(box[2]), int(box[3]), "not_in_middle"))
                     else:
                         # This detection is too far from any cup position
                         box = boxes_xyxy[i].cpu().numpy()
