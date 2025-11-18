@@ -22,8 +22,12 @@ from oms_v1.params import (
 # Global variables to store captured positions during unmount sequence
 below_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_port: Optional[Tuple[float, ...]] = None
+mount_espresso_pose: Optional[Tuple[float, ...]] = None  # Cartesian pose at mount position
 approach_pitcher: Optional[Tuple[float, ...]] = None
 pick_pitcher: Optional[Tuple[float, ...]] = None
+
+# Portafilter validation threshold (in millimeters)
+PORTAFILTER_Z_THRESHOLD_MM = 10.0  # If Z difference > this, portafilter was filled twice
 
 
 def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -109,7 +113,7 @@ def unmount(**params) -> bool:
         if success:
             print("Portafilter unmounted successfully")
     """
-    global below_espresso_port, mount_espresso_port
+    global below_espresso_port, mount_espresso_port, mount_espresso_pose
     try:
         # Normalize from espresso shot if provided
         # New format: {'espresso': {'espresso_shot_double': 2.0}}
@@ -152,7 +156,7 @@ def unmount(**params) -> bool:
         else:
             print("   ⏭️ Skipping approach step for port_2")
         
-        mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
+        mount_result = run_skill("gotoJ_deg", -17.027325,-28.037672,-117.647118,-34.081650,-103.542419,0.012744)# run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
         
         if mount_result is False:
             print("[ERROR] Failed to mount to portafilter")
@@ -220,6 +224,16 @@ def unmount(**params) -> bool:
             print(f"[ERROR] Invalid mount position data: {mount_espresso_port} (expected 6 joint angles)")
             return False
         print("   ✅ Mount position captured successfully")
+        
+        # Capture mount pose for portafilter validation
+        mount_espresso_pose = run_skill("current_pose")
+        if mount_espresso_pose is None:
+            print("[ERROR] Failed to capture mount pose")
+            return False
+        if not isinstance(mount_espresso_pose, (tuple, list)) or len(mount_espresso_pose) != 6:
+            print(f"[ERROR] Invalid mount pose data: {mount_espresso_pose} (expected 6 values)")
+            return False
+        print(f"   ✅ Mount pose captured: Z={mount_espresso_pose[2]:.2f}mm")
         
         # Step 10: Move end effector down to clear portafilter
         print("⬇️ Step 10/13: Moving down to clear portafilter...")
@@ -578,6 +592,7 @@ def mount(**params) -> bool:
         if success:
             print("Portafilter mounted successfully")
     """
+    global mount_espresso_pose, below_espresso_port
     try:
         # Normalize from espresso shot if provided
         # New format: {'espresso': {'espresso_shot_double': 2.0}}
@@ -672,6 +687,79 @@ def mount(**params) -> bool:
             print("[ERROR] Failed to move up to fix portafilter")
             return False
         print("   ✅ Successfully moved up to fix portafilter")
+        
+        run_skill("sync")
+
+        # Validate portafilter - check if it was filled twice
+        print("🔍 Validating portafilter fill status...")
+        current_mount_pose = run_skill("current_pose")
+        if current_mount_pose is None or mount_espresso_pose is None:
+            print("[WARNING] Cannot validate portafilter - pose data missing")
+        else:
+            # Compare Z positions (index 2 is Z in the pose tuple)
+            z_original = float(mount_espresso_pose[2])
+            z_current = float(current_mount_pose[2])
+            z_difference = abs(z_current - z_original)
+            
+            print(f"   📏 Z difference: {z_difference:.2f}mm (threshold: {PORTAFILTER_Z_THRESHOLD_MM}mm)")
+            print(f"      Original Z: {z_original:.2f}mm, Current Z: {z_current:.2f}mm")
+            
+            if z_difference > PORTAFILTER_Z_THRESHOLD_MM:
+                print("=" * 60)
+                print("⚠️  PORTAFILTER FILLED TWICE DETECTED!")
+                print("=" * 60)
+                print(f"   Z position changed by {z_difference:.2f}mm (>{PORTAFILTER_Z_THRESHOLD_MM}mm)")
+                print("   🔄 Initiating recovery sequence:")
+                print("      1. Unmount portafilter")
+                print("      2. Clean portafilter")
+                print("      3. Remount portafilter")
+                print("=" * 60)
+                
+                # Step 1: Unmount (move down to clear)
+                print("🔄 Step 1/3: Moving down to clear portafilter...")
+                clear_down_result = run_skill("moveEE_movJ", 0, 0, -35, 0, 0, 0)
+                if clear_down_result is False:
+                    print("[ERROR] Failed to move down during recovery")
+                    return False
+                print("   ✅ Successfully cleared portafilter")
+                
+                # Capture below position
+                below_espresso_port = run_skill("current_angles")
+                if below_espresso_port is None:
+                    print("[ERROR] Failed to capture below position during recovery")
+                    return False
+                print("   ✅ Below position captured")
+                
+                # Move back to safe position
+                print("⬅️ Moving back to safe position...")
+                if port_params and 'move_back' in port_params:
+                    back_result = run_skill("gotoJ_deg", *port_params['move_back'])
+                    if back_result is False:
+                        print("[ERROR] Failed to move back during recovery")
+                        return False
+                print("   ✅ Moved to safe position")
+                
+                # Step 2: Clean portafilter
+                print("🧹 Step 2/3: Cleaning portafilter...")
+                clean_result = clean_portafilter(port=port)
+                if clean_result is False:
+                    print("[ERROR] Failed to clean portafilter during recovery")
+                    return False
+                print("   ✅ Portafilter cleaned successfully")
+                
+                # Step 3: Remount portafilter (recursive call)
+                print("🔧 Step 3/3: Remounting portafilter...")
+                remount_result = mount(port=port)
+                if remount_result is False:
+                    print("[ERROR] Failed to remount portafilter after cleaning")
+                    return False
+                
+                print("=" * 60)
+                print("✅ RECOVERY SEQUENCE COMPLETED SUCCESSFULLY")
+                print("=" * 60)
+                return True  # Exit current mount attempt, recovery handled
+            else:
+                print(f"   ✅ Portafilter validation passed (Z difference within threshold)")
 
         sync_result = run_skill("sync")
         if sync_result is False:

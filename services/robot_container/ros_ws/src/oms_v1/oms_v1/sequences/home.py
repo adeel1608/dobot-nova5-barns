@@ -64,6 +64,106 @@ def home(**params) -> bool:
         print(f"[ERROR] Unexpected error during home movement: {e}")
         return False
 
+def return_back_to_home() -> bool:
+    """
+    Return the robot to a safe home position based on current angle.
+    
+    This function reads the current J1 angle and determines the nearest
+    cardinal position (0°, ±45°, ±90°, ±135°, ±180°), then moves to
+    a safe home pose at that J1 angle with predefined J2-J6 values.
+    
+    Returns:
+        bool: True if movement successful, False otherwise
+        
+    Raises:
+        Exception: If error occurs during angle reading or movement
+    """
+    try:
+        print("\n" + "="*60)
+        print("🏠 RETURNING TO HOME POSITION")
+        print("="*60)
+        run_skill("release_tension")
+        run_skill("set_speed_factor", 100)
+        run_skill("set_gripper_position", 255, 0)
+        # Get current joint angles
+        print("📐 Reading current joint angles...")
+        time.sleep(1)  # Stagger service calls
+        
+        angles = run_skill("current_angles")
+        
+        if not angles or len(angles) < 6:
+            print(f"[ERROR] Failed to get current angles or invalid data: {angles}")
+            return False
+        
+        # Extract J1 angle (first joint)
+        a1 = float(angles[0])
+        print(f"   Current J1 angle: {a1:.2f}°")
+        
+        # Determine appropriate J1 target position based on current angle
+        j1_val = None
+        
+        # Positive angles and 0
+        if -22.49 <= a1 <= 22.49:
+            j1_val = 0.0
+        elif 22.51 <= a1 <= 67.49:
+            j1_val = 45.0
+        elif 67.51 <= a1 <= 112.49:
+            j1_val = 90.0
+        elif 112.51 <= a1 <= 157.49:
+            j1_val = 135.0
+        elif 157.51 <= a1 <= 202.49:
+            j1_val = 180.0
+        elif 202.51 <= a1 <= 247.49:
+            j1_val = -135.0
+        elif 247.51 <= a1 <= 292.49:
+            j1_val = -90.0
+        elif 292.51 <= a1 <= 337.49:
+            j1_val = -45.0
+        elif 337.51 <= a1 <= 360.0:
+            j1_val = 0.0
+        # Negative angles
+        elif -67.49 <= a1 <= -22.51:
+            j1_val = -45.0
+        elif -112.49 <= a1 <= -67.51:
+            j1_val = -90.0
+        elif -157.49 <= a1 <= -112.51:
+            j1_val = -135.0
+        elif -202.49 <= a1 <= -157.51:
+            j1_val = -180.0
+        elif -247.49 <= a1 <= -202.51:
+            j1_val = 135.0
+        elif -292.49 <= a1 <= -247.51:
+            j1_val = 90.0
+        elif -337.49 <= a1 <= -292.51:
+            j1_val = 45.0
+        elif -360.0 <= a1 <= -337.51:
+            j1_val = 0.0
+        
+        if j1_val is None:
+            print(f"[ERROR] Could not determine home position for J1 angle: {a1:.2f}°")
+            return False
+        
+        # Move to home position
+        print(f"🎯 Moving to home position: J1={j1_val}°, J2=30°, J3=-130°, J4=-100°, J5=-90°, J6=0°")
+        time.sleep(1)  # Stagger service calls
+        
+        result = run_skill("gotoJ_deg", j1_val, 30.0, -130.0, -100.0, -90.0, 0.0)
+        
+        if result is False:
+            print("[ERROR] Failed to move to home position")
+            return False
+        
+        print("="*60)
+        print("✅ SUCCESSFULLY RETURNED TO HOME POSITION")
+        print("="*60)
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during return to home: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 def get_machine_position(**params) -> bool:
     """
@@ -381,6 +481,7 @@ def check_aruco_status(**params) -> bool:
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'home': home,
+    'return_back_to_home': return_back_to_home,
     'get_machine_position': get_machine_position,
     'check_saved_data': check_saved_data,
     'check_aruco_status': check_aruco_status,
