@@ -683,8 +683,10 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     # Revert previous step and stop the order
                     # The current validation step will remain pending (not marked as failed)
                     # so it can be retried when the order is resumed
-                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process", service="routine")
-                    await revert_previous_step_and_stop(cup_id, function, rabbitmq_client)
+                    # IMPORTANT: Pass func_name (specific step like "check_coffee_beans") 
+                    # not function (high-level recipe like "make_latte")
+                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process for step: {func_name}", service="routine")
+                    await revert_previous_step_and_stop(cup_id, func_name, rabbitmq_client)
                     
                     # Set flag to prevent sending feedback - keep validation step pending for retry
                     validation_failed_stopped = True
@@ -692,7 +694,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     
                     # Break from step loop to stop execution
                     log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
-                    log("INFO", f"[VALIDATION FAILED] Task {function} remains PENDING and will retry when order is resumed", service="routine")
+                    log("INFO", f"[VALIDATION FAILED] Step {func_name} (from recipe {function}) remains PENDING and will retry when order is resumed", service="routine")
                     break  # Stop execution - order is stopped, validation step remains pending
                     
             elif step_type == "robot":
