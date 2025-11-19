@@ -665,10 +665,16 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 log("ERROR", f"Could not extract cup_position from task ingredients for cup {cup_id}", service="routine")
                 
                 if not res.get("passed", False):
-                    # Validation failed - revert previous step, stop order, and send dashboard message
+                    # Validation failed - send feedback, revert previous step, stop order, and send dashboard message
                     log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
                     log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
                     log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
+                    
+                    # CRITICAL: Send feedback FIRST to mark task as completed in scheduler
+                    # This prevents the "timed out with tasks still submitted" issue
+                    # We send SUCCESS=True so the scheduler marks it as done, then revert will reset it
+                    log("INFO", f"[VALIDATION FAILED] Sending feedback to mark task as completed before revert", service="routine")
+                    await send_feedback_to_scheduler(cup_id, function, True, rabbitmq_client, "Validation failed - will revert")
                     
                     # Send dashboard message based on validation function mapping
                     log("INFO", f"[VALIDATION FAILED] Sending dashboard notification for {func_name}", service="routine")
@@ -688,13 +694,13 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                     log("INFO", f"[VALIDATION FAILED] Starting revert and stop process for step: {func_name}", service="routine")
                     await revert_previous_step_and_stop(cup_id, func_name, rabbitmq_client)
                     
-                    # Set flag to prevent sending feedback - keep validation step pending for retry
+                    # Set flag to prevent sending feedback again at the end
                     validation_failed_stopped = True
-                    log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True", service="routine")
+                    log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True (already sent feedback)", service="routine")
                     
                     # Break from step loop to stop execution
                     log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
-                    log("INFO", f"[VALIDATION FAILED] Step {func_name} (from recipe {function}) remains PENDING and will retry when order is resumed", service="routine")
+                    log("INFO", f"[VALIDATION FAILED] Step {func_name} (from recipe {function}) will be reverted to previous step and remain PENDING", service="routine")
                     break  # Stop execution - order is stopped, validation step remains pending
                     
             elif step_type == "robot":
