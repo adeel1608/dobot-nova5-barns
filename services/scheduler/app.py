@@ -418,6 +418,22 @@ class SchedulerService:
             except Exception as e:
                 log("ERROR", f"Order {order_id} stopping event send failed: {str(e)[:50]}", service="scheduler")
             
+            # Notify routine service to stop processing tasks for this order
+            try:
+                log("INFO", f"[STOP ORDER] Notifying routine service to stop order {order_id}", service="scheduler")
+                routine_response = await self.rabbitmq_client.send_request(
+                    target_service="routine",
+                    action="stop_order",
+                    data={"order_id": order_id},
+                    timeout=5
+                )
+                if routine_response and routine_response.get("success"):
+                    log("INFO", f"[STOP ORDER] Routine service acknowledged stop for order {order_id}", service="scheduler")
+                else:
+                    log("WARNING", f"[STOP ORDER] Routine service stop failed for order {order_id}: {routine_response.get('error', 'Unknown')[:50]}", service="scheduler")
+            except Exception as e:
+                log("ERROR", f"[STOP ORDER] Failed to notify routine service for order {order_id}: {str(e)[:50]}", service="scheduler")
+            
             # Wait for submitted tasks to complete (poll with timeout)
             max_wait_time = 90  # Maximum 90 seconds to wait
             wait_interval = 0.5  # Check every 0.5 seconds
@@ -474,6 +490,22 @@ class SchedulerService:
                 core.order_stopped_logged = False  # Reset flag so it can log again if stopped again
                 core.current_status["status"] = "in_progress"
                 log("INFO", f"Order {order_id} resumed - workers will continue processing", service="scheduler")
+            
+            # Notify routine service to resume processing tasks for this order
+            try:
+                log("INFO", f"[RESUME ORDER] Notifying routine service to resume order {order_id}", service="scheduler")
+                routine_response = await self.rabbitmq_client.send_request(
+                    target_service="routine",
+                    action="resume_order",
+                    data={"order_id": order_id},
+                    timeout=5
+                )
+                if routine_response and routine_response.get("success"):
+                    log("INFO", f"[RESUME ORDER] Routine service acknowledged resume for order {order_id}", service="scheduler")
+                else:
+                    log("WARNING", f"[RESUME ORDER] Routine service resume failed for order {order_id}: {routine_response.get('error', 'Unknown')[:50]}", service="scheduler")
+            except Exception as e:
+                log("ERROR", f"[RESUME ORDER] Failed to notify routine service for order {order_id}: {str(e)[:50]}", service="scheduler")
             
             # Send resume event
             try:

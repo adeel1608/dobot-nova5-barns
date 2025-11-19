@@ -28,11 +28,42 @@ cup_station_lock_holder = None
 RESOURCE_LOCK_RETRY_INTERVAL = 1  # seconds between retry attempts
 RESOURCE_LOCK_MAX_WAIT_TIME = 300  # maximum wait time (5 minutes) before timeout
 
+# ORDER STOP TRACKING
+# Track which orders have been stopped to allow graceful pausing of task execution
+stopped_orders = set()  # Set of stopped order_ids
+stopped_orders_lock = asyncio.Lock()  # Lock for thread-safe access to stopped_orders
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # Remove the global client - we'll use the one passed from the main service
 # rabbitmq_client = RabbitMQClient("routine_executor")
+
+async def mark_order_stopped(order_id: int):
+    """Mark an order as stopped."""
+    async with stopped_orders_lock:
+        stopped_orders.add(order_id)
+        log("INFO", f"Order {order_id} marked as stopped in routine", service="routine")
+
+async def mark_order_resumed(order_id: int):
+    """Mark an order as resumed (no longer stopped)."""
+    async with stopped_orders_lock:
+        stopped_orders.discard(order_id)
+        log("INFO", f"Order {order_id} marked as resumed in routine", service="routine")
+
+async def is_order_stopped(order_id: int) -> bool:
+    """Check if an order is stopped."""
+    async with stopped_orders_lock:
+        return order_id in stopped_orders
+
+def extract_order_id_from_cup_id(cup_id: str) -> int:
+    """Extract order_id from cup_id format (order_id-cup_index)."""
+    try:
+        if '-' in cup_id:
+            return int(cup_id.split('-')[0])
+    except (ValueError, IndexError):
+        pass
+    return None
 
 # Cache for validation messages mapping
 _validation_messages_cache = None
@@ -418,6 +449,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         dict: {
             "success": bool - Whether task completed successfully,
             "validation_failed_stopped": bool - Whether stopped due to validation failure,
+            "order_stopped": bool - Whether stopped due to order stop request,
             "message": str - Error/status message
         }
     """
@@ -427,11 +459,27 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     success = True
     message = ""
     validation_failed_stopped = False  # Flag to track if we stopped due to validation failure
+    order_stopped = False  # Flag to track if order was stopped during execution
+    
+    # Extract order_id from cup_id for stop checking
+    order_id = extract_order_id_from_cup_id(cup_id)
+    if not order_id:
+        log("WARNING", f"Could not extract order_id from cup_id {cup_id}, stop checking disabled", service="routine")
     
     # Add small staggered delay for Arm 2 to prevent RabbitMQ overload when both arms start simultaneously
     if arm_id == 2:
         log("INFO", "[ARM-2] Adding 1s stagger delay to prevent parallel connection overload", service="routine")
         await asyncio.sleep(1)
+    
+    # Check if order is stopped before starting
+    if order_id and await is_order_stopped(order_id):
+        log("INFO", f"Order {order_id} is stopped, task {function} for cup {cup_id} will not execute", service="routine")
+        return {
+            "success": False,
+            "validation_failed_stopped": False,
+            "order_stopped": True,
+            "message": "Order stopped before task execution"
+        }
     
     log("INFO", f"Processing task: {function} for cup {cup_id} on arm {arm_id}", service="routine")
     log("DEBUG", f"Task structure: {json.dumps(task, indent=2)}", service="routine")
@@ -446,6 +494,15 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         log("DEBUG", f"Task ingredients: {json.dumps(task_item.get('ingredients', {}), indent=2)}", service="routine")
         
         for step in cfg["steps"]:
+            # Check if order has been stopped before executing each step
+            if order_id and await is_order_stopped(order_id):
+                log("INFO", f"[STOP DETECTED] Order {order_id} stopped during task execution at step {step.get('function')}", service="routine")
+                log("INFO", f"[STOP DETECTED] Exiting task {function} for cup {cup_id} gracefully - task remains in submitted state", service="routine")
+                order_stopped = True
+                success = False
+                message = "Order stopped during task execution"
+                break  # Exit step loop - will skip feedback so task remains pending
+            
             step_type = step["type"]
             func_name = step["function"]
             # Get reference to ingredients (not a copy) so updates persist across steps
@@ -757,8 +814,8 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         message = f"Exception in routine: {str(e)}"
         log("ERROR", f"Error processing task: {e}", service="routine")
     
-    # Send feedback to scheduler (skip if validation failed and we stopped - step remains pending)
-    if not validation_failed_stopped:
+    # Send feedback to scheduler (skip if validation failed OR order stopped - task remains pending)
+    if not validation_failed_stopped and not order_stopped:
         log("INFO", f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
         await send_feedback_to_scheduler(cup_id, function, success, rabbitmq_client, message)
         
@@ -769,12 +826,15 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                         {"arm": arm_id, "cup": cup_id, "function": function}, rabbitmq_client)
         else:
             log("ERROR", f"Task failed: {function} for cup {cup_id} - {message}", service="routine")
-    else:
+    elif validation_failed_stopped:
         log("INFO", f"Skipping feedback for cup {cup_id} - validation failed, step remains pending for retry", service="routine")
+    elif order_stopped:
+        log("INFO", f"[STOP DETECTED] Skipping feedback for cup {cup_id} - order stopped, task remains in submitted state for resume", service="routine")
     
     # Return task execution status
     return {
         "success": success,
         "validation_failed_stopped": validation_failed_stopped,
+        "order_stopped": order_stopped,
         "message": message
     }

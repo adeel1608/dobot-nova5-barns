@@ -80,6 +80,8 @@ class RoutineService:
         self.rabbitmq_client.register_handler("get_queue_status", self.handle_get_queue_status)
         self.rabbitmq_client.register_handler("clear_queue", self.handle_clear_queue)
         self.rabbitmq_client.register_handler("cancel_order", self.handle_cancel_order)
+        self.rabbitmq_client.register_handler("stop_order", self.handle_stop_order)
+        self.rabbitmq_client.register_handler("resume_order", self.handle_resume_order)
         
         # Subscribe to events
         await self.event_listener.subscribe_to_events(["system.*", "scheduler.*"])
@@ -155,20 +157,24 @@ class RoutineService:
                     # Process task and get execution status
                     log("INFO", f"[WORKER] Arm{arm_id} processing task: {task_data.get('function', 'unknown')}", service="routine")
                     result = await process_task(arm_id, task_data, task_configs, self.rabbitmq_client)
-                    log("INFO", f"[WORKER] Arm{arm_id} task result: success={result.get('success')}, validation_failed_stopped={result.get('validation_failed_stopped')}", service="routine")
+                    log("INFO", f"[WORKER] Arm{arm_id} task result: success={result.get('success')}, validation_failed_stopped={result.get('validation_failed_stopped')}, order_stopped={result.get('order_stopped')}", service="routine")
                     
                     # Only send events if task actually completed or failed
-                    # Skip events if validation failed (task remains pending for retry)
+                    # Skip events if validation failed or order stopped (task remains pending for retry/resume)
                     if result.get("validation_failed_stopped", False):
                         log("INFO", f"[WORKER] Arm{arm_id} validation failure detected - skipping event emission", service="routine")
                         log("INFO", f"[WORKER] Arm{arm_id} task remains PENDING in scheduler for retry", service="routine")
                         # Don't send any event - task remains pending in scheduler
+                    elif result.get("order_stopped", False):
+                        log("INFO", f"[WORKER] Arm{arm_id} order stopped detected - skipping event emission", service="routine")
+                        log("INFO", f"[WORKER] Arm{arm_id} task remains in SUBMITTED state in scheduler for resume", service="routine")
+                        # Don't send any event - task remains submitted in scheduler
                     elif result.get("success", True):
                         # Task completed successfully
                         log("INFO", f"[WORKER] Arm{arm_id} task succeeded - sending completion event", service="routine")
                         await self._send_task_event("routine.task_completed", task_data, arm_id)
                     else:
-                        # Task failed (not due to validation)
+                        # Task failed (not due to validation or order stop)
                         log("ERROR", f"[WORKER] Arm{arm_id} task failed - sending failure event", service="routine")
                         await self._send_task_event("routine.task_failed", task_data, arm_id, result.get("message", "Task failed"))
                     
@@ -401,6 +407,68 @@ class RoutineService:
             return {"success": True, "removed": removed}
         except Exception as e:
             log("ERROR", "Error cancelling order in routine: {e}", service="routine")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_stop_order(self, data: Dict) -> Dict:
+        """Handle stop order requests - mark order as stopped to pause task execution."""
+        try:
+            from .executer import mark_order_stopped
+            
+            order_id = data.get("order_id")
+            if not order_id:
+                return {"success": False, "error": "Missing order_id"}
+            
+            log("INFO", f"[STOP ORDER] Received stop request for order {order_id}", service="routine")
+            
+            # Mark the order as stopped
+            await mark_order_stopped(order_id)
+            
+            log("INFO", f"[STOP ORDER] Order {order_id} marked as stopped - tasks will pause gracefully", service="routine")
+            
+            # Send event
+            try:
+                await self.rabbitmq_client.send_event("routine.order_stopped", {
+                    "order_id": order_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                log("ERROR", f"Error sending routine.order_stopped event: {e}", service="routine")
+            
+            return {"success": True, "order_id": order_id, "message": "Order marked as stopped"}
+            
+        except Exception as e:
+            log("ERROR", f"Error stopping order in routine: {e}", service="routine")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_resume_order(self, data: Dict) -> Dict:
+        """Handle resume order requests - clear stop flag to allow task execution to continue."""
+        try:
+            from .executer import mark_order_resumed
+            
+            order_id = data.get("order_id")
+            if not order_id:
+                return {"success": False, "error": "Missing order_id"}
+            
+            log("INFO", f"[RESUME ORDER] Received resume request for order {order_id}", service="routine")
+            
+            # Clear the stopped flag
+            await mark_order_resumed(order_id)
+            
+            log("INFO", f"[RESUME ORDER] Order {order_id} resumed - tasks will continue execution", service="routine")
+            
+            # Send event
+            try:
+                await self.rabbitmq_client.send_event("routine.order_resumed", {
+                    "order_id": order_id,
+                    "timestamp": datetime.now().isoformat()
+                })
+            except Exception as e:
+                log("ERROR", f"Error sending routine.order_resumed event: {e}", service="routine")
+            
+            return {"success": True, "order_id": order_id, "message": "Order resumed"}
+            
+        except Exception as e:
+            log("ERROR", f"Error resuming order in routine: {e}", service="routine")
             return {"success": False, "error": str(e)}
     
     async def handle_shutdown_event(self, data: Dict):
