@@ -591,6 +591,7 @@ def mount(**params) -> bool:
     
     Args:
         port (str): Target port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        attempt_count (int): Current retry attempt number (internal use), defaults to 0
         
     Returns:
         bool: True if portafilter mounted successfully, False otherwise
@@ -605,6 +606,15 @@ def mount(**params) -> bool:
     """
     global mount_espresso_pose, below_espresso_port
     try:
+        # Check retry limit
+        attempt_count = params.get("attempt_count", 0)
+        if attempt_count >= 3:
+            print("=" * 60)
+            print("❌ MAXIMUM RETRY ATTEMPTS REACHED (3)")
+            print("=" * 60)
+            print("[ERROR] Failed to mount portafilter after 3 attempts")
+            return False
+        
         # Normalize from espresso shot if provided
         # New format: {'espresso': {'espresso_shot_double': 2.0}}
         espresso_dict = params.get("espresso")
@@ -623,7 +633,10 @@ def mount(**params) -> bool:
             print(f"[INFO] Available ports: {list(PULL_ESPRESSO_PARAMS.keys())}")
             return False
         
-        print(f"📥 Starting portafilter mount sequence for {port}")
+        if attempt_count > 0:
+            print(f"📥 Starting portafilter mount sequence for {port} (Retry attempt {attempt_count}/3)")
+        else:
+            print(f"📥 Starting portafilter mount sequence for {port}")
         print("=" * 50)
         
         # Step 1: Special handling for ports 2 and 3 (reverse navigation)
@@ -748,9 +761,9 @@ def mount(**params) -> bool:
                     return False
                 print("   ✅ Portafilter cleaned successfully")
                 
-                # Step 3: Remount portafilter (recursive call)
-                print("🔧 Step 3/3: Remounting portafilter...")
-                remount_result = mount(port=port)
+                # Step 3: Remount portafilter (recursive call with incremented attempt count)
+                print(f"🔧 Step 3/3: Remounting portafilter (attempt {attempt_count + 1}/3)...")
+                remount_result = mount(port=port, attempt_count=attempt_count + 1)
                 if remount_result is False:
                     print("[ERROR] Failed to remount portafilter after cleaning")
                     return False
