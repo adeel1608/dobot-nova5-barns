@@ -2837,6 +2837,87 @@ class robot_motion(Node):
             self.get_logger().error(f"current_angles(): Unexpected error: {e}")
             return None
 
+    def current_pose(self) -> tuple[float, ...] | None:
+        """
+        Read the current Cartesian pose immediately and return it.
+        
+        This function is designed to be used with run_skill to save/restore robot positions:
+        
+        Example usage:
+            # Save current pose
+            saved_pose = run_skill("current_pose")
+            
+            # Do some movements...
+            run_skill("moveEE", 10, 0, 0, 0, 0, 0)
+            
+            # Return to saved pose
+            if saved_pose:
+                run_skill("gotoEE", *saved_pose)
+        
+        Returns:
+            tuple: (x, y, z, rx, ry, rz) in millimeters and degrees, or None if failed
+                   x, y, z: position in mm
+                   rx, ry, rz: orientation in degrees
+        """
+        try:
+            # Wait for servo to be ready (movement complete)
+            if not self._wait_for_servo_ready_with_timeout():
+                return None
+            
+            # Call GetPose service
+            gp_req = GetPose.Request()
+            gp_req.user = 0
+            gp_req.tool = 0
+            
+            max_attempts = 3
+            retry_pause = 0.5
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    future = self.get_pose_cli.call_async(gp_req)
+                    rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
+                    
+                    if future.done() and future.result() is not None and hasattr(future.result(), "pose"):
+                        resp = future.result()
+                        
+                        # Parse pose string: "{tx,ty,tz,rx,ry,rz,...}"
+                        parts = resp.pose.strip("{}").split(",")
+                        if len(parts) < 6:
+                            self.get_logger().error("current_pose(): Invalid pose format")
+                            return None
+                        
+                        # Extract pose values (x, y, z in mm; rx, ry, rz in degrees)
+                        x_mm = float(parts[0])
+                        y_mm = float(parts[1])
+                        z_mm = float(parts[2])
+                        rx_deg = float(parts[3])
+                        ry_deg = float(parts[4])
+                        rz_deg = float(parts[5])
+                        
+                        pose = (x_mm, y_mm, z_mm, rx_deg, ry_deg, rz_deg)
+                        
+                        self.get_logger().info(f"current_pose(): Current pose - "
+                                             f"X:{x_mm:.2f}mm Y:{y_mm:.2f}mm Z:{z_mm:.2f}mm "
+                                             f"Rx:{rx_deg:.2f}° Ry:{ry_deg:.2f}° Rz:{rz_deg:.2f}°")
+                        time.sleep(0.5)  # Stability settling
+                        return pose
+                    
+                except Exception as e:
+                    self.get_logger().warn(f"current_pose(): Attempt {attempt}/{max_attempts} failed: {e}")
+                
+                if attempt < max_attempts:
+                    time.sleep(retry_pause)
+            
+            self.get_logger().error("current_pose(): Failed to retrieve pose after all attempts")
+            return None
+            
+        except (TypeError, ValueError) as e:
+            self.get_logger().error(f"current_pose(): Error parsing pose: {e}")
+            return None
+        except Exception as e:
+            self.get_logger().error(f"current_pose(): Unexpected error: {e}")
+            return None
+
     def moveEE_movJ(
         self,
         offset_x_mm: Union[float, int],
@@ -2955,7 +3036,7 @@ class robot_motion(Node):
     def move_portafilter_arc_movJ(
         self,
         angle_deg: float,
-        d_rel_z: float = 282.5,     # mm from Link-6 flange (+Z) to portafilter pivot
+        d_rel_z: float = 287.5,     # mm from Link-6 flange (+Z) to portafilter pivot
         velocity: int = 100,
         acceleration: int = 100,
     ) -> bool:
@@ -3057,7 +3138,7 @@ class robot_motion(Node):
         self,
         arc_size_deg: float = 45.0,
         axis: str = "z",
-        tcp_table: str = "{0,0,282.5,0,0,0}",
+        tcp_table: str = "{0,0,287.5,0,0,0}",
     ) -> bool:
         """
         1) Configure TCP via SetTool (tool index 1, tcp_table)
@@ -3333,7 +3414,7 @@ def run_skill_with_node(motion_node, fn_name: str, *args):
             motion_node._consecutive_failures = 0
         
         # Special handling for data-returning functions
-        if fn_name in ("current_angles", "get_machine_position"):
+        if fn_name in ("current_angles", "current_pose", "get_machine_position"):
             # These functions should return the actual data (tuple, dict, etc.) or None
             return result
         

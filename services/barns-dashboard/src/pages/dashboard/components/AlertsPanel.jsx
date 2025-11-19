@@ -281,10 +281,8 @@ export default function AlertsPanel() {
   
   // Helper: build speech text for an alert
   function getAlertSpeechText(alert) {
-    const title = alert.title || 'Alert';
-    const severity = alert.severity ? `Severity ${alert.severity}.` : '';
     const message = alert.message ? alert.message : '';
-    return `${title}. ${severity} ${message}`.replace(/\s+/g, ' ').trim();
+    return message.replace(/\s+/g, ' ').trim();
   }
 
   // Speak next item in queue if not already speaking

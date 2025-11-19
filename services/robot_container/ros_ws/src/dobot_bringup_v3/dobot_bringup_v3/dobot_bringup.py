@@ -75,90 +75,246 @@ class adderServer(Node):
            self.dashboard = DobotApiDashboard(self.IP, 29999)
            self.move = DobotApiMove(self.IP,30003)
            self.get_logger().info("connection succeeded:29999,30003")
+           self.connection_lost = False
+           self.reconnect_attempts = 0
         except:
             self.get_logger().info("Connection failed!!!")
+            self.connection_lost = True
+    
+    def reconnect(self):
+        """
+        Attempt to reconnect to the robot when connection is lost.
+        Returns True if reconnection successful, False otherwise.
+        """
+        if self.reconnect_attempts >= 5:
+            self.get_logger().error("Maximum reconnection attempts reached (5). Giving up.")
+            return False
+        
+        self.reconnect_attempts += 1
+        self.get_logger().warn(f"Attempting to reconnect... (Attempt {self.reconnect_attempts}/5)")
+        
+        try:
+            # Close existing connections if any
+            if hasattr(self, 'dashboard') and self.dashboard:
+                try:
+                    self.dashboard.close()
+                except:
+                    pass
+            if hasattr(self, 'move') and self.move:
+                try:
+                    self.move.close()
+                except:
+                    pass
+            
+            # Wait a bit before reconnecting
+            import time
+            time.sleep(2.0)
+            
+            # Reconnect
+            self.connect()
+            
+            if not self.connection_lost:
+                self.get_logger().info("Reconnection successful!")
+                self.reconnect_attempts = 0
+                return True
+            else:
+                self.get_logger().error("Reconnection failed")
+                return False
+        except Exception as e:
+            self.get_logger().error(f"Reconnection error: {e}")
+            return False
+    
+    def ensure_connection(self):
+        """
+        Check if connection is lost and attempt to reconnect if necessary.
+        Returns True if connection is good, False if reconnection failed.
+        """
+        if self.connection_lost:
+            self.get_logger().info("Connection was lost, attempting reconnection...")
+            return self.reconnect()
+        return True
+    
+    def execute_with_retry(self, command_func, *args, **kwargs):
+        """
+        Execute a command with automatic retry on connection failure.
+        This ensures commands are NOT skipped after reconnection.
+        
+        Args:
+            command_func: The function to call (e.g., self.move.JointMovJ)
+            *args, **kwargs: Arguments to pass to the command function
+            
+        Returns:
+            The result from command_func, or error message if all retries fail
+        """
+        max_retries = 2
+        
+        for attempt in range(max_retries):
+            # Execute the command
+            result = command_func(*args, **kwargs)
+            
+            # Check if it was a connection error
+            if isinstance(result, str) and result.startswith("Error"):
+                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused"]
+                is_connection_error = any(err in result for err in connection_errors)
+                
+                if is_connection_error:
+                    if not self.connection_lost:
+                        self.connection_lost = True
+                        self.get_logger().warn(f"Connection lost during command execution! (Attempt {attempt + 1}/{max_retries})")
+                    
+                    # Attempt to reconnect
+                    if self.reconnect():
+                        self.get_logger().info(f"Retrying failed command after reconnection...")
+                        continue  # Retry the command
+                    else:
+                        self.get_logger().error("Reconnection failed, cannot retry command")
+                        return result  # Return the error
+                else:
+                    # Non-connection error, return immediately
+                    return result
+            else:
+                # Command succeeded
+                return result
+        
+        # All retries exhausted
+        self.get_logger().error(f"Command failed after {max_retries} attempts")
+        return "Error: Command failed after retries"
+    
+    def safe_parse_response(self, return_t):
+        """
+        Safely parse a response from the robot.
+        Returns (success: bool, response_code: int)
+        If parsing fails or an error occurred, returns (False, -1)
+        Also triggers reconnection on connection errors.
+        """
+        try:
+            # Check if this is an error message
+            if return_t.startswith("Error"):
+                self.get_logger().error(f"Robot communication error: {return_t}")
+                
+                # Check if it's a connection error
+                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused"]
+                is_connection_error = any(err in return_t for err in connection_errors)
+                
+                if is_connection_error and not self.connection_lost:
+                    self.connection_lost = True
+                    self.get_logger().warn("Connection lost! Will attempt to reconnect on next command.")
+                
+                return (False, -1)
+            
+            # Try to parse the normal response format
+            bracket_pos = return_t.find("{")
+            if bracket_pos == -1:
+                self.get_logger().error(f"Unexpected response format: {return_t}")
+                return (False, -1)
+            
+            return_tt = return_t[:bracket_pos-1]
+            response_code = int(return_tt)
+            
+            # Reset reconnection counter on successful command
+            if hasattr(self, 'reconnect_attempts'):
+                self.reconnect_attempts = 0
+            
+            return (True, response_code)
+        except ValueError as e:
+            self.get_logger().error(f"Failed to parse response '{return_t}': {e}")
+            return (False, -1)
+        except Exception as e:
+            self.get_logger().error(f"Unexpected error parsing response: {e}")
+            return (False, -1)
 
     def EnableRobot(self, request, response):                                           
-        return_t = self.dashboard.EnableRobot([request.load])
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                        
-        return response 
+        return_t = self.execute_with_retry(self.dashboard.EnableRobot, [request.load])
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
+        return response
     
     def ClearError(self, request, response):                                          
-        return_t = self.dashboard.ClearError()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                        
+        return_t = self.execute_with_retry(self.dashboard.ClearError)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                        
         return response 
     
     def ResetRobot(self, request, response):                                          
-        return_t = self.dashboard.ResetRobot()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                        
+        return_t = self.execute_with_retry(self.dashboard.ResetRobot)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                        
         return response 
     
     def PayLoad(self, request, response):                                          
-        return_t = self.dashboard.PayLoad(request.weight,request.inertia)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                        
-        self.get_logger().info(return_t)                                        
+        return_t = self.execute_with_retry(self.dashboard.PayLoad, request.weight, request.inertia)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                        
         return response 
     
     def SetPayload(self, request, response):                                          
-        return_t = self.dashboard.SetPayload(request.weight,request.inertia)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                         
-        self.get_logger().info(return_t)                                        
+        return_t = self.execute_with_retry(self.dashboard.SetPayload, request.weight, request.inertia)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                        
         return response 
     
     def GetPose(self, request, response):                                          
-        return_t = self.dashboard.GetPose(request.user,request.tool)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)   
-        response.pose = return_t[return_t.find("{"):return_t.find("}")+1]                                         
-        self.get_logger().info(return_t)                                        
+        return_t = self.execute_with_retry(self.dashboard.GetPose, request.user, request.tool)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.pose = return_t[return_t.find("{"):return_t.find("}")+1]
+            self.get_logger().info(return_t)
         return response 
     
     def GetAngle(self, request, response):                                           
-        return_t = self.dashboard.GetAngle()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.angle = return_t[return_t.find("{"):return_t.find("}")+1]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.GetAngle)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.angle = return_t[return_t.find("{"):return_t.find("}")+1]
+            self.get_logger().info(return_t)
         return response 
     
     def RobotMode(self, request, response):                                          
-        return_t = self.dashboard.RobotMode()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.mode = return_t[return_t.find("{")+1:return_t.find("}")]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.RobotMode)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.mode = return_t[return_t.find("{")+1:return_t.find("}")]
+            self.get_logger().info(return_t)
         return response 
     
     def ModbusCreate(self, request, response):                                           
-        return_t = self.dashboard.ModbusCreate(request.ip,request.port,request.slave_id,request.is_rtu)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.index = return_t[return_t.find("{")+1:return_t.find("}")]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ModbusCreate, request.ip, request.port, request.slave_id, request.is_rtu)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.index = return_t[return_t.find("{")+1:return_t.find("}")]
+            self.get_logger().info(return_t)
         return response 
     
     def GetInBits(self, request, response):                                           
-        return_t = self.dashboard.GetInBits(request.index,request.addr,request.count)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.value = return_t[return_t.find("{")+1:return_t.find("}")]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.GetInBits, request.index, request.addr, request.count)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.value = return_t[return_t.find("{")+1:return_t.find("}")]
+            self.get_logger().info(return_t)
         return response 
     
     def GetInRegs(self, request, response):                                          
-        return_t = self.dashboard.GetInRegs(request.index,request.addr,request.count,request.val_type)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.value = return_t[return_t.find("{")+1:return_t.find("}")]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.GetInRegs, request.index, request.addr, request.count, request.val_type)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.value = return_t[return_t.find("{")+1:return_t.find("}")]
+            self.get_logger().info(return_t)
         return response 
     
     def GetHoldRegs(self, request, response):
@@ -170,38 +326,37 @@ class adderServer(Node):
             f"GetHoldRegs called with: index={request.index}, addr={request.addr}, count={request.count}, val_type={request.val_type}"
         )
         
-        # Call the dashboard's GetHoldRegs method
-        return_t = self.dashboard.GetHoldRegs(
+        # Call the dashboard's GetHoldRegs method WITH RETRY
+        return_t = self.execute_with_retry(
+            self.dashboard.GetHoldRegs,
             request.index, request.addr, request.count, request.val_type
         )
         
         # Parse the response
-        try:
-            return_tt = return_t[:return_t.find("{") - 1]
-            response.res = int(return_tt)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
             response.value = return_t[return_t.find("{") + 1 : return_t.find("}")]
-        except Exception as e:
-            self.get_logger().error(f"Error parsing GetHoldRegs response: {e}")
-            response.res = -1
+            self.get_logger().info(f"GetHoldRegs response: {return_t}")
+        else:
             response.value = ""
-        
-        # Log the full response for debugging
-        self.get_logger().info(f"GetHoldRegs response: {return_t}")
         return response
 
     def GetCoils(self, request, response):                                          
-        return_t = self.dashboard.GetCoils(request.index,request.addr,request.count)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.value = return_t[return_t.find("{")+1:return_t.find("}")]                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.GetCoils, request.index, request.addr, request.count)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.value = return_t[return_t.find("{")+1:return_t.find("}")]
+            self.get_logger().info(return_t)
         return response 
     
     def SetCoils(self, request, response):                                          
-        return_t = self.dashboard.SetCoils(request.index,request.addr,request.count,request.val_tab)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                        
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.SetCoils, request.index, request.addr, request.count, request.val_tab)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def SetHoldRegs(self, request, response):
@@ -213,21 +368,17 @@ class adderServer(Node):
             f"SetHoldRegs called with: index={request.index}, addr={request.addr}, count={request.count}, val_tab={request.val_tab}, val_type={request.val_type}"
         )
         
-        # Call the dashboard's SetHoldRegs method
-        return_t = self.dashboard.SetHoldRegs(
+        # Call the dashboard's SetHoldRegs method WITH RETRY
+        return_t = self.execute_with_retry(
+            self.dashboard.SetHoldRegs,
             request.index, request.addr, request.count, request.val_tab, request.val_type
         )
         
         # Parse the response
-        try:
-            return_tt = return_t[:return_t.find("{") - 1]
-            response.res = int(return_tt)
-        except Exception as e:
-            self.get_logger().error(f"Error parsing SetHoldRegs response: {e}")
-            response.res = -1
-        
-        # Log the full response for debugging
-        self.get_logger().info(f"SetHoldRegs response: {return_t}")
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(f"SetHoldRegs response: {return_t}")
         return response
         
     def GetGripperPosition(self, request, response):
@@ -241,7 +392,11 @@ class adderServer(Node):
             )
 
             # Parse response
-            return_tt = return_t[:return_t.find("{") - 1]
+            success, response_code = self.safe_parse_response(return_t)
+            if not success:
+                response.position = 0
+                return response
+            
             reg_values = return_t[return_t.find("{") + 1: return_t.find("}")].split(",")
 
             # Debugging log for raw register values
@@ -299,18 +454,20 @@ class adderServer(Node):
                 f"val_tab={val_tab}, val_type=U16"
             )
 
-            # Write values to addr: 1000 using SetHoldRegs
-            return_t = self.dashboard.SetHoldRegs(
+            # Write values to addr: 1000 using SetHoldRegs WITH RETRY
+            return_t = self.execute_with_retry(
+                self.dashboard.SetHoldRegs,
                 request.index, 1000, 3, val_tab, "U16"
             )
 
             # Parse response
-            return_tt = return_t[:return_t.find("{") - 1]
-            response.res = int(return_tt)
+            success, response_code = self.safe_parse_response(return_t)
+            response.res = response_code
             response.message = (
                 f"Gripper data written successfully: action_request={action_request}, position={position}, speed={speed}, force={force}"
             )
-            self.get_logger().info(response.message)
+            if success:
+                self.get_logger().info(response.message)
         except Exception as e:
             response.res = -1
             response.message = f"Error in SetGripperPosition: {e}"
@@ -318,70 +475,79 @@ class adderServer(Node):
         return response
     
     def ModbusClose(self, request, response):                                          
-        return_t = self.dashboard.ModbusClose(request.index)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                         
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ModbusClose, request.index)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def GetErrorID(self, request, response):                                           
-        return_t = self.dashboard.GetErrorID()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.GetErrorID)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def DisableRobot(self, request, response):                                           
-        return_t = self.dashboard.DisableRobot()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.DisableRobot)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def DOExecute(self, request, response):                                       
-        return_t = self.dashboard.DOExecute(request.index,request.status)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.DOExecute, request.index, request.status)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def SpeedFactor(self, request, response):                                       
-        return_t = self.dashboard.SpeedFactor(request.ratio)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.SpeedFactor, request.ratio)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def CP(self, request, response):                                       
-        return_t = self.dashboard.CP(request.r)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.CP, request.r)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def SpeedJ(self, request, response):                                       
-        return_t = self.dashboard.SpeedJ(request.r)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.SpeedJ, request.r)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def SpeedL(self, request, response):                                       
-        return_t = self.dashboard.SpeedL(request.r)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.SpeedL, request.r)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
 
     def Tool(self, request, response):                                       
-        return_t = self.dashboard.Tool(request.index)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.Tool, request.index)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def SetTool(self, request, response):
-        raw = self.dashboard.SetTool(request.index, request.table)
+        raw = self.execute_with_retry(self.dashboard.SetTool, request.index, request.table)
         code_str = raw.strip().split(',')[0]
         try:
             code = int(code_str)
@@ -393,217 +559,271 @@ class adderServer(Node):
         return response
 
     def User(self, request, response):                                       
-        return_t = self.dashboard.User(request.index)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.User, request.index)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def DOGroup(self, request, response):                                       
-        return_t = self.dashboard.DOGroup(request.args)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.DOGroup, request.args)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def DO(self, request, response):                                       
-        return_t = self.dashboard.DO(request.index,request.status)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.DO, request.index, request.status)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def DI(self, request, response):                                       
-        return_t = self.dashboard.ToolDO(request.index,0)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ToolDO, request.index, 0)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def ToolDO(self, request, response):                                       
-        return_t = self.dashboard.ToolDO(request.index,request.status)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ToolDO, request.index, request.status)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def ToolDOExecute(self, request, response):                                       
-        return_t = self.dashboard.ToolDOExecute(request.index,request.status)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ToolDOExecute, request.index, request.status)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def ToolDI(self, request, response):                                       
-        return_t = self.dashboard.ToolDI(request.index)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.ToolDI, request.index)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
 
     def AccJ(self, request, response):                                     
-        return_t = self.dashboard.AccJ(request.r)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.AccJ, request.r)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def AccL(self, request, response):                                      
-        return_t = self.dashboard.AccL(request.r)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.AccL, request.r)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def Arch(self, request, response):                                        
-        return_t = self.dashboard.Arch(request.index)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.dashboard.Arch, request.index)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def MovJ(self, request, response):                                
-        return_t = self.move.MovJ(request.x,request.y,request.z,request.rx,request.ry,request.rz,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.MovJ,
+            request.x, request.y, request.z, request.rx, request.ry, request.rz, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def ServoP(self, request, response):                                
-        return_t = self.move.ServoP(request.x,request.y,request.z,request.rx,request.ry,request.rz)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.ServoP,
+            request.x, request.y, request.z, request.rx, request.ry, request.rz
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def ServoJ(self, request, response):                                
-        return_t = self.move.ServoJ(request.j1,request.j2,request.j3,request.j4,request.j5,request.j6,request.t,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.ServoJ,
+            request.j1, request.j2, request.j3, request.j4, request.j5, request.j6, request.t, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
 
     def MovL(self, request, response):                                
-        return_t = self.move.MovL(request.x,request.y,request.z,request.rx,request.ry,request.rz,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.MovL,
+            request.x, request.y, request.z, request.rx, request.ry, request.rz, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def MovJIO(self, request, response):                                
-        return_t = self.move.MovJIO(request.x,request.y,request.z,request.rx,request.ry,request.rz,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.MovJIO,
+            request.x, request.y, request.z, request.rx, request.ry, request.rz, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
     def MovLIO(self, request, response):                                
-        return_t = self.move.MovLIO(request.x,request.y,request.z,request.rx,request.ry,request.rz,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(
+            self.move.MovLIO,
+            request.x, request.y, request.z, request.rx, request.ry, request.rz, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response 
     
-    def JointMovJ(self, request, response):                                
-        return_t = self.move.JointMovJ(request.j1,request.j2,request.j3,request.j4,request.j5,request.j6,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+    def JointMovJ(self, request, response):
+        # Execute with automatic retry on connection failure
+        return_t = self.execute_with_retry(
+            self.move.JointMovJ,
+            request.j1, request.j2, request.j3, request.j4, request.j5, request.j6, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
         return response 
     
-    def RelMovJ(self, request, response):                                
-        return_t = self.move.RelMovJ(request.offset1,request.offset2,request.offset3,request.offset4,request.offset5,request.offset6,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+    def RelMovJ(self, request, response):
+        # Execute with automatic retry on connection failure
+        return_t = self.execute_with_retry(
+            self.move.RelMovJ,
+            request.offset1, request.offset2, request.offset3, request.offset4, request.offset5, request.offset6, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
         return response 
     
-    def RelMovL(self, request, response):                               
-        return_t = self.move.RelMovL(request.offset1,request.offset2,request.offset3,request.offset4,request.offset5,request.offset6,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+    def RelMovL(self, request, response):
+        # Execute with automatic retry on connection failure
+        return_t = self.execute_with_retry(
+            self.move.RelMovL,
+            request.offset1, request.offset2, request.offset3, request.offset4, request.offset5, request.offset6, request.param_value
+        )
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
         return response 
     
-    def Sync(self, request, response):                                
-        return_t = self.move.Sync()
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+    def Sync(self, request, response):
+        # Execute with automatic retry on connection failure
+        return_t = self.execute_with_retry(self.move.Sync)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
         return response 
     
     def MoveJog(self, request, response):                                
-        return_t = self.move.MoveJog(request.axis_id,request.param_value)
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)                                           
-        self.get_logger().info(return_t)                                     
+        return_t = self.execute_with_retry(self.move.MoveJog, request.axis_id, request.param_value)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)                                     
         return response
 
     def StartDrag(self, request, response):
-        try:
-            return_t = self.dashboard.StartDrag()
-            return_tt = return_t[:return_t.find("{")-1]
-            response.res = int(return_tt)
+        return_t = self.execute_with_retry(self.dashboard.StartDrag)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
             self.get_logger().info(return_t)
-        except Exception as e:
-            self.get_logger().error(f"StartDrag error: {e}")
-            response.res = -1
         return response
 
     def StopDrag(self, request, response):
-        try:
-            return_t = self.dashboard.StopDrag()
-            return_tt = return_t[:return_t.find("{")-1]
-            response.res = int(return_tt)
+        return_t = self.execute_with_retry(self.dashboard.StopDrag)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
             self.get_logger().info(return_t)
-        except Exception as e:
-            self.get_logger().error(f"StopDrag error: {e}")
-            response.res = -1
         return response
     
     def InverseSolution(self, request, response):
-        return_t = self.dashboard.InverseSolution(
+        return_t = self.execute_with_retry(
+            self.dashboard.InverseSolution,
             request.x, request.y, request.z, request.rx,
             request.ry, request.rz, request.user, request.tool
         )
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.angle = return_t[return_t.find("{"):return_t.find("}")+1]
-        self.get_logger().info(return_t)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.angle = return_t[return_t.find("{"):return_t.find("}")+1]
+            self.get_logger().info(return_t)
         return response
 
     def PositiveSolution(self, request, response):
-        return_t = self.dashboard.PositiveSolution(
+        return_t = self.execute_with_retry(
+            self.dashboard.PositiveSolution,
             request.j1, request.j2, request.j3, request.j4,
             request.j5, request.j6, request.user, request.tool
         )
-        return_tt = return_t[:return_t.find("{")-1]
-        response.res = int(return_tt)
-        response.pose = return_t[return_t.find("{"):return_t.find("}")+1]
-        self.get_logger().info(return_t)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            response.pose = return_t[return_t.find("{"):return_t.find("}")+1]
+            self.get_logger().info(return_t)
         return response
     
     def Circle3(self, request, response):
-        return_t = self.move.Circle3(
+        return_t = self.execute_with_retry(
+            self.move.Circle3,
             request.x1, request.y1, request.z1, request.rx1, request.ry1, request.rz1,
             request.x2, request.y2, request.z2, request.rx2, request.ry2, request.rz2,
             request.count,                                   # ← count goes here
             *request.param_value                             # ← explode the list so each element is appended
         )
-        return_tt       = return_t[:return_t.find("{") - 1]
-        response.res    = int(return_tt)
-        self.get_logger().info(return_t)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response
 
     def Arc(self, request, response):
-        return_t = self.move.Arc(
+        return_t = self.execute_with_retry(
+            self.move.Arc,
             request.x1, request.y1, request.z1, request.rx1, request.ry1, request.rz1,
             request.x2, request.y2, request.z2, request.rx2, request.ry2, request.rz2,
             request.param_value                              # ← keep the list intact for Arc()
         )
-        return_tt       = return_t[:return_t.find("{") - 1]
-        response.res    = int(return_tt)
-        self.get_logger().info(return_t)
+        success, response_code = self.safe_parse_response(return_t)
+        response.res = response_code
+        if success:
+            self.get_logger().info(return_t)
         return response
 
 
