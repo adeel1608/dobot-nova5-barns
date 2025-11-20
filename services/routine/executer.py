@@ -33,6 +33,12 @@ RESOURCE_LOCK_MAX_WAIT_TIME = 300  # maximum wait time (5 minutes) before timeou
 stopped_orders = set()  # Set of stopped order_ids
 stopped_orders_lock = asyncio.Lock()  # Lock for thread-safe access to stopped_orders
 
+# PARTIAL TASK PROGRESS TRACKING
+# Track completed sub-steps for tasks to enable resume from exact sub-step
+# Format: {f"{cup_id}-{function}": last_completed_step_index}
+task_progress = {}  # Dict mapping task_key to last completed step index
+task_progress_lock = asyncio.Lock()  # Lock for thread-safe access to task_progress
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -55,6 +61,36 @@ async def is_order_stopped(order_id: int) -> bool:
     """Check if an order is stopped."""
     async with stopped_orders_lock:
         return order_id in stopped_orders
+
+async def get_task_progress(cup_id: str, function: str) -> int:
+    """Get the last completed step index for a task. Returns -1 if no progress."""
+    task_key = f"{cup_id}-{function}"
+    async with task_progress_lock:
+        return task_progress.get(task_key, -1)
+
+async def set_task_progress(cup_id: str, function: str, step_index: int):
+    """Store the last completed step index for a task."""
+    task_key = f"{cup_id}-{function}"
+    async with task_progress_lock:
+        task_progress[task_key] = step_index
+        log("DEBUG", f"Task progress saved: {task_key} -> step {step_index}", service="routine")
+
+async def clear_task_progress(cup_id: str, function: str):
+    """Clear task progress when task completes successfully or fails permanently."""
+    task_key = f"{cup_id}-{function}"
+    async with task_progress_lock:
+        if task_key in task_progress:
+            del task_progress[task_key]
+            log("DEBUG", f"Task progress cleared: {task_key}", service="routine")
+
+async def clear_order_progress(order_id: int):
+    """Clear all task progress for an order (when order completes/cancels)."""
+    async with task_progress_lock:
+        keys_to_remove = [key for key in task_progress.keys() if key.startswith(f"{order_id}-")]
+        for key in keys_to_remove:
+            del task_progress[key]
+        if keys_to_remove:
+            log("INFO", f"Cleared progress for {len(keys_to_remove)} tasks in order {order_id}", service="routine")
 
 def extract_order_id_from_cup_id(cup_id: str) -> int:
     """Extract order_id from cup_id format (order_id-cup_index)."""
@@ -493,14 +529,27 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         
         log("DEBUG", f"Task ingredients: {json.dumps(task_item.get('ingredients', {}), indent=2)}", service="routine")
         
-        for step in cfg["steps"]:
+        # Check for partial progress - resume from where we left off
+        last_completed_step = await get_task_progress(cup_id, function)
+        start_step_index = last_completed_step + 1  # Start from next step after last completed
+        
+        if start_step_index > 0:
+            log("INFO", f"[RESUME] Found partial progress for {function} on cup {cup_id}, resuming from step {start_step_index}", service="routine")
+        
+        for step_index, step in enumerate(cfg["steps"]):
+            # Skip steps that were already completed in a previous execution
+            if step_index < start_step_index:
+                func_name = step.get("function", "unknown")
+                log("INFO", f"[RESUME] Skipping already completed step {step_index}: {func_name}", service="routine")
+                continue
             # Check if order has been stopped before executing each step
             if order_id and await is_order_stopped(order_id):
                 log("INFO", f"[STOP DETECTED] Order {order_id} stopped during task execution at step {step.get('function')}", service="routine")
-                log("INFO", f"[STOP DETECTED] Exiting task {function} for cup {cup_id} gracefully - task remains in submitted state", service="routine")
+                log("INFO", f"[STOP DETECTED] Progress saved - will resume from step {step_index} on order resume", service="routine")
                 order_stopped = True
                 success = False
                 message = "Order stopped during task execution"
+                # Progress is already saved from previous completed steps
                 break  # Exit step loop - will skip feedback so task remains pending
             
             step_type = step["type"]
@@ -665,7 +714,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 log("ERROR", f"Could not extract cup_position from task ingredients for cup {cup_id}", service="routine")
                 
                 if not res.get("passed", False):
-                    # Validation failed - revert previous step, stop order, and send dashboard message
+                    # Validation failed - stop order and revert to previous step
                     log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
                     log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
                     log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
@@ -680,20 +729,25 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 {"arm": arm_id, "cup": cup_id,
                                 "step": func_name, "reason": res}, rabbitmq_client)
                     
-                    # Revert previous step and stop the order
-                    # The current validation step will remain pending (not marked as failed)
-                    # so it can be retried when the order is resumed
-                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process", service="routine")
+                    # Stop the order and mark task for sub-step resume
+                    # This calls scheduler to:
+                    # 1. Mark CURRENT task (this one) as "pending" (will retry on resume)
+                    # 2. Stop the order via OMS
+                    # When order is resumed, scheduler will resubmit THIS task
+                    # Routine will resume from the exact sub-step that failed (using saved progress)
+                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process for task: {function}", service="routine")
                     await revert_previous_step_and_stop(cup_id, function, rabbitmq_client)
                     
-                    # Set flag to prevent sending feedback - keep validation step pending for retry
+                    # Set flag to prevent sending feedback at the end
+                    # No feedback = scheduler keeps current task as "pending" (set by revert)
+                    # Progress is preserved so we can resume from this exact sub-step
                     validation_failed_stopped = True
                     log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True", service="routine")
                     
                     # Break from step loop to stop execution
                     log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
-                    log("INFO", f"[VALIDATION FAILED] Task {function} remains PENDING and will retry when order is resumed", service="routine")
-                    break  # Stop execution - order is stopped, validation step remains pending
+                    log("INFO", f"[VALIDATION FAILED] Task {function} will resume from step {step_index} (checkpoint saved)", service="routine")
+                    break  # Stop execution - no feedback sent, task remains pending for sub-step resume
                     
             elif step_type == "robot":
                 # Check if this is a cup_station function that requires mutual exclusion
@@ -808,16 +862,23 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             await publish_event("routine.step_completed", 
                         {"arm": arm_id, "cup": cup_id,
                         "step": func_name}, rabbitmq_client)
+            
+            # Save progress after successful step completion
+            # This allows resuming from this point if order is stopped
+            await set_task_progress(cup_id, function, step_index)
                         
     except Exception as e:
         success = False
         message = f"Exception in routine: {str(e)}"
         log("ERROR", f"Error processing task: {e}", service="routine")
     
-    # Send feedback to scheduler (skip if validation failed OR order stopped - task remains pending)
+    # Send feedback to scheduler (skip if validation failed OR order stopped)
     if not validation_failed_stopped and not order_stopped:
         log("INFO", f"Sending feedback to scheduler: {function} for cup {cup_id} - {'SUCCESS' if success else 'FAILED'}", service="routine")
         await send_feedback_to_scheduler(cup_id, function, success, rabbitmq_client, message)
+        
+        # Clear progress on completion or permanent failure (task won't retry)
+        await clear_task_progress(cup_id, function)
         
         # all steps done
         if success:
@@ -827,9 +888,14 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         else:
             log("ERROR", f"Task failed: {function} for cup {cup_id} - {message}", service="routine")
     elif validation_failed_stopped:
-        log("INFO", f"Skipping feedback for cup {cup_id} - validation failed, step remains pending for retry", service="routine")
+        # Keep progress - scheduler will mark this task as pending for retry
+        # When order resumes, THIS task will be retried from the saved checkpoint
+        log("INFO", f"Skipping feedback for cup {cup_id} - validation failed, task will resume from checkpoint on order resume", service="routine")
+        log("INFO", f"Progress preserved - next execution will skip completed sub-steps", service="routine")
     elif order_stopped:
+        # Keep progress - task will resume from where it stopped
         log("INFO", f"[STOP DETECTED] Skipping feedback for cup {cup_id} - order stopped, task remains in submitted state for resume", service="routine")
+        log("INFO", f"[STOP DETECTED] Progress preserved - will resume from saved checkpoint on order resume", service="routine")
     
     # Return task execution status
     return {

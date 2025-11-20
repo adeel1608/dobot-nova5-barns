@@ -1096,51 +1096,24 @@ async def revert_previous_step_for_cup(cup_id: str, current_action: str):
                 log("WARNING", f"[REVERT STEP] Current task {current_action} not found for cup {cup_id}", service="scheduler")
                 return {"success": False, "error": "Current task not found"}
             
-            # Reset current task to pending so it can be retried
-            if current_task["status"] != "pending":
-                log("INFO", f"[REVERT STEP] Resetting current task '{current_action}' from '{current_task['status']}' to 'pending'", service="scheduler")
+            # Mark current task as pending so it will be retried on resume
+            # Routine has saved progress of completed sub-steps, so it will resume from where it failed
+            if current_task["status"] in ["submitted", "in_progress"]:
+                log("INFO", f"[REVERT STEP] Resetting current task '{current_action}' to 'pending' for retry with sub-step resume", service="scheduler")
                 current_task["status"] = "pending"
+                log("INFO", f"[REVERT STEP] Routine will resume this task from the failed sub-step using saved progress", service="scheduler")
             else:
-                log("INFO", f"[REVERT STEP] Current task '{current_action}' already pending", service="scheduler")
+                log("INFO", f"[REVERT STEP] Current task '{current_action}' has status '{current_task['status']}', setting to pending", service="scheduler")
+                current_task["status"] = "pending"
             
-            # Find the previous completed task (go backwards from current task)
-            log("INFO", f"[REVERT STEP] Searching for previous completed task before index {current_task_index}", service="scheduler")
-            previous_task = None
-            for i in range(current_task_index - 1, -1, -1):
-                task = cup_tasks[i]
-                log("DEBUG", f"[REVERT STEP] Checking task at index {i}: {task['action']}, status: {task['status']}", service="scheduler")
-                if task["status"] == "done" and task["action"] in completed.get(cup_id, set()):
-                    previous_task = task
-                    log("INFO", f"[REVERT STEP] Found previous completed task: {task['action']}", service="scheduler")
-                    break
-            
-            if previous_task is None:
-                log("WARNING", f"[REVERT STEP] No previous completed step found to revert for cup {cup_id}", service="scheduler")
-                log("INFO", f"[REVERT STEP] Current task has been reset to pending, no previous task to revert", service="scheduler")
-                # Still return success since we reset the current task
-                return {
-                    "success": True,
-                    "reverted_action": None,
-                    "message": f"Reset current task to pending (no previous step to revert)"
-                }
-            
-            # Revert the previous task
-            previous_action = previous_task["action"]
-            log("INFO", f"[REVERT STEP] Reverting previous task '{previous_action}' from 'done' to 'pending'", service="scheduler")
-            previous_task["status"] = "pending"
-            
-            if cup_id in completed and previous_action in completed[cup_id]:
-                completed[cup_id].remove(previous_action)
-                completed_count -= 1
-                log("INFO", f"[REVERT STEP] Removed '{previous_action}' from completed set for cup {cup_id}", service="scheduler")
-                log("INFO", f"[REVERT STEP] Updated completed_count: {completed_count}", service="scheduler")
-            
-            log("INFO", f"[REVERT STEP] Successfully reverted step '{previous_action}' for cup {cup_id}", service="scheduler")
+            # Don't revert previous tasks - just retry the current task from its saved checkpoint
+            # This prevents unnecessary rework and ensures precise sub-step resumption
+            log("INFO", f"[REVERT STEP] Task '{current_action}' will retry from saved checkpoint in routine", service="scheduler")
             
             return {
                 "success": True,
-                "reverted_action": previous_action,
-                "message": f"Reverted previous step: {previous_action}"
+                "reverted_action": None,
+                "message": f"Task reset to pending, will resume from sub-step checkpoint"
             }
             
     except Exception as e:
