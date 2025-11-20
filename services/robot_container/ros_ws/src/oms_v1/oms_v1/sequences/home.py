@@ -164,7 +164,6 @@ def return_back_to_home() -> bool:
         traceback.print_exc()
         return False
 
-
 def get_machine_position(**params) -> bool:
     """
     Calibrate and record machine positions for all coffee equipment.
@@ -345,7 +344,6 @@ def get_machine_position(**params) -> bool:
         print("[INFO] Calibration process terminated due to error")
         return False
 
-
 def check_saved_data() -> Dict[str, Any]:
     """
     Check and display currently saved machine position data.
@@ -402,7 +400,6 @@ def check_saved_data() -> Dict[str, Any]:
         print(f"   ⚠️  Error reading saved data: {e}")
         print("   💡 Check file permissions and YAML format")
         return {}
-
 
 def check_aruco_status(**params) -> bool:
     """
@@ -476,7 +473,6 @@ def check_aruco_status(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] Error during ArUco status check: {e}")
         return False
-
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {

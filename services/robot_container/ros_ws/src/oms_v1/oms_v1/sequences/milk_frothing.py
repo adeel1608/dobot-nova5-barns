@@ -313,7 +313,7 @@ def place_frother_milk_station(**params) -> bool:
         if run_skill("gotoJ_deg", -28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609) is False:
             print("[ERROR] Failed to reach approach configuration")
             return False
-        if run_skill("gotoJ_deg", -28.193760,-67.570763,-75.181091,-38.773808,-112.116196,8.775330) is False:
+        if run_skill("gotoJ_deg", -29.407280,-65.979000,-79.822693,-35.739279,-113.325463,8.738939) is False:
             print("[ERROR] Failed to reach place configuration")
             return False
         if run_skill("set_gripper_position", 255, 200) is False:
@@ -799,8 +799,6 @@ def clean_milk_pitcher(**params) -> bool:
         if run_skill("moveEE_movJ", 0, 5, -150, 0, 0, 0) is False:
             print("[ERROR] Failed to execute cleaning motion")
             return False
-        if run_skill("sync") is False:
-            print("[WARNING] Sync operation failed - continuing...")
         print("✅ Frother cleaning movement completed")
         return True
     except Exception as e:
