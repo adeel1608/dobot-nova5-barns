@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../../store';
+import { getValidationMessage, getValidationData } from '../../../constants/validationMessages.jsx';
+import { getIngredientData, getSeverityMessage } from '../../../constants/ingredientMappings.jsx';
 
 export default function AlertPanel() {
   const { 
@@ -107,20 +109,16 @@ export default function AlertPanel() {
   };
 
   const getAlertMessage = (alert) => {
-    // For order_halted alerts, try to extract message from payload
+    // For order_halted alerts, try to extract validation_function and map to message
     if (alert.alert_type === 'order_halted') {
       if (alert.payload && typeof alert.payload === 'string') {
         try {
           const payload = JSON.parse(alert.payload);
-          // Check for validation failure message
-          if (payload.message) {
-            return payload.message;
-          }
-          // Check for validation_function to create a descriptive message
+          // Check for validation_function and map to localized message
           if (payload.validation_function) {
-            const validationFunction = payload.validation_function;
-            const cupId = payload.cup_id || '';
-            return `Validation failed: ${validationFunction}${cupId ? ` (${cupId})` : ''}. ${payload.message || 'Please check the system and resolve the issue.'}`;
+            const validationKey = payload.validation_function;
+            // Use the validation message mapping
+            return getValidationMessage(validationKey, 'Order processing has been halted due to validation failure');
           }
         } catch (e) {
           // If parsing fails, fall through to default message
@@ -132,6 +130,47 @@ export default function AlertPanel() {
     
     // For other alert types, return the message or alert_type
     return alert.message || alert.alert_type;
+  };
+
+  const getValidationDataFromAlert = (alert) => {
+    // For order_halted alerts, try to extract validation_function and get data
+    if (alert.alert_type === 'order_halted') {
+      if (alert.payload && typeof alert.payload === 'string') {
+        try {
+          const payload = JSON.parse(alert.payload);
+          if (payload.validation_function) {
+            return getValidationData(payload.validation_function);
+          }
+        } catch (e) {
+          return { icon: null, color: "text-gray-600", message: null };
+        }
+      }
+    }
+    return { icon: null, color: "text-gray-600", message: null };
+  };
+
+  const getIngredientDataFromAlert = (alert) => {
+    // For ingredient_threshold alerts, extract ingredient ID and get display data
+    if (alert.alert_type === 'ingredient_threshold') {
+      const ingredientId = getIngredientFromAlert(alert);
+      if (ingredientId) {
+        return getIngredientData(ingredientId);
+      }
+    }
+    return { name: null, icon: null, color: "text-gray-600", category: null };
+  };
+
+  const getSeverityFromAlert = (alert) => {
+    // Extract severity from payload
+    if (alert.payload && typeof alert.payload === 'string') {
+      try {
+        const payload = JSON.parse(alert.payload);
+        return payload.severity || alert.severity || 'low';
+      } catch (e) {
+        return alert.severity || 'low';
+      }
+    }
+    return alert.severity || 'low';
   };
 
   // Helper function to get the severity badge
@@ -246,38 +285,65 @@ export default function AlertPanel() {
                         : 'border-blue-500 bg-blue-50/30'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
-                        <span className="text-base flex-shrink-0">{getAlertIcon(alert.alert_type)}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <p className="font-medium text-sm text-gray-900 truncate">
-                              {alert.alert_type === 'ingredient_threshold' 
-                                ? `Low ${getIngredientFromAlert(alert) || 'ingredient'} level`
-                                : getAlertMessage(alert)}
-                            </p>
-                            {alert.severity && getSeverityBadge(alert.severity)}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Just now'}
-                          </p>
-                        </div>
+                    <div className="flex items-start gap-4">
+                      {/* Large Icon on Left */}
+                      <div className="flex-shrink-0">
+                        {alert.alert_type === 'order_halted' && (() => {
+                          const validationData = getValidationDataFromAlert(alert);
+                          return validationData.icon ? (
+                            <div className={validationData.color || 'text-gray-600'}>
+                              {validationData.icon}
+                            </div>
+                          ) : getAlertIcon(alert.alert_type);
+                        })()}
+                        {alert.alert_type === 'ingredient_threshold' && (() => {
+                          const ingredientData = getIngredientDataFromAlert(alert);
+                          return ingredientData.icon ? (
+                            <div className={ingredientData.color || 'text-gray-600'}>
+                              {ingredientData.icon}
+                            </div>
+                          ) : getAlertIcon(alert.alert_type);
+                        })()}
+                        {alert.alert_type !== 'order_halted' && alert.alert_type !== 'ingredient_threshold' && (
+                          <span className="text-base">{getAlertIcon(alert.alert_type)}</span>
+                        )}
                       </div>
                       
-                      <div className="flex items-center space-x-2 flex-shrink-0">
-                        {/* Quick action buttons */}
-                        {alert.alert_type === 'ingredient_threshold' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const ingredient = getIngredientFromAlert(alert);
-                              if (ingredient) {
-                                handleRefillFromAlert(ingredient);
-                              }
-                            }}
-                            disabled={refilling}
-                            className="bg-yellow-600 hover:bg-yellow-700 disabled:bg-yellow-400 text-white text-xs font-medium px-2 py-1 rounded flex items-center space-x-1"
-                          >
+                      {/* Content on Right */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="font-semibold text-sm text-gray-900">
+                            {alert.alert_type === 'ingredient_threshold' 
+                              ? (() => {
+                                  const ingredientData = getIngredientDataFromAlert(alert);
+                                  const severity = getSeverityFromAlert(alert);
+                                  const severityText = severity === 'empty' ? 'Out of Stock' : 'Low Stock';
+                                  return ingredientData.name ? `${ingredientData.name} - ${severityText}` : `Low ${getIngredientFromAlert(alert) || 'ingredient'} level`;
+                                })()
+                              : getAlertMessage(alert)}
+                          </p>
+                          {alert.severity && getSeverityBadge(alert.severity)}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {alert.alert_type === 'ingredient_threshold' 
+                            ? getSeverityMessage(getSeverityFromAlert(alert))
+                            : (alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Just now')}
+                        </p>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-end gap-2 mt-3">
+                          {alert.alert_type === 'ingredient_threshold' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const ingredient = getIngredientFromAlert(alert);
+                                if (ingredient) {
+                                  handleRefillFromAlert(ingredient);
+                                }
+                              }}
+                              disabled={refilling}
+                              className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-medium px-3 py-1.5 rounded-md flex items-center space-x-1"
+                            >
                             {refilling ? (
                               <>
                                 <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -295,24 +361,25 @@ export default function AlertPanel() {
                               </>
                             )}
                           </button>
-                        )}
-                        
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAcknowledgeAlert(alert.id);
-                          }}
-                          className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded disabled:bg-gray-100 disabled:text-gray-400"
-                          disabled={errors.alerts || acknowledging}
-                        >
-                          {acknowledging ? 'Ack...' : 'Acknowledge'}
-                        </button>
+                          )}
+                          
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcknowledgeAlert(alert.id);
+                            }}
+                            className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-md font-medium disabled:bg-gray-100 disabled:text-gray-400"
+                            disabled={errors.alerts || acknowledging}
+                          >
+                            {acknowledging ? 'Acknowledging...' : 'Acknowledge'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                     
-                    {/* Resume operation button for other alert types */}
+                    {/* Resume operation button for order_halted alerts - moved inside the main flex */}
                     {alert.alert_type === 'order_halted' && (
-                      <div className="mt-2 pt-2 border-t border-gray-200">
+                      <div className="mt-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -321,7 +388,7 @@ export default function AlertPanel() {
                             }
                           }}
                           disabled={isLoading || errors.system}
-                          className="bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white text-xs font-medium px-3 py-1 rounded flex items-center space-x-1"
+                          className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-xs font-medium px-3 py-1.5 rounded-md flex items-center space-x-1"
                         >
                           {isLoading ? (
                             <>

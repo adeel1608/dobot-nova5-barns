@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
 import viewAll from '../../../assets/viewall.png';
+import { getValidationMessage, getValidationData } from '../../../constants/validationMessages.jsx';
+import { getIngredientData, getSeverityMessage } from '../../../constants/ingredientMappings.jsx';
 
 export default function AlertsPanel() {
   const { 
@@ -158,13 +160,20 @@ export default function AlertsPanel() {
   const mappedAlerts = alerts.map(alert => {
     const ingredient = getIngredientFromAlert(alert);
     const isCupStations = ingredient === 'cup_stations';
+    const validationData = getValidationDataFromAlert(alert);
+    const ingredientData = alert.alert_type === 'ingredient_threshold' && ingredient ? getIngredientData(ingredient) : null;
     
     return {
       id: alert.id,
       type: mapAlertTypeToDisplayType(alert.alert_type, alert.severity),
       title: getAlertTitle(alert),
-      // For cup_stations, always use the message from the event payload
-      message: isCupStations && alert.message ? alert.message : (alert.message || getDefaultMessage(alert.alert_type)),
+      // Use getAlertMessage helper to handle validation key mapping
+      message: getAlertMessage(alert),
+      validationIcon: validationData.icon, // Add validation icon if available
+      validationColor: validationData.color, // Add validation color if available
+      ingredientIcon: ingredientData?.icon, // Add ingredient icon if available
+      ingredientColor: ingredientData?.color, // Add ingredient color if available
+      ingredientName: ingredientData?.name, // Add ingredient friendly name
       timestamp: alert.created_at ? new Date(alert.created_at) : new Date(),
       acknowledged: false, // Active alerts are not acknowledged
       source: isCupStations ? 'validation' : mapAlertTypeToSource(alert.alert_type),
@@ -192,7 +201,11 @@ export default function AlertsPanel() {
         if (ingredient === 'cup_stations') {
           return 'Cup Stations Status';
         }
-        return `Low ${ingredient ? ingredient.charAt(0).toUpperCase() + ingredient.slice(1) : 'Ingredient'} Level`;
+        // Use ingredient mapping for friendly name
+        const ingredientData = ingredient ? getIngredientData(ingredient) : null;
+        const severity = getSeverityFromAlert(alert);
+        const severityText = severity === 'empty' ? 'Out of Stock' : 'Low Stock';
+        return ingredientData?.name ? `${ingredientData.name} - ${severityText}` : `Low ${ingredient ? ingredient.charAt(0).toUpperCase() + ingredient.slice(1) : 'Ingredient'} Level`;
       case 'order_halted':
         return 'Order Processing Halted';
       case 'emergency_stop':
@@ -202,6 +215,22 @@ export default function AlertsPanel() {
       default:
         return alert.message || 'System Alert';
     }
+  }
+
+  // Helper function to get severity from alert
+  function getSeverityFromAlert(alert) {
+    if (alert.payload) {
+      let payload = alert.payload;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch (e) {
+          return alert.severity || 'low';
+        }
+      }
+      return payload.severity || alert.severity || 'low';
+    }
+    return alert.severity || 'low';
   }
 
   // Helper function to get default message
@@ -262,6 +291,66 @@ export default function AlertsPanel() {
     const message = alert.message || '';
     const ingredients = ['cup_stations', 'milk', 'cup', 'beans', 'syrup', 'coffee'];
     return ingredients.find(ing => message.toLowerCase().includes(ing));
+  }
+
+  // Helper function to get alert message with validation key mapping support
+  function getAlertMessage(alert) {
+    // For ingredient_threshold alerts, use severity-based message
+    if (alert.alert_type === 'ingredient_threshold') {
+      const severity = getSeverityFromAlert(alert);
+      return getSeverityMessage(severity);
+    }
+    
+    // For order_halted alerts, check for validation_function key in payload
+    if (alert.alert_type === 'order_halted') {
+      if (alert.payload) {
+        let payload = alert.payload;
+        
+        // If payload is a string, parse it
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch (e) {
+            // If parsing fails, use default message
+            return alert.message || getDefaultMessage(alert.alert_type);
+          }
+        }
+        
+        // If we have a validation_function key, map it to a message
+        if (payload && payload.validation_function) {
+          return getValidationMessage(payload.validation_function, 'Order processing has been halted due to validation failure');
+        }
+      }
+    }
+    
+    // For other alert types or if no validation_function found, return message or default
+    return alert.message || getDefaultMessage(alert.alert_type);
+  }
+
+  // Helper function to get validation data (icon, color) from payload
+  function getValidationDataFromAlert(alert) {
+    // For order_halted alerts, check for validation_function key in payload
+    if (alert.alert_type === 'order_halted') {
+      if (alert.payload) {
+        let payload = alert.payload;
+        
+        // If payload is a string, parse it
+        if (typeof payload === 'string') {
+          try {
+            payload = JSON.parse(payload);
+          } catch (e) {
+            return { icon: null, color: "text-gray-600" };
+          }
+        }
+        
+        // If we have a validation_function key, get its data
+        if (payload && payload.validation_function) {
+          return getValidationData(payload.validation_function);
+        }
+      }
+    }
+    
+    return { icon: null, color: "text-gray-600" };
   }
 
   const unacknowledgedAlerts = mappedAlerts; // All alerts from the store are unacknowledged
@@ -546,12 +635,22 @@ export default function AlertsPanel() {
                     alert.severity === 'critical' ? 'alert-blink-critical' : 'alert-blink'
                   }`}
                 >
-                  <div className="flex items-start space-x-2 md:space-x-3">
-                    {getAlertIcon(alert.type)}
+                  <div className="flex items-start gap-4">
+                    {/* Large Icon on Left */}
+                    <div className="flex-shrink-0">
+                      {(alert.validationIcon || alert.ingredientIcon) ? (
+                        <div className={`${alert.validationColor || alert.ingredientColor || 'text-gray-600'}`}>
+                          {alert.validationIcon || alert.ingredientIcon}
+                        </div>
+                      ) : (
+                        getAlertIcon(alert.type)
+                      )}
+                    </div>
                     
+                    {/* Content on Right */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
-                        <p className="text-xs md:text-sm font-medium text-gray-900 truncate">
+                        <p className="text-sm md:text-base font-semibold text-gray-900">
                           {alert.title}
                         </p>
                         <span className="text-xs text-gray-500 flex-shrink-0">
@@ -559,38 +658,15 @@ export default function AlertsPanel() {
                         </span>
                       </div>
                       
-                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">
+                      <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                         {alert.message}
                       </p>
                       
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mt-2 space-y-2 sm:space-y-0">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            alert.source === 'inventory' ? 'bg-purple-100 text-purple-800' :
-                            alert.source === 'equipment' ? 'bg-orange-100 text-orange-800' :
-                            alert.source === 'maintenance' ? 'bg-blue-100 text-blue-800' :
-                            alert.source === 'operations' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {alert.source}
-                          </span>
-                          {alert.severity && (
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                              alert.severity === 'critical' ? 'bg-red-100 text-red-800' :
-                              alert.severity === 'high' ? 'bg-orange-100 text-orange-800' :
-                              alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                              alert.severity === 'low' ? 'bg-blue-100 text-blue-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {alert.severity}
-                            </span>
-                          )}
-                        </div>
-                        
+                      <div className="flex items-center justify-end mt-3">
                         <button
                           onClick={() => handleAcknowledge(alert.id)}
                           disabled={isLoading || acknowledging.has(alert.id) || errors.alerts}
-                          className="text-xs px-2 py-1 bg-green-100 hover:bg-green-200 text-green-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-xs px-3 py-1.5 bg-green-100 hover:bg-green-200 text-green-700 font-medium rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {acknowledging.has(alert.id) ? (
                             <span className="flex items-center space-x-1">
@@ -598,7 +674,7 @@ export default function AlertsPanel() {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              <span>Ack...</span>
+                              <span>Acknowledging...</span>
                             </span>
                           ) : 'Acknowledge'}
                         </button>

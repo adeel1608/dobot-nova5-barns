@@ -23,6 +23,7 @@ export default function App() {
     connectAlertWS,
     setNavigationHandler,
     errors,
+    alerts,
   } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // const [activeTab, setActiveTab] = useState("dashboard");
@@ -210,10 +211,16 @@ export default function App() {
                   src={notification}
                   alt="Notifications"
                   className="w-6 h-8 cursor-pointer"
+                  onClick={() => {
+                    setActiveTab('alerts');
+                    window.location.hash = '#/alerts';
+                  }}
                 />
-                <div className="absolute -top-1 -right-1 bg-green-800 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                  2
-                </div>
+                {alerts && alerts.length > 0 && (
+                  <div className="absolute -top-1 -right-1 barns-dark-bg text-white text-xs font-semibold rounded-full w-5 h-5 flex items-center justify-center shadow-lg ring-2 ring-white">
+                    {alerts.length}
+                  </div>
+                )}
               </div>
               
               {/* Profile Picture */}

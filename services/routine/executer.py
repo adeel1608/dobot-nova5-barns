@@ -16,9 +16,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from shared.logger import log
 from shared.rabbitmq_client import RabbitMQClient
 
-# Path to validation messages mapping
-VALIDATION_MESSAGES_PATH = os.path.join(os.path.dirname(__file__), "validation_messages.json")
-
 # Resource lock for cup_station functions (prevents arm collisions)
 cup_station_lock = asyncio.Lock()
 cup_station_lock_holder = None
@@ -65,45 +62,15 @@ def extract_order_id_from_cup_id(cup_id: str) -> int:
         pass
     return None
 
-# Cache for validation messages mapping
-_validation_messages_cache = None
-
-def load_validation_messages():
-    """Load validation function to dashboard message mapping from JSON file."""
-    global _validation_messages_cache
-    
-    if _validation_messages_cache is not None:
-        return _validation_messages_cache
-    
-    try:
-        if os.path.exists(VALIDATION_MESSAGES_PATH):
-            with open(VALIDATION_MESSAGES_PATH, 'r') as f:
-                _validation_messages_cache = json.load(f)
-                log("INFO", f"Loaded validation messages mapping: {list(_validation_messages_cache.keys())}", service="routine")
-                return _validation_messages_cache
-        else:
-            log("WARNING", f"Validation messages file not found: {VALIDATION_MESSAGES_PATH}", service="routine")
-            return {}
-    except Exception as e:
-        log("ERROR", f"Error loading validation messages: {str(e)}", service="routine")
-        return {}
-
-def get_validation_dashboard_message(func_name: str) -> str:
-    """Get dashboard message for a validation function name."""
-    messages = load_validation_messages()
-    return messages.get(func_name, f"Validation failed: {func_name}")
-
 async def send_validation_failure_to_dashboard(func_name: str, cup_id: str, rabbitmq_client: RabbitMQClient):
-    """Send validation failure message to dashboard."""
+    """Send validation failure key to dashboard (message mapping handled by dashboard)."""
     try:
-        message = get_validation_dashboard_message(func_name)
         await publish_event("validation.failed.dashboard", {
             "validation_function": func_name,
             "cup_id": cup_id,
-            "message": message,
             "timestamp": datetime.now().isoformat()
         }, rabbitmq_client)
-        log("INFO", f"Sent validation failure message to dashboard: {func_name} - {message}", service="routine")
+        log("INFO", f"Sent validation failure key to dashboard: {func_name} (cup: {cup_id})", service="routine")
     except Exception as e:
         log("ERROR", f"Error sending validation failure to dashboard: {str(e)}", service="routine")
 

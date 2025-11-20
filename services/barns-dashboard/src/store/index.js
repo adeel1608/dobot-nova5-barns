@@ -122,7 +122,7 @@ export const useWebSocketStore = create((set, get) => ({
             console.log('[WebSocket] Validation failure alert received:', {
               validation_function: data.validation_function,
               cup_id: data.cup_id,
-              message: data.message
+              note: 'Message will be mapped from validation_function key in UI'
             });
           }
           

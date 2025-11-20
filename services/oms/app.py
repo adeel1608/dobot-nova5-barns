@@ -1141,15 +1141,18 @@ async def handle_retry_status_event(data: Dict):
     broadcast(broadcast_payload)
 
 async def handle_validation_failed_dashboard_event(data: Dict):
-    """Handle validation failure event from routine service for dashboard display"""
+    """Handle validation failure event from routine service for dashboard display.
+    
+    Note: validation_function is sent as a key, not a full message.
+    The dashboard maps this key to localized messages for display.
+    """
     validation_function = data.get("validation_function")
     cup_id = data.get("cup_id")
-    message = data.get("message")
     
     # Extract order_id from cup_id (format: "order_id-item_number")
     order_id = cup_id.split("-")[0] if cup_id and "-" in cup_id else cup_id
     
-    log("INFO", f"Validation failure: {validation_function} for order {order_id} (cup: {cup_id})", service="oms")
+    log("INFO", f"Validation failure key: {validation_function} for order {order_id} (cup: {cup_id})", service="oms")
     
     # Use lock to prevent race condition when multiple validation events arrive simultaneously
     async with alert_creation_lock:
@@ -1164,28 +1167,27 @@ async def handle_validation_failed_dashboard_event(data: Dict):
                 log("INFO", f"Alert already exists for order {order_id} - skipping duplicate", service="oms")
                 return
         
-        # Create alert with order_id for deduplication
+        # Create alert with validation_function key (message mapping done in dashboard)
         event_payload = {
             "validation_function": validation_function,
             "order_id": order_id,
             "cup_id": cup_id,
-            "message": message,
             "timestamp": "now"
         }
         
         event_id = db.log_event("validation_failed", event_payload)
         alert_id = db.create_alert(event_id, "order_halted", "high")
         
-        log("INFO", f"Created alert {alert_id} for order {order_id}", service="oms")
+        log("INFO", f"Created alert {alert_id} for order {order_id} with validation key: {validation_function}", service="oms")
     
     # Broadcast outside the lock (don't hold lock during WebSocket send)
+    # Only send validation_function key - dashboard will map to localized message
     broadcast_payload = {
         "type": "alert",
         "event": "validation_failed",
         "validation_function": validation_function,
         "order_id": order_id,
         "cup_id": cup_id,
-        "message": message,
         "alert_id": alert_id,
         "severity": "high",
         "timestamp": "now"
