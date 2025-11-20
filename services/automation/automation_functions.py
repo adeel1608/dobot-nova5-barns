@@ -247,22 +247,32 @@ async def dispense_sauce(params: dict):
 
 async def dispense_ice(params: dict):
     """Dispense ice using MQTT communication."""
-    # example params: {"ice": 8, "timeout": 300}
-    # OR nested format: {"ice": {"ice_cubes_16oz": 11.0}, "timeout": 300}
-    time.sleep(5)
-    return {
-        "success": True,
-        "message": f"Successfully dispensed ice",
-        "details": "Imaginary ice dispensed"
-    }
-    # Handle nested ice dictionary format
-    if "ice" in params and isinstance(params["ice"], dict):
-        ice_dict = params["ice"]
-        # Extract amount from first value (ignore the key name like "ice_cubes_16oz")
-        ice = int(list(ice_dict.values())[0])  # Get first value, convert to int
+    # example params: {"cups": {"cup_c16": 1.0}, "timeout": 300}
+    # OR flat format: {"timer": 4, "timeout": 300}
+
+    cups_dict = params["cups"]
+    # Handle nested cups dictionary format
+    if "cups" in params and isinstance(params["cups"], dict):
+        
+        # Extract cup type from first key (e.g., "cup_c7", "cup_c9", "cup_c12", "cup_c16")
+        cup_type = list(cups_dict.keys())[0]
+        
+        # Map cup type to calibration value
+        if "cup_c7" or "cup_C7" in cup_type.lower():
+            timer = 1
+        elif "cup_c9" "cup_C9" in cup_type.lower():
+            timer = 2
+        elif "cup_c12" "cup_C12" in cup_type.lower():
+            timer = 3
+        elif "cup_c16" "cup_C16" in cup_type.lower():
+            timer = 4
+        else:
+            # Default to calibration 3 if unknown cup type
+            log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")
+            timer = 0
     else:
-        # Fallback to flat parameter format (direct integer value)
-        ice = params.get("ice", 1)
+        # Fallback to flat parameter format
+        timer = params.get("timer", 0)
     
     response = {"data": None}
 
@@ -276,8 +286,7 @@ async def dispense_ice(params: dict):
         except json.JSONDecodeError:
             pass
 
-    #
-    payload = json.dumps({"ice": ice})
+    payload = json.dumps({"timer": timer})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -334,14 +343,14 @@ async def dispense_ice(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully dispensed ice",
+            "message": f"Successfully dispensed ice (timer={timer})",
             "details": mqtt_response
         }
     else:
         return {
             "success": False,
             "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to dispense syrup: {mqtt_response.get('error', 'Unknown error')}",
+            "message": f"Failed to dispense ice: {mqtt_response.get('error', 'Unknown error')}",
             "details": mqtt_response
         }
 

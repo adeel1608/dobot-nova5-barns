@@ -146,9 +146,6 @@ def unmount(**params) -> bool:
             return False
         print("   ✅ Successfully moved to espresso home")
 
-        run_skill("sync")
-        run_skill("set_speed_factor", 25)
-
         # Step 2: Conditional approach based on port type
         if port == 'port_1' or port == 'port_3':
             print(f"🎯 Step 2/13: Approaching portafilter {port_params['portafilter_number']}...")
@@ -159,8 +156,11 @@ def unmount(**params) -> bool:
             print("   ✅ Successfully approached portafilter")
         else:
             print("   ⏭️ Skipping approach step for port_2")
+
+        run_skill("sync")
+        run_skill("set_speed_factor", 50)
         
-        mount_result = run_skill("gotoJ_deg", -17.027325,-28.037672,-117.647118,-34.081650,-103.542419,0.012744)# run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
+        mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
         
         if mount_result is False:
             print("[ERROR] Failed to mount to portafilter")

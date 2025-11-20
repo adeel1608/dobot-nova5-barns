@@ -65,11 +65,12 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
         return False
-    if not ok(run_skill("moveEE_movJ", -5,5,-5,0,0,0)):
+    if not ok(run_skill("moveEE", -7.5,7.5,0,1.1,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", 7.5,-7.5,-5,0,0,0)):
+    if not ok(run_skill("moveEE", 7.5,-7.5,0,1.1,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_soft'])):
+    time.sleep(1)
+    if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
         return False
 
     # 5) Return to cleaning station home
