@@ -113,7 +113,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
                 run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255, 0)
-                run_skill("moveEE", 0.0,17.5, 70, 0, 0, 0)
+                run_skill("moveEE", 0.0,12.5, 70, 0, 0, 0)
                 run_skill("set_gripper_position", 255, config['gripper'])
                 run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
                 run_skill("set_speed_factor", 100)
@@ -272,6 +272,8 @@ def go_to_ice(**params) -> bool:
                 return False
             print("   ✅ 7oz ice dispensing completed")
         
+        run_skill("sync")
+        
         # Final success summary
         print("=" * 50)
         print(f"✅ ICE DISPENSING COMPLETED SUCCESSFULLY FOR {cup_size.upper()}")
@@ -412,12 +414,6 @@ def place_plastic_cup_station(**params) -> bool:
             return False
         print(f"   ✅ Successfully positioned at stage {stage}")
         
-        # Apply height adjustment for freshly dispensed cups (7oz and 12oz only)
-        if cup_size in ("7oz", "12oz"):
-            print(f"   📏 Applying {cup_size} height adjustment for freshly dispensed cup...")
-            run_skill("sync")
-            run_skill("moveEE", 0.0, 12.5, 0.0, 0, 0, 0)
-            run_skill("sync")
         # Step 4: Release cup
         print("🤏 Step 4/5: Releasing plastic cup...")
         release_result = run_skill("set_gripper_position", 50, 0)
