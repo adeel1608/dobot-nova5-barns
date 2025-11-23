@@ -257,17 +257,18 @@ async def dispense_ice(params: dict):
         # Extract cup type from first key (e.g., "cup_c7", "cup_c9", "cup_c12", "cup_c16")
         cup_type = list(cups_dict.keys())[0]
         
-        # Map cup type to calibration value
-        if "cup_c7" or "cup_C7" in cup_type.lower():
-            timer = 1
-        elif "cup_c9" "cup_C9" in cup_type.lower():
+        # Map cup type to timer value
+        cup_type_lower = cup_type.lower()
+        if "cup_c7" in cup_type_lower:
             timer = 2
-        elif "cup_c12" "cup_C12" in cup_type.lower():
-            timer = 3
-        elif "cup_c16" "cup_C16" in cup_type.lower():
-            timer = 4
+        elif "cup_c9" in cup_type_lower:
+            timer = 2
+        elif "cup_c12" in cup_type_lower:
+            timer = 2
+        elif "cup_c16" in cup_type_lower:
+            timer = 2
         else:
-            # Default to calibration 3 if unknown cup type
+            # Default to timer 0 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")
             timer = 0
     else:
