@@ -260,9 +260,9 @@ async def dispense_ice(params: dict):
         # Map cup type to timer value
         cup_type_lower = cup_type.lower()
         if "cup_c7" in cup_type_lower:
-            timer = 2
+            timer = 1
         elif "cup_c9" in cup_type_lower:
-            timer = 2
+            timer = 1
         elif "cup_c12" in cup_type_lower:
             timer = 2
         elif "cup_c16" in cup_type_lower:
