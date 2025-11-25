@@ -66,7 +66,7 @@ class Config:
 
         # Preprocess sizing
         self.max_side = int(g.get("MAX_SIDE", 960))
-
+        
         # ROI & cups (edited by roi_selector.py)
         self.roi_polygon = np.array(g.get("ROI_POLYGON", []), dtype=np.int32)
         self.cup_positions = list(g.get("CUP_POSITIONS", [(0, 0), (0, 0), (0, 0), (0, 0)]))

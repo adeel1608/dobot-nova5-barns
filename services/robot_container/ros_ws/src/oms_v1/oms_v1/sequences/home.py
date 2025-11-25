@@ -201,7 +201,7 @@ def get_machine_position(**params) -> bool:
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/8: Moving to espresso home position...")
-        home_result = run_skill("gotoJ_deg", 42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
+        home_result = return_back_to_home()
         if home_result is False:
             print("[ERROR] Failed to move to espresso home position")
             return False

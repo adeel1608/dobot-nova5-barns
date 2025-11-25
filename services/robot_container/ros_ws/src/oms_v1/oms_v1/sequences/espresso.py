@@ -38,7 +38,7 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
     Expected format: {'espresso_shot_single': 1.0} or {'espresso_shot_double': 2.0}
 
     Rules:
-      - 'espresso_shot_single' -> single shot → port_3, positioning_time=4.0, portafilter_tool=single_portafilter
+      - 'espresso_shot_single' -> single shot → port_3, positioning_time=5.0, portafilter_tool=single_portafilter
       - 'espresso_shot_double' -> double shot → port_1, positioning_time=5.0, portafilter_tool=double_portafilter
     """
     try:
@@ -56,7 +56,7 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
         if 'single' in espresso_key_lower:
             return {
                 "port": "port_3",
-                "positioning_time": 4.0,
+                "positioning_time": 5.0,
                 "portafilter_tool": "single_portafilter",
             }
         elif 'double' in espresso_key_lower:
@@ -73,7 +73,7 @@ def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optiona
                 if shots <= 1.0:
                     return {
                         "port": "port_3",
-                        "positioning_time": 4.0,
+                        "positioning_time": 5.0,
                         "portafilter_tool": "single_portafilter",
                     }
                 else:
@@ -830,6 +830,12 @@ def mount(**params) -> bool:
         else:
             print("   ⏭️ Skipping retreat step for port_2")
         
+        if port == 'port_3':
+            sync_result = run_skill("sync")
+            if sync_result is False:
+                print("[WARNING] Sync operation failed - continuing...")
+            run_skill("moveEE_movJ", -20, 0, 0, 0, 0, 0)
+
         # Step 10: Return to espresso home
         print("🏠 Step 10/10: Returning to espresso home...")
         home_result = run_skill("gotoJ_deg", *port_params['home'])

@@ -5,7 +5,7 @@ RTSP_URL = "rtsp://admin:QSS2030QSS@192.168.200.106:554/stream1"
 
 # RF-DETR local model settings
 RFDETR_VARIANT = "large"           # "base" or "large"
-RFDETR_CONFIDENCE = 0.05        # 0..1 (lowered to catch more cups at milk dispenser)
+RFDETR_CONFIDENCE = 0.1        # 0..1 (lowered to catch more cups at milk dispenser)
 
 # Class filters per detection type
 # Station detection: use all classes (set to None or empty list)
@@ -31,10 +31,10 @@ MAX_SIDE = 1920                 # resize longest side to this (keeps aspect)
 # ROI & cups
 # Provide polygon as list of (x,y). Example below is placeholder.
 ROI_POLYGON = np.array([
-    [512, 670],
-    [597, 356],
-    [745, 382],
-    [652, 702]
+    [534, 670],
+    [650, 384],
+    [733, 405],
+    [618, 698]
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
@@ -110,4 +110,4 @@ SAUCE_DEBUG_FOLDER = "debug_frames/sauce"
 
 # ROI cropping settings
 # Padding around ROI before sending to model (pixels in original frame)
-ROI_PADDING = 50  # Extra pixels around ROI bounding box
+ROI_PADDING = 2  # Extra pixels around ROI bounding box
