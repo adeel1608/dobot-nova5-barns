@@ -396,18 +396,18 @@ def place_plastic_cup_station(**params) -> bool:
         
         if stage == "1":
             print("   📍 Positioning for stage 1...")
-            stage_result = run_skill("gotoJ_deg", -82.349384,-51.620767,-126.419705,-1.752812,-82.248322,-0.101996)
+            stage_result = run_skill("gotoJ_deg", -82.522181,-50.735762,-126.581344,-2.476677,-82.420135,-0.099928)
         elif stage == "2":
             print("   📍 Positioning for stage 2...")
-            stage_result = run_skill("gotoJ_deg", -102.384479,-52.578307,-116.969553,-10.267735,-102.285410,-0.027612)
+            stage_result = run_skill("gotoJ_deg", -102.678188,-51.825704,-116.952115,-11.037622,-102.578374,-0.025293)
         elif stage == "3":
             print("   📍 Positioning for stage 3...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -118.185777,-56.024448,-101.493214,-22.294421,-118.093809,0.034243)
+            stage_result = run_skill("gotoJ_deg", -118.947162,-55.648503,-100.620319,-23.542009,-118.855164,0.038563)
         elif stage == "4":
             print("   📍 Positioning for stage 4...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -129.712512,-62.831551,-80.257661,-36.704195,-129.635306,0.088759)
+            stage_result = run_skill("gotoJ_deg", -130.494242,-62.993442,-78.390283,-38.407176,-130.418147,0.093833)
         
         if not stage_result:
             print(f"[ERROR] Failed to move to stage {stage} position")
@@ -496,10 +496,10 @@ def pick_plastic_cup_station(**params) -> bool:
         
         # Stage-specific positioning
         stage_positions = {
-            "1": (-78.930444,-54.895178,-144.454016,19.566541,-78.835949,-0.135839),
-            "2": (-106.649197,-51.735880,-132.348520,4.263770,-106.548485,-0.025614),
-            "3": (-125.266290,-52.943551,-114.808454,-12.057135,-125.168090,0.055006),
-            "4": (-137.175174,-58.554093,-92.943086,-28.280108,-137.088700,0.123075)
+            "1": (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),
+            "2": (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),
+            "3": (-126.092345,-52.392425,-113.869083,-13.545369,-125.993798,0.060536),
+            "4": (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489)
         }
         
         # Cup size specific gripper positions
@@ -541,7 +541,7 @@ def pick_plastic_cup_station(**params) -> bool:
         
         # Step 3: Position for cup pickup
         print("🎯 Step 3/6: Positioning for cup pickup...")
-        pickup_result = run_skill("moveEE", 0, -100, 0, 0, 0, 0)
+        pickup_result = run_skill("moveEE", 0, -95, 0, 0, 0, 0)
         if not pickup_result:
             print("[ERROR] Failed to position for cup pickup")
             return False
@@ -1002,7 +1002,7 @@ def pick_plastic_cup_milk(**params) -> bool:
     except Exception as e:
         print(f"[ERROR] pick_plastic_cup_milk failed: {e}")
         return False
-       
+   
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'dispense_plastic_cup': dispense_plastic_cup,
