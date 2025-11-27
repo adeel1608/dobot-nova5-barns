@@ -408,6 +408,19 @@ def mount_frother(**params) -> bool:
             print("[ERROR] Failed to mount frother to steam wand")
             return False
         print("   ✅ Frother successfully mounted to steam wand")
+
+        # Step 5: Adjust position based on milk volume
+        print("📏 Step 5/6: Adjusting position based on milk volume...")
+        milk_data = params.get('milk', {})
+        volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
+        z_adjustment = 0.1866666667 * volume_ml
+        
+        print(f"   🥛 Milk volume: {volume_ml}ml, Z adjustment: {z_adjustment:.2f}mm")
+        move_result = run_skill("moveEE_movJ", 0, 0, -z_adjustment, 0, 0, 0)
+        if move_result is False:
+            print("[WARNING] Failed to adjust position based on milk volume - continuing...")
+        else:
+            print(f"   ✅ Position adjusted by {z_adjustment:.2f}mm for {volume_ml}ml milk")
         
         sync_result = run_skill("sync")
         if sync_result is False:
