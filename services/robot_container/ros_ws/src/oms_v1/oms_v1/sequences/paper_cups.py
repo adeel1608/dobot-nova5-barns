@@ -11,7 +11,9 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.params import (
     GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS,
-    ESPRESSO_HOME,
+    PAPER_CUPS_NAVIGATION_PARAMS, PAPER_CUPS_STATION_PARAMS,
+    PAPER_CUP_GRIPPER_POSITIONS, PAPER_CUP_MOVEMENT_OFFSETS,
+    ESPRESSO_HOME, GRIPPER_OPEN, GRIPPER_RELEASE, GRIPPER_FULL,
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 from oms_v1.manipulate_node import run_skill
@@ -91,7 +93,7 @@ def grab_paper_cup(**params) -> bool:
         
         # Step 2: Twist to avoid hitting the espresso machine during navigation
         print("🔄 Step 2/8: Navigating around espresso machine...")
-        twist_result = run_skill("gotoJ_deg", 106.17209, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214)
+        twist_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['espresso_avoid'])
         if twist_result is False:
             print("[ERROR] Failed to twist around espresso machine")
             return False
@@ -99,7 +101,7 @@ def grab_paper_cup(**params) -> bool:
         
         # Step 3: Move to paper cup grabbing area
         print("📍 Step 3/8: Moving to paper cup dispenser area...")
-        cup_area_result = run_skill("gotoJ_deg", 120.389030, 22.860609, -73.526848, -39.810959, 90.144394, -154.586288)
+        cup_area_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['dispenser_area'])
         
         if cup_area_result is False:
             print("[ERROR] Failed to move to paper cup dispenser area")
@@ -110,19 +112,19 @@ def grab_paper_cup(**params) -> bool:
         attempt_count = 0
         while attempt_count < 3:        
             if size == "7oz":
-                twist_back_result = run_skill("gotoJ_deg", 54.948658, 12.208040, -69.338005, -32.943398, 90.239655, -124.960251)
+                twist_back_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_7oz'])
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
                     return False
                 print("   ✅ Successfully executed twist back movement")
             elif size == "9oz":
-                twist_back_result = run_skill("gotoJ_deg", 27.502762, 30.098457, -80.283768, -36.358551, 88.971786, -154.398346)
+                twist_back_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_9oz'])
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
                     return False
                 print("   ✅ Successfully executed twist back movement")
             elif size == "12oz":
-                twist_back_result = run_skill("gotoJ_deg", -21.871843, 4.984756, -63.493607, -31.584101, 90.055153, -201.714615)
+                twist_back_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_12oz'])
                 if twist_back_result is False:
                     print("[ERROR] Failed to execute twist back movement")
                     return False
@@ -147,7 +149,7 @@ def grab_paper_cup(**params) -> bool:
             print("🤏 Step 6/8: Gripping paper cup...")
             if 'grip_width' in cup_params:
                 print(f"   📏 Setting gripper width to: {cup_params['grip_width']}")
-                grip_result = run_skill("set_gripper_position", 255, cup_params['grip_width'])
+                grip_result = run_skill("set_gripper_position", GRIPPER_FULL, cup_params['grip_width'])
                 if grip_result is False:
                     print("[ERROR] Failed to grip paper cup")
                     return False
@@ -179,7 +181,7 @@ def grab_paper_cup(**params) -> bool:
 
                 # Step 8: Open gripper to release paper cup
                 print("🤏 Step 8/8: Releasing paper cup...")
-                release_result = run_skill("set_gripper_position", 255, 0)
+                release_result = run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
                 
                 if release_result is False:
                     print("[ERROR] Failed to release paper cup")
@@ -247,7 +249,7 @@ def place_paper_cup(**params) -> bool:
         
         # Step 1: Start from intermediate position
         print("📍 Step 1/7: Moving to intermediate position...")
-        intermediate_result = run_skill("gotoJ_deg", 88.657143, 21.041538, -74.451630, -36.522381, 90.145508, -91.183128)
+        intermediate_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['intermediate'])
         if intermediate_result is False:
             print("[ERROR] Failed to move to intermediate position")
             return False
@@ -282,7 +284,7 @@ def place_paper_cup(**params) -> bool:
         
         # Step 4: Open gripper to release paper cup
         print("🤏 Step 4/7: Releasing paper cup...")
-        release_result = run_skill("set_gripper_position", 50, 0)
+        release_result = run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)
         
         if release_result is False:
             print("[ERROR] Failed to release paper cup")
@@ -291,7 +293,7 @@ def place_paper_cup(**params) -> bool:
         
         # Step 5: Move up after placing paper cup
         print("⬆️ Step 5/7: Moving up after placement...")
-        up_result = run_skill("moveEE", 0, 0, 150, 0, 0, 0)
+        up_result = run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])
         
         if up_result is False:
             print("[ERROR] Failed to move up after placement")
@@ -315,7 +317,7 @@ def place_paper_cup(**params) -> bool:
         print("🔄 Step 7/7: Untwisting back towards machine...")
         if 'twist_back' in stage_params:
             print(f"   📍 Executing untwist movement for {stage}")
-            twist_back_result = run_skill("gotoJ_deg", 42.427441,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379)
+            twist_back_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_back_machine'])
             
             if twist_back_result is False:
                 print("[ERROR] Failed to untwist back")
@@ -415,20 +417,16 @@ def pick_paper_cup_station(**params) -> bool:
         print(f"🥤 Starting paper cup pickup sequence - Stage: {stage}, Size: {size_mapped}")
         print("=" * 50)
 
-        # Stage-specific positioning (replicated from paper station)
+        # Stage-specific positioning using parameters
         stage_positions = {
-            "1": (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),
-            "2": (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),
-            "3": (-126.092345,-52.392425,-113.869083,-13.545369,-125.993798,0.060536),
-            "4": (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489)
+            "1": PAPER_CUPS_STATION_PARAMS['staging']['pickup_1'],
+            "2": PAPER_CUPS_STATION_PARAMS['staging']['pickup_2'],
+            "3": PAPER_CUPS_STATION_PARAMS['staging']['pickup_3'],
+            "4": PAPER_CUPS_STATION_PARAMS['staging']['pickup_4']
         }
 
-        # Paper cup gripper positions (align with 7/9/12oz used for paper)
-        gripper_positions = {
-            "7oz": 130,
-            "9oz": 135,
-            "12oz": 125,
-        }
+        # Paper cup gripper positions using constants
+        gripper_positions = PAPER_CUP_GRIPPER_POSITIONS
 
         # Step 1: Navigate to home positions
         print("🏠 Step 1/6: Navigating to home positions...")
@@ -451,7 +449,7 @@ def pick_paper_cup_station(**params) -> bool:
 
         # Step 3: Position for cup pickup
         print("🎯 Step 3/6: Positioning for cup pickup...")
-        pickup_result = run_skill("moveEE", 0, -95, 0, 0, 0, 0)
+        pickup_result = run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_down'])
         if not pickup_result:
             print("[ERROR] Failed to position for cup pickup")
             return False
@@ -459,13 +457,13 @@ def pick_paper_cup_station(**params) -> bool:
 
         # Step 4: Grip the cup
         print(f"🤏 Step 4/6: Gripping {size_mapped} paper cup...")
-        grip_result = run_skill("set_gripper_position", 255, gripper_positions[size_mapped])
+        grip_result = run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[size_mapped])
         if not grip_result:
             print("[ERROR] Failed to grip cup")
             return False
         print("   ✅ Cup gripped successfully")
 
-        run_skill("moveEE_movJ", 0, 0, 200, 0, 0, 0)
+        run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
         
         # Step 5: Return to safe position
         print("🏠 Step 5/6: Returning to east home...")
@@ -530,13 +528,13 @@ def place_paper_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully moved to south-east home")
 
-        # Step 3: Move to stage-specific position (re-using paper station positions)
+        # Step 3: Move to stage-specific position using parameters
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_positions = {
-            "1": (-82.522181,-50.735762,-126.581344,-2.476677,-82.420135,-0.099928),
-            "2": (-102.678188,-51.825704,-116.952115,-11.037622,-102.578374,-0.025293),
-            "3": (-118.947162,-55.648503,-100.620319,-23.542009,-118.855164,0.038563),
-            "4": (-130.494242,-62.993442,-78.390283,-38.407176,-130.418147,0.093833)
+            "1": PAPER_CUPS_STATION_PARAMS['staging']['place_1'],
+            "2": PAPER_CUPS_STATION_PARAMS['staging']['place_2'],
+            "3": PAPER_CUPS_STATION_PARAMS['staging']['place_3'],
+            "4": PAPER_CUPS_STATION_PARAMS['staging']['place_4']
         }
 
         stage_result = run_skill("gotoJ_deg", *stage_positions[stage])
@@ -547,7 +545,7 @@ def place_paper_cup_station(**params) -> bool:
 
         # Step 4: Release cup
         print("🤏 Step 4/5: Releasing paper cup...")
-        release_result = run_skill("set_gripper_position", 50, 0)
+        release_result = run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)
         if not release_result:
             print("[ERROR] Failed to release paper cup")
             return False
@@ -555,7 +553,7 @@ def place_paper_cup_station(**params) -> bool:
 
         # Step 5: Move up and return to home
         print("⬆️ Step 5/5: Moving up and returning to home...")
-        up_result = run_skill("moveEE", 0, 100, 0, 0, 0, 0)
+        up_result = run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_return_up'])
         if not up_result:
             print("[ERROR] Failed to move up after placement")
             return False
@@ -584,13 +582,13 @@ def place_paper_cup_sauces(**params) -> bool:
     Place the paper cup at the sauces station.
     """
     try:
-        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position1']) is False:
             return False
-        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position2']) is False:
             return False
-        if run_skill("gotoJ_deg", -38.295812,-75.434312,-68.188894,-32.969245,-127.142100,-0.958200) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3']) is False:
             return False
-        if run_skill("set_gripper_position", 255, 0) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN) is False:
             return False
         return True
     except Exception as e:
@@ -619,19 +617,16 @@ def pick_paper_cup_sauces(**params) -> bool:
             return False
 
         # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
-        gripper_positions = {
-            "7oz": 145,
-            "9oz": 145,
-            "12oz": 145,
-        }
+        # Using standard gripper position for sauces station (145 for all sizes)
+        gripper_position = 145
 
-        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
             return False
-        if run_skill("gotoJ_deg", -38.295812,-75.434312,-68.188894,-32.969245,-127.142100,-0.958200) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3']) is False:
             return False
-        if run_skill("gotoJ_deg", -38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position2']) is False:
             return False
-        if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position1']) is False:
             return False
         return True
     except Exception as e:
@@ -643,13 +638,13 @@ def place_paper_cup_milk(**params) -> bool:
     Place the paper cup at the milk station.
     """
     try:
-        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position1']) is False:
             return False
-        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2']) is False:
             return False
-        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position3']) is False:
             return False
-        if run_skill("set_gripper_position", 255, 0) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN) is False:
             return False
         return True
     except Exception as e:
@@ -678,19 +673,16 @@ def pick_paper_cup_milk(**params) -> bool:
             return False
 
         # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
-        gripper_positions = {
-            "7oz": 145,
-            "9oz": 145,
-            "12oz": 145,
-        }
+        # Using standard gripper position for milk station (145 for all sizes)
+        gripper_position = 145
 
-        if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
             return False
-        if run_skill("gotoJ_deg", -25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position3']) is False:
             return False
-        if run_skill("gotoJ_deg", -25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2']) is False:
             return False
-        if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
+        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position1']) is False:
             return False
         return True
     except Exception as e:

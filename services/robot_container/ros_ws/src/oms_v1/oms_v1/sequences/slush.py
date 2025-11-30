@@ -13,6 +13,7 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
+    SLUSH_PARAMS, SPEED_NORMAL,
     log_step, log_success, log_error, _extract_cup_position
 )
 
@@ -95,7 +96,7 @@ def get_slush(**params) -> bool:
         
         # Step 2: Move to intermediate positioning
         print("📍 Step 2/4: Moving to intermediate positioning...")
-        pos1_result = run_skill("gotoJ_deg", 106.212090, -43.618443, -136.693954, 1.223362, -23.919476, -0.124173)
+        pos1_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['intermediate'])
         if not pos1_result:
             print("[ERROR] Failed to move to intermediate position")
             return False
@@ -103,7 +104,7 @@ def get_slush(**params) -> bool:
         
         # Step 3: Move to slush area
         print("🧊 Step 3/4: Moving to slush dispensing area...")
-        pos2_result = run_skill("gotoJ_deg", 33.380177,-65.448544,-125.305906,18.179613,-139.723057,1.841451)
+        pos2_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])
         if not pos2_result:
             print("[ERROR] Failed to move to slush area")
             return False
@@ -113,14 +114,14 @@ def get_slush(**params) -> bool:
         print(f"🎯 Step 4/4: Positioning at dispenser {dispenser}...")
         if dispenser == "1":
             print("   📍 Moving to dispenser 1...")
-            dispenser_result = run_skill("gotoJ_deg", 53.272518, -67.612831, -88.370926, -23.156694, -119.473190, -0.214796)
+            dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
         else:  # dispenser == "2"
             print("   📍 Moving to dispenser 2...")
-            pos3_result = run_skill("gotoJ_deg", 17.117330,-72.397126,-55.180654,-48.179137,-153.839501,1.256867)
+            pos3_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
             if not pos3_result:
                 print("[ERROR] Failed to move to dispenser 2 intermediate position")
                 return False
-            dispenser_result = run_skill("gotoJ_deg", 39.080325,-80.227702,-48.030111,-51.277060,-130.866959,-0.148558)
+            dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
         
         if not dispenser_result:
             print(f"[ERROR] Failed to position at dispenser {dispenser}")
@@ -208,7 +209,7 @@ def place_slush(**params) -> bool:
         
         # Step 1: Set careful handling speed
         print("⚙️ Step 1/4: Setting careful handling speed...")
-        speed_result = run_skill("set_speed_factor", 50)
+        speed_result = run_skill("set_speed_factor", SPEED_NORMAL)
         if not speed_result:
             print("[WARNING] Failed to set speed factor - continuing with default")
         else:
@@ -218,10 +219,10 @@ def place_slush(**params) -> bool:
         print(f"⬅️ Step 2/4: Moving away from dispenser {dispenser}...")
         if dispenser == "1":
             print("   📍 Moving away from dispenser 1...")
-            retreat_result = run_skill("gotoJ_deg", 45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864)
+            retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
         else:  # dispenser == "2"
             print("   📍 Moving away from dispenser 2...")
-            retreat_result = run_skill("gotoJ_deg", 22.607694,-78.770437,-48.740179,-48.922226,-148.368363,0.479901)
+            retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
         
         if not retreat_result:
             print(f"[ERROR] Failed to move away from dispenser {dispenser}")

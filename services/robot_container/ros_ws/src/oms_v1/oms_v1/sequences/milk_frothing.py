@@ -11,7 +11,13 @@ import time
 from typing import Dict, Any, Optional, Tuple
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.params import MILK_FROTHING_PARAMS, _extract_cup_position
+from oms_v1.params import (
+    MILK_FROTHING_PARAMS, MILK_FROTHER_SPEEDS, MILK_FROTHER_GRIPPER_POSITIONS,
+    MILK_FROTHER_MOVEMENT_OFFSETS, MILK_POURING_OFFSETS, MILK_FROTHING_DELAYS,
+    MILK_SWIRL_CIRCLE_PARAMS, MILK_VOLUME_Z_ADJUSTMENT_FACTOR,
+    GRIPPER_FULL, GRIPPER_OPEN, CALIBRATION_SETTLE_TIME,
+    _extract_cup_position
+)
 
 # Global variables to store robot positions during milk frothing operations
 # These are used to remember positions between function calls for safe return operations
@@ -53,7 +59,7 @@ def get_frother_position(**params) -> bool:
         
         # Set optimal speed for calibration
         print("⚙️ Setting speed factor for precise calibration...")
-        speed_result = run_skill("set_speed_factor", 100)
+        speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['calibration'])
         if speed_result is False:
             print("[WARNING] Failed to set speed factor - continuing with default...")
         
@@ -67,7 +73,7 @@ def get_frother_position(**params) -> bool:
         
         # Step 2: Open gripper to prepare for positioning
         print("🤏 Step 2/5: Opening gripper for positioning...")
-        gripper_result = run_skill("set_gripper_position", 255, 0)
+        gripper_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
         if gripper_result is False:
             print("[ERROR] Failed to open gripper")
             return False
@@ -96,7 +102,7 @@ def get_frother_position(**params) -> bool:
             print("[WARNING] Sync operation failed - continuing...")
         
         print("   🤏 Setting grip position...")
-        grip_set_result = run_skill("set_gripper_position", 255, 200)
+        grip_set_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['place'])
         if grip_set_result is False:
             print("[ERROR] Failed to set grip position")
             return False
@@ -112,7 +118,7 @@ def get_frother_position(**params) -> bool:
             return False
 
         print("   🤏 Releasing grip for calibration...")
-        release_result = run_skill("set_gripper_position", 255, 0)
+        release_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
         if release_result is False:
             print("[ERROR] Failed to release grip")
             return False
@@ -128,10 +134,11 @@ def get_frother_position(**params) -> bool:
             print("[WARNING] Sync operation failed - continuing...")
         
         # Step 4: Perform multiple approaches for accuracy
-        print("🎯 Step 4/5: Performing calibration approaches (5 attempts)...")
-        for i in range(3):
-            print(f"   📍 Approach {i+1}/5...")
-            time.sleep(1.0)  # Allow settling time between approaches
+        cycles = 3  # Special case: 3 cycles for frother calibration
+        print(f"🎯 Step 4/5: Performing calibration approaches ({cycles} attempts)...")
+        for i in range(cycles):
+            print(f"   📍 Approach {i+1}/{cycles}...")
+            time.sleep(CALIBRATION_SETTLE_TIME)  # Allow settling time between approaches
             
             approach_result = run_skill("move_to", "left_steam_wand", 0.29)
             if approach_result is False:
@@ -227,7 +234,7 @@ def pick_frother(**params) -> bool:
         
         # Set initial grip position
         print("   🤏 Setting initial grip position...")
-        grip_pos_result = run_skill("set_gripper_position", 255, 169)
+        grip_pos_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['pickup_initial'])
         if grip_pos_result is False:
             print("[ERROR] Failed to set initial grip position")
             return False
@@ -245,7 +252,7 @@ def pick_frother(**params) -> bool:
         else:
             print("[WARNING] Failed to record approach angles - continuing without position memory")
             approach_angles = None
-        time.sleep(5)
+        time.sleep(MILK_FROTHING_DELAYS['frother_pickup'])
         # Step 5: Grab the frother
         print(f"🤏 Step 5/6: Grabbing {'milk_frother_1'}...")
         sync_result = run_skill("sync")
@@ -272,7 +279,7 @@ def pick_frother(**params) -> bool:
 
         # Step 7: Secure the frother with full grip
         print("   🤏 Securing frother with full grip...")
-        secure_result = run_skill("set_gripper_position", 255, 255)
+        secure_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])
         if secure_result is False:
             print("[ERROR] Failed to secure frother")
             return False
@@ -301,22 +308,22 @@ def place_frother_milk_station(**params) -> bool:
     """
     try:
         print("📍 Placing frother at milk station...")
-        if run_skill("moveEE_movJ", 0, 0, 150, 0, 0, 0) is False:
+        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_place']) is False:
             print("[ERROR] Failed to raise end effector before placement")
             return False
-        if run_skill("gotoJ_deg", -6.988280,-50.951061,-132.741623,2.908280,-92.178726,8.730732) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_pre1']) is False:
             print("[ERROR] Failed to reach pre-place joint configuration 1")
             return False
-        if run_skill("gotoJ_deg", -45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_pre2']) is False:
             print("[ERROR] Failed to reach pre-place joint configuration 2")
             return False
-        if run_skill("gotoJ_deg", -28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_approach']) is False:
             print("[ERROR] Failed to reach approach configuration")
             return False
-        if run_skill("gotoJ_deg", -29.407280,-65.979000,-79.822693,-35.739279,-113.325463,8.738939) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_final']) is False:
             print("[ERROR] Failed to reach place configuration")
             return False
-        if run_skill("set_gripper_position", 255, 200) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['place']) is False:
             print("[ERROR] Failed to loosen gripper to place frother")
             return False
         print("✅ Frother placed at milk station")
@@ -334,16 +341,16 @@ def pick_frother_milk_station(**params) -> bool:
     """
     try:
         print("📍 Picking frother from milk station...")
-        if run_skill("set_gripper_position", 255, 255) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure']) is False:
             print("[ERROR] Failed to close gripper before pick")
             return False
-        if run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0) is False:
+        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_pick']) is False:
             print("[ERROR] Failed to lift frother from station")
             return False
-        if run_skill("gotoJ_deg", -28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['pick_retreat1']) is False:
             print("[ERROR] Failed to reach retreat configuration 1")
             return False
-        if run_skill("gotoJ_deg", -45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['pick_retreat2']) is False:
             print("[ERROR] Failed to reach retreat configuration 2")
             return False
         print("✅ Frother picked from milk station")
@@ -388,7 +395,7 @@ def mount_frother(**params) -> bool:
 
         # Step 1: Set slower servo timing for precise movements
         print("⚙️ Step 1/4: Setting precise servo timing...")
-        timing_result = run_skill("set_speed_factor", 40)
+        timing_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['mount'])
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing with default...")
         else:
@@ -413,7 +420,7 @@ def mount_frother(**params) -> bool:
         print("📏 Step 5/6: Adjusting position based on milk volume...")
         milk_data = params.get('milk', {})
         volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
-        z_adjustment = 0.1866666667 * volume_ml * 0.3
+        z_adjustment = MILK_VOLUME_Z_ADJUSTMENT_FACTOR * volume_ml
         
         print(f"   🥛 Milk volume: {volume_ml}ml, Z adjustment: {z_adjustment:.2f}mm")
         move_result = run_skill("moveEE_movJ", 0, 0, -z_adjustment, 0, 0, 0)
@@ -472,7 +479,7 @@ def unmount_and_swirl_milk(**params) -> bool:
         print("🌀 Starting milk swirling sequence")
         print("=" * 50)
 
-        time.sleep(2.0)
+        time.sleep(MILK_FROTHING_DELAYS['swirl_delay'])
 
         # Step 1: Approach steam wand position
         print("🎯 Step 1/4: Approaching steam wand (deep position)...")
@@ -486,7 +493,7 @@ def unmount_and_swirl_milk(**params) -> bool:
         
         # Step 2: Set precise servo timing for swirling
         print("⚙️ Step 2/4: Setting precise servo timing for swirling...")
-        timing_result = run_skill("set_speed_factor", 25)
+        timing_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['swirl'])
         if timing_result is False:
             print("[WARNING] Failed to set servo timing - continuing...")
         else:
@@ -515,10 +522,11 @@ def unmount_and_swirl_milk(**params) -> bool:
         
         # Step 4: Execute circular swirling motion
         print("🌀 Step 4/4: Executing circular swirling motion...")
-        circle_result = run_skill("move_circle", 3,
-            (-30.0, 0.0, 0.0, 0.0, 0.0, 0.0),    # point1 offset1
-            (-15.0, -15.0, 0.0, 0.0, 0.0, 0.0),   # point2 offset2
-            ["tool=0"])
+        circle_result = run_skill("move_circle", 
+            MILK_SWIRL_CIRCLE_PARAMS['cycles'],
+            MILK_SWIRL_CIRCLE_PARAMS['point1_offset'],
+            MILK_SWIRL_CIRCLE_PARAMS['point2_offset'],
+            MILK_SWIRL_CIRCLE_PARAMS['options'])
         if circle_result is False:
             print("[WARNING] Circular motion may not have completed optimally")
         
@@ -583,7 +591,7 @@ def pour_milk_cup_station(**params) -> bool:
             run_skill("sync")
 
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 9)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -596,7 +604,7 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 20, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage1']['move_forward'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -605,10 +613,10 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Sync operation failed - continuing...")
             
             print("   ⏰ Allowing pour completion time...")
-            time.sleep(3.0)
+            time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage1']['move_up'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -618,7 +626,7 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed to return to stage 1 position")
             
             print("   ⚙️ Restoring normal speed...")
-            restore_speed_result = run_skill("set_speed_factor", 100)
+            restore_speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
             print("   ✅ Stage 1 milk pouring completed")
@@ -627,7 +635,7 @@ def pour_milk_cup_station(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 2 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 20)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -640,7 +648,7 @@ def pour_milk_cup_station(**params) -> bool:
             run_skill("sync")
 
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 9)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -650,15 +658,15 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage2']['move_forward'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
             print("   ⏰ Allowing pour completion time...")
-            time.sleep(3.0)
+            time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage2']['move_up'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -668,7 +676,7 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed to return to stage 2 position")
             
             print("   ⚙️ Restoring normal speed...")
-            restore_speed_result = run_skill("set_speed_factor", 100)
+            restore_speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
             print("   ✅ Stage 2 milk pouring completed")
@@ -677,7 +685,7 @@ def pour_milk_cup_station(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 3 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 20)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -690,7 +698,7 @@ def pour_milk_cup_station(**params) -> bool:
             run_skill("sync")
 
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 9)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
                 
@@ -700,15 +708,15 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage3']['move_forward'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
             print("   ⏰ Allowing pour completion time...")
-            time.sleep(3.0)
+            time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage3']['move_up'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -718,7 +726,7 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed to return to stage 3 position")
             
             print("   ⚙️ Restoring normal speed...")
-            restore_speed_result = run_skill("set_speed_factor", 100)
+            restore_speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
             print("   ✅ Stage 3 milk pouring completed")
@@ -727,7 +735,7 @@ def pour_milk_cup_station(**params) -> bool:
             print("🎯 Step 4/5: Executing stage 4 milk pouring...")
             
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 20)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
             
@@ -740,25 +748,25 @@ def pour_milk_cup_station(**params) -> bool:
             run_skill("sync")
 
             print("   ⚙️ Setting precise pouring speed...")
-            speed_result = run_skill("set_speed_factor", 9)
+            speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
             if speed_result is False:
                 print("[WARNING] Failed to set pouring speed - continuing...")
-                
+            
             print("   📍 Adjusting pour angle...")
             adjust1_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['adjust1'])
             if adjust1_result is False:
                 print("[WARNING] Failed first pour angle adjustment")
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 25, 0, 0, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage4']['move_forward'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
             print("   ⏰ Allowing pour completion time...")
-            time.sleep(3.0)
+            time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
             
             print("   🥛 Final pouring motion...")
-            move_ee_result = run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
+            move_ee_result = run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage4']['move_up'])
             if move_ee_result is False:
                 print("[WARNING] Failed final pouring motion")
             
@@ -768,7 +776,7 @@ def pour_milk_cup_station(**params) -> bool:
                 print("[WARNING] Failed to return to stage 4 position")
             
             print("   ⚙️ Restoring normal speed...")
-            restore_speed_result = run_skill("set_speed_factor", 100)
+            restore_speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
             if restore_speed_result is False:
                 print("[WARNING] Failed to restore normal speed")
             print("   ✅ Stage 4 milk pouring completed")
@@ -800,16 +808,16 @@ def clean_milk_pitcher(**params) -> bool:
     """
     try:
         print("🧽 Cleaning frother motion sequence...")
-        if run_skill("gotoJ_deg", -37.858528,-39.202564,-84.331383,-67.038254,-75.938263,-12.405199) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose1']) is False:
             print("[ERROR] Failed to reach clean pose 1")
             return False
-        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose2']) is False:
             print("[ERROR] Failed to reach clean pose 2")
             return False
-        if run_skill("gotoJ_deg", -42.960231,-73.262903,-40.519041,-64.811101,-134.418391,-170.149991) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose3']) is False:
             print("[ERROR] Failed to reach clean pose 3")
             return False
-        if run_skill("moveEE_movJ", 0, 5, -150, 0, 0, 0) is False:
+        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['cleaning_motion']) is False:
             print("[ERROR] Failed to execute cleaning motion")
             return False
         print("✅ Frother cleaning movement completed")
@@ -833,36 +841,36 @@ def return_frother(**params) -> bool:
             print("[ERROR] Missing recorded angles for safe return. Ensure pick_frother() recorded positions.")
             return False
 
-        if run_skill("gotoJ_deg", -42.453480,-74.396233,-37.945210,-66.263145,-133.914459,-170.167145) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return1']) is False:
             print("[ERROR] Failed to reach pre-return pose 1")
             return False
-        if run_skill("gotoJ_deg", -47.118893,-75.306686,-29.548725,-73.313492,-116.382469,4.306785) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return2']) is False:
             print("[ERROR] Failed to reach pre-return pose 2")
             return False
-        if run_skill("gotoJ_deg", -43.779022,-38.657257,-102.554436,-39.930614,-124.977203,4.300227) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return3']) is False:
             print("[ERROR] Failed to reach pre-return pose 3")
             return False
-        if run_skill("gotoJ_deg", -0.401337,-55.195671,-129.519867,1.974099,-89.559532,4.300207) is False:
+        if run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return4']) is False:
             print("[ERROR] Failed to reach pre-return pose 4")
             return False
         if run_skill("gotoJ_deg", *grab_angles) is False:
             print("[ERROR] Failed to go to recorded grab angles")
             return False
-        if run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0) is False:
+        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach']) is False:
             print("[ERROR] Failed to execute final approach move")
             return False
         if run_skill("sync") is False:
             print("[WARNING] Sync operation failed - continuing...")
-        if run_skill("set_gripper_position", 255, 165) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['release']) is False:
             print("[ERROR] Failed to release frother")
             return False
-        time.sleep(0.5)
+        time.sleep(MILK_FROTHING_DELAYS['frother_release'])
         if run_skill("gotoJ_deg", *approach_angles) is False:
             print("[ERROR] Failed to go to recorded approach angles")
             return False
         if home(position="north") is False:
             print("[WARNING] Failed to go home after return")
-        if run_skill("set_gripper_position", 255, 0) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open']) is False:
             print("[WARNING] Failed to fully open gripper after return")
         print("✅ Frother returned successfully")
         return True
