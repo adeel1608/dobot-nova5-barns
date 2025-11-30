@@ -413,7 +413,7 @@ def mount_frother(**params) -> bool:
         print("📏 Step 5/6: Adjusting position based on milk volume...")
         milk_data = params.get('milk', {})
         volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
-        z_adjustment = 0.1866666667 * volume_ml
+        z_adjustment = 0.1866666667 * volume_ml * 0.3
         
         print(f"   🥛 Milk volume: {volume_ml}ml, Z adjustment: {z_adjustment:.2f}mm")
         move_result = run_skill("moveEE_movJ", 0, 0, -z_adjustment, 0, 0, 0)

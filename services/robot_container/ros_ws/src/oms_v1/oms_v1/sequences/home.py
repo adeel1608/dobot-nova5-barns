@@ -82,13 +82,24 @@ def return_back_to_home() -> bool:
         print("\n" + "="*60)
         print("🏠 RETURNING TO HOME POSITION")
         print("="*60)
-        run_skill("release_tension")
+        
+        # Step 1: Try to release tension normally
+        print("🔓 Releasing tension and exiting drag mode...")
+        release_result = run_skill("release_tension")
+        if release_result is False:
+            print("[WARNING] Release tension failed - attempting toggle drag mode as fallback...")
+            toggle_result = run_skill("toggle_drag_mode")
+            if toggle_result is False:
+                print("[ERROR] Failed to lock servos - robot may not respond to commands")
+                print("[INFO] Please manually check robot state and retry")
+                return False
+            print("   ✅ Servos locked via toggle drag mode")
+        else:
+            print("   ✅ Tension released successfully")
+        
+        # Step 4: Set speed and gripper for safe operation
         run_skill("set_speed_factor", 100)
         run_skill("set_gripper_position", 255, 0)
-        # Get current joint angles
-        print("📐 Reading current joint angles...")
-        time.sleep(1)  # Stagger service calls
-        
         angles = run_skill("current_angles")
         
         if not angles or len(angles) < 6:
