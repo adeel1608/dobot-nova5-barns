@@ -608,7 +608,7 @@ PAPER_CUP_GRIPPER_POSITIONS = {
 PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_down': (0, -95, 0, 0, 0, 0),     # Move down to pickup cup from station
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
-    'place_up': (0, 150, 0, 0, 0, 0),        # Move up after placing cup
+    'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
 }
 
