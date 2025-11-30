@@ -16,6 +16,9 @@ from oms_v1.params import (
     ESPRESSO_GRINDER_PARAMS,
     ESPRESSO_PITCHER_PARAMS,
     ESPRESSO_HOT_WATER_PARAMS,
+    ESPRESSO_SPEEDS, ESPRESSO_PITCHER_GRIPPER, ESPRESSO_PORTAFILTER_GRIPPER,
+    ESPRESSO_MOVEMENT_OFFSETS, ESPRESSO_DELAYS, PORTAFILTER_Z_THRESHOLD_MM,
+    GRIPPER_FULL, GRIPPER_OPEN, SPEED_FAST, SPEED_SUPER_SLOW,
     _extract_cup_position
 )
 from oms_v1.sequences.cleaning import clean_portafilter
@@ -26,9 +29,6 @@ mount_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_pose: Optional[Tuple[float, ...]] = None  # Cartesian pose at mount position
 approach_pitcher: Optional[Tuple[float, ...]] = None
 pick_pitcher: Optional[Tuple[float, ...]] = None
-
-# Portafilter validation threshold (in millimeters)
-PORTAFILTER_Z_THRESHOLD_MM = 10.0  # If Z difference > this, portafilter was filled twice
 
 
 def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -166,13 +166,13 @@ def unmount(**params) -> bool:
 
         # Step 4: Close gripper to secure portafilter
         print("🤏 Step 4/13: Securing portafilter with gripper...")
-        grip_result = run_skill("set_gripper_position", 255, 255)
+        grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['grip'])
         if grip_result is False:
             print("[ERROR] Failed to close gripper")
             return False
         print("   ✅ Gripper closed successfully")
 
-        run_skill("set_speed_factor", 100)
+        run_skill("set_speed_factor", SPEED_FAST)
         
         # Step 5: Release tension for smooth operation
         print("😌 Step 5/13: Releasing tension...")
@@ -214,7 +214,7 @@ def unmount(**params) -> bool:
             return False
         print("   ✅ Tension released after rotation")
             
-        time.sleep(0.2)  # Allow settling time
+        time.sleep(ESPRESSO_DELAYS['orientation_settle'])  # Allow settling time
 
         # Step 9: Capture mount position for later use
         print("📸 Step 9/13: Capturing mount position...")
@@ -240,8 +240,8 @@ def unmount(**params) -> bool:
         
         # Step 10: Move end effector down to clear portafilter
         print("⬇️ Step 10/13: Moving down to clear portafilter...")
-        print(f"   📍 Executing: moveEE_movJ(0, 0, -35, 0, 0, 0)")
-        clear_result = run_skill("moveEE_movJ", 0, 0, -35, 0, 0, 0)
+        print(f"   📍 Executing: moveEE_movJ{ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down']}")
+        clear_result = run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])
         
         if clear_result is False:
             print("[ERROR] Failed to move down to clear portafilter")
@@ -401,7 +401,7 @@ def grinder(**params) -> bool:
 
         # Step 7: Open gripper to complete process
         print("🤏 Step 7/7: Opening gripper...")
-        open_gripper = run_skill("set_gripper_position", 255, 0)
+        open_gripper = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])
         if open_gripper is False:
             print("[ERROR] Failed to open gripper")
             return False
@@ -520,7 +520,7 @@ def tamper(**params) -> bool:
         
         # Step 2: Close gripper to secure tool
         print("🤏 Step 2/6: Securing tool with gripper...")
-        close_gripper = run_skill("set_gripper_position", 255, 255)
+        close_gripper = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['grip'])
         if close_gripper is False:
             print("[ERROR] Failed to close gripper")
             return False
@@ -728,7 +728,7 @@ def mount(**params) -> bool:
                 
                 # Step 1: Unmount (move down to clear)
                 print("🔄 Step 1/3: Moving down to clear portafilter...")
-                clear_down_result = run_skill("moveEE_movJ", 0, 0, -35, 0, 0, 0)
+                clear_down_result = run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])
                 if clear_down_result is False:
                     print("[ERROR] Failed to move down during recovery")
                     return False
@@ -774,8 +774,8 @@ def mount(**params) -> bool:
 
                 # Step 5.1: Move end effector up to fix portafilter
                 print("⬇️ Step 5.1/10: Moving up to fix portafilter...")
-                print(f"   📍 Executing: moveEE_movJ(0, 0, 5, 0, 0, 0)")
-                clear_result = run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0)
+                print(f"   📍 Executing: moveEE_movJ{ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up']}")
+                clear_result = run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up'])
                 
                 if clear_result is False:
                     print("[ERROR] Failed to move up to fix portafilter")
@@ -812,7 +812,7 @@ def mount(**params) -> bool:
 
         # Step 8: Open gripper to release portafilter
         print("🤏 Step 8/10: Opening gripper to release portafilter...")
-        release_result = run_skill("set_gripper_position", 255, 0)
+        release_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])
         if release_result is False:
             print("[ERROR] Failed to open gripper")
             return False
@@ -834,7 +834,7 @@ def mount(**params) -> bool:
             sync_result = run_skill("sync")
             if sync_result is False:
                 print("[WARNING] Sync operation failed - continuing...")
-            run_skill("moveEE_movJ", -20, 0, 0, 0, 0, 0)
+            run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['port_3_retreat'])
 
         # Step 10: Return to espresso home
         print("🏠 Step 10/10: Returning to espresso home...")
@@ -934,12 +934,12 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to mount espresso pitcher 1")
                 return False
             
-            grip_result = run_skill("set_gripper_position", 255, 110)
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])
             if grip_result is False:
                 print("[ERROR] Failed to grip espresso pitcher 1")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -960,12 +960,12 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to mount espresso pitcher 2")
                 return False
             
-            grip_result = run_skill("set_gripper_position", 255, 105)
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_2'])
             if grip_result is False:
                 print("[ERROR] Failed to grip espresso pitcher 2")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -992,12 +992,12 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to move to espresso pitcher 3 position 2")
                 return False
             
-            grip_result = run_skill("set_gripper_position", 255, 105)
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])
             if grip_result is False:
                 print("[ERROR] Failed to grip espresso pitcher 3")
                 return False
             
-            speed_result = run_skill("set_speed_factor", 25)
+            speed_result = run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
             if speed_result is False:
                 print("[WARNING] Failed to set speed factor")
             
@@ -1087,7 +1087,7 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 1")
             run_skill("sync")
-            run_skill("set_speed_factor", 15)
+            run_skill("set_speed_factor", SPEED_SLOW_POURING)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])
@@ -1127,7 +1127,7 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 2")
             run_skill("sync")
-            run_skill("set_speed_factor", 15)
+            run_skill("set_speed_factor", SPEED_SLOW_POURING)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])
@@ -1167,7 +1167,7 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 3")
             run_skill("sync")
-            run_skill("set_speed_factor", 15)
+            run_skill("set_speed_factor", SPEED_SLOW_POURING)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])
@@ -1207,7 +1207,7 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 4")
             run_skill("sync")
-            run_skill("set_speed_factor", 5)
+            run_skill("set_speed_factor", SPEED_SUPER_SLOW)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])
@@ -1312,7 +1312,7 @@ def get_hot_water(**params) -> bool:
             return False
         print("   ✅ Successfully positioned under hot water outlet")
 
-        run_skill("moveEE_movJ", -35, 0, 0, 0, 0, 0)        
+        run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])        
         # Final success summary
         print("=" * 50)
         print("✅ HOT WATER DISPENSING POSITION READY")
@@ -1353,11 +1353,11 @@ def with_hot_water(**params) -> bool:
         print("🚰 Completing hot water dispensing sequence")
         print("=" * 50)
 
-        run_skill("set_speed_factor", 15)
+        run_skill("set_speed_factor", ESPRESSO_SPEEDS['hot_water_pour'])
         
         # Step 2: Return to holding position
         print("🏠 Step 2/2: Returning to holding position...")
-        final_result = run_skill("moveEE_movJ", -150, 0, 0, 0, 0, 0)
+        final_result = run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])
         if final_result is False:
             print("[ERROR] Failed to return to holding position")
             return False
@@ -1440,7 +1440,7 @@ def return_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully positioned pitcher 1 for return")
             
             print("🤏 Releasing espresso pitcher 1...")
-            release_result = run_skill("set_gripper_position", 75, 0)
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
             if release_result is False:
                 print("[ERROR] Failed to release espresso pitcher 1")
@@ -1465,7 +1465,7 @@ def return_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully positioned pitcher 2 for return")
             
             print("🤏 Releasing espresso pitcher 2...")
-            release_result = run_skill("set_gripper_position", 75, 0)
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
             if release_result is False:
                 print("[ERROR] Failed to release espresso pitcher 2")
@@ -1489,7 +1489,7 @@ def return_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully moved to pitcher 3 return position 2")
             
             print("🤏 Releasing espresso pitcher 3...")
-            release_result = run_skill("set_gripper_position", 75, 0)
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
             if release_result is False:
                 print("[ERROR] Failed to release espresso pitcher 3")

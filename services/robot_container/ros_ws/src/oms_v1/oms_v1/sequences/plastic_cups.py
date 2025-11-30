@@ -13,6 +13,11 @@ from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
 from oms_v1.params import (
     DEFAULT_PLASTIC_CUP_SIZE, validate_cup_size,
+    PLASTIC_CUPS_PARAMS, PLASTIC_CUP_GRIPPER_POSITIONS,
+    PLASTIC_CUP_DISPENSE_GRIPPER, PLASTIC_CUP_DISPENSE_SPEEDS,
+    PLASTIC_CUP_EXTRACT_OFFSETS, PLASTIC_CUP_MOVEMENT_OFFSETS,
+    GRIPPER_FULL, GRIPPER_OPEN, GRIPPER_RELEASE_GENTLE,
+    GRIPPER_RELEASE, GRIPPER_HOLD_LOOSE, SPEED_NORMAL, SPEED_FAST,
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size,
     _set_cup_dispensed, _check_and_clear_cup_dispensed
 )
@@ -41,35 +46,39 @@ def dispense_plastic_cup(**params) -> bool:
         if not cup_size or not validate_cup_size(cup_size):
             return False
         
-        # Configuration for each cup size
+        # Configuration for each cup size using centralized constants
         CUP_CONFIG = {
             '16oz': {
                 'home': 'west',
-                'coords': (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),
-                'gripper': 140,
-                'extract_z': -10,
-                'extract_z2': -140,
+                'coords': PLASTIC_CUPS_PARAMS['dispenser']['16oz_coords'],
+                'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['16oz'],
+                'speed': PLASTIC_CUP_DISPENSE_SPEEDS['16oz'],
+                'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['16oz']['z1'],
+                'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['16oz']['z2'],
             },
             '12oz': {
                 'home': 'west',
-                'coords': (117.584348,-38.509737,-144.016102,2.779971,-62.300929,-0.175795),
-                'gripper': 160,
-                'extract_z': -10,
-                'extract_z2': -150,
+                'coords': PLASTIC_CUPS_PARAMS['dispenser']['12oz_coords'],
+                'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['12oz'],
+                'speed': PLASTIC_CUP_DISPENSE_SPEEDS['12oz'],
+                'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['12oz']['z1'],
+                'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['12oz']['z2'],
             },
             '9oz': {
                 'home': 'south_west',
-                'coords': (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),
-                'gripper': 150,
-                'extract_z': -10,
-                'extract_z2': -110,
+                'coords': PLASTIC_CUPS_PARAMS['dispenser']['9oz_coords'],
+                'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['9oz'],
+                'speed': PLASTIC_CUP_DISPENSE_SPEEDS['9oz'],
+                'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['9oz']['z1'],
+                'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['9oz']['z2'],
             },
             '7oz': {
                 'home': 'south_west',
-                'coords': (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),
-                'gripper': 162,
-                'extract_z': -10.0,
-                'extract_z2': -90,
+                'coords': PLASTIC_CUPS_PARAMS['dispenser']['7oz_coords'],
+                'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['7oz'],
+                'speed': PLASTIC_CUP_DISPENSE_SPEEDS['7oz'],
+                'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['7oz']['z1'],
+                'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['7oz']['z2'],
             }
         }
         
@@ -85,18 +94,18 @@ def dispense_plastic_cup(**params) -> bool:
         while attempt_count < 3:
             if cup_size == "16oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", 255, 255)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_FULL)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                run_skill("set_speed_factor", 7)
+                run_skill("set_speed_factor", config['speed'])
                 run_skill("sync")
                 run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
                 run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255, 0)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
                 run_skill("moveEE", 0.0, 17.5, 65.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
                 run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", 100)
+                run_skill("set_speed_factor", SPEED_NORMAL)
                 run_skill("sync")
                 run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
                 run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
@@ -105,18 +114,18 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position="north")
             elif cup_size == "12oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", 255, 255)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_FULL)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                run_skill("set_speed_factor", 5)
+                run_skill("set_speed_factor", config['speed'])
                 run_skill("sync")
                 run_skill("moveEE", 0.0, 0.0, 100.0, 0, 0, 0)
                 run_skill("moveEE", 0.0, 0.0, -100.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255, 0)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
                 run_skill("moveEE", 0.0,12.5, 70, 0, 0, 0)
-                run_skill("set_gripper_position", 255, config['gripper'])
+                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
                 run_skill("moveEE", 0, -5.0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", 100)
+                run_skill("set_speed_factor", SPEED_NORMAL)
                 run_skill("sync")
                 run_skill("moveEE", 0, -5.0, config['extract_z2'], 0, 0, 0)
                 run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
@@ -125,14 +134,14 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position="north")
             if cup_size == "9oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 25.0, 395.0, -32.0, 0, 0, 0)  
-                run_skill("set_gripper_position", 255, config['gripper'])
-                run_skill("set_speed_factor", 3)
+                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
+                run_skill("set_speed_factor", config['speed'])
                 run_skill("sync")
                 run_skill("moveEE", 0, 0.0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", 100)
+                run_skill("set_speed_factor", SPEED_NORMAL)
                 run_skill("sync")
                 run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
                 run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
@@ -141,14 +150,14 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position="north")
             if cup_size == "7oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0)
+                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 403.0, 5.0, 0, 0, 0)  
-                run_skill("set_gripper_position", 255, config['gripper'])
-                run_skill("set_speed_factor", 7)
+                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
+                run_skill("set_speed_factor", config['speed'])
                 run_skill("sync")
                 run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", 100)
+                run_skill("set_speed_factor", SPEED_NORMAL)
                 run_skill("sync")
                 run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
                 run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
@@ -213,64 +222,19 @@ def go_to_ice(**params) -> bool:
         # Step 3: Execute ice dispensing based on cup size
         print(f"🧊 Step 3/3: Dispensing ice for {cup_size} cup...")
         
-        if cup_size == "16oz":
-            print("   📍 Positioning for 16oz ice dispensing...")
-            pos1_result = run_skill("gotoJ_deg", 48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
-            if not pos1_result:
-                print("[ERROR] Failed to move to first ice position")
-                return False
-            
-            print("   📍 Moving to ice dispensing position...")
-            pos2_result = run_skill("gotoJ_deg", 32.796081,-75.272821,-68.925202,-35.529287,-57.142688,-0.201072)
-            if not pos2_result:
-                print("[ERROR] Failed to move to ice dispensing position")
-                return False
-            print("   ✅ 16oz ice dispensing completed")
-            
-        elif cup_size == "12oz":
-            print("   📍 Positioning for 12oz ice dispensing...")
-            # Add 12oz specific positioning here
-            pos1_result = run_skill("gotoJ_deg", 48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
-            if not pos1_result:
-                print("[ERROR] Failed to move to first ice position")
-                return False
-            
-            print("   📍 Moving to ice dispensing position...")
-            pos2_result = run_skill("gotoJ_deg", 32.796081,-75.272821,-68.925202,-35.529287,-57.142688,-0.201072)
-            if not pos2_result:
-                print("[ERROR] Failed to move to ice dispensing position")
-                return False
-            print("   ✅ 12oz ice dispensing completed")
-            
-        elif cup_size == "9oz":
-            print("   📍 Positioning for 9oz ice dispensing...")
-            # Add 9oz specific positioning here
-            pos1_result = run_skill("gotoJ_deg", 48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
-            if not pos1_result:
-                print("[ERROR] Failed to move to first ice position")
-                return False
-            
-            print("   📍 Moving to ice dispensing position...")
-            pos2_result = run_skill("gotoJ_deg", 32.796081,-75.272821,-68.925202,-35.529287,-57.142688,-0.201072)
-            if not pos2_result:
-                print("[ERROR] Failed to move to ice dispensing position")
-                return False
-            print("   ✅ 9oz ice dispensing completed")
-            
-        elif cup_size == "7oz":
-            print("   📍 Positioning for 7oz ice dispensing...")
-            # Add 7oz specific positioning here
-            pos1_result = run_skill("gotoJ_deg", 48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
-            if not pos1_result:
-                print("[ERROR] Failed to move to first ice position")
-                return False
-            
-            print("   📍 Moving to ice dispensing position...")
-            pos2_result = run_skill("gotoJ_deg", 32.796081,-75.272821,-68.925202,-35.529287,-57.142688,-0.201072)
-            if not pos2_result:
-                print("[ERROR] Failed to move to ice dispensing position")
-                return False
-            print("   ✅ 7oz ice dispensing completed")
+        # All cup sizes use the same ice positions (can be customized per size if needed)
+        print(f"   📍 Positioning for {cup_size} ice dispensing...")
+        pos1_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])
+        if not pos1_result:
+            print("[ERROR] Failed to move to first ice position")
+            return False
+        
+        print("   📍 Moving to ice dispensing position...")
+        pos2_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position2'])
+        if not pos2_result:
+            print("[ERROR] Failed to move to ice dispensing position")
+            return False
+        print(f"   ✅ {cup_size} ice dispensing completed")
         
         run_skill("sync")
         
@@ -292,7 +256,7 @@ def go_home_with_ice(**params) -> bool:
     try:        
         # Step 1: Initial positioning
         print("📍 Step 1/6: Moving to initial position...")
-        pos1_result = run_skill("gotoJ_deg", 48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
+        pos1_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])
         if not pos1_result:
             print("[ERROR] Failed to move to initial position")
             return False
@@ -373,7 +337,7 @@ def place_plastic_cup_station(**params) -> bool:
         print(f"🥤 Starting plastic cup placement sequence for stage {stage}, Size: {cup_size} (after_dispense={after_dispense})")
         print("=" * 50)
 
-        run_skill("set_speed_factor", 50)
+        run_skill("set_speed_factor", SPEED_NORMAL)
         run_skill("sync")
         
         # Step 1: Move to north-east home
@@ -390,24 +354,24 @@ def place_plastic_cup_station(**params) -> bool:
             return False
         print("   ✅ Successfully moved to east home")
         
-        # Step 3: Move to stage-specific position
+        # Step 3: Move to stage-specific position using parameters
         print(f"🎯 Step 3/5: Moving to stage {stage} position...")
         stage_result = False
         
         if stage == "1":
             print("   📍 Positioning for stage 1...")
-            stage_result = run_skill("gotoJ_deg", -82.522181,-50.735762,-126.581344,-2.476677,-82.420135,-0.099928)
+            stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_1'])
         elif stage == "2":
             print("   📍 Positioning for stage 2...")
-            stage_result = run_skill("gotoJ_deg", -102.678188,-51.825704,-116.952115,-11.037622,-102.578374,-0.025293)
+            stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_2'])
         elif stage == "3":
             print("   📍 Positioning for stage 3...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -118.947162,-55.648503,-100.620319,-23.542009,-118.855164,0.038563)
+            stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_3'])
         elif stage == "4":
             print("   📍 Positioning for stage 4...")
             home(position="south_east")
-            stage_result = run_skill("gotoJ_deg", -130.494242,-62.993442,-78.390283,-38.407176,-130.418147,0.093833)
+            stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_4'])
         
         if not stage_result:
             print(f"[ERROR] Failed to move to stage {stage} position")
@@ -416,17 +380,17 @@ def place_plastic_cup_station(**params) -> bool:
         
         # Step 4: Release cup
         print("🤏 Step 4/5: Releasing plastic cup...")
-        release_result = run_skill("set_gripper_position", 50, 0)
+        release_result = run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)
         if not release_result:
             print("[ERROR] Failed to release plastic cup")
             return False
         print("   ✅ Cup released successfully")
 
-        run_skill("set_speed_factor", 100)
+        run_skill("set_speed_factor", SPEED_FAST)
         
         # Step 5: Move up and return to home
         print("⬆️ Step 5/5: Moving up and returning to home...")
-        up_result = run_skill("moveEE", 0, 100, 0, 0, 0, 0)
+        up_result = run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['place_return_up'])
         if not up_result:
             print("[ERROR] Failed to move up after placement")
             return False
@@ -494,12 +458,12 @@ def pick_plastic_cup_station(**params) -> bool:
         print(f"🥤 Starting cup pickup for ice sequence - Stage: {stage}, Size: {cup_size}")
         print("=" * 50)
         
-        # Stage-specific positioning
+        # Stage-specific positioning using parameters
         stage_positions = {
-            "1": (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),
-            "2": (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),
-            "3": (-126.092345,-52.392425,-113.869083,-13.545369,-125.993798,0.060536),
-            "4": (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489)
+            "1": PLASTIC_CUPS_PARAMS['staging']['pickup_1'],
+            "2": PLASTIC_CUPS_PARAMS['staging']['pickup_2'],
+            "3": PLASTIC_CUPS_PARAMS['staging']['pickup_3'],
+            "4": PLASTIC_CUPS_PARAMS['staging']['pickup_4']
         }
         
         # Cup size specific gripper positions
@@ -509,10 +473,6 @@ def pick_plastic_cup_station(**params) -> bool:
             "12oz": 140,
             "16oz": 118
         }
-        
-        # Ice dispensing positions (common for all stages)
-        ice_pos1 = (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0)
-        ice_pos2 = (32.796081,-75.272821,-68.925202,-35.529287,-57.142688,-0.201072)
         
         # Step 1: Navigate to appropriate home positions
         print("🏠 Step 1/6: Navigating to home positions...")
@@ -541,7 +501,7 @@ def pick_plastic_cup_station(**params) -> bool:
         
         # Step 3: Position for cup pickup
         print("🎯 Step 3/6: Positioning for cup pickup...")
-        pickup_result = run_skill("moveEE", 0, -95, 0, 0, 0, 0)
+        pickup_result = run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['pickup_down'])
         if not pickup_result:
             print("[ERROR] Failed to position for cup pickup")
             return False
@@ -549,13 +509,13 @@ def pick_plastic_cup_station(**params) -> bool:
         
         # Step 4: Grip the cup
         print(f"🤏 Step 4/6: Gripping {cup_size} cup...")
-        grip_result = run_skill("set_gripper_position", 255, gripper_positions[cup_size])
+        grip_result = run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])
         if not grip_result:
             print("[ERROR] Failed to grip cup")
             return False
         print("   ✅ Cup gripped successfully")
 
-        run_skill("set_speed_factor", 50)
+        run_skill("set_speed_factor", SPEED_NORMAL)
         run_skill("sync")
         
         if cup_position == 3 or cup_position == 4:
@@ -621,66 +581,18 @@ def place_plastic_cup_sauces(**params) -> bool:
         
         print(f"🥤 Placing {cup_size} plastic cup at sauces station (after_dispense={after_dispense})")
         
-        # Scenario branching: 4 sizes × 2 conditions = 8 scenarios
-        # Using current implementation for all scenarios (user will update individually)
-        if cup_size == "7oz" and after_dispense:
-            # 7oz after dispense_plastic_cup/go_home_with_ice
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "7oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
+        # Set speed for careful handling if not after dispense
+        if not after_dispense:
+            run_skill("set_speed_factor", SPEED_NORMAL)
             run_skill("sync")
-            # 7oz NOT after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "9oz" and after_dispense:
-            # 9oz after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "9oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")
-            # 9oz NOT after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "12oz" and after_dispense:
-            # 12oz after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "12oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")   
-            # 12oz NOT after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "16oz" and after_dispense:
-            # 16oz after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-        elif cup_size == "16oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")
-            # 16oz NOT after dispense
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
         
-        if run_skill("set_gripper_position", 10, 75) is False:
+        # All cup sizes use same positions (simplified)
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1']) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2']) is False:
+            return False
+        
+        if run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE) is False:
             return False
         return True
     except Exception as e:
@@ -714,83 +626,25 @@ def pick_plastic_cup_sauces(**params) -> bool:
         
         print(f"🥤 Picking {cup_size} plastic cup from sauces station (after_dispense={after_dispense})")
 
+        # Gripper positions for sauces station (using specific values for station pickup)
         gripper_positions = {
             "7oz": 145,
             "9oz": 145,
             "12oz": 150,
-            "16oz": 118,
+            "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
         }
 
-        # Scenario branching: 4 sizes × 2 conditions = 8 scenarios
-        # Using current implementation for all scenarios (user will update individually)
-        run_skill("set_speed_factor", 50)
+        # Set speed for careful handling
+        run_skill("set_speed_factor", SPEED_NORMAL)
         run_skill("sync")
-        if cup_size == "7oz" and after_dispense:
-            # 7oz after dispense_plastic_cup/go_home_with_ice
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "7oz" and not after_dispense:
-            # 7oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "9oz" and after_dispense:
-            # 9oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "9oz" and not after_dispense:
-            # 9oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "12oz" and after_dispense:
-            # 12oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "12oz" and not after_dispense:
-            # 12oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "16oz" and after_dispense:
-            # 16oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
-        elif cup_size == "16oz" and not after_dispense:
-            # 16oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578) is False:
-                return False
-            if run_skill("gotoJ_deg", -53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525) is False:
-                return False
+        
+        # All cup sizes use same positions (simplified)
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2']) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1']) is False:
+            return False
         
         return True
     except Exception as e:
@@ -825,70 +679,18 @@ def place_plastic_cup_milk(**params) -> bool:
         
         print(f"🥤 Placing {cup_size} plastic cup at milk station (after_dispense={after_dispense})")
         
-        # Scenario branching: 4 sizes × 2 conditions = 8 scenarios
-        # Using current implementation for all scenarios (user will update individually)
-        if cup_size == "7oz" and after_dispense:
-            # 7oz after dispense_plastic_cup/go_home_with_ice
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "7oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
+        # Set speed for careful handling if not after dispense
+        if not after_dispense:
+            run_skill("set_speed_factor", SPEED_NORMAL)
             run_skill("sync")
-            # 7oz NOT after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "9oz" and after_dispense:
-            # 9oz after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            # if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
-            #     return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "9oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")
-            # 9oz NOT after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            # if run_skill("gotoJ_deg", -25.011840,-64.131473,-90.574055,-23.267948,-115.822112,-2.385243) is False:
-            #     return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "12oz" and after_dispense:
-            # 12oz after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "12oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")
-            # 12oz NOT after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "16oz" and after_dispense:
-            # 16oz after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-        elif cup_size == "16oz" and not after_dispense:
-            run_skill("set_speed_factor", 50)
-            run_skill("sync")
-            # 16oz NOT after dispense
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
         
-        if run_skill("set_gripper_position", 10, 75) is False:
+        # All cup sizes use same positions (simplified)
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1']) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position2']) is False:
+            return False
+        
+        if run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE) is False:
             return False
         return True
     except Exception as e:
@@ -922,81 +724,25 @@ def pick_plastic_cup_milk(**params) -> bool:
         
         print(f"🥤 Picking {cup_size} plastic cup from milk station (after_dispense={after_dispense})")
 
+        # Gripper positions for milk station (using specific values for station pickup)
         gripper_positions = {
             "7oz": 145,
             "9oz": 145,
             "12oz": 150,
-            "16oz": 118,
+            "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
         }
 
-        # Scenario branching: 4 sizes × 2 conditions = 8 scenarios
-        # Using current implementation for all scenarios (user will update individually)
-        run_skill("set_speed_factor", 50)
+        # Set speed for careful handling
+        run_skill("set_speed_factor", SPEED_NORMAL)
         run_skill("sync")
-        if cup_size == "7oz" and after_dispense:
-            # 7oz after dispense_plastic_cup/go_home_with_ice
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "7oz" and not after_dispense:
-            # 7oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "9oz" and after_dispense:
-            # 9oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "9oz" and not after_dispense:
-            # 9oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "12oz" and after_dispense:
-            # 12oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "12oz" and not after_dispense:
-            # 12oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "16oz" and after_dispense:
-            # 16oz after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
-        elif cup_size == "16oz" and not after_dispense:
-            # 16oz NOT after dispense
-            if run_skill("set_gripper_position", 255, gripper_positions[cup_size]) is False:
-                return False
-            if run_skill("gotoJ_deg", -26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240) is False:
-                return False
-            if run_skill("gotoJ_deg", -38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196) is False:
-                return False
+        
+        # All cup sizes use same positions (simplified)
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size]) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position2']) is False:
+            return False
+        if run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1']) is False:
+            return False
         
         return True
     except Exception as e:

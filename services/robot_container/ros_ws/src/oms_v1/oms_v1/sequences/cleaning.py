@@ -11,7 +11,8 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.params import (
-    ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT
+    ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT,
+    DELAY_SHORT
 )
 
 
@@ -69,7 +70,7 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("moveEE", 7.5,-7.5,0,1.1,0,0)):
         return False
-    time.sleep(1)
+    time.sleep(DELAY_SHORT)
     if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
         return False
 

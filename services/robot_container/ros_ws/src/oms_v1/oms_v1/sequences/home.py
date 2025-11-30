@@ -8,7 +8,11 @@ and system diagnostics for the BARNS coffee automation system.
 
 import time
 from typing import Dict, Any, Union
-from oms_v1.params import HOME_ANGLES, ESPRESSO_HOME, ESPRESSO_GRINDER_HOME
+from oms_v1.params import (
+    HOME_ANGLES, ESPRESSO_HOME, ESPRESSO_GRINDER_HOME, 
+    HOME_CALIBRATION_PARAMS, HOME_CALIBRATION_CONSTANTS,
+    GRIPPER_FULL, GRIPPER_OPEN, SPEED_FAST
+)
 from oms_v1.manipulate_node import run_skill
 
 
@@ -98,8 +102,8 @@ def return_back_to_home() -> bool:
             print("   ✅ Tension released successfully")
         
         # Step 4: Set speed and gripper for safe operation
-        run_skill("set_speed_factor", 100)
-        run_skill("set_gripper_position", 255, 0)
+        run_skill("set_speed_factor", SPEED_FAST)
+        run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
         angles = run_skill("current_angles")
         
         if not angles or len(angles) < 6:
@@ -154,11 +158,12 @@ def return_back_to_home() -> bool:
             print(f"[ERROR] Could not determine home position for J1 angle: {a1:.2f}°")
             return False
         
-        # Move to home position
-        print(f"🎯 Moving to home position: J1={j1_val}°, J2=30°, J3=-130°, J4=-100°, J5=-90°, J6=0°")
-        time.sleep(1)  # Stagger service calls
+        # Move to home position using calibration parameters
+        home_j2_j6 = HOME_CALIBRATION_PARAMS['return_home_position']
+        print(f"🎯 Moving to home position: J1={j1_val}°, J2={home_j2_j6[0]}°, J3={home_j2_j6[1]}°, J4={home_j2_j6[2]}°, J5={home_j2_j6[3]}°, J6={home_j2_j6[4]}°")
+        time.sleep(HOME_CALIBRATION_CONSTANTS['final_home_stagger'])  # Stagger service calls
         
-        result = run_skill("gotoJ_deg", j1_val, 30.0, -130.0, -100.0, -90.0, 0.0)
+        result = run_skill("gotoJ_deg", j1_val, *home_j2_j6)
         
         if result is False:
             print("[ERROR] Failed to move to home position")
@@ -208,7 +213,7 @@ def get_machine_position(**params) -> bool:
         
         # Set optimal speed for calibration accuracy
         print("⚙️ Setting speed factor for precise movements...")
-        run_skill("set_speed_factor", 100)
+        run_skill("set_speed_factor", HOME_CALIBRATION_CONSTANTS['speed_factor'])
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/8: Moving to espresso home position...")
@@ -220,17 +225,18 @@ def get_machine_position(**params) -> bool:
         
         # Step 2: Position for portafilter cleaner calibration
         print("📍 Step 2/8: Positioning for portafilter cleaner calibration...")
-        cleaner_prep_result = run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+        cleaner_prep_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])
         if cleaner_prep_result is False:
             print("[ERROR] Failed to position for cleaner calibration")
             return False
         print("   ✅ Successfully positioned for cleaner calibration")
         
         # Step 3: Perform multiple approaches to portafilter cleaner for accuracy
-        print("🧹 Step 3/8: Calibrating portafilter cleaner position (5 approaches)...")
-        for i in range(5):
-            print(f"   📍 Approach {i+1}/5...")
-            time.sleep(1.0)  # Allow settling time between approaches
+        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+        print(f"🧹 Step 3/8: Calibrating portafilter cleaner position ({cycles} approaches)...")
+        for i in range(cycles):
+            print(f"   📍 Approach {i+1}/{cycles}...")
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
             
             approach_result = run_skill("move_to", "portafilter_cleaner", 0.26)
             if approach_result is False:
@@ -253,22 +259,23 @@ def get_machine_position(**params) -> bool:
         
         # Step 5: Position for espresso grinder calibration
         print("📍 Step 5/8: Positioning for espresso grinder calibration...")
-        grinder_prep1_result = run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+        grinder_prep1_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])
         if grinder_prep1_result is False:
             print("[ERROR] Failed to position for grinder calibration (step 1)")
             return False
         
-        grinder_prep2_result = run_skill("gotoJ_deg", -44.767990,-16.740473,-125.801704,-51.932587,-94.604942,-0.214288)
+        grinder_prep2_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])
         if grinder_prep2_result is False:
             print("[ERROR] Failed to position for grinder calibration (step 2)")
             return False
         print("   ✅ Successfully positioned for grinder calibration")
         
         # Step 6: Perform multiple approaches to espresso grinder for accuracy
-        print("☕ Step 6/8: Calibrating espresso grinder position (5 approaches)...")
-        for i in range(5):
-            print(f"   📍 Approach {i+1}/5...")
-            time.sleep(1.0)  # Allow settling time between approaches
+        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+        print(f"☕ Step 6/8: Calibrating espresso grinder position ({cycles} approaches)...")
+        for i in range(cycles):
+            print(f"   📍 Approach {i+1}/{cycles}...")
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
             
             grinder_approach_result = run_skill("move_to", "espresso_grinder", 0.26)
             if grinder_approach_result is False:
@@ -291,7 +298,7 @@ def get_machine_position(**params) -> bool:
         
         # Step 7: Position for three-group espresso machine calibration
         print("📍 Step 7/8: Positioning for three-group espresso machine calibration...")
-        espresso_prep1_result = run_skill("gotoJ_deg", 7.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+        espresso_prep1_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])
         if espresso_prep1_result is False:
             print("[ERROR] Failed to position for espresso machine calibration (step 1)")
             return False
@@ -303,10 +310,11 @@ def get_machine_position(**params) -> bool:
         print("   ✅ Successfully positioned for espresso machine calibration")
         
         # Perform multiple approaches to three-group espresso machine for accuracy
-        print("☕ Calibrating three-group espresso machine position (5 approaches)...")
-        for i in range(15):
-            print(f"   📍 Approach {i+1}/5...")
-            time.sleep(1.0)  # Allow settling time between approaches
+        cycles = 15  # Special case: more cycles for three-group espresso
+        print(f"☕ Calibrating three-group espresso machine position ({cycles} approaches)...")
+        for i in range(cycles):
+            print(f"   📍 Approach {i+1}/{cycles}...")
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
             
             espresso_approach_result = run_skill("move_to", "three_group_espresso", 0.26)
             if espresso_approach_result is False:
@@ -329,7 +337,7 @@ def get_machine_position(**params) -> bool:
         
         # Step 8: Return to espresso home position
         print("🏠 Step 8/8: Returning to espresso home position...")
-        final_home_result = run_skill("gotoJ_deg", 42.159162,16.269149,-135.156441,-81.822150,-49.784457,13.771214)
+        final_home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
         if final_home_result is False:
             print("[ERROR] Failed to return to espresso home position")
             return False
