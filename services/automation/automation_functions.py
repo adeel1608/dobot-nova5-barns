@@ -1452,6 +1452,46 @@ async def dispense_ingredient(params: dict):
         }
     }
 
+###=========== Test Functions ============
+
+async def automation_test(params: dict):
+    """Automation test using MQTT communication."""
+    # example params: {"automation_test": 1}
+    time.sleep(1)
+    return {
+        "success": True,
+        "message": "Successfully completed automation test",
+        "details": "Automation test completed"
+    }
+
+async def automation_test2(params: dict):
+    """Automation test 2 using MQTT communication."""
+    # example params: {"automation_test2": 1}
+    time.sleep(1)
+    return {
+        "success": True,
+        "message": "Successfully completed automation test 2",
+        "details": "Automation test 2 completed"
+    }
+async def automation_test3(params: dict):
+    """Automation test 3 using MQTT communication."""
+    # example params: {"automation_test3": 1}
+    time.sleep(1)
+    return {
+        "success": True,
+        "message": "Successfully completed automation test 3",
+        "details": "Automation test 3 completed"
+    }
+async def automation_test4(params: dict):
+    """Automation test 4 using MQTT communication."""
+    # example params: {"automation_test4": 1}
+    time.sleep(1)
+    return {
+        "success": True,
+        "message": "Successfully completed automation test 4",
+        "details": "Automation test 4 completed"
+    }
+
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
     "dispense_sauce": dispense_sauce,
@@ -1468,6 +1508,9 @@ AUTOMATION_FUNCTIONS = {
     "clean_frother": clean_frother,
     "rinser_machine": rinser_machine,
     "automation_test": automation_test,
+    "automation_test2": automation_test2,
+    "automation_test3": automation_test3,
+    "automation_test4": automation_test4,
     "dispense_hot_water": dispense_hot_water,
     # Add more automation functions as needed
 }

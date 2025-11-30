@@ -111,6 +111,8 @@ async def startup_event():
         event_listener.register_event_handler("oms.order_created", handle_order_event)
         event_listener.register_event_handler("oms.order_started", handle_order_event)
         event_listener.register_event_handler("oms.order_status_updated", handle_order_event)
+        event_listener.register_event_handler("oms.order_stopping", handle_order_event)
+        event_listener.register_event_handler("oms.order_stopped", handle_order_event)
         event_listener.register_event_handler("oms.order_halted", handle_order_event)
         event_listener.register_event_handler("oms.order_resumed", handle_order_event)
         event_listener.register_event_handler("oms.order_completed", handle_order_event)
@@ -1303,8 +1305,17 @@ async def handle_inventory_updated_event(data: Dict):
     inventory_data = data.get("inventory", {})
     
     log("INFO", f"Received inventory update for category: {category}", service="api_bridge")    
+    
     # Emit to Socket.IO clients
     await emit_inventory_update(category, inventory_data)
+    
+    # Also broadcast to WebSocket clients for real-time dashboard updates
+    await broadcast_to_websockets({
+        "type": "inventory_update",
+        "event": "inventory_updated",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 async def handle_stock_level_event(data: Dict):
     """Handle stock level summary update events"""
@@ -1312,6 +1323,14 @@ async def handle_stock_level_event(data: Dict):
     
     # Emit to Socket.IO clients
     await emit_stock_level_update(data)
+    
+    # Also broadcast to WebSocket clients for real-time dashboard updates
+    await broadcast_to_websockets({
+        "type": "inventory_update",
+        "event": "stock_level_updated",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 async def handle_category_summary_event(data: Dict):
     """Handle category summary update events"""
@@ -1319,6 +1338,14 @@ async def handle_category_summary_event(data: Dict):
     
     # Emit to Socket.IO clients
     await emit_inventory_summary(data)
+    
+    # Also broadcast to WebSocket clients for real-time dashboard updates
+    await broadcast_to_websockets({
+        "type": "inventory_update",
+        "event": "category_summary_updated",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 async def handle_inventory_updated_event_all(data: Dict):
     """Handle all inventory update events"""
@@ -1326,6 +1353,14 @@ async def handle_inventory_updated_event_all(data: Dict):
     
     # Emit to Socket.IO clients
     await emit_inventory_update_all(data)
+    
+    # Also broadcast to WebSocket clients for real-time dashboard updates
+    await broadcast_to_websockets({
+        "type": "inventory_update",
+        "event": "all_inventory_updated",
+        "data": data,
+        "timestamp": datetime.now().isoformat()
+    })
 
 async def emit_inventory_update_all(data: Dict):
     """Emit all inventory update"""

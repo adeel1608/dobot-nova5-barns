@@ -87,6 +87,10 @@ class ValidationServiceApp:
     def register_handlers(self):
         """Register message handlers for all validation actions"""
         
+
+        # Automation validation handlers
+        self.rabbitmq_client.register_handler("validation_test", self.handle_validation_test)
+        self.rabbitmq_client.register_handler("validation_test2", self.handle_validation_test2)
         # Inventory validation handlers
         self.rabbitmq_client.register_handler("pre_check", self.handle_pre_check)
         self.rabbitmq_client.register_handler("update_inventory", self.handle_update_inventory)
@@ -122,6 +126,28 @@ class ValidationServiceApp:
         log("INFO", "All message handlers registered", service="validation")
     
     # =============================================================================
+    # AUTOMATION VALIDATION HANDLERS
+    # =============================================================================
+    
+    async def handle_validation_test(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle validation test requests"""
+        time.sleep(1)
+        return {
+            "request_id": "123",
+            "passed": True,
+            "message": "Validation test passed"
+        }
+
+    
+    async def handle_validation_test2(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """Handle validation test 2 requests"""
+        time.sleep(1)
+        return {
+            "request_id": "123",
+            "passed": True,
+            "message": "Validation test failed"
+        }
+
     # INVENTORY HANDLERS
     # =============================================================================
     
@@ -403,9 +429,12 @@ class ValidationServiceApp:
             }
     ### Milk Station Cup Detection Handlers
     async def handle_milk_cup_detection_present(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle milk dispenser cup detection requests"""
+        """
+        Handle milk dispenser cup detection - expects cup to be PRESENT.
+        Returns passed=True if cup IS detected, passed=False if cup is NOT detected.
+        """
         try:
-            log("INFO", f"Processing milk_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing milk_cup_detection_present request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Run detection in thread to avoid blocking async loop
             result = await asyncio.get_event_loop().run_in_executor(
@@ -414,19 +443,34 @@ class ValidationServiceApp:
                 data
             )
             
+            # detection_result is True if cup detected, False if not detected
+            detection_result = result.get("detection_result", False)
+            
+            # For "present" validation: pass if cup IS detected
+            result["passed"] = detection_result
+            
+            if detection_result:
+                log("INFO", f"Milk cup detection PASSED - cup is present as expected", service="validation")
+            else:
+                log("WARNING", f"Milk cup detection FAILED - cup is NOT present (expected present)", service="validation")
+            
             return result
             
         except Exception as e:
-            log("ERROR", f"Error in milk_detection: {e}", service="validation")
+            log("ERROR", f"Error in milk_cup_detection_present: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
                 "error": f"Milk detection failed: {str(e)}"
             }
+    
     async def handle_milk_cup_detection_absent(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle milk dispenser cup detection requests"""
+        """
+        Handle milk dispenser cup detection - expects cup to be ABSENT.
+        Returns passed=True if cup is NOT detected, passed=False if cup IS detected.
+        """
         try:
-            log("INFO", f"Processing milk_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing milk_cup_detection_absent request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Run detection in thread to avoid blocking async loop
             result = await asyncio.get_event_loop().run_in_executor(
@@ -434,12 +478,22 @@ class ValidationServiceApp:
                 self.main_validation.process_milk_detection_request, 
                 data
             )
-            if result["detection_result"] == False:
-                result["detection_result"] = True
+            
+            # detection_result is True if cup detected, False if not detected
+            detection_result = result.get("detection_result", False)
+            
+            # For "absent" validation: pass if cup is NOT detected (invert the result)
+            result["passed"] = not detection_result
+            
+            if not detection_result:
+                log("INFO", f"Milk cup detection PASSED - cup is absent as expected", service="validation")
+            else:
+                log("WARNING", f"Milk cup detection FAILED - cup IS present (expected absent)", service="validation")
+            
             return result
             
         except Exception as e:
-            log("ERROR", f"Error in milk_detection: {e}", service="validation")
+            log("ERROR", f"Error in milk_cup_detection_absent: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
@@ -448,9 +502,12 @@ class ValidationServiceApp:
 
     ### Sauce Station Cup Detection Handlers
     async def handle_sauce_cup_detection_present(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle sauce dispenser cup detection requests"""
+        """
+        Handle sauce dispenser cup detection - expects cup to be PRESENT.
+        Returns passed=True if cup IS detected, passed=False if cup is NOT detected.
+        """
         try:
-            log("INFO", f"Processing sauce_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing sauce_cup_detection_present request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Run detection in thread to avoid blocking async loop
             result = await asyncio.get_event_loop().run_in_executor(
@@ -459,19 +516,34 @@ class ValidationServiceApp:
                 data
             )
             
+            # detection_result is True if cup detected, False if not detected
+            detection_result = result.get("detection_result", False)
+            
+            # For "present" validation: pass if cup IS detected
+            result["passed"] = detection_result
+            
+            if detection_result:
+                log("INFO", f"Sauce cup detection PASSED - cup is present as expected", service="validation")
+            else:
+                log("WARNING", f"Sauce cup detection FAILED - cup is NOT present (expected present)", service="validation")
+            
             return result
             
         except Exception as e:
-            log("ERROR", f"Error in sauce_detection: {e}", service="validation")
+            log("ERROR", f"Error in sauce_cup_detection_present: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,
                 "error": f"Sauce detection failed: {str(e)}"
             }
+    
     async def handle_sauce_cup_detection_absent(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
-        """Handle sauce dispenser cup detection requests"""
+        """
+        Handle sauce dispenser cup detection - expects cup to be ABSENT.
+        Returns passed=True if cup is NOT detected, passed=False if cup IS detected.
+        """
         try:
-            log("INFO", f"Processing sauce_detection request: {data.get('request_id', 'no-id')}", service="validation")
+            log("INFO", f"Processing sauce_cup_detection_absent request: {data.get('request_id', 'no-id')}", service="validation")
             
             # Run detection in thread to avoid blocking async loop
             result = await asyncio.get_event_loop().run_in_executor(
@@ -479,12 +551,22 @@ class ValidationServiceApp:
                 self.main_validation.process_sauce_detection_request, 
                 data
             )
-            if result["detection_result"] == False:
-                result["detection_result"] = True
+            
+            # detection_result is True if cup detected, False if not detected
+            detection_result = result.get("detection_result", False)
+            
+            # For "absent" validation: pass if cup is NOT detected (invert the result)
+            result["passed"] = not detection_result
+            
+            if not detection_result:
+                log("INFO", f"Sauce cup detection PASSED - cup is absent as expected", service="validation")
+            else:
+                log("WARNING", f"Sauce cup detection FAILED - cup IS present (expected absent)", service="validation")
+            
             return result
             
         except Exception as e:
-            log("ERROR", f"Error in sauce_detection: {e}", service="validation")
+            log("ERROR", f"Error in sauce_cup_detection_absent: {e}", service="validation")
             return {
                 "request_id": data.get("request_id"),
                 "passed": False,

@@ -402,12 +402,25 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
         # Update status to stopping first
         db.update_order_status(order_id, ORDER_STATUS['STOPPING'], "Stopping - waiting for current tasks to complete")
         
-        # Broadcast stopping event
+        # Broadcast stopping event via WebSocket
         broadcast({
             "event": "order_stopping",
             "order": order_id,
+            "order_id": order_id,  # Include both for compatibility
             "timestamp": "now"
         })
+        
+        # Also send event via RabbitMQ for API Bridge
+        if rabbitmq_client:
+            try:
+                await rabbitmq_client.send_event("oms.order_stopping", {
+                    "order_id": order_id,
+                    "order": order_id,
+                    "status": ORDER_STATUS['STOPPING'],
+                    "timestamp": "now"
+                })
+            except Exception as e:
+                log("ERROR", f"Failed to send order_stopping event via RabbitMQ: {e}", service="oms")
         
         # Send stop request to scheduler via RabbitMQ
         # Scheduler will wait for current tasks to complete before responding
@@ -442,12 +455,26 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
             "timestamp": "now"
         })
         
-        # Broadcast the final stopped event
+        # Broadcast the final stopped event via WebSocket
         broadcast({
             "event": "order_stopped",
             "order": order_id,
+            "order_id": order_id,  # Include both for compatibility
             "timestamp": "now"
         })
+        
+        # Also send event via RabbitMQ for API Bridge to broadcast to all clients
+        if rabbitmq_client:
+            try:
+                await rabbitmq_client.send_event("oms.order_stopped", {
+                    "order_id": order_id,
+                    "order": order_id,
+                    "status": ORDER_STATUS['STOPPED'],
+                    "reason": "Manually stopped by user",
+                    "timestamp": "now"
+                })
+            except Exception as e:
+                log("ERROR", f"Failed to send order_stopped event via RabbitMQ: {e}", service="oms")
         
         return {"success": True, "message": "order_stopped", "order_id": order_id}
         

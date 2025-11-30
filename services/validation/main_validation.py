@@ -83,6 +83,7 @@ class MainValidation:
             log("WARNING", "Falling back to dummy coffee detector", service="validation")
 
         # Initialize cup detector - ADD THIS BLOCK
+        log("INFO", "=== ATTEMPTING TO INITIALIZE CUP DETECTOR ===", service="validation")
         try:
             cup_detector_config_path = os.path.join(os.path.dirname(__file__), "cup_detection", "config.py")
             self._cup_detector = CupDetector(cup_detector_config_path)
@@ -112,7 +113,9 @@ class MainValidation:
             # END TEST CODE
             
         except Exception as e:
+            import traceback
             log("ERROR", f"Failed to initialize cup detector: {e}", service="validation")
+            log("ERROR", f"Traceback: {traceback.format_exc()}", service="validation")
             self._cup_detector = None
 
 

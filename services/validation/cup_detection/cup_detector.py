@@ -6,22 +6,21 @@
 # - Assign to 4 cup positions + history voting
 
 import os
+import sys
 import cv2
 import time
 
 import types
 import numpy as np
-import logging
 import threading
 import importlib.util
 from collections import deque
 
-# ---- Logging (simple; swap with your logger_config if desired) ----
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
-log = logging.getLogger("rfdetr-app")
+# Add parent directories to path for shared imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+# Use shared logger for consistency with rest of application
+from shared.logger import log as shared_log
 
 # ---- RF-DETR + Supervision ----
 from PIL import Image
@@ -173,7 +172,7 @@ class RTSPStreamReader:
                         time.sleep(0.05)
                     self.connected = self._cap.isOpened()
                     if not self.connected:
-                        log.warning(f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s")
+                        shared_log("WARNING", f"RTSP open failed (attempt {self.attempts}); retrying in {delay:.1f}s", service="validation")
                         time.sleep(delay)
                         delay = min(self.cfg.max_retry_delay, delay * self.cfg.retry_backoff)
                         continue
@@ -198,7 +197,7 @@ class RTSPStreamReader:
 
             except Exception:
                 self.connected = False
-                log.exception("RTSP read error")
+                shared_log("ERROR", f"RTSP read error", service="validation")
                 try:
                     if self._cap is not None:
                         self._cap.release()
@@ -267,6 +266,23 @@ class RFDETRDetector:
         self.config = Config(mod)
         self.config_path = config_path  # Store for path resolution
 
+        # Convert relative debug folder paths to absolute paths
+        config_dir = os.path.dirname(os.path.abspath(self.config_path))
+        
+        # Make main debug folder absolute if relative
+        if not os.path.isabs(self.config.debug_folder):
+            self.config.debug_folder = os.path.join(config_dir, self.config.debug_folder)
+        
+        # Make milk debug folder absolute if relative
+        if not os.path.isabs(self.config.milk_debug_folder):
+            self.config.milk_debug_folder = os.path.join(config_dir, self.config.milk_debug_folder)
+        
+        # Make sauce debug folder absolute if relative
+        if not os.path.isabs(self.config.sauce_debug_folder):
+            self.config.sauce_debug_folder = os.path.join(config_dir, self.config.sauce_debug_folder)
+        
+        shared_log("INFO", f"Debug folders configured - Main: {self.config.debug_folder}, Milk: {self.config.milk_debug_folder}, Sauce: {self.config.sauce_debug_folder}", service="validation")
+
         self._validate_config()
         
         # Warn if ROIs are identical (likely configuration error)
@@ -274,11 +290,11 @@ class RFDETRDetector:
             if (self.config.roi_polygon.size > 0 and 
                 self.config.milk_roi_polygon.size > 0 and
                 np.array_equal(self.config.roi_polygon, self.config.milk_roi_polygon)):
-                log.warning("⚠️  Station ROI and Milk ROI are identical! Milk detection will use the same area as station.")
+                shared_log("WARNING", "Station ROI and Milk ROI are identical! Milk detection will use the same area as station.", service="validation")
             if (self.config.roi_polygon.size > 0 and 
                 self.config.sauce_roi_polygon.size > 0 and
                 np.array_equal(self.config.roi_polygon, self.config.sauce_roi_polygon)):
-                log.warning("⚠️  Station ROI and Sauce ROI are identical! Sauce detection will use the same area as station.")
+                shared_log("WARNING", "Station ROI and Sauce ROI are identical! Sauce detection will use the same area as station.", service="validation")
 
         # Stream
         self.reader = RTSPStreamReader(
@@ -289,7 +305,7 @@ class RFDETRDetector:
         self.reader.start()
 
         # RF-DETR model (local)
-        log.info("Initializing RF-DETR model...")
+        shared_log("INFO", "Initializing RF-DETR model...", service="validation")
         
         # Use local model path if specified and file exists
         # Resolve model path relative to config file's directory
@@ -301,12 +317,12 @@ class RFDETRDetector:
             
             if os.path.exists(abs_model_path):
                 model_kwargs["pretrain_weights"] = abs_model_path
-                log.info(f"Using local model: {abs_model_path}")
+                shared_log("INFO", f"Using local model: {abs_model_path}", service="validation")
             else:
-                log.warning(f"Model file not found at {abs_model_path}, will download default model")
-                log.info(f"Using default model (will download if needed)")
+                shared_log("WARNING", f"Model file not found at {abs_model_path}, will download default model", service="validation")
+                shared_log("INFO", f"Using default model (will download if needed)", service="validation")
         else:
-            log.info(f"Using default model (will download if needed)")
+            shared_log("INFO", f"Using default model (will download if needed)", service="validation")
         
         # Initialize model based on variant
         if self.config.rfdetr_variant == "large":
@@ -318,10 +334,10 @@ class RFDETRDetector:
             from rfdetr import RFDETRMedium
             self.model = RFDETRMedium(**model_kwargs)
         else:
-            log.warning(f"Unknown variant '{self.config.rfdetr_variant}', using large")
+            shared_log("WARNING", f"Unknown variant '{self.config.rfdetr_variant}', using large", service="validation")
             self.model = RFDETRLarge(**model_kwargs)
             
-        log.info("RF-DETR ready.")
+        shared_log("INFO", "RF-DETR ready.", service="validation")
 
         # Runtime state
         self._last_result = None
@@ -360,7 +376,7 @@ class RFDETRDetector:
         if allowed_classes_legacy:
             missing = [n for n in allowed_classes_legacy if n.lower() not in self.name2id]
             if missing:
-                log.warning(f"Unknown class names in ALLOWED_CLASSES: {missing}")
+                shared_log("WARNING", f"Unknown class names in ALLOWED_CLASSES: {missing}", service="validation")
             self.target_ids = {self.name2id[n.lower()] for n in allowed_classes_legacy if n.lower() in self.name2id}
 
     def _get_class_ids(self, allowed_classes):
@@ -373,7 +389,7 @@ class RFDETRDetector:
         target_ids = set()
         missing = [n for n in allowed_classes if n.lower() not in self.name2id]
         if missing:
-            log.warning(f"Unknown class names: {missing}")
+            shared_log("WARNING", f"Unknown class names: {missing}", service="validation")
         target_ids = {self.name2id[n.lower()] for n in allowed_classes if n.lower() in self.name2id}
         return target_ids if target_ids else None
 
@@ -438,8 +454,9 @@ class RFDETRDetector:
             # Save to debug folder (overwrites each time)
             filename = f"{folder}/debug_frame.jpg"
             cv2.imwrite(filename, dbg)
+            shared_log("INFO", f"{label_prefix}Debug frame saved: {filename}", service="validation")
         except Exception as e:
-            log.error(f"Error saving debug frame: {e}")
+            shared_log("ERROR", f"Error saving debug frame: {e}", service="validation")
 
     # --------------- Generic Detection Method ---------------
     def _detect_generic(self, roi_polygon, cup_positions, debug_folder=None, label_prefix="", 
@@ -528,6 +545,19 @@ class RFDETRDetector:
 
             # Resize frame
             resized_frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            
+            # Apply ROI mask to exclude areas outside the polygon
+            # This ensures only the area inside the green ROI is processed
+            if roi_polygon.size > 0 and roi_poly_resized.size > 0:
+                # Create mask for the original sized cropped frame
+                mask = np.zeros((orig_h, orig_w), dtype=np.uint8)
+                cv2.fillPoly(mask, [roi_polygon], 255)
+                
+                # Resize mask to match resized frame
+                mask_resized = cv2.resize(mask, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+                
+                # Apply mask: set pixels outside ROI to black
+                resized_frame = cv2.bitwise_and(resized_frame, resized_frame, mask=mask_resized)
 
             # ---- RF-DETR inference ----
             pil_img = Image.fromarray(cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB))
@@ -720,7 +750,7 @@ class RFDETRDetector:
             return result
 
         except Exception:
-            log.exception(f"{label_prefix}detect() failure")
+            shared_log("ERROR", f"{label_prefix}detect() failure", service="validation")
             return {"error": f"Internal error during {label_prefix}detect()."}
 
     # --------------- Detection Methods ---------------
@@ -801,11 +831,15 @@ class RFDETRDetector:
         Milk dispenser detection using MILK_ROI_POLYGON and MILK_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
+        # Increment frame count for debug (just like station detection)
+        if self.config.debug_mode or self.config.save_frames:
+            self._frame_count += 1
+        
         # Debug: log which ROI is being used
         if self.config.debug_mode:
-            log.info(f"Milk detection using ROI polygon with {len(self.config.milk_roi_polygon)} points")
+            shared_log("INFO", f"Milk detection using ROI polygon with {len(self.config.milk_roi_polygon)} points", service="validation")
             if self.config.milk_roi_polygon.size > 0:
-                log.info(f"Milk ROI bounds: x=[{np.min(self.config.milk_roi_polygon[:, 0])}, {np.max(self.config.milk_roi_polygon[:, 0])}], y=[{np.min(self.config.milk_roi_polygon[:, 1])}, {np.max(self.config.milk_roi_polygon[:, 1])}]")
+                shared_log("INFO", f"Milk ROI bounds: x=[{np.min(self.config.milk_roi_polygon[:, 0])}, {np.max(self.config.milk_roi_polygon[:, 0])}], y=[{np.min(self.config.milk_roi_polygon[:, 1])}, {np.max(self.config.milk_roi_polygon[:, 1])}]", service="validation")
         
         return self._detect_generic(
             roi_polygon=self.config.milk_roi_polygon,
@@ -823,6 +857,10 @@ class RFDETRDetector:
         Sauce dispenser detection using SAUCE_ROI_POLYGON and SAUCE_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
+        # Increment frame count for debug (just like station detection)
+        if self.config.debug_mode or self.config.save_frames:
+            self._frame_count += 1
+        
         return self._detect_generic(
             roi_polygon=self.config.sauce_roi_polygon,
             cup_positions=self.config.sauce_cup_positions,

@@ -56,6 +56,17 @@ export const useInventoryStore = create((set, get) => ({
   }));
 },
 
+  updateCategorySummaryDirect: (summarData) => {
+    // Directly update category summary from WebSocket without making an API call
+    set((state) => ({
+      categorySummary: {
+        ...state.categorySummary,
+        ...summarData
+      }
+    }));
+    console.log('[Inventory Store] Category summary updated from WebSocket:', Object.keys(summarData));
+  },
+
 
   // Fetch full categories  info
   fetchCategoryInfoData: async () => {

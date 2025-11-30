@@ -110,8 +110,8 @@ export const useWebSocketStore = create((set, get) => ({
             useDashboardStore.getState().fetchOrders();
           }
         } else if (data.type === 'inventory_update') {
-          // Removed verbose INFO log - only log errors
-          // Refresh inventory when we get updates
+          // Inventory update received - refresh inventory data
+          console.log('[WebSocket] Inventory update event received, refreshing inventory');
           useInventoryStore.getState().fetchInventoryStatus();
         } else if (data.type === 'alert' || data.event === 'validation_failed' || data.event?.includes('threshold_warning') || data.event?.includes('all_stations_occupied') || data.event?.includes('retry_status')) {
           // Alert/warning events - refresh alerts immediately
@@ -124,6 +124,10 @@ export const useWebSocketStore = create((set, get) => ({
               cup_id: data.cup_id,
               note: 'Message will be mapped from validation_function key in UI'
             });
+            
+            // Immediately refresh orders when validation fails (order may have stopped)
+            console.log('[WebSocket] Refreshing orders due to validation failure');
+            useDashboardStore.getState().fetchOrders();
           }
           
           // Debounce: Only refresh if we haven't refreshed recently

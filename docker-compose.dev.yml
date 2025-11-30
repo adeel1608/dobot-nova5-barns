@@ -171,6 +171,7 @@ services:
       - ./services/validation:/app/services/validation
       # Mount debug directories so you can access debug frames on Windows
       - ./services/validation/coffee_detection/debug_frames_coffee:/app/services/validation/coffee_detection/debug_frames_coffee
+      - ./services/validation/cup_detection/debug_frames:/app/services/validation/cup_detection/debug_frames
       - ./services/validation/cup_detection/debug_frames_cup:/app/services/validation/cup_detection/debug_frames_cup
       - ./services/validation/cup_detection/models:/app/services/validation/cup_detection/models
     # networks removed - host mode doesn't use custom networks
