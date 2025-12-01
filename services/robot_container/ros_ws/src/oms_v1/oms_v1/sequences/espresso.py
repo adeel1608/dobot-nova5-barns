@@ -154,8 +154,11 @@ def unmount(**params) -> bool:
                 print("[ERROR] Failed to approach portafilter")
                 return False
             print("   ✅ Successfully approached portafilter")
+
+            run_skill("sync")
         else:
             print("   ⏭️ Skipping approach step for port_2")
+        
         
         mount_result = run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])
         

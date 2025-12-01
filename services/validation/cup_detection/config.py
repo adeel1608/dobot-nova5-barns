@@ -101,7 +101,7 @@ SAUCE_ROI_POLYGON = np.array([
 ], dtype=np.int32)
 
 SAUCE_CUP_POSITIONS = [
-    (684, 196)
+    (684, 184)
 ]
 
 # --- Per-dispenser debug folders ---

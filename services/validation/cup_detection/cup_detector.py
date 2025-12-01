@@ -354,10 +354,16 @@ class RFDETRDetector:
         # History
         self.history = {k: deque(maxlen=self.config.history_size) for k in range(4)}
 
-        # Debug frame saving setup
+        # Debug frame saving setup with separate counters for each detection type
         if self.config.debug_mode or self.config.save_frames:
             os.makedirs(self.config.debug_folder, exist_ok=True)
-            self._frame_count = 0
+            self._frame_count_station = 0
+            self._frame_count_milk = 0
+            self._frame_count_sauce = 0
+        
+        # Track last processed frame to avoid processing same frame multiple times
+        self._last_frame_id = None
+        self._last_frame_timestamp = 0.0
 
         # Build name->id map for class filtering (supports dict or list)
         if isinstance(COCO_CLASSES, dict):
@@ -405,7 +411,7 @@ class RFDETRDetector:
             pass
 
     def _save_debug_frame(self, frame, bboxes=None, positions=None, all_dets=None, cup_assign=None, 
-                          roi_poly=None, debug_folder=None, label_prefix="", filtered_dets=None):
+                          roi_poly=None, debug_folder=None, label_prefix="", filtered_dets=None, frame_count=0):
         """Generic debug frame saving with configurable parameters"""
         if not (self.config.debug_mode or self.config.save_frames): 
             return
@@ -446,9 +452,9 @@ class RFDETRDetector:
                     # Draw distance threshold circle
                     cv2.circle(dbg,(x,y),int(self.config.max_cup_distance),(200,200,200),1)
             
-            # Add timestamp and frame info
+            # Add timestamp and frame info (use passed frame_count)
             ts = time.strftime("%H:%M:%S")
-            cv2.putText(dbg,f"{label_prefix}Frame {getattr(self,'_frame_count',0)} - {ts}",(10,30),
+            cv2.putText(dbg,f"{label_prefix}Frame {frame_count} - {ts}",(10,30),
                        cv2.FONT_HERSHEY_SIMPLEX,0.7,(255,255,255),2)
             
             # Save to debug folder (overwrites each time)
@@ -460,7 +466,8 @@ class RFDETRDetector:
 
     # --------------- Generic Detection Method ---------------
     def _detect_generic(self, roi_polygon, cup_positions, debug_folder=None, label_prefix="", 
-                        return_dict=True, num_positions=4, max_distance=None, allowed_classes=_SENTINEL_ALLOWED_CLASSES):
+                        return_dict=True, num_positions=4, max_distance=None, allowed_classes=_SENTINEL_ALLOWED_CLASSES,
+                        frame_count=0, wait_for_new_frame=False):
         """
         Generic detection method used by all detection functions.
         
@@ -473,6 +480,8 @@ class RFDETRDetector:
             num_positions: Number of cup positions (4 for station, 1 for milk/sauce)
             max_distance: Maximum distance for cup assignment (uses config default if None)
             allowed_classes: List of class names to allow (None = all classes)
+            frame_count: Frame counter for debug labeling
+            wait_for_new_frame: If True, wait for a new frame if same frame as last call
             
         Returns:
             dict {0: bool, 1: bool, ...} or bool or {"error": "..."}
@@ -481,6 +490,28 @@ class RFDETRDetector:
             frame = self.reader.get_latest()
             if frame is None:
                 return {"error": "No frame available yet."}
+            
+            # Generate frame ID based on frame content (hash of first row for speed)
+            # This helps detect when back-to-back calls are processing the same frame
+            if frame is not None and frame.size > 0:
+                frame_id = hash(frame[0].tobytes())
+                
+                # If wait_for_new_frame is True and this is the same frame as last time, wait briefly for new frame
+                if wait_for_new_frame and frame_id == self._last_frame_id:
+                    max_wait = 0.5  # Max 500ms wait for new frame
+                    wait_start = time.time()
+                    while (time.time() - wait_start) < max_wait:
+                        time.sleep(0.05)  # Wait 50ms
+                        new_frame = self.reader.get_latest()
+                        if new_frame is not None and new_frame.size > 0:
+                            new_frame_id = hash(new_frame[0].tobytes())
+                            if new_frame_id != frame_id:
+                                frame = new_frame
+                                frame_id = new_frame_id
+                                break
+                
+                self._last_frame_id = frame_id
+                self._last_frame_timestamp = time.time()
 
             orig_h, orig_w = frame.shape[:2]
             
@@ -605,7 +636,8 @@ class RFDETRDetector:
                 if self.config.debug_mode or self.config.save_frames:
                     self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
                                           all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
-                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets,
+                                          frame_count=frame_count)
                 return {i: False for i in range(num_positions)} if return_dict else False
 
             # NMS
@@ -625,7 +657,8 @@ class RFDETRDetector:
                 if self.config.debug_mode or self.config.save_frames:
                     self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
                                           all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
-                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets,
+                                          frame_count=frame_count)
                 return {i: False for i in range(num_positions)} if return_dict else False
 
             # Size & aspect filters
@@ -650,7 +683,8 @@ class RFDETRDetector:
                 if self.config.debug_mode or self.config.save_frames:
                     self._save_debug_frame(resized_frame, bboxes=[], positions=[(int(x), int(y)) for x, y in cups_resized],
                                           all_dets=all_dets_list, cup_assign={}, roi_poly=roi_poly_resized,
-                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets)
+                                          debug_folder=debug_folder, label_prefix=label_prefix, filtered_dets=filtered_dets,
+                                          frame_count=frame_count)
                 return {i: False for i in range(num_positions)} if return_dict else False
 
             # ROI overlap filter
@@ -745,7 +779,8 @@ class RFDETRDetector:
                 
                 self._save_debug_frame(resized_frame, bboxes_list, positions_list, all_dets_list, cup_assign,
                                       roi_poly=roi_poly_resized, debug_folder=debug_folder,
-                                      label_prefix=label_prefix, filtered_dets=filtered_dets)
+                                      label_prefix=label_prefix, filtered_dets=filtered_dets,
+                                      frame_count=frame_count)
 
             return result
 
@@ -770,7 +805,7 @@ class RFDETRDetector:
         
         # Increment frame count for debug
         if self.config.debug_mode or self.config.save_frames:
-            self._frame_count += 1
+            self._frame_count_station += 1
         
         # Use generic detection method (station uses all classes)
         present = self._detect_generic(
@@ -780,7 +815,9 @@ class RFDETRDetector:
             label_prefix="",
             return_dict=True,
             num_positions=4,
-            allowed_classes=self.config.station_allowed_classes
+            allowed_classes=self.config.station_allowed_classes,
+            frame_count=self._frame_count_station if (self.config.debug_mode or self.config.save_frames) else 0,
+            wait_for_new_frame=False  # Station detection doesn't wait
         )
         
         # Apply voting/history if it's a valid result
@@ -831,9 +868,9 @@ class RFDETRDetector:
         Milk dispenser detection using MILK_ROI_POLYGON and MILK_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
-        # Increment frame count for debug (just like station detection)
+        # Increment frame count for debug (separate counter for milk)
         if self.config.debug_mode or self.config.save_frames:
-            self._frame_count += 1
+            self._frame_count_milk += 1
         
         # Debug: log which ROI is being used
         if self.config.debug_mode:
@@ -848,7 +885,9 @@ class RFDETRDetector:
             label_prefix="Milk ",
             return_dict=False,
             num_positions=1,
-            allowed_classes=self.config.milk_allowed_classes
+            allowed_classes=self.config.milk_allowed_classes,
+            frame_count=self._frame_count_milk if (self.config.debug_mode or self.config.save_frames) else 0,
+            wait_for_new_frame=True  # Wait for new frame to avoid processing same frame as station
         )
 
     # --------------- Sauce Detection Method ---------------
@@ -857,9 +896,9 @@ class RFDETRDetector:
         Sauce dispenser detection using SAUCE_ROI_POLYGON and SAUCE_CUP_POSITIONS
         Returns: bool or {"error": "..."}
         """
-        # Increment frame count for debug (just like station detection)
+        # Increment frame count for debug (separate counter for sauce)
         if self.config.debug_mode or self.config.save_frames:
-            self._frame_count += 1
+            self._frame_count_sauce += 1
         
         return self._detect_generic(
             roi_polygon=self.config.sauce_roi_polygon,
@@ -868,7 +907,9 @@ class RFDETRDetector:
             label_prefix="Sauce ",
             return_dict=False,
             num_positions=1,
-            allowed_classes=self.config.sauce_allowed_classes
+            allowed_classes=self.config.sauce_allowed_classes,
+            frame_count=self._frame_count_sauce if (self.config.debug_mode or self.config.save_frames) else 0,
+            wait_for_new_frame=True  # Wait for new frame to avoid processing same frame as station/milk
         )
 
 

@@ -125,34 +125,60 @@ class RabbitMQClient:
         raise last_exception
         
     async def connect(self):
-        """Establish connection to RabbitMQ"""
+        """Establish connection to RabbitMQ with reconnection callbacks"""
         try:
-            self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
-            self.channel = await self.connection.channel()
-            
-            # Declare main exchange for service communication
-            self.exchange = await self.channel.declare_exchange(
-                "barns_services", ExchangeType.TOPIC, durable=True
+            self.connection = await aio_pika.connect_robust(
+                self.rabbitmq_url,
+                reconnect_interval=5,
+                fail_fast=False
             )
             
-            # Create response queue for RPC-style communication
-            self.response_queue = await self.channel.declare_queue(
-                f"{self.service_name}_responses", durable=True, auto_delete=False
-            )
-            await self.response_queue.consume(self._handle_response)
+            # Set up reconnection callback to re-establish consumers
+            self.connection.reconnect_callbacks.add(self._on_reconnect)
             
-            # Create service-specific queue for incoming requests
-            service_queue = await self.channel.declare_queue(
-                f"{self.service_name}_requests", durable=True
-            )
-            await service_queue.bind(self.exchange, f"{self.service_name}.*")
-            await service_queue.consume(self._handle_request)
+            # Initialize channel and consumers
+            await self._setup_channel()
             
             self.logger.info(f"RabbitMQ connected for service: {self.service_name}")
             
         except Exception as e:
             self.logger.error(f"Failed to connect to RabbitMQ: {e}")
             raise
+    
+    async def _on_reconnect(self, connection):
+        """Callback when connection is re-established after failure"""
+        self.logger.info(f"🔄 {self.service_name} RabbitMQ reconnected - re-establishing channel and consumers")
+        try:
+            await self._setup_channel()
+            self.logger.info(f"✅ {self.service_name} Channel and consumers re-established successfully")
+        except Exception as e:
+            self.logger.error(f"❌ {self.service_name} Failed to re-establish channel after reconnection: {e}")
+            raise
+    
+    async def _setup_channel(self):
+        """Set up channel, exchange, queues, and consumers"""
+        # Create channel
+        self.channel = await self.connection.channel()
+        
+        # Declare main exchange for service communication
+        self.exchange = await self.channel.declare_exchange(
+            "barns_services", ExchangeType.TOPIC, durable=True
+        )
+        
+        # Create response queue for RPC-style communication
+        self.response_queue = await self.channel.declare_queue(
+            f"{self.service_name}_responses", durable=True, auto_delete=False
+        )
+        await self.response_queue.consume(self._handle_response)
+        
+        # Create service-specific queue for incoming requests
+        service_queue = await self.channel.declare_queue(
+            f"{self.service_name}_requests", durable=True
+        )
+        await service_queue.bind(self.exchange, f"{self.service_name}.*")
+        await service_queue.consume(self._handle_request)
+        
+        self.logger.info(f"✅ {self.service_name} Channel, queues, and consumers configured")
     
     async def disconnect(self):
         """Close RabbitMQ connection"""
@@ -409,6 +435,7 @@ class EventListener:
         self.channel = None
         self.exchange = None
         self.event_handlers = {}
+        self.event_patterns = []  # Store patterns for reconnection
         self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 
         # Setup logging
@@ -427,19 +454,19 @@ class EventListener:
         logging.getLogger('aiormq.connection').setLevel(logging.WARNING)
     
     async def connect(self):
-        """Connect to RabbitMQ for event listening"""
+        """Connect to RabbitMQ for event listening with reconnection support"""
         try:
-            self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
-            self.channel = await self.connection.channel()
-            
-            self.exchange = await self.channel.declare_exchange(
-                "barns_services", ExchangeType.TOPIC, durable=True
+            self.connection = await aio_pika.connect_robust(
+                self.rabbitmq_url,
+                reconnect_interval=5,
+                fail_fast=False
             )
             
-            # Create event queue
-            event_queue = await self.channel.declare_queue(
-                f"{self.service_name}_events", durable=True
-            )
+            # Set up reconnection callback
+            self.connection.reconnect_callbacks.add(self._on_reconnect)
+            
+            # Initialize channel and queues
+            await self._setup_channel()
             
             self.logger.info(f"Event listener connected for service: {self.service_name}")
             
@@ -447,8 +474,41 @@ class EventListener:
             self.logger.error(f"Failed to connect event listener: {e}")
             raise
     
+    async def _on_reconnect(self, connection):
+        """Callback when connection is re-established"""
+        self.logger.info(f"🔄 {self.service_name} Event listener reconnected - re-establishing channel")
+        try:
+            await self._setup_channel()
+            # Re-subscribe to event patterns if they were previously set
+            if self.event_patterns:
+                self.logger.info(f"🔄 {self.service_name} Re-subscribing to {len(self.event_patterns)} event patterns")
+                await self.subscribe_to_events(self.event_patterns)
+            self.logger.info(f"✅ {self.service_name} Event listener channel re-established")
+        except Exception as e:
+            self.logger.error(f"❌ {self.service_name} Failed to re-establish event listener channel: {e}")
+            raise
+    
+    async def _setup_channel(self):
+        """Set up channel and exchange (consumers set up separately via subscribe_to_events)"""
+        self.channel = await self.connection.channel()
+        
+        self.exchange = await self.channel.declare_exchange(
+            "barns_services", ExchangeType.TOPIC, durable=True
+        )
+        
+        # Create event queue
+        event_queue = await self.channel.declare_queue(
+            f"{self.service_name}_events", durable=True
+        )
+        
+        self.logger.info(f"✅ {self.service_name} Event listener channel and queue configured")
+    
     async def subscribe_to_events(self, event_patterns: list):
         """Subscribe to specific event patterns"""
+        # Store patterns for reconnection
+        if not self.event_patterns:
+            self.event_patterns = event_patterns
+        
         event_queue = await self.channel.declare_queue(
             f"{self.service_name}_events", durable=True
         )

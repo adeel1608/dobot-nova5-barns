@@ -433,6 +433,7 @@ class ValidationServiceApp:
         Handle milk dispenser cup detection - expects cup to be PRESENT.
         Returns passed=True if cup IS detected, passed=False if cup is NOT detected.
         """
+        time.sleep(5)
         try:
             log("INFO", f"Processing milk_cup_detection_present request: {data.get('request_id', 'no-id')}", service="validation")
             
@@ -506,6 +507,7 @@ class ValidationServiceApp:
         Handle sauce dispenser cup detection - expects cup to be PRESENT.
         Returns passed=True if cup IS detected, passed=False if cup is NOT detected.
         """
+        time.sleep(5)
         try:
             log("INFO", f"Processing sauce_cup_detection_present request: {data.get('request_id', 'no-id')}", service="validation")
             
