@@ -413,7 +413,7 @@ MILK_FROTHER_SPEEDS = {
     'swirl': SPEED_CAREFUL,              # Speed for swirling milk
     'pour_approach': SPEED_POUR_APPROACH,  # Speed for approaching pour position
     'pour': SPEED_PRECISE_POURING,       # Speed for pouring milk
-    'return': SPEED_NORMAL,              # Speed for returning frother
+    'return': SPEED_FAST,              # Speed for returning frother
 }
 
 MILK_FROTHER_GRIPPER_POSITIONS = {
