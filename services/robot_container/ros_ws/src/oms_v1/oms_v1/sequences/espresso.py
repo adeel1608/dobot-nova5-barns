@@ -154,6 +154,7 @@ def unmount(**params) -> bool:
                 print("[ERROR] Failed to approach portafilter")
                 return False
             print("   ✅ Successfully approached portafilter")
+            run_skill("sync")
         else:
             print("   ⏭️ Skipping approach step for port_2")
         
