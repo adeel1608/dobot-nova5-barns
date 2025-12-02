@@ -312,11 +312,11 @@ function OrderQueue({ connectionStatus }) {
     
     if (stoppingOrders.length > 0) {
       console.log('📡 Active STOPPING/PROCESSING orders detected, enabling fast polling');
-      // Poll every 2 seconds while there are active stopping/processing orders
+      // Poll every 1 second while there are active stopping/processing orders
       const interval = setInterval(() => {
         console.log('🔄 Polling for order updates (STOPPING/PROCESSING active)');
         fetchOrders();
-      }, 2000);
+      }, 1000); // Changed from 2000ms to 1000ms for faster updates
       
       return () => {
         console.log('📡 Stopping fast polling');
@@ -395,10 +395,9 @@ function OrderQueue({ connectionStatus }) {
       console.log('🛑 stopOrder returned:', success);
       
       if (success) {
-        console.log(`✅ Order ${orderId} stopped successfully`);
-        setTimeout(() => {
-          setStoppingOrderId(null);
-        }, 1000);
+        console.log(`✅ Order ${orderId} stop command sent successfully`);
+        // Clear the stopping state immediately - the order status will be managed by the store
+        setStoppingOrderId(null);
       } else {
         console.error(`❌ Failed to stop order ${orderId}`);
         setStoppingOrderId(null);

@@ -110,14 +110,6 @@ class RobotContainerService:
         """Internal method to start service components with connection monitoring."""
         try:
             from shared.rabbitmq_client import RabbitMQClient
-            
-            # Create new client instance
-            if self.rabbitmq_client:
-                try:
-                    await self.rabbitmq_client.disconnect()
-                except:
-                    pass
-            
             self.rabbitmq_client = RabbitMQClient(self.service_name)
 
             # Retry connection logic for RabbitMQ with infinite retries
@@ -135,7 +127,7 @@ class RobotContainerService:
                     await asyncio.sleep(10)
                     # Continue loop - never give up!
             
-            # Register handlers after successful connection
+            # Register handlers
             self.rabbitmq_client.register_handler("execute_action", self.handle_execute_action)
             self.rabbitmq_client.register_handler("list_actions", self.handle_list_actions)
             self.rabbitmq_client.register_handler("health", self.handle_health)
@@ -145,59 +137,14 @@ class RobotContainerService:
 
             # Monitor connection health with periodic checks
             try:
-                health_check_interval = 30
-                consecutive_failures = 0
-                max_failures = 3
-                
                 while True:
-                    await asyncio.sleep(health_check_interval)
+                    # Check if connection is still alive
+                    if not self.rabbitmq_client or not hasattr(self.rabbitmq_client, 'connection'):
+                        logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ connection lost!")
+                        raise ConnectionError("RabbitMQ connection lost")
                     
-                    # Perform comprehensive health check
-                    try:
-                        # Check if client exists
-                        if not self.rabbitmq_client:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ client object missing")
-                            raise ConnectionError("RabbitMQ client object missing")
-                        
-                        # Check if connection exists and is not closed
-                        if not self.rabbitmq_client.connection or self.rabbitmq_client.connection.is_closed:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ connection is closed or missing")
-                            raise ConnectionError("RabbitMQ connection is closed or missing")
-                        
-                        # Check if channel exists and is not closed
-                        if not self.rabbitmq_client.channel or self.rabbitmq_client.channel.is_closed:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ channel is closed or missing")
-                            raise ConnectionError("RabbitMQ channel is closed or missing")
-                        
-                        # Verify exchange exists
-                        if not self.rabbitmq_client.exchange:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ exchange is missing")
-                            raise ConnectionError("RabbitMQ exchange is missing")
-                        
-                        # Verify queues exist
-                        if not self.rabbitmq_client.response_queue:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ response queue is missing")
-                            raise ConnectionError("RabbitMQ response queue is missing")
-                        
-                        # Connection appears healthy
-                        if consecutive_failures > 0:
-                            logger.info(f"✅ [ROBOT-{self.robot_id}] Connection health check passed after previous failures")
-                        consecutive_failures = 0
-                        
-                    except ConnectionError as ce:
-                        consecutive_failures += 1
-                        logger.error(f"❌ [ROBOT-{self.robot_id}] Health check failed ({consecutive_failures}/{max_failures}): {ce}")
-                        
-                        if consecutive_failures >= max_failures:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] Max consecutive health check failures reached - triggering reconnection")
-                            raise
-                    except Exception as e:
-                        consecutive_failures += 1
-                        logger.error(f"❌ [ROBOT-{self.robot_id}] Unexpected error in health check ({consecutive_failures}/{max_failures}): {e}")
-                        
-                        if consecutive_failures >= max_failures:
-                            logger.error(f"❌ [ROBOT-{self.robot_id}] Max consecutive health check failures reached - triggering reconnection")
-                            raise ConnectionError(f"Health check failed: {e}")
+                    # Wait a bit before next health check
+                    await asyncio.sleep(30)  # Check every 30 seconds
                     
             except KeyboardInterrupt:
                 logger.info(f"⚠️ [ROBOT-{self.robot_id}] Shutting down robot container service...")
