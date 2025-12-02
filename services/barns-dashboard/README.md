@@ -207,6 +207,16 @@ ws.onmessage = (event) => {
 };
 ```
 
+#### Order Status Polling
+
+For critical order status changes (STOPPING, PROCESSING), the dashboard implements aggressive polling:
+
+- **Fast Polling**: 1-second intervals when STOPPING/PROCESSING orders exist
+- **Immediate Refresh**: Multiple fetches after stop command (0ms, 1s, 2s)
+- **WebSocket Fallback**: Ensures UI updates even if WebSocket events are delayed
+
+This multi-layer approach ensures order status changes are reflected immediately in the UI without requiring page refresh.
+
 #### Socket.IO (Alternative)
 
 ```javascript

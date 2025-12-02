@@ -529,10 +529,18 @@ export const useDashboardStore = create((set, get) => {
     if (result.success) {
       // Removed verbose INFO log - only log errors
       
-      // Refresh orders to get the actual state from backend
+      // Immediately refresh to get the actual state, then poll to catch the STOPPED status
+      await get().fetchOrders();
+      
+      // Poll again after 1 second to catch the transition to STOPPED
       setTimeout(async () => {
         await get().fetchOrders();
-      }, 500);
+      }, 1000);
+      
+      // And once more after 2 seconds to ensure we catch it
+      setTimeout(async () => {
+        await get().fetchOrders();
+      }, 2000);
     } else {
       addLog('API', 'error', result.error, result.details);
       // Revert optimistic update on failure
