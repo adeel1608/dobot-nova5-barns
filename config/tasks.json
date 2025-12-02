@@ -321,11 +321,6 @@
         }
       },
       {
-        "type": "validation",
-        "function": "milk_cup_detection_present",
-        "params": {}
-      },
-      {
         "type": "automation",
         "function": "dispense_milk",
         "params": {}

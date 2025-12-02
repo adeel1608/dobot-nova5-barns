@@ -20,11 +20,6 @@
   "Dispense Sauce": {
     "steps": [
       {
-        "type": "validation",
-        "function": "sauce_cup_detection_present",
-        "params": {}
-      },
-      {
         "type": "automation",
         "function": "dispense_sauce",
         "params": {}
@@ -324,11 +319,6 @@
         "function": "place_frother_milk_station",
         "params": {
         }
-      },
-      {
-        "type": "validation",
-        "function": "milk_cup_detection_present",
-        "params": {}
       },
       {
         "type": "automation",

@@ -266,6 +266,14 @@ class RFDETRDetector:
         self.config = Config(mod)
         self.config_path = config_path  # Store for path resolution
 
+        # Thread lock for detection operations to prevent concurrent access issues
+        # This ensures only one detection runs at a time (station, milk, or sauce)
+        self._detection_lock = threading.Lock()
+        
+        # Frame tracking to prevent processing the same stale frame
+        self._last_processed_frame_ts = 0.0
+        self._min_frame_interval = 0.05  # Minimum 50ms between processing same frame
+
         # Convert relative debug folder paths to absolute paths
         config_dir = os.path.dirname(os.path.abspath(self.config_path))
         
@@ -463,6 +471,7 @@ class RFDETRDetector:
                         return_dict=True, num_positions=4, max_distance=None, allowed_classes=_SENTINEL_ALLOWED_CLASSES):
         """
         Generic detection method used by all detection functions.
+        Thread-safe: uses lock to prevent concurrent access issues.
         
         Args:
             roi_polygon: ROI polygon for filtering
@@ -477,10 +486,49 @@ class RFDETRDetector:
         Returns:
             dict {0: bool, 1: bool, ...} or bool or {"error": "..."}
         """
+        # Acquire lock to prevent concurrent detection calls
+        # This ensures only one detection (station/milk/sauce) runs at a time
+        lock_acquired = self._detection_lock.acquire(blocking=False)
+        if not lock_acquired:
+            # Another detection is in progress, wait for it
+            shared_log("DEBUG", f"{label_prefix}Detection waiting for lock (another detection in progress)", service="validation")
+            self._detection_lock.acquire(blocking=True)
+        
         try:
+            return self._detect_generic_impl(roi_polygon, cup_positions, debug_folder, label_prefix,
+                                             return_dict, num_positions, max_distance, allowed_classes)
+        finally:
+            self._detection_lock.release()
+    
+    def _detect_generic_impl(self, roi_polygon, cup_positions, debug_folder=None, label_prefix="", 
+                             return_dict=True, num_positions=4, max_distance=None, allowed_classes=_SENTINEL_ALLOWED_CLASSES):
+        """
+        Internal implementation of generic detection (called with lock held).
+        """
+        detection_start = time.monotonic()
+        try:
+            # Wait for a fresh frame if we just processed one
+            # This prevents back-to-back calls from using the same stale frame
+            current_frame_ts = self.reader.last_frame_ts
+            if current_frame_ts > 0 and current_frame_ts == self._last_processed_frame_ts:
+                # Same frame as last detection, wait briefly for a new one
+                shared_log("DEBUG", f"{label_prefix}Waiting for fresh frame (last frame ts: {current_frame_ts:.3f})", service="validation")
+                wait_start = time.monotonic()
+                max_wait = 0.2  # Maximum 200ms wait for new frame
+                while (time.monotonic() - wait_start) < max_wait:
+                    time.sleep(0.02)  # 20ms polling interval
+                    if self.reader.last_frame_ts != current_frame_ts:
+                        shared_log("DEBUG", f"{label_prefix}Got fresh frame after {(time.monotonic() - wait_start)*1000:.1f}ms", service="validation")
+                        break
+                else:
+                    shared_log("DEBUG", f"{label_prefix}Proceeding with same frame after {max_wait*1000:.0f}ms timeout", service="validation")
+            
             frame = self.reader.get_latest()
             if frame is None:
                 return {"error": "No frame available yet."}
+            
+            # Update last processed frame timestamp
+            self._last_processed_frame_ts = self.reader.last_frame_ts
 
             orig_h, orig_w = frame.shape[:2]
             
@@ -747,10 +795,15 @@ class RFDETRDetector:
                                       roi_poly=roi_poly_resized, debug_folder=debug_folder,
                                       label_prefix=label_prefix, filtered_dets=filtered_dets)
 
+            # Log detection completion time
+            elapsed_ms = (time.monotonic() - detection_start) * 1000
+            shared_log("DEBUG", f"{label_prefix}Detection completed in {elapsed_ms:.1f}ms", service="validation")
+            
             return result
 
-        except Exception:
-            shared_log("ERROR", f"{label_prefix}detect() failure", service="validation")
+        except Exception as e:
+            elapsed_ms = (time.monotonic() - detection_start) * 1000
+            shared_log("ERROR", f"{label_prefix}detect() failure after {elapsed_ms:.1f}ms: {e}", service="validation")
             return {"error": f"Internal error during {label_prefix}detect()."}
 
     # --------------- Detection Methods ---------------
