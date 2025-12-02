@@ -20,11 +20,6 @@
   "Dispense Sauce": {
     "steps": [
       {
-        "type": "validation",
-        "function": "sauce_cup_detection_present",
-        "params": {}
-      },
-      {
         "type": "automation",
         "function": "dispense_sauce",
         "params": {}
