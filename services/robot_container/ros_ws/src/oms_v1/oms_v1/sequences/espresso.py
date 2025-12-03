@@ -163,6 +163,7 @@ def unmount(**params) -> bool:
             print("[ERROR] Failed to mount to portafilter")
             return False
         print("   ✅ Successfully mounted to portafilter")
+        run_skill("sync")
 
         # Step 4: Close gripper to secure portafilter
         print("🤏 Step 4/13: Securing portafilter with gripper...")
@@ -171,8 +172,6 @@ def unmount(**params) -> bool:
             print("[ERROR] Failed to close gripper")
             return False
         print("   ✅ Gripper closed successfully")
-
-        run_skill("set_speed_factor", SPEED_FAST)
         
         # Step 5: Release tension for smooth operation
         print("😌 Step 5/13: Releasing tension...")
