@@ -154,7 +154,6 @@ def unmount(**params) -> bool:
                 print("[ERROR] Failed to approach portafilter")
                 return False
             print("   ✅ Successfully approached portafilter")
-            run_skill("sync")
         else:
             print("   ⏭️ Skipping approach step for port_2")
         
@@ -830,12 +829,6 @@ def mount(**params) -> bool:
 
         else:
             print("   ⏭️ Skipping retreat step for port_2")
-        
-        if port == 'port_3':
-            sync_result = run_skill("sync")
-            if sync_result is False:
-                print("[WARNING] Sync operation failed - continuing...")
-            run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['port_3_retreat'])
 
         # Step 10: Return to espresso home
         print("🏠 Step 10/10: Returning to espresso home...")
