@@ -32,6 +32,11 @@ class RabbitMQClient:
         self.message_handlers = {}
         self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
         
+        # Connection state tracking
+        self.is_connected = False
+        self.is_reconnecting = False
+        self.connection_lost_count = 0
+        
         # Circuit breaker configuration
         self.circuit_state = CircuitState.CLOSED
         self.failure_count = 0
@@ -124,11 +129,27 @@ class RabbitMQClient:
         
         raise last_exception
         
-    async def connect(self):
-        """Establish connection to RabbitMQ"""
+    async def _on_connection_closed(self, connection, exception):
+        """Handle connection closed event"""
+        self.is_connected = False
+        self.connection_lost_count += 1
+        self.logger.warning(f"🔌 {self.service_name} connection closed (count: {self.connection_lost_count}): {exception}")
+        
+    async def _on_connection_reconnected(self, connection):
+        """Handle connection reconnected event"""
+        self.logger.info(f"🔄 {self.service_name} connection reconnected, re-establishing consumers...")
+        await self._setup_consumers()
+        self.is_connected = True
+        self.is_reconnecting = False
+        self.logger.info(f"✅ {self.service_name} consumers re-established after reconnection")
+    
+    async def _setup_consumers(self):
+        """Setup or re-setup channel, exchange, and consumers"""
         try:
-            self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
-            self.channel = await self.connection.channel()
+            # Get or create channel
+            if not self.channel or self.channel.is_closed:
+                self.channel = await self.connection.channel()
+                await self.channel.set_qos(prefetch_count=10)
             
             # Declare main exchange for service communication
             self.exchange = await self.channel.declare_exchange(
@@ -148,10 +169,37 @@ class RabbitMQClient:
             await service_queue.bind(self.exchange, f"{self.service_name}.*")
             await service_queue.consume(self._handle_request)
             
-            self.logger.info(f"RabbitMQ connected for service: {self.service_name}")
+            self.logger.info(f"✅ {self.service_name} consumers setup completed")
             
         except Exception as e:
-            self.logger.error(f"Failed to connect to RabbitMQ: {e}")
+            self.logger.error(f"❌ {self.service_name} failed to setup consumers: {e}")
+            raise
+    
+    async def connect(self):
+        """Establish connection to RabbitMQ with automatic reconnection support"""
+        try:
+            self.logger.info(f"🔌 {self.service_name} connecting to RabbitMQ at {self.rabbitmq_url}")
+            
+            # Connect with robust reconnection
+            self.connection = await aio_pika.connect_robust(
+                self.rabbitmq_url,
+                reconnect_interval=5,
+                fail_fast=False
+            )
+            
+            # Register connection callbacks
+            self.connection.close_callbacks.add(self._on_connection_closed)
+            self.connection.reconnect_callbacks.add(self._on_connection_reconnected)
+            
+            # Setup consumers
+            await self._setup_consumers()
+            
+            self.is_connected = True
+            self.logger.info(f"✅ {self.service_name} RabbitMQ connected successfully")
+            
+        except Exception as e:
+            self.is_connected = False
+            self.logger.error(f"❌ {self.service_name} failed to connect to RabbitMQ: {e}")
             raise
     
     async def disconnect(self):
@@ -290,15 +338,44 @@ class RabbitMQClient:
     
     def get_health_status(self) -> Dict[str, Any]:
         """Get the health status of the RabbitMQ client"""
+        connection_ok = (
+            self.connection is not None and 
+            not self.connection.is_closed and
+            self.is_connected
+        )
+        channel_ok = self.channel is not None and not self.channel.is_closed
+        
         return {
             "service_name": self.service_name,
-            "connected": self.connection is not None and not self.connection.is_closed,
+            "connected": connection_ok,
+            "channel_ready": channel_ok,
+            "is_reconnecting": self.is_reconnecting,
+            "connection_lost_count": self.connection_lost_count,
             "circuit_state": self.circuit_state.value,
             "failure_count": self.failure_count,
             "success_count": self.success_count,
             "pending_requests": len(self.pending_requests),
-            "last_failure_time": self.last_failure_time
+            "last_failure_time": self.last_failure_time,
+            "healthy": connection_ok and channel_ok and not self.is_reconnecting
         }
+    
+    async def verify_connection(self) -> bool:
+        """Actively verify that the connection is working by checking channel"""
+        try:
+            if not self.connection or self.connection.is_closed:
+                self.is_connected = False
+                return False
+            
+            if not self.channel or self.channel.is_closed:
+                self.logger.warning(f"⚠️ {self.service_name} channel is closed, attempting to recreate...")
+                await self._setup_consumers()
+            
+            self.is_connected = True
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ {self.service_name} connection verification failed: {e}")
+            self.is_connected = False
+            return False
     
     async def _handle_request(self, message: AbstractIncomingMessage):
         """Handle incoming requests"""
@@ -409,7 +486,13 @@ class EventListener:
         self.channel = None
         self.exchange = None
         self.event_handlers = {}
+        self.event_patterns = []
+        self.event_queue = None
         self.rabbitmq_url = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        
+        # Connection state tracking
+        self.is_connected = False
+        self.is_reconnecting = False
 
         # Setup logging
         logging.basicConfig(
@@ -426,40 +509,92 @@ class EventListener:
         logging.getLogger('aiormq').setLevel(logging.WARNING)
         logging.getLogger('aiormq.connection').setLevel(logging.WARNING)
     
-    async def connect(self):
-        """Connect to RabbitMQ for event listening"""
+    async def _on_connection_closed(self, connection, exception):
+        """Handle connection closed event"""
+        self.is_connected = False
+        self.logger.warning(f"🔌 {self.service_name} event listener connection closed: {exception}")
+    
+    async def _on_connection_reconnected(self, connection):
+        """Handle connection reconnected event"""
+        self.logger.info(f"🔄 {self.service_name} event listener reconnected, re-establishing subscriptions...")
+        await self._setup_event_listeners()
+        self.is_connected = True
+        self.is_reconnecting = False
+        self.logger.info(f"✅ {self.service_name} event subscriptions re-established")
+    
+    async def _setup_event_listeners(self):
+        """Setup or re-setup event listeners"""
         try:
-            self.connection = await aio_pika.connect_robust(self.rabbitmq_url)
-            self.channel = await self.connection.channel()
+            # Get or create channel
+            if not self.channel or self.channel.is_closed:
+                self.channel = await self.connection.channel()
             
+            # Declare exchange
             self.exchange = await self.channel.declare_exchange(
                 "barns_services", ExchangeType.TOPIC, durable=True
             )
             
             # Create event queue
-            event_queue = await self.channel.declare_queue(
+            self.event_queue = await self.channel.declare_queue(
                 f"{self.service_name}_events", durable=True
             )
             
-            self.logger.info(f"Event listener connected for service: {self.service_name}")
+            # Re-subscribe to event patterns if we have any
+            if self.event_patterns:
+                for pattern in self.event_patterns:
+                    routing_key_pattern = f"events.{pattern}"
+                    await self.event_queue.bind(self.exchange, routing_key_pattern)
+                    self.logger.info(f"📡 {self.service_name} re-subscribed to events: {pattern}")
+                
+                await self.event_queue.consume(self._handle_event)
+                self.logger.info(f"📡 {self.service_name} consuming events from queue: {self.event_queue.name}")
             
         except Exception as e:
-            self.logger.error(f"Failed to connect event listener: {e}")
+            self.logger.error(f"❌ {self.service_name} failed to setup event listeners: {e}")
+            raise
+    
+    async def connect(self):
+        """Connect to RabbitMQ for event listening with automatic reconnection support"""
+        try:
+            self.logger.info(f"🔌 {self.service_name} event listener connecting to RabbitMQ")
+            
+            self.connection = await aio_pika.connect_robust(
+                self.rabbitmq_url,
+                reconnect_interval=5,
+                fail_fast=False
+            )
+            
+            # Register connection callbacks
+            self.connection.close_callbacks.add(self._on_connection_closed)
+            self.connection.reconnect_callbacks.add(self._on_connection_reconnected)
+            
+            # Setup event listeners
+            await self._setup_event_listeners()
+            
+            self.is_connected = True
+            self.logger.info(f"✅ {self.service_name} event listener connected successfully")
+            
+        except Exception as e:
+            self.is_connected = False
+            self.logger.error(f"❌ {self.service_name} failed to connect event listener: {e}")
             raise
     
     async def subscribe_to_events(self, event_patterns: list):
         """Subscribe to specific event patterns"""
-        event_queue = await self.channel.declare_queue(
-            f"{self.service_name}_events", durable=True
-        )
+        self.event_patterns = event_patterns  # Store for reconnection
+        
+        if not self.event_queue:
+            self.event_queue = await self.channel.declare_queue(
+                f"{self.service_name}_events", durable=True
+            )
         
         for pattern in event_patterns:
             routing_key_pattern = f"events.{pattern}"
-            await event_queue.bind(self.exchange, routing_key_pattern)
+            await self.event_queue.bind(self.exchange, routing_key_pattern)
             self.logger.info(f"📡 {self.service_name} subscribed to events: {pattern} (routing_key: {routing_key_pattern})")
         
-        self.logger.info(f"📡 {self.service_name} consuming events from queue: {event_queue.name}")
-        await event_queue.consume(self._handle_event)
+        self.logger.info(f"📡 {self.service_name} consuming events from queue: {self.event_queue.name}")
+        await self.event_queue.consume(self._handle_event)
     
     def register_event_handler(self, event_type: str, handler: Callable):
         """Register an event handler"""
@@ -548,8 +683,27 @@ class EventListener:
                     except Exception as ack_error:
                         self.logger.error(f"Failed to send error acknowledgment: {ack_error}")
     
+    async def verify_connection(self) -> bool:
+        """Actively verify that the connection is working"""
+        try:
+            if not self.connection or self.connection.is_closed:
+                self.is_connected = False
+                return False
+            
+            if not self.channel or self.channel.is_closed:
+                self.logger.warning(f"⚠️ {self.service_name} event listener channel is closed, attempting to recreate...")
+                await self._setup_event_listeners()
+            
+            self.is_connected = True
+            return True
+        except Exception as e:
+            self.logger.error(f"❌ {self.service_name} event listener connection verification failed: {e}")
+            self.is_connected = False
+            return False
+    
     async def disconnect(self):
         """Close connection"""
         if self.connection:
             await self.connection.close()
+            self.is_connected = False
             self.logger.info(f"Event listener disconnected for service: {self.service_name}")

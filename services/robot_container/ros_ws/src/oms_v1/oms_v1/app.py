@@ -137,20 +137,62 @@ class RobotContainerService:
 
             # Monitor connection health with periodic checks
             try:
+                check_interval = 15  # Check every 15 seconds
+                consecutive_failures = 0
+                max_consecutive_failures = 3
+                
                 while True:
-                    # Check if connection is still alive
-                    if not self.rabbitmq_client or not hasattr(self.rabbitmq_client, 'connection'):
-                        logger.error(f"❌ [ROBOT-{self.robot_id}] RabbitMQ connection lost!")
-                        raise ConnectionError("RabbitMQ connection lost")
+                    # Wait before next health check
+                    await asyncio.sleep(check_interval)
                     
-                    # Wait a bit before next health check
-                    await asyncio.sleep(30)  # Check every 30 seconds
+                    # Verify connection is actually working
+                    try:
+                        is_connected = await self.rabbitmq_client.verify_connection()
+                        
+                        if not is_connected:
+                            consecutive_failures += 1
+                            logger.warning(
+                                f"⚠️ [ROBOT-{self.robot_id}] Connection verification failed "
+                                f"({consecutive_failures}/{max_consecutive_failures})"
+                            )
+                            
+                            if consecutive_failures >= max_consecutive_failures:
+                                logger.error(
+                                    f"❌ [ROBOT-{self.robot_id}] Connection verification failed "
+                                    f"{consecutive_failures} times - triggering reconnection"
+                                )
+                                raise ConnectionError("Connection verification failed multiple times")
+                        else:
+                            # Reset failure count on successful verification
+                            if consecutive_failures > 0:
+                                logger.info(
+                                    f"✅ [ROBOT-{self.robot_id}] Connection verification successful, "
+                                    f"resetting failure count"
+                                )
+                            consecutive_failures = 0
+                            
+                            # Periodic health status log
+                            health = self.rabbitmq_client.get_health_status()
+                            if not health.get('healthy', False):
+                                logger.warning(
+                                    f"⚠️ [ROBOT-{self.robot_id}] Unhealthy status: {health}"
+                                )
+                    
+                    except Exception as verify_error:
+                        consecutive_failures += 1
+                        logger.error(
+                            f"❌ [ROBOT-{self.robot_id}] Error during connection verification: {verify_error} "
+                            f"({consecutive_failures}/{max_consecutive_failures})"
+                        )
+                        
+                        if consecutive_failures >= max_consecutive_failures:
+                            raise ConnectionError(f"Connection verification error: {verify_error}")
                     
             except KeyboardInterrupt:
                 logger.info(f"⚠️ [ROBOT-{self.robot_id}] Shutting down robot container service...")
                 raise
-            except ConnectionError:
-                logger.error(f"❌ [ROBOT-{self.robot_id}] Connection error detected - triggering reconnection")
+            except ConnectionError as e:
+                logger.error(f"❌ [ROBOT-{self.robot_id}] Connection error detected: {e} - triggering reconnection")
                 raise  # Trigger outer loop reconnection
             except Exception as e:
                 logger.error(f"❌ [ROBOT-{self.robot_id}] Unexpected error in service loop: {e}")
@@ -296,16 +338,22 @@ class RobotContainerService:
     
     async def handle_health(self, data: Dict) -> Dict:
         """Handle health check requests."""
+        rabbitmq_health = {}
+        if self.rabbitmq_client:
+            rabbitmq_health = self.rabbitmq_client.get_health_status()
+        
+        is_healthy = rabbitmq_health.get('healthy', False)
+        
         return {
-            "status": "healthy",
+            "status": "healthy" if is_healthy else "degraded",
             "service": self.service_name,
             "robot_id": self.robot_id,
             "available_actions": len(ACTION_MAP),
             "actions_count": len(ACTION_MAP),
             "timestamp": datetime.now().isoformat(),
-            "connection_status": "connected",
-            "ready": True,
-            "healthy": True  # Explicit boolean for easier checking
+            "rabbitmq": rabbitmq_health,
+            "ready": is_healthy,
+            "healthy": is_healthy
         }
 
 async def run_service_mode():
