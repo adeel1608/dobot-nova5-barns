@@ -431,7 +431,7 @@ async def handle_stop_order_mq(data: Dict) -> Dict:
                     target_service="scheduler",
                     action="stop_order",
                     data={"order_id": order_id},
-                    timeout=120  # Increased timeout to allow tasks to complete (up to 2 minutes)
+                    timeout=20  # Reduced from 120s - scheduler now responds quickly with task pause notifications
                 )
                 
                 if response.get("success"):
@@ -1538,7 +1538,7 @@ async def stop_order(order_id: int = Path(..., title="The ID of the order to sto
                 target_service="scheduler",
                 action="stop_order",
                 data={"order_id": order_id},
-                timeout=120  # Increased timeout to allow tasks to complete (up to 2 minutes)
+                timeout=20  # Reduced from 120s - scheduler now responds quickly with task pause notifications
             )
             
             if response.get("success"):

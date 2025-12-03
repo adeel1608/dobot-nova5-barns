@@ -36,6 +36,13 @@ stopped_orders_lock = asyncio.Lock()  # Lock for thread-safe access to stopped_o
 task_progress = {}  # Dict mapping task_key to last completed step index
 task_progress_lock = asyncio.Lock()  # Lock for thread-safe access to task_progress
 
+# VALIDATION FAILURE TRACKING
+# Track which cup_id-function combinations have already triggered validation failure handling
+# This prevents duplicate failure processing if validation is called multiple times
+# Format: set of f"{cup_id}-{function}" strings
+validation_failures_in_progress = set()
+validation_failures_lock = asyncio.Lock()
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -53,6 +60,9 @@ async def mark_order_resumed(order_id: int):
     async with stopped_orders_lock:
         stopped_orders.discard(order_id)
         log("INFO", f"Order {order_id} marked as resumed in routine", service="routine")
+    
+    # Clear validation failure markers so the order can retry validations
+    await clear_order_validation_failures(order_id)
 
 async def is_order_stopped(order_id: int) -> bool:
     """Check if an order is stopped."""
@@ -88,6 +98,37 @@ async def clear_order_progress(order_id: int):
             del task_progress[key]
         if keys_to_remove:
             log("INFO", f"Cleared progress for {len(keys_to_remove)} tasks in order {order_id}", service="routine")
+
+async def mark_validation_failure_in_progress(cup_id: str, function: str) -> bool:
+    """
+    Mark that a validation failure is being processed for a cup_id-function combination.
+    Returns True if this is the first failure (should process), False if already in progress (skip).
+    """
+    failure_key = f"{cup_id}-{function}"
+    async with validation_failures_lock:
+        if failure_key in validation_failures_in_progress:
+            log("WARNING", f"Validation failure already in progress for {failure_key}, skipping duplicate processing", service="routine")
+            return False
+        validation_failures_in_progress.add(failure_key)
+        log("INFO", f"Marked validation failure in progress for {failure_key}", service="routine")
+        return True
+
+async def clear_validation_failure_in_progress(cup_id: str, function: str):
+    """Clear validation failure in-progress marker when task completes or order stops."""
+    failure_key = f"{cup_id}-{function}"
+    async with validation_failures_lock:
+        if failure_key in validation_failures_in_progress:
+            validation_failures_in_progress.discard(failure_key)
+            log("DEBUG", f"Cleared validation failure marker for {failure_key}", service="routine")
+
+async def clear_order_validation_failures(order_id: int):
+    """Clear all validation failure markers for an order (when order is resumed or cancelled)."""
+    async with validation_failures_lock:
+        keys_to_remove = [key for key in validation_failures_in_progress if key.startswith(f"{order_id}-")]
+        for key in keys_to_remove:
+            validation_failures_in_progress.discard(key)
+        if keys_to_remove:
+            log("INFO", f"Cleared {len(keys_to_remove)} validation failure markers for order {order_id}", service="routine")
 
 def extract_order_id_from_cup_id(cup_id: str) -> int:
     """Extract order_id from cup_id format (order_id-cup_index)."""
@@ -173,7 +214,7 @@ async def revert_previous_step_and_stop(cup_id: str, current_action: str, rabbit
                 data={
                     "order_id": order_id
                 },
-                timeout=120  # Increased timeout to allow OMS to wait for tasks to complete
+                timeout=30  # Reduced from 120s - stop process is now much faster with immediate task pause notifications
             )
             
             log("INFO", f"[STOP ORDER] Received response from OMS: {stop_response}", service="routine")
@@ -681,9 +722,19 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                                 log("ERROR", f"Could not extract cup_position from task ingredients for cup {cup_id}", service="routine")
                 
                 if not res.get("passed", False):
-                    # Validation failed - stop order and revert to previous step
+                    # Validation failed - check if we should process this failure or if it's already being handled
                     log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
                     log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
+                    
+                    # Use guard to prevent duplicate processing of same validation failure
+                    should_process = await mark_validation_failure_in_progress(cup_id, function)
+                    
+                    if not should_process:
+                        # This validation failure is already being processed, skip duplicate handling
+                        log("WARNING", f"[VALIDATION FAILED] Duplicate validation failure detected for {function} on cup {cup_id}, skipping duplicate processing", service="routine")
+                        validation_failed_stopped = True
+                        break  # Exit without processing again
+                    
                     log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
                     
                     # Send dashboard message based on validation function mapping
@@ -847,6 +898,9 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         # Clear progress on completion or permanent failure (task won't retry)
         await clear_task_progress(cup_id, function)
         
+        # Clear validation failure marker on completion
+        await clear_validation_failure_in_progress(cup_id, function)
+        
         # all steps done
         if success:
             log("INFO", f"Task completed successfully: {function} for cup {cup_id}", service="routine")
@@ -859,10 +913,49 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
         # When order resumes, THIS task will be retried from the saved checkpoint
         log("INFO", f"Skipping feedback for cup {cup_id} - validation failed, task will resume from checkpoint on order resume", service="routine")
         log("INFO", f"Progress preserved - next execution will skip completed sub-steps", service="routine")
+        # NOTE: Don't clear validation failure marker here - it stays until order is resumed/cancelled
+        
+        # CRITICAL: Notify scheduler immediately that this task is paused (not actively running)
+        # This prevents scheduler from waiting 90 seconds polling for this "submitted" task
+        try:
+            log("INFO", f"Notifying scheduler that task {function} is paused for cup {cup_id}", service="routine")
+            await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="task_paused",
+                data={
+                    "cup_id": cup_id,
+                    "function": function,
+                    "reason": "validation_failed",
+                    "timestamp": datetime.now().isoformat()
+                },
+                timeout=5
+            )
+        except Exception as e:
+            log("WARNING", f"Failed to notify scheduler about paused task: {str(e)[:100]}", service="routine")
     elif order_stopped:
         # Keep progress - task will resume from where it stopped
         log("INFO", f"[STOP DETECTED] Skipping feedback for cup {cup_id} - order stopped, task remains in submitted state for resume", service="routine")
         log("INFO", f"[STOP DETECTED] Progress preserved - will resume from saved checkpoint on order resume", service="routine")
+        # Clear validation failure marker when order stops normally (not due to validation failure)
+        await clear_validation_failure_in_progress(cup_id, function)
+        
+        # CRITICAL: Notify scheduler immediately that this task is paused (not actively running)
+        # This prevents scheduler from waiting 90 seconds polling for this "submitted" task
+        try:
+            log("INFO", f"Notifying scheduler that task {function} is paused for cup {cup_id}", service="routine")
+            await rabbitmq_client.send_request(
+                target_service="scheduler",
+                action="task_paused",
+                data={
+                    "cup_id": cup_id,
+                    "function": function,
+                    "reason": "order_stopped",
+                    "timestamp": datetime.now().isoformat()
+                },
+                timeout=5
+            )
+        except Exception as e:
+            log("WARNING", f"Failed to notify scheduler about paused task: {str(e)[:100]}", service="routine")
     
     # Return task execution status
     return {
