@@ -76,6 +76,7 @@ class SchedulerService:
         self.rabbitmq_client.register_handler("stop_order", self.handle_stop_order)
         self.rabbitmq_client.register_handler("resume_order", self.handle_resume_order)
         self.rabbitmq_client.register_handler("revert_previous_step", self.handle_revert_previous_step)
+        self.rabbitmq_client.register_handler("task_paused", self.handle_task_paused)
         log("DEBUG", "Handlers registered", service="scheduler")
         
         # Register event handlers for the event listener
@@ -435,13 +436,15 @@ class SchedulerService:
                 log("ERROR", f"[STOP ORDER] Failed to notify routine service for order {order_id}: {str(e)[:50]}", service="scheduler")
             
             # Wait for submitted tasks to complete (poll with timeout)
-            max_wait_time = 90  # Maximum 90 seconds to wait
-            wait_interval = 0.5  # Check every 0.5 seconds
+            # Reduced timeout since routine now notifies immediately when tasks pause
+            max_wait_time = 10  # Maximum 10 seconds to wait (reduced from 90)
+            wait_interval = 0.2  # Check every 0.2 seconds for faster response
             elapsed = 0
             
             while elapsed < max_wait_time:
                 with core.lock:
-                    submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
+                    # Only wait for actively submitted tasks, not paused ones
+                    submitted_tasks = [t for t in core.tasks if t.get("status") == "submitted"]
                     if len(submitted_tasks) == 0:
                         log("INFO", f"All submitted tasks completed for stop of order {order_id}", service="scheduler")
                         break
@@ -453,9 +456,17 @@ class SchedulerService:
             
             # Check if we timed out
             with core.lock:
-                submitted_tasks = [t for t in core.tasks if t["status"] == "submitted"]
+                submitted_tasks = [t for t in core.tasks if t.get("status") == "submitted"]
                 if len(submitted_tasks) > 0:
-                    log("ERROR", f"Stop order {order_id} timed out with {len(submitted_tasks)} tasks still submitted", service="scheduler")
+                    log("WARNING", f"Stop order {order_id} timed out with {len(submitted_tasks)} tasks still submitted (forcing stop)", service="scheduler")
+                    # Force mark them as paused since we're stopping anyway
+                    for task in submitted_tasks:
+                        task["status"] = "paused"
+                        # Safely get function and cup_id
+                        task_function = task.get("function", "unknown")
+                        task_item = task.get("item", {})
+                        task_cup_id = task_item.get("cup_id", "unknown") if isinstance(task_item, dict) else "unknown"
+                        log("INFO", f"Force-paused task {task_function} for cup {task_cup_id}", service="scheduler")
             
             # Send stopped event when actually stopped
             try:
@@ -489,6 +500,19 @@ class SchedulerService:
                 core.order_stopped = False
                 core.order_stopped_logged = False  # Reset flag so it can log again if stopped again
                 core.current_status["status"] = "in_progress"
+                
+                # Convert any paused tasks back to pending so they can be retried
+                paused_tasks = [t for t in core.tasks if t.get("status") == "paused"]
+                if paused_tasks:
+                    log("INFO", f"Converting {len(paused_tasks)} paused tasks back to pending for retry", service="scheduler")
+                    for task in paused_tasks:
+                        task["status"] = "pending"
+                        # Safely get function and cup_id
+                        task_function = task.get("function", "unknown")
+                        task_item = task.get("item", {})
+                        task_cup_id = task_item.get("cup_id", "unknown") if isinstance(task_item, dict) else "unknown"
+                        log("DEBUG", f"Converted task {task_function} (cup: {task_cup_id}) from paused to pending", service="scheduler")
+                
                 log("INFO", f"Order {order_id} resumed - workers will continue processing", service="scheduler")
             
             # Notify routine service to resume processing tasks for this order
@@ -536,6 +560,56 @@ class SchedulerService:
             return result
         except Exception as e:
             log("ERROR", f"Revert previous step handler exception: {str(e)[:100]}", service="scheduler")
+            return {"success": False, "error": str(e)}
+    
+    async def handle_task_paused(self, data: Dict) -> Dict:
+        """
+        Handle task paused notification from routine service.
+        
+        When a task is paused (validation failure or order stop), routine notifies scheduler
+        so the stop handler doesn't wait for it. Mark the task as "paused" instead of "submitted".
+        """
+        try:
+            cup_id = data.get("cup_id")
+            function = data.get("function")
+            reason = data.get("reason", "unknown")
+            
+            if not cup_id or not function:
+                return {"success": False, "error": "Missing cup_id or function"}
+            
+            from . import scheduler as core
+            
+            with core.lock:
+                # Find the task - defensive access to dict keys
+                task = None
+                for t in core.tasks:
+                    # Safely get item and function
+                    task_item = t.get("item", {})
+                    task_function = t.get("function", "")
+                    task_cup_id = task_item.get("cup_id", "") if isinstance(task_item, dict) else ""
+                    
+                    if task_cup_id == cup_id and task_function == function:
+                        task = t
+                        break
+                
+                if not task:
+                    log("WARNING", f"Task not found for pause notification: {function} (cup: {cup_id})", service="scheduler")
+                    return {"success": False, "error": "Task not found"}
+                
+                # If task is submitted, mark it as paused so stop handler doesn't wait
+                task_status = task.get("status", "")
+                if task_status == "submitted":
+                    task["status"] = "paused"
+                    log("INFO", f"[TASK PAUSED] Marked task {function} as paused (reason: {reason}) for cup {cup_id}", service="scheduler")
+                else:
+                    log("DEBUG", f"[TASK PAUSED] Task {function} already in status '{task_status}' for cup {cup_id}", service="scheduler")
+            
+            return {"success": True}
+            
+        except Exception as e:
+            import traceback
+            log("ERROR", f"Task paused handler exception: {str(e)[:100]}", service="scheduler")
+            log("ERROR", f"Traceback: {traceback.format_exc()}", service="scheduler")
             return {"success": False, "error": str(e)}
     
     async def handle_task_completed_event(self, data: Dict):
