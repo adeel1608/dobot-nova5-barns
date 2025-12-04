@@ -412,7 +412,7 @@
     {
       "action": "Dispense Ice",
       "assigned_arm": "Arm2",
-      "depends_on": ["Go To Ice"]
+      "depends_on": ["Dispense Plastic Cup"]
     },
     {
       "action": "Go Home With Ice",

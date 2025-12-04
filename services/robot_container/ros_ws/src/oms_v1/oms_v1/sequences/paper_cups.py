@@ -110,7 +110,7 @@ def grab_paper_cup(**params) -> bool:
 
         # Check if a cup is in the gripper
         attempt_count = 0
-        while attempt_count < 3:        
+        while attempt_count < 5:        
             if size == "7oz":
                 twist_back_result = run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_7oz'])
                 if twist_back_result is False:
