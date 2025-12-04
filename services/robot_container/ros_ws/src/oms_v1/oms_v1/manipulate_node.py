@@ -759,7 +759,7 @@ class robot_motion(Node):
             return False
 
         # Retry logic for robustness
-        max_attempts = 3
+        max_attempts = 20
         timeout_sec = 30.0  # Generous timeout for motion completion
         
         for attempt in range(1, max_attempts + 1):

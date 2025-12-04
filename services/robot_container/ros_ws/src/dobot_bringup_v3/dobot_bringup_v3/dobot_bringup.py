@@ -86,12 +86,12 @@ class adderServer(Node):
         Attempt to reconnect to the robot when connection is lost.
         Returns True if reconnection successful, False otherwise.
         """
-        if self.reconnect_attempts >= 5:
-            self.get_logger().error("Maximum reconnection attempts reached (5). Giving up.")
+        if self.reconnect_attempts >= 20:
+            self.get_logger().error("Maximum reconnection attempts reached (20). Giving up.")
             return False
         
         self.reconnect_attempts += 1
-        self.get_logger().warn(f"Attempting to reconnect... (Attempt {self.reconnect_attempts}/5)")
+        self.get_logger().warn(f"Attempting to reconnect... (Attempt {self.reconnect_attempts}/20)")
         
         try:
             # Close existing connections if any

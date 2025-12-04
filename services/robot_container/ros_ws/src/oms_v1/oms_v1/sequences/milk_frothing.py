@@ -10,7 +10,7 @@ steam activation, milk pouring, and cleaning procedures.
 import time
 from typing import Dict, Any, Optional, Tuple
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.home import home
+from oms_v1.sequences.home import home, return_back_to_home
 from oms_v1.params import (
     MILK_FROTHING_PARAMS, MILK_FROTHER_SPEEDS, MILK_FROTHER_GRIPPER_POSITIONS,
     MILK_FROTHER_MOVEMENT_OFFSETS, MILK_POURING_OFFSETS, MILK_FROTHING_DELAYS,
@@ -56,6 +56,7 @@ def get_frother_position(**params) -> bool:
     try:
         print("🎯 Starting milk frother position calibration...")
         print("=" * 50)
+        return_back_to_home()
         
         # Set optimal speed for calibration
         print("⚙️ Setting speed factor for precise calibration...")
