@@ -47,7 +47,7 @@ class RabbitMQClient:
         self.success_count = 0
         
         # Retry configuration
-        self.max_retries = 3
+        self.max_retries = 20
         self.retry_delay = 1.0  # seconds
         self.retry_backoff = 2.0  # exponential backoff multiplier
 

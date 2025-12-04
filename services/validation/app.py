@@ -45,7 +45,7 @@ class ValidationServiceApp:
     
     async def start(self):
         """Start the validation service and register handlers"""
-        max_retries = 5
+        max_retries = 20
         retry_delay = 5  # seconds
 
         for attempt in range(max_retries):

@@ -513,7 +513,7 @@ class DirectTfMotionNode(Node):
         Retries StartDrag/StopDrag up to max_attempts times each, with proper error handling.
         Returns True on full success, False on any failure.
         """
-        max_attempts = 10
+        max_attempts = 20
         timeout_sec = 1.0
         min_wait_sec = 0.2
         settling_time = 0.2
@@ -879,7 +879,7 @@ class DirectTfMotionNode(Node):
                 self.get_logger().warn(f"_execute_approach_motion(): Motion ended with state: {state}")
 
             # Verify arrival within tolerance
-            max_attempts = 10
+            max_attempts = 20
             for attempt in range(max_attempts):
                 if self.verify_goal_pose(expected_goal_pose=position, tolerance=2.0, offset=136.55):
                     return True
@@ -2335,7 +2335,7 @@ class DirectTfMotionNode(Node):
         req.status = status
 
         retry_pause = 0.25
-        max_attempts = 10
+        max_attempts = 20
 
         for attempt in range(1, max_attempts + 1):
             self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")

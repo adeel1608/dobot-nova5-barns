@@ -397,7 +397,7 @@ void OBCameraNodeDriver::initializeDevice(const std::shared_ptr<ob::Device> &dev
     ob_camera_node_.reset();
   }
   int retry_count = 0;
-  constexpr int max_retries = 3;
+  constexpr int max_retries = 20;
   bool initialized = false;
   device_info_ = device_->getDeviceInfo();
   RCLCPP_INFO_STREAM(logger_, "Try to connect device via " << device_info_->connectionType());

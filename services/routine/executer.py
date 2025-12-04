@@ -404,7 +404,7 @@ async def send_feedback_to_scheduler(cup_id: str, action: str, success: bool, ra
         "timestamp": datetime.now().isoformat()
     }
     
-    max_retries = 3
+    max_retries = 20
     retry_delay = 2  # seconds
     
     for attempt in range(max_retries):
@@ -825,7 +825,7 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
                 
                 try:
                     # Add retry logic for robot actions to handle transient failures during parallel execution
-                    max_retries = 2
+                    max_retries = 20
                     retry_delay = 3  # seconds
                     
                     for attempt in range(max_retries):

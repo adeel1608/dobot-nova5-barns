@@ -270,7 +270,7 @@ class DirectTfWaypointsExample(Node):
             return False
 
     def call_capture_point_service_with_retries(self):
-        max_attempts = 15
+        max_attempts = 20
         attempt = 0
         while attempt < max_attempts:
             self.get_logger().info("Calling capture_point service...")

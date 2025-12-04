@@ -91,7 +91,7 @@ def service_caller(
     request,
     service_timeout=0.0,
     call_timeout=10.0,
-    max_attempts=3,
+    max_attempts=20,
 ):
     """
     Abstraction of a service call.

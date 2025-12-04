@@ -146,7 +146,7 @@ class adderServer(Node):
         Returns:
             The result from command_func, or error message if all retries fail
         """
-        max_retries = 2
+        max_retries = 20
         
         for attempt in range(max_retries):
             # Execute the command

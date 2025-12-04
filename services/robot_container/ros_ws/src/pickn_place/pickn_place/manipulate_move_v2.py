@@ -540,7 +540,7 @@ class DirectTfMotionNode(Node):
         and enforces a minimum 0.5 s wait for each StartDrag attempt.
         Returns True on full success, False on any failure.
         """
-        max_attempts   = 10
+        max_attempts   = 20
         timeout_sec    = 1.0
         min_wait_sec   = 0.3
         settling_time  = 0.3
@@ -2169,7 +2169,7 @@ class DirectTfMotionNode(Node):
         req.status = status
 
         retry_pause = 0.25
-        max_attempts = 10
+        max_attempts = 20
 
         for attempt in range(1, max_attempts + 1):
             self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")

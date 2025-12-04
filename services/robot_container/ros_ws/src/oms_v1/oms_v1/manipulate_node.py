@@ -578,7 +578,7 @@ class robot_motion(Node):
     def get_machine_position(
             self,
             target_tf: str,
-            required_samples: int = 10,
+            required_samples: int = 50,
             *,
             acq_timeout: float = 10.0,
             debug: bool = False
@@ -693,7 +693,7 @@ class robot_motion(Node):
 
         import time, rclpy
 
-        max_attempts  = 10
+        max_attempts  = 20
         call_timeout  = 5.0      # seconds to wait for each service reply
         retry_pause   = 0.2     # pause between attempts
 
@@ -834,7 +834,7 @@ class robot_motion(Node):
 
         log           = self.get_logger()
         retry_pause   = 0.25
-        max_attempts  = 5
+        max_attempts  = 20
         call_timeout  = 5.0
 
         # ── 1) send SetGripperPosition with retries on driver-error ─────────────
@@ -974,7 +974,7 @@ class robot_motion(Node):
         req.rx, req.ry, req.rz = rx_deg, ry_deg, rz_deg
         req.param_value = [f"SpeedL={speed},AccL={acceleration}"]
 
-        retry_pause, max_attempts = 0.5, 5
+        retry_pause, max_attempts = 0.5, 20
         for attempt in range(1, max_attempts + 1):
             log.info(f"move_to: MovL attempt {attempt}/{max_attempts}")
             fut = self.movl_cli.call_async(req)
@@ -1012,7 +1012,7 @@ class robot_motion(Node):
         d_rel = np.array([0.0, 0.0, 0.2825])
 
         retry_pause = 0.25
-        max_attempts = 10
+        max_attempts = 20
 
         gp_req = GetPose.Request()
         gp_req.user = 0
@@ -1611,7 +1611,7 @@ class robot_motion(Node):
         d_rel = np.array([0.0, 0.0, 0.2825])
 
         retry_pause = 0.25
-        max_attempts = 5
+        max_attempts = 20
 
         gp_req = GetPose.Request()
         gp_req.user = 0
@@ -1906,7 +1906,7 @@ class robot_motion(Node):
             param_value = [f"SpeedJ={velocity},AccJ={acceleration}"],
         )
 
-        retry_pause, max_attempts = 2.0, 3  # Longer pause for joint movements, fewer attempts
+        retry_pause, max_attempts = 2.0, 20  # Longer pause for joint movements
 
         for attempt in range(1, max_attempts + 1):
             self.safe_log("info", f"gotoJ_deg: attempt {attempt}/{max_attempts}")
@@ -2050,7 +2050,7 @@ class robot_motion(Node):
             param_value=[f"SpeedL={speed},AccL={acceleration}"],
         )
 
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.movl_cli.call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
@@ -2118,7 +2118,7 @@ class robot_motion(Node):
             param_value=[f"SpeedL={speed},AccL={acceleration}"],
         )
 
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.movl_cli.call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
@@ -2187,7 +2187,7 @@ class robot_motion(Node):
             param_value=[f"SpeedL={speed},AccL={acceleration}"],
         )
 
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.movl_cli.call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
@@ -2242,7 +2242,7 @@ class robot_motion(Node):
                 max_wait=10.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
-                num_samples=9,
+                num_samples=5,
             )
         finally:
             # shut down executor and destroy the node
@@ -2296,7 +2296,7 @@ class robot_motion(Node):
 
         # ── 6) retry loop (driver-error only) ─────────────────────────────────
         retry_pause  = 0.25
-        max_attempts = 5
+        max_attempts = 20
 
         for attempt in range(1, max_attempts + 1):
             log.info(f"grab_tool: MovL attempt {attempt}/{max_attempts}")
@@ -2329,7 +2329,7 @@ class robot_motion(Node):
         req.status = status
 
         retry_pause = 0.25
-        max_attempts = 10
+        max_attempts = 20
 
         for attempt in range(1, max_attempts + 1):
             self.get_logger().info(f"set_DO: DOExecute attempt {attempt}/{max_attempts}")
@@ -2477,7 +2477,7 @@ class robot_motion(Node):
         req.param_value          = param_value
 
         # 4) call service with retries
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.arc_cli.call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
@@ -2520,7 +2520,7 @@ class robot_motion(Node):
 
         req = SpeedFactor.Request()
         req.ratio = ratio
-        retry_pause, max_attempts = 1.0, 3  # Reduced attempts but with optimistic success handling
+        retry_pause, max_attempts = 1.0, 20
         
         for attempt in range(1, max_attempts + 1):
             self.safe_log("info", f"set_speed_factor: attempt {attempt}/{max_attempts}")
@@ -2704,7 +2704,7 @@ class robot_motion(Node):
         req.param_value            = param_value
 
         # 4) call service with retries
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.circle3_cli .call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
@@ -2869,7 +2869,7 @@ class robot_motion(Node):
             gp_req.user = 0
             gp_req.tool = 0
             
-            max_attempts = 3
+            max_attempts = 20
             retry_pause = 0.5
             
             for attempt in range(1, max_attempts + 1):
@@ -2947,7 +2947,7 @@ class robot_motion(Node):
         gp_req.user = 0
         gp_req.tool = 0
 
-        max_attempts = 5
+        max_attempts = 20
         retry_pause = 0.25
         resp = None
         
@@ -3155,7 +3155,7 @@ class robot_motion(Node):
     
         log = self.get_logger()
         retry_pause = 0.25
-        max_attempts = 5
+        max_attempts = 20
 
         # ── 1) SetTool to configure the TCP for tool 1 ─────────────────────────
         set_req = SetTool.Request()
@@ -3324,7 +3324,7 @@ class robot_motion(Node):
             param_value=[f"SpeedJ={speed},AccJ={acceleration}"],
         )
 
-        retry_pause, max_attempts = 0.25, 5
+        retry_pause, max_attempts = 0.25, 20
         for attempt in range(1, max_attempts + 1):
             fut = self.movj_cli.call_async(req)
             rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
