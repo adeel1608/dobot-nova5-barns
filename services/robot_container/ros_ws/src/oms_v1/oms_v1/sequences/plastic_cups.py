@@ -10,7 +10,7 @@ like slushes, iced drinks, and cold brews.
 import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.home import home
+from oms_v1.sequences.home import home, return_back_to_home
 from oms_v1.params import (
     DEFAULT_PLASTIC_CUP_SIZE, validate_cup_size,
     PLASTIC_CUPS_PARAMS, PLASTIC_CUP_GRIPPER_POSITIONS,
@@ -86,7 +86,7 @@ def dispense_plastic_cup(**params) -> bool:
             print(f"[ERROR] Unknown cup size: {cup_size!r}")
             print("[INFO] Valid cup sizes: 7oz, 9oz, 12oz, 16oz")
             return False
-        
+        return_back_to_home()
         config = CUP_CONFIG[cup_size]
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)
