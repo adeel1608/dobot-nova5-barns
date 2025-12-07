@@ -459,7 +459,7 @@ MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.3  # Factor for calculating Z
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
     'calibration': {
-        'positioning': (-47.152676,-73.728424,-23.617357,-82.472939,-101.666885,18.952660),  # Final positioning for frother calibration
+        'positioning': (-50.017250,-75.956367,-20.588757,-82.413101,-108.227524,17.493626),  # Final positioning for frother calibration
     },
     'pickup': {
         'area':        (2.889473,-22.613735,-119.842255,-75.999672,-87.948189,-0.235808),  # Frother pickup area position
