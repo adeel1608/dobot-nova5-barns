@@ -195,7 +195,7 @@ def unmount(**params) -> bool:
 
         # Step 7: Rotate portafilter to unlock (-45 degrees)
         print("🔄 Step 7/13: Rotating portafilter to unlock...")
-        rotate_result = run_skill("move_portafilter_arc_movJ", -45.0)
+        rotate_result = run_skill("move_portafilter_arc_movJ", -42.0)
         
         if rotate_result is False:
             print("[ERROR] Failed to rotate portafilter")
@@ -799,7 +799,7 @@ def mount(**params) -> bool:
 
         # Step 7: Rotate portafilter to unlock (45 degrees)
         print("🔄 Step 7/10: Rotating portafilter to unlock...")
-        rotate_result = run_skill("move_portafilter_arc_movJ", 47.0)
+        rotate_result = run_skill("move_portafilter_arc_movJ", 43.0)
         
         if rotate_result is False:
             print("[ERROR] Failed to rotate portafilter")
