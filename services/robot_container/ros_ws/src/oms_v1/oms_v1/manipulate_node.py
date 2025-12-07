@@ -578,7 +578,7 @@ class robot_motion(Node):
     def get_machine_position(
             self,
             target_tf: str,
-            required_samples: int = 50,
+            required_samples: int = 10,
             *,
             acq_timeout: float = 10.0,
             debug: bool = False
