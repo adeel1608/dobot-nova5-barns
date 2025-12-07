@@ -22,17 +22,17 @@
     "cups": {
         "subtypes": {
             "cup_H7": {
-                "max_capacity": 25,
+                "max_capacity": 40,
                 "warning_threshold": 50,
                 "critical_threshold": 25
             },
             "cup_H9": {
-                "max_capacity": 25,
+                "max_capacity": 15,
                 "warning_threshold": 50,
                 "critical_threshold": 25
             },
             "cup_H12": {
-                "max_capacity": 17,
+                "max_capacity": 15,
                 "warning_threshold": 40,
                 "critical_threshold": 20
             },
@@ -85,47 +85,47 @@
     "syrups": {
         "subtypes": {
             "vanilla_syrup": {
-                "max_capacity": 1500,
+                "max_capacity": 1000,
                 "warning_threshold": 300,
                 "critical_threshold": 150
             },
             "caramel_syrup": {
-                "max_capacity": 1500,
+                "max_capacity": 250,
                 "warning_threshold": 300,
                 "critical_threshold": 150
             },
             "hazelnut_syrup": {
-                "max_capacity": 1500,
+                "max_capacity": 1000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             },
             "peached_iced_syrup": {
-                "max_capacity": 1500,
+                "max_capacity": 1000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             },
             "passion_fruit_iced_syrup": {
-                "max_capacity": 1499,
+                "max_capacity": 1000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             },
             "ice_tea_syrup": {
-                "max_capacity": 2000,
+                "max_capacity": 1000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             },
             "white_chocolate_sauce": {
-                "max_capacity": 3000,
+                "max_capacity": 2500,
                 "warning_threshold": 300,
                 "critical_threshold": 150
             },
             "caramel_sauce": {
-                "max_capacity": 3000,
+                "max_capacity": 680,
                 "warning_threshold": 300,
                 "critical_threshold": 150
             },
             "condense_milk_sauce": {
-                "max_capacity": 2000,
+                "max_capacity": 370,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             }
@@ -144,7 +144,7 @@
                 "critical_threshold": 150
             },
             "half_and_half": {
-                "max_capacity": 2000,
+                "max_capacity": 3000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
             }
