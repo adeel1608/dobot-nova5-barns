@@ -1012,6 +1012,8 @@ def pick_espresso_pitcher(**params) -> bool:
                 print("[ERROR] Failed to move to final position")
                 return False
             print("   ✅ Successfully moved to final holding position")
+
+        
         
         # Final success summary
         print("=" * 50)
@@ -1058,6 +1060,8 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
         
         print(f"🥛 Starting milk pouring sequence for {stage}")
         print("=" * 50)
+
+        run_skill("gotoJ_deg", 103.201965,-21.933174,-150.611664,-10.398072,-23.882843,0.127716)
         
         # Step 1: Initial positioning
         print("📍 Step 1/7: Moving to initial pouring position...")
