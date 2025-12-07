@@ -37,7 +37,7 @@ GRIPPER_FULL = 255       # Maximum grip
 DELAY_VERY_SHORT = 0.5   # Very short delay
 DELAY_SHORT = 1.0        # Short delay between operations
 DELAY_MEDIUM = 2.0       # Medium delay for settling
-DELAY_LONG = 3.0         # Long delay for pouring completion
+DELAY_LONG = 2.5         # Long delay for pouring completion
 DELAY_FROTHER_PICKUP = 5.0  # Delay for frother pickup stabilization
 
 # ── Calibration Settings ──
@@ -428,7 +428,7 @@ MILK_FROTHER_MOVEMENT_OFFSETS = {
     'lift_after_place': (0, 0, 150, 0, 0, 0),  # Lift before placing frother at milk station
     'lift_after_pick': (0, 0, 10, 0, 0, 0),    # Lift after picking frother from milk station
     'cleaning_motion': (0, 5, -150, 0, 0, 0),  # Cleaning motion offset
-    'final_approach': (0, 0, 5, 0, 0, 0),      # Final approach for frother return
+    'final_approach': (-5, 0, -5, 0, 0, 0),      # Final approach for frother return
 }
 
 MILK_POURING_OFFSETS = {
@@ -459,7 +459,7 @@ MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.3  # Factor for calculating Z
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
     'calibration': {
-        'positioning': (-38.973099,-67.496948,-35.246922,-79.803886,-77.277245,9.584912),  # Final positioning for frother calibration
+        'positioning': (-47.152676,-73.728424,-23.617357,-82.472939,-101.666885,18.952660),  # Final positioning for frother calibration
     },
     'pickup': {
         'area':        (2.889473,-22.613735,-119.842255,-75.999672,-87.948189,-0.235808),  # Frother pickup area position

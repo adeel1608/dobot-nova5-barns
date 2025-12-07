@@ -1200,7 +1200,7 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
                 return False
             print("   ✅ Successfully positioned for stage 4")
             run_skill("sync")
-            run_skill("set_speed_factor", SPEED_SUPER_SLOW)
+            run_skill("set_speed_factor", SPEED_SLOW_POURING)
             # Step 3: Tilt espresso pitcher to pour
             print("⬇️ Step 3/7: Tilting espresso pitcher to pour...")
             pour_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])

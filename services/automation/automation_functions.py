@@ -497,11 +497,34 @@ async def dispense_milk(params: dict):
 # EX: example params: {"slush_type": "slush_1", "cup": "C12", "timeout": 300}
 async def slush_machine(params: dict):
     """Slush machine using MQTT communication."""
-    # example params: {"slush_type": "slush_1", "cup": "C12", "timeout": 300}
-    slush_type = params.get("slush_type", "slush_2")
-    cup_size = params.get("cup", "C12")
+    # example params: {"slush_type": "slush_1", "cups": {"cup_c12": 1.0}, "timeout": 300}
+    # OR flat format: {"slush_type": "slush_1", "timer": 10000, "timeout": 300}
     
-    log("DEBUG", "Calling Slush mach function", service="automation")
+    slush_type = params.get("slush_type", "slush_2")
+    
+    # Handle nested cups dictionary format
+    if "cups" in params and isinstance(params["cups"], dict):
+        cups_dict = params["cups"]
+        # Extract cup type from first key (e.g., "cup_c9", "cup_c12", "cup_c16")
+        cup_type = list(cups_dict.keys())[0]
+        
+        # Map cup type to timer value (in milliseconds)
+        cup_type_lower = cup_type.lower()
+        if "cup_c9" in cup_type_lower:
+            timer = 6000
+        elif "cup_c12" in cup_type_lower:
+            timer = 8000
+        elif "cup_c16" in cup_type_lower:
+            timer = 10000
+        else:
+            # Default to timer 10000 if unknown cup type
+            log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 10000", service="automation")
+            timer = 10000
+    else:
+        # Fallback to flat parameter format
+        timer = params.get("timer", 10000)
+    
+    log("DEBUG", f"Calling Slush machine with slush_type={slush_type}, timer={timer}", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -514,7 +537,7 @@ async def slush_machine(params: dict):
         except json.JSONDecodeError:
             pass
 
-    payload = json.dumps({"slush_type": slush_type, "cup": cup_size})
+    payload = json.dumps({"slush_type": slush_type, "timer": timer})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -571,7 +594,7 @@ async def slush_machine(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully prepared {slush_type} slush in {cup_size} cup",
+            "message": f"Successfully prepared {slush_type} slush (timer={timer}ms)",
             "details": mqtt_response
         }
     else:

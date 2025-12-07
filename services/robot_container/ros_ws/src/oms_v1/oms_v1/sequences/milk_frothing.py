@@ -60,7 +60,7 @@ def get_frother_position(**params) -> bool:
         
         # Set optimal speed for calibration
         print("⚙️ Setting speed factor for precise calibration...")
-        speed_result = run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['calibration'])
+        speed_result = run_skill("set_speed_factor", 100)
         if speed_result is False:
             print("[WARNING] Failed to set speed factor - continuing with default...")
         
@@ -253,7 +253,6 @@ def pick_frother(**params) -> bool:
         else:
             print("[WARNING] Failed to record approach angles - continuing without position memory")
             approach_angles = None
-        time.sleep(MILK_FROTHING_DELAYS['frother_pickup'])
         # Step 5: Grab the frother
         print(f"🤏 Step 5/6: Grabbing {'milk_frother_1'}...")
         sync_result = run_skill("sync")
@@ -857,15 +856,14 @@ def return_frother(**params) -> bool:
         if run_skill("gotoJ_deg", *grab_angles) is False:
             print("[ERROR] Failed to go to recorded grab angles")
             return False
-        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach']) is False:
-            print("[ERROR] Failed to execute final approach move")
-            return False
         if run_skill("sync") is False:
             print("[WARNING] Sync operation failed - continuing...")
         if run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['release']) is False:
             print("[ERROR] Failed to release frother")
             return False
-        time.sleep(MILK_FROTHING_DELAYS['frother_release'])
+        if run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach']) is False:
+            print("[ERROR] Failed to execute final approach move")
+            return False
         if run_skill("gotoJ_deg", *approach_angles) is False:
             print("[ERROR] Failed to go to recorded approach angles")
             return False

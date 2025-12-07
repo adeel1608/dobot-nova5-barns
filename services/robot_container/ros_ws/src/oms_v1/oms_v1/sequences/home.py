@@ -160,9 +160,7 @@ def return_back_to_home() -> bool:
         
         # Move to home position using calibration parameters
         home_j2_j6 = HOME_CALIBRATION_PARAMS['return_home_position']
-        print(f"🎯 Moving to home position: J1={j1_val}°, J2={home_j2_j6[0]}°, J3={home_j2_j6[1]}°, J4={home_j2_j6[2]}°, J5={home_j2_j6[3]}°, J6={home_j2_j6[4]}°")
-        time.sleep(HOME_CALIBRATION_CONSTANTS['final_home_stagger'])  # Stagger service calls
-        
+        print(f"🎯 Moving to home position: J1={j1_val}°, J2={home_j2_j6[0]}°, J3={home_j2_j6[1]}°, J4={home_j2_j6[2]}°, J5={home_j2_j6[3]}°, J6={home_j2_j6[4]}°")        
         result = run_skill("gotoJ_deg", j1_val, *home_j2_j6)
         
         if result is False:
@@ -213,7 +211,7 @@ def get_machine_position(**params) -> bool:
         
         # Set optimal speed for calibration accuracy
         print("⚙️ Setting speed factor for precise movements...")
-        run_skill("set_speed_factor", HOME_CALIBRATION_CONSTANTS['speed_factor'])
+        run_skill("set_speed_factor", SPEED_FAST)
         
         # Step 1: Move to espresso home position
         print("🏠 Step 1/8: Moving to espresso home position...")
