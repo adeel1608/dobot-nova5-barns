@@ -57,7 +57,13 @@ def get_frother_position(**params) -> bool:
         print("🎯 Starting milk frother position calibration...")
         print("=" * 50)
         return_back_to_home()
-        time.sleep(5)
+        
+        # Only sleep for single shot (give time for shot to finish)
+        espresso_data = params.get('espresso', {})
+        is_single_shot = 'espresso_shot_single' in espresso_data or params.get('shot_type') == 'single'
+        if is_single_shot:
+            print("   ⏱️  Waiting 5s for single shot to finish...")
+            time.sleep(5)
         
         # Set optimal speed for calibration
         print("⚙️ Setting speed factor for precise calibration...")
