@@ -1240,10 +1240,12 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             print("[ERROR] Failed to move to intermediate position")
             return False
         print("   ✅ Successfully moved to intermediate position")
+        run_skill("gotoJ_deg", 103.201965,-21.933174,-150.611664,-10.398072,-23.882843,0.127716)
 
         # Step 7: Return to holding position
         print("🏠 Returning to holding position...")
         final_result = run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
+        
         
         run_skill("sync")
         
