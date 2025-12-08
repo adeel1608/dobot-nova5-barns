@@ -86,7 +86,7 @@ def dispense_plastic_cup(**params) -> bool:
             print(f"[ERROR] Unknown cup size: {cup_size!r}")
             print("[INFO] Valid cup sizes: 7oz, 9oz, 12oz, 16oz")
             return False
-        return_back_to_home()
+        # return_back_to_home()
         config = CUP_CONFIG[cup_size]
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)

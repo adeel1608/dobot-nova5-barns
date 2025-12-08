@@ -388,7 +388,7 @@ def pick_paper_cup_station(**params) -> bool:
         cups (dict): Cup size dictionary, e.g., {'cup_H12': 1.0}
     """
     try:
-        return_back_to_home()
+        # return_back_to_home()
         # Extract cup position from new format: {'position': {'cup_position': 1.0}}
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
