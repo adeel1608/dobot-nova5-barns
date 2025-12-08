@@ -51,7 +51,7 @@ IPAddress sub(255, 255, 255, 0);
 #define LIQ_LACTOSE_FREE_MILK            7
 #define LIQ_WHITE_CHOCOLATE_SAUCE        8
 #define LIQ_CARAMEL_SAUCE                9
-#define LIQ_CONDENSE_MILK_SAUCE          10
+#define LIQ_CONDENSE_MILK_SAUCE          20  // sauce12
 #define LIQ_HAZELNUT_SYRUP               11
 #define LIQ_VANILLA_SYRUP                12
 #define LIQ_CARAMEL_SYRUP                13

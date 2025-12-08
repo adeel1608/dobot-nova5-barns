@@ -17,7 +17,7 @@ from oms_v1.params import (
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 from oms_v1.manipulate_node import run_skill
-from oms_v1.sequences.home import home
+from oms_v1.sequences.home import home, return_back_to_home
 from oms_v1.sequences.computer_vision import detect_cup_gripper
 
 def _normalize_paper_cup_size(cups_dict: Any) -> str:
