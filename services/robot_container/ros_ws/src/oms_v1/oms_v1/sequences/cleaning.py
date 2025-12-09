@@ -56,7 +56,7 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("moveEE_movJ", -1,0,50,0,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", -1,0,-55,0,0,0)):
+    if not ok(run_skill("moveEE_movJ", -1,0,-50,0,0,0)):
         return False
     if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
         return False

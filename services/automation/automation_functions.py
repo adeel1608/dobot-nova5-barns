@@ -264,9 +264,9 @@ async def dispense_ice(params: dict):
         elif "cup_c9" in cup_type_lower:
             timer = 1
         elif "cup_c12" in cup_type_lower:
-            timer = 2
+            timer = 1
         elif "cup_c16" in cup_type_lower:
-            timer = 2
+            timer = 1
         else:
             # Default to timer 0 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")
@@ -935,9 +935,9 @@ async def tampering_machine(params: dict):
     # If espresso = 2, send tampering: 1, calibration: 2
     tampering = 1  # Always 1
     if espresso_shots == 1:
-        calibration = 2000        ##set values here in ms
+        calibration = 4500        ##set values here in ms
     elif espresso_shots == 2:
-        calibration = 1900        ##set values here in ms
+        calibration = 4000        ##set values here in ms
     else:
         # Default to calibration 1 if unknown shot count
         log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")

@@ -25,6 +25,377 @@ cup_station_lock_holder = None
 RESOURCE_LOCK_RETRY_INTERVAL = 1  # seconds between retry attempts
 RESOURCE_LOCK_MAX_WAIT_TIME = 300  # maximum wait time (5 minutes) before timeout
 
+# COLLISION PAIR LOCKS
+# These locks prevent simultaneous execution of conflicting function groups between arms
+# When one arm starts a group, the other arm's conflicting group must wait until completion
+#
+# Collision Pair 1: mount(port_3) vs frothing operations
+# Collision Pair 2: unmount(port_3) vs frothing operations
+# Collision Pair 3: unmount(port_3) vs get_frother_position
+# Collision Pair 4: mount(port_3) vs get_frother_position
+#
+# Port_3 is detected by:
+# - Direct port parameter (port=port_3 or port=3)
+# - Espresso shot type: espresso_shot_single → port_3, espresso_shot_double → port_1
+#
+# The frothing group (group_2) functions must execute in series:
+# initialize_frother -> mount_frother -> froth_milk -> unmount_and_swirl_milk
+# Lock is only released after the final function (unmount_and_swirl_milk) completes
+
+collision_pair_1_lock = asyncio.Lock()
+collision_pair_1_holder = {"arm_id": None, "group": None, "cup_id": None}
+
+collision_pair_2_lock = asyncio.Lock()
+collision_pair_2_holder = {"arm_id": None, "group": None, "cup_id": None}
+
+collision_pair_3_lock = asyncio.Lock()
+collision_pair_3_holder = {"arm_id": None, "group": None, "cup_id": None}
+
+collision_pair_4_lock = asyncio.Lock()
+collision_pair_4_holder = {"arm_id": None, "group": None, "cup_id": None}
+
+# Frothing group functions (same for both pairs, must complete in series)
+FROTHING_GROUP_FUNCTIONS = ["initialize_frother", "mount_frother", "froth_milk", "unmount_and_swirl_milk"]
+FROTHING_GROUP_END_FUNCTION = "unmount_and_swirl_milk"
+
+# Collision pair configuration
+COLLISION_PAIRS_CONFIG = {
+    "pair_1": {
+        "lock": None,  # Will be set to collision_pair_1_lock
+        "holder": None,  # Will be set to collision_pair_1_holder
+        "group_1": {
+            "functions": ["mount"],
+            "end_function": "mount",  # Single function, lock released when done
+        },
+        "group_2": {
+            "functions": FROTHING_GROUP_FUNCTIONS,
+            "end_function": FROTHING_GROUP_END_FUNCTION,
+        }
+    },
+    "pair_2": {
+        "lock": None,  # Will be set to collision_pair_2_lock
+        "holder": None,  # Will be set to collision_pair_2_holder
+        "group_1": {
+            "functions": ["unmount"],
+            "end_function": "unmount",  # Single function, lock released when done
+        },
+        "group_2": {
+            "functions": FROTHING_GROUP_FUNCTIONS,
+            "end_function": FROTHING_GROUP_END_FUNCTION,
+        }
+    },
+        "pair_3": {
+        "lock": None,  # Will be set to collision_pair_3_lock
+        "holder": None,  # Will be set to collision_pair_3_holder
+        "group_1": {
+            "functions": ["unmount"],
+            "end_function": "unmount",  # Single function, lock released when done
+        },
+        "group_2": {
+            "functions": ["get_frother_position"],
+            "end_function": "get_frother_position",
+        }
+    },
+        "pair_4": {
+        "lock": None,  # Will be set to collision_pair_4_lock
+        "holder": None,  # Will be set to collision_pair_4_holder
+        "group_1": {
+            "functions": ["mount"],
+            "end_function": "mount",  # Single function, lock released when done
+        },
+        "group_2": {
+            "functions": ["get_frother_position"],
+            "end_function": "get_frother_position",
+        }
+    },
+}
+
+def _init_collision_pairs():
+    """Initialize collision pair references (must be called after lock creation)."""
+    COLLISION_PAIRS_CONFIG["pair_1"]["lock"] = collision_pair_1_lock
+    COLLISION_PAIRS_CONFIG["pair_1"]["holder"] = collision_pair_1_holder
+    COLLISION_PAIRS_CONFIG["pair_2"]["lock"] = collision_pair_2_lock
+    COLLISION_PAIRS_CONFIG["pair_2"]["holder"] = collision_pair_2_holder
+    COLLISION_PAIRS_CONFIG["pair_3"]["lock"] = collision_pair_3_lock
+    COLLISION_PAIRS_CONFIG["pair_3"]["holder"] = collision_pair_3_holder
+    COLLISION_PAIRS_CONFIG["pair_4"]["lock"] = collision_pair_4_lock
+    COLLISION_PAIRS_CONFIG["pair_4"]["holder"] = collision_pair_4_holder
+
+# Initialize collision pairs
+_init_collision_pairs()
+
+
+def _check_port_3(params: dict) -> bool:
+    """
+    Check if the operation uses port_3.
+    
+    Port detection methods:
+    1. Direct 'port' parameter (port_3, 3, "3")
+    2. Espresso shot type: espresso_shot_single → port_3
+    3. Nested port parameters in espresso/portafilter dicts
+    
+    Args:
+        params: The function parameters dict
+        
+    Returns:
+        True if port is 'port_3', False otherwise
+    """
+    # Direct port parameter
+    port = params.get("port")
+    if port:
+        log("DEBUG", f"[PORT-CHECK] Direct port parameter: {port} (type: {type(port).__name__})", service="routine")
+        # Check for various formats: "port_3", 3, "3", etc.
+        if port == "port_3" or port == 3 or str(port) == "3" or str(port) == "port_3":
+            log("INFO", f"[PORT-CHECK] ✓ Found port_3 in direct port parameter (value: {port})", service="routine")
+            return True
+    
+    # INFER PORT FROM ESPRESSO SHOT TYPE
+    # espresso_shot_single uses port_3, espresso_shot_double uses port_1
+    espresso_dict = params.get("espresso")
+    if isinstance(espresso_dict, dict):
+        log("DEBUG", f"[PORT-CHECK] Checking espresso dict: {espresso_dict}", service="routine")
+        
+        # Check if espresso_shot_single is present (indicates port_3)
+        if "espresso_shot_single" in espresso_dict:
+            log("INFO", f"[PORT-CHECK] ✓ Found espresso_shot_single - inferring port_3", service="routine")
+            return True
+        
+        # If espresso_shot_double is present, it's NOT port_3 (it's port_1 or port_2)
+        if "espresso_shot_double" in espresso_dict:
+            log("INFO", f"[PORT-CHECK] ✗ Found espresso_shot_double - NOT port_3 (likely port_1)", service="routine")
+            return False
+        
+        # Check direct port in espresso dict
+        esp_port = espresso_dict.get("port")
+        if esp_port == "port_3" or esp_port == 3 or str(esp_port) == "3":
+            log("INFO", f"[PORT-CHECK] ✓ Found port_3 in espresso.port (value: {esp_port})", service="routine")
+            return True
+        
+        # Check nested shot configs that might have port
+        for key, value in espresso_dict.items():
+            if isinstance(value, dict):
+                nested_port = value.get("port")
+                if nested_port == "port_3" or nested_port == 3 or str(nested_port) == "3":
+                    log("INFO", f"[PORT-CHECK] ✓ Found port_3 in espresso.{key}.port (value: {nested_port})", service="routine")
+                    return True
+    
+    # Check other possible nested locations (portafilter, position, etc.)
+    for key in ["portafilter", "position", "location"]:
+        nested_dict = params.get(key)
+        if isinstance(nested_dict, dict):
+            nested_port = nested_dict.get("port")
+            if nested_port == "port_3" or nested_port == 3 or str(nested_port) == "3":
+                log("INFO", f"[PORT-CHECK] ✓ Found port_3 in {key}.port (value: {nested_port})", service="routine")
+                return True
+    
+    log("DEBUG", f"[PORT-CHECK] ✗ port_3 not found - params keys: {list(params.keys())}", service="routine")
+    return False
+
+
+# Collision pairs that require port_3 check for group_1 functions
+# ALL pairs (1, 2, 3, 4) require port_3 check for mount/unmount:
+# - Pairs 1 and 2: mount(port_3)/unmount(port_3) vs frothing operations
+# - Pairs 3 and 4: mount(port_3)/unmount(port_3) vs get_frother_position
+#
+# Port_3 detection:
+# - Direct port parameter: port=port_3 or port=3
+# - Inferred from espresso shot: espresso_shot_single → port_3, espresso_shot_double → NOT port_3
+COLLISION_PAIRS_REQUIRE_PORT_CHECK = {"pair_1", "pair_2", "pair_3", "pair_4"}
+
+
+def _get_collision_info(func_name: str, params: dict) -> list:
+    """
+    Determine which collision pairs and groups a function belongs to.
+    
+    Args:
+        func_name: The function name being executed
+        params: The function parameters
+        
+    Returns:
+        List of tuples: [(pair_id, group_name), ...] that this function belongs to
+    """
+    log("DEBUG", f"[GET-COLLISION-INFO] Called for function: {func_name}", service="routine")
+    collision_info = []
+    
+    for pair_id, pair_config in COLLISION_PAIRS_CONFIG.items():
+        # Check if function is in group_1 (mount/unmount)
+        if func_name in pair_config["group_1"]["functions"]:
+            log("DEBUG", f"[GET-COLLISION-INFO] {func_name} found in {pair_id} group_1", service="routine")
+            # ALL pairs now require port_3 check for mount/unmount
+            if pair_id in COLLISION_PAIRS_REQUIRE_PORT_CHECK:
+                log("DEBUG", f"[GET-COLLISION-INFO] {pair_id} requires port_3 check, calling _check_port_3", service="routine")
+                if _check_port_3(params):
+                    log("INFO", f"[COLLISION] {func_name} with port_3 detected - acquiring {pair_id} lock for group_1", service="routine")
+                    collision_info.append((pair_id, "group_1"))
+                else:
+                    log("INFO", f"[COLLISION] {func_name} without port_3 - skipping {pair_id} lock", service="routine")
+            else:
+                # No port check required - always applies (should not happen now)
+                collision_info.append((pair_id, "group_1"))
+        
+        # Check if function is in group_2 (frothing or get_frother_position)
+        elif func_name in pair_config["group_2"]["functions"]:
+            log("INFO", f"[COLLISION] {func_name} detected - acquiring {pair_id} lock for group_2", service="routine")
+            collision_info.append((pair_id, "group_2"))
+    
+    log("DEBUG", f"[GET-COLLISION-INFO] Returning {len(collision_info)} collision pairs for {func_name}: {collision_info}", service="routine")
+    return collision_info
+
+
+def _is_group_end_function(func_name: str, pair_id: str, group_name: str) -> bool:
+    """Check if this function is the end function for the given group."""
+    pair_config = COLLISION_PAIRS_CONFIG.get(pair_id)
+    if not pair_config:
+        return False
+    
+    group_config = pair_config.get(group_name)
+    if not group_config:
+        return False
+    
+    return func_name == group_config.get("end_function")
+
+
+async def acquire_collision_locks(arm_id: int, func_name: str, params: dict, cup_id: str) -> list:
+    """
+    Acquire collision locks for the function if needed.
+    
+    If the function belongs to a collision pair group, this will:
+    1. Check if the conflicting group is being executed by another arm
+    2. Wait for the lock if there's a conflict
+    3. Acquire the lock and mark the holder
+    
+    Args:
+        arm_id: The arm executing the function
+        func_name: The function name
+        params: The function parameters
+        cup_id: The cup ID for logging
+        
+    Returns:
+        List of acquired lock info: [(pair_id, group_name), ...] for later release
+    """
+    collision_info = _get_collision_info(func_name, params)
+    
+    if not collision_info:
+        return []  # No collision locks needed
+    
+    acquired_locks = []
+    
+    # SAFEGUARD: Check if this arm is currently holding any conflicting locks
+    # This prevents logic errors where the same arm tries to do conflicting operations
+    for pair_id, group_name in collision_info:
+        pair_config = COLLISION_PAIRS_CONFIG[pair_id]
+        holder = pair_config["holder"]
+        
+        # If this arm holds the lock for a DIFFERENT group in the same pair, that's an error
+        if holder["arm_id"] == arm_id and holder["group"] != group_name:
+            conflicting_group = holder["group"]
+            conflicting_cup = holder["cup_id"]
+            error_msg = f"[ARM-{arm_id}] [LOCK-ERROR] Cannot acquire {pair_id} {group_name} lock - same arm already holds {conflicting_group} lock (cup {conflicting_cup}). This indicates a logic error!"
+            log("ERROR", error_msg, service="routine")
+            raise RuntimeError(error_msg)
+    
+    for pair_id, group_name in collision_info:
+        pair_config = COLLISION_PAIRS_CONFIG[pair_id]
+        lock = pair_config["lock"]
+        holder = pair_config["holder"]
+        
+        # Determine conflicting group
+        conflicting_group = "group_2" if group_name == "group_1" else "group_1"
+        
+        # Check if we already hold this lock for this group (continuing a sequence)
+        if holder["arm_id"] == arm_id and holder["group"] == group_name:
+            log("INFO", f"[ARM-{arm_id}] [LOCK-CONTINUE] Continuing {pair_id} {group_name} sequence with {func_name} (cup {cup_id})", service="routine")
+            acquired_locks.append((pair_id, group_name))
+            continue
+        
+        # At this point, we need to acquire the lock
+        # Wait for the conflicting group to finish if another arm is executing it
+        start_wait_time = asyncio.get_event_loop().time()
+        retry_count = 0
+        
+        log("INFO", f"[ARM-{arm_id}] [LOCK-ATTEMPT] Attempting to acquire {pair_id} lock for {group_name} ({func_name}) on cup {cup_id}", service="routine")
+        
+        while True:
+            # CRITICAL: Only acquire if lock is completely free
+            # Do NOT allow same arm to acquire if it's holding for a different group
+            if not lock.locked():
+                # Lock is available - acquire it
+                await lock.acquire()
+                
+                # Mark this arm as the holder for this group
+                holder["arm_id"] = arm_id
+                holder["group"] = group_name
+                holder["cup_id"] = cup_id
+                
+                if retry_count > 0:
+                    wait_duration = asyncio.get_event_loop().time() - start_wait_time
+                    log("INFO", f"[ARM-{arm_id}] [LOCK-ACQUIRED] Acquired {pair_id} lock for {group_name} ({func_name}) after waiting {wait_duration:.1f}s ({retry_count} retries)", service="routine")
+                else:
+                    log("INFO", f"[ARM-{arm_id}] [LOCK-ACQUIRED] Acquired {pair_id} lock for {group_name} ({func_name}) immediately - cup {cup_id}", service="routine")
+                
+                acquired_locks.append((pair_id, group_name))
+                break
+            
+            # Lock is held - check who holds it and for what group
+            current_holder_arm = holder["arm_id"]
+            current_holder_group = holder["group"]
+            current_holder_cup = holder["cup_id"]
+            
+            retry_count += 1
+            elapsed_time = asyncio.get_event_loop().time() - start_wait_time
+            
+            # Log conflict status periodically with detailed information
+            if retry_count == 1 or retry_count % 5 == 0:
+                log("INFO", f"[ARM-{arm_id}] [LOCK-WAITING] Waiting for {pair_id} lock (held by Arm-{current_holder_arm} for {current_holder_group} on cup {current_holder_cup}) - Need {group_name} for {func_name} on cup {cup_id} ({elapsed_time:.1f}s elapsed)", service="routine")
+            
+            # Check timeout
+            if elapsed_time > RESOURCE_LOCK_MAX_WAIT_TIME:
+                log("ERROR", f"[ARM-{arm_id}] [LOCK-TIMEOUT] Collision lock timeout for {pair_id} after {elapsed_time:.1f}s - {func_name}", service="routine")
+                log("ERROR", f"[ARM-{arm_id}] [LOCK-TIMEOUT] Lock still held by Arm-{current_holder_arm} for {current_holder_group} on cup {current_holder_cup}", service="routine")
+                raise TimeoutError(f"Collision lock timeout for {pair_id} - held by Arm-{current_holder_arm}")
+            
+            # Wait before retrying
+            await asyncio.sleep(RESOURCE_LOCK_RETRY_INTERVAL)
+    
+    return acquired_locks
+
+
+def release_collision_locks(arm_id: int, func_name: str, acquired_locks: list):
+    """
+    Release collision locks if this function is the end of a group sequence.
+    
+    Args:
+        arm_id: The arm that executed the function
+        func_name: The function name that completed
+        acquired_locks: List of (pair_id, group_name) tuples from acquire_collision_locks
+    """
+    for pair_id, group_name in acquired_locks:
+        # Only release if this is the end function for the group
+        if _is_group_end_function(func_name, pair_id, group_name):
+            pair_config = COLLISION_PAIRS_CONFIG[pair_id]
+            lock = pair_config["lock"]
+            holder = pair_config["holder"]
+            
+            # Only release if we're the holder
+            if holder["arm_id"] == arm_id and holder["group"] == group_name:
+                cup_id = holder["cup_id"]
+                
+                # Clear holder info
+                holder["arm_id"] = None
+                holder["group"] = None
+                holder["cup_id"] = None
+                
+                # Release the lock
+                if lock.locked():
+                    lock.release()
+                    log("INFO", f"[ARM-{arm_id}] [LOCK-RELEASED] Released {pair_id} lock after completing {group_name} end function: {func_name} (was held for cup {cup_id})", service="routine")
+                else:
+                    log("WARNING", f"[ARM-{arm_id}] [LOCK-RELEASED] Lock {pair_id} was not locked when trying to release after {func_name}", service="routine")
+            else:
+                log("WARNING", f"[ARM-{arm_id}] [LOCK-RELEASE-SKIP] Cannot release {pair_id} - not the holder (holder: Arm-{holder['arm_id']} for {holder['group']})", service="routine")
+        else:
+            log("DEBUG", f"[ARM-{arm_id}] [LOCK-KEEP] Keeping {pair_id} lock - {func_name} is not end function for {group_name}", service="routine")
+
 # ORDER STOP TRACKING
 # Track which orders have been stopped to allow graceful pausing of task execution
 stopped_orders = set()  # Set of stopped order_ids
@@ -569,6 +940,15 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             
             log("INFO", f"Executing step: {func_name} ({step_type}) for cup {cup_id}", service="routine")
             
+            # Debug logging for mount/unmount to check ALL parameters BEFORE any processing
+            if func_name in ["mount", "unmount"]:
+                log("INFO", f"[PARAMS-DEBUG] {func_name} - Full params keys: {list(params.keys())}", service="routine")
+                log("INFO", f"[PARAMS-DEBUG] {func_name} - Full params: {json.dumps(params, default=str)}", service="routine")
+                if "port" in params:
+                    log("INFO", f"[PARAMS-DEBUG] {func_name} - Direct port found: {params['port']}", service="routine")
+                if "espresso" in params:
+                    log("INFO", f"[PARAMS-DEBUG] {func_name} - Espresso dict found: {params['espresso']}", service="routine")
+            
             # Log cup_position specifically for debugging
             if "position" in params and "cup_position" in params["position"]:
                 log("INFO", f"Cup position for this step: {params['position']['cup_position']}", service="routine")
@@ -577,304 +957,316 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             else:
                 log("INFO", "No cup_position found in params", service="routine")
             
-            if step_type == "validation":
-                log("INFO", f"[VALIDATION STEP] Starting validation: {func_name} for cup {cup_id}", service="routine")
-                log("DEBUG", f"[VALIDATION STEP] Validation params: {json.dumps(params)}", service="routine")
-                res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
-                log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
-                
-                # Debug: Log func_name and type for troubleshooting
-                log("INFO", f"[DEBUG] Checking func_name='{func_name}' (type: {type(func_name).__name__}) against 'cup_detection'", service="routine")
-                
-                # Special handling for cup_detection - check station availability FIRST
-                if func_name == "cup_detection":
-                    log("INFO", f"[CUP DETECTION] ✅ Entered cup_detection with results=  {res}", service="routine")
-                    # Get detection_result from top level first, then from details
-                    detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
-                    log("INFO", f"[CUP DETECTION] Detection result: {detection_result}", service="routine")
+            # COLLISION LOCK ACQUISITION (applies to ALL step types: validation, robot, automation)
+            # Check if this function belongs to a collision pair and acquire lock if needed
+            # This prevents conflicting operations from running simultaneously between arms
+            acquired_collision_locks = []
+            
+            log("DEBUG", f"[COLLISION-CHECK] Calling acquire_collision_locks for {func_name} on arm {arm_id}", service="routine")
+            
+            try:
+                acquired_collision_locks = await acquire_collision_locks(arm_id, func_name, params, cup_id)
+                log("DEBUG", f"[COLLISION-CHECK] acquire_collision_locks returned {len(acquired_collision_locks)} locks for {func_name}", service="routine")
+            except TimeoutError as e:
+                log("ERROR", f"[ARM-{arm_id}] Collision lock acquisition failed for {func_name}: {str(e)}", service="routine")
+                message = f"Collision lock timeout: {str(e)}"
+                success = False
+                await publish_event("step.error", 
+                            {"arm": arm_id, "cup": cup_id,
+                            "step": func_name, "error": str(e)}, rabbitmq_client)
+                break  # Exit step loop
+            
+            # Wrap all step type handling in try/finally to ensure collision locks are released
+            try:
+                if step_type == "validation":
+                    log("INFO", f"[VALIDATION STEP] Starting validation: {func_name} for cup {cup_id}", service="routine")
+                    log("DEBUG", f"[VALIDATION STEP] Validation params: {json.dumps(params)}", service="routine")
+                    res = await call_validation(func_name, params, rabbitmq_client, cup_id=cup_id)
+                    log("INFO", f"[VALIDATION STEP] Validation result for {func_name}: passed={res.get('passed', False)}", service="routine")
                     
-                    if not detection_result:
-                        # No detection result means detection failed
-                        log("ERROR", f"[CUP DETECTION] No detection result returned for cup {cup_id}", service="routine")
-                        res["passed"] = False
-                        res["error"] = "Cup detection failed - no result"
-                    else:
-                        # Check if ALL stations are occupied (all values are True)
-                        # detection_result format: {0: bool, 1: bool, 2: bool, 3: bool} where True = occupied, False = available
-                        all_occupied = all(detection_result.values())
+                    # Debug: Log func_name and type for troubleshooting
+                    log("INFO", f"[DEBUG] Checking func_name='{func_name}' (type: {type(func_name).__name__}) against 'cup_detection'", service="routine")
+                    
+                    # Special handling for cup_detection - check station availability FIRST
+                    if func_name == "cup_detection":
+                        log("INFO", f"[CUP DETECTION] Entered cup_detection with results=  {res}", service="routine")
+                        # Get detection_result from top level first, then from details
+                        detection_result = res.get("detection_result") or res.get("details", {}).get("cups_detected", {})
+                        log("INFO", f"[CUP DETECTION] Detection result: {detection_result}", service="routine")
                         
-                        if all_occupied:
-                            log("ERROR", f"[ALL STATIONS OCCUPIED] All cup stations occupied for cup {cup_id}. Cannot proceed with task.", service="routine")
-                            message = "All cup stations are occupied. Please remove cups and try again."
-                            
-                            # Send dashboard message for all stations occupied
-                            log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
-                            await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
-                            
-                            await publish_event("validation.failed", 
-                                        {"arm": arm_id, "cup": cup_id,
-                                        "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
-                            
-                            # Mark validation as failed
+                        if not detection_result:
+                            # No detection result means detection failed
+                            log("ERROR", f"[CUP DETECTION] No detection result returned for cup {cup_id}", service="routine")
                             res["passed"] = False
-                            res["error"] = "All cup stations occupied"
+                            res["error"] = "Cup detection failed - no result"
                         else:
-                            # At least one station is available - update position to nearest available
-                            log("INFO", f"[CUP DETECTION] Stations available. Proceeding with position update.", service="routine")
+                            # Check if ALL stations are occupied (all values are True)
+                            # detection_result format: {0: bool, 1: bool, 2: bool, 3: bool} where True = occupied, False = available
+                            all_occupied = all(detection_result.values())
                             
-                            # Get current cup_position from task ingredients (already retrieved on line 277)
-                            current_position = None
-                            
-                            # Look for cup_position in ingredients (check multiple possible locations)
-                            # Option 1: Direct key 'cup_position'
-                            if "cup_position" in ingredients:
-                                cup_pos_data = ingredients["cup_position"]
-                                if isinstance(cup_pos_data, dict):
-                                    # Extract position value from nested dict: {'cup_position': 1.0}
-                                    # Handle case where nested value might be string, int, or float
-                                    nested_value = list(cup_pos_data.values())[0]
-                                    current_position = int(float(nested_value))  # float() handles strings like "1.0"
-                                else:
-                                    # Handle any other type (int, float, str) with robust conversion
-                                    current_position = int(float(cup_pos_data))
-                            # Option 2: Nested under 'position' key
-                            elif "position" in ingredients and isinstance(ingredients["position"], dict):
-                                if "cup_position" in ingredients["position"]:
-                                    cup_pos_value = ingredients["position"]["cup_position"]
-                                    # Handle any type (int, float, str) with robust conversion
-                                    current_position = int(float(cup_pos_value))
-                            
-                            if current_position:
-                                log("INFO", f"Current cup position from task: {current_position} (1-indexed)", service="routine")
+                            if all_occupied:
+                                log("ERROR", f"[ALL STATIONS OCCUPIED] All cup stations occupied for cup {cup_id}. Cannot proceed with task.", service="routine")
+                                message = "All cup stations are occupied. Please remove cups and try again."
                                 
-                                # CRITICAL: Convert 1-indexed cup_position to 0-indexed for detection_result comparison
-                                # Task uses: 1=Station1, 2=Station2, 3=Station3, 4=Station4 (1-indexed)
-                                # Detection returns: 0=Station1, 1=Station2, 2=Station3, 3=Station4 (0-indexed)
-                                current_position_0indexed = current_position - 1
-                                log("INFO", f"Converted to 0-indexed for detection comparison: {current_position_0indexed}", service="routine")
+                                # Send dashboard message for all stations occupied
+                                log("INFO", f"[ALL STATIONS OCCUPIED] Sending dashboard notification for {func_name}", service="routine")
+                                await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
                                 
-                                # Find nearest available position (using 0-indexed)
-                                new_position_0indexed = find_nearest_available_position(current_position_0indexed, detection_result)
-                                # Convert back to 1-indexed for task storage
-                                new_position = new_position_0indexed + 1
+                                await publish_event("validation.failed", 
+                                            {"arm": arm_id, "cup": cup_id,
+                                            "step": func_name, "reason": "all_stations_occupied"}, rabbitmq_client)
                                 
-                                # Update task params with new position if it changed
-                                if new_position != current_position:
-                                    log("INFO", f"📍 Position changed: Station {current_position} → Station {new_position} (task uses 1-indexed)", service="routine")
-                                    
-                                    # Update the task's ingredient data
-                                    # Update direct 'cup_position' key if exists
-                                    if "cup_position" in ingredients:
-                                        if isinstance(ingredients["cup_position"], dict):
-                                            # Update the nested dict format
-                                            ingredients["cup_position"]["cup_position"] = float(new_position)
-                                        else:
-                                            ingredients["cup_position"] = float(new_position)
-                                    
-                                    # Update nested 'position.cup_position' if exists
-                                    if "position" in ingredients and isinstance(ingredients["position"], dict):
-                                        if "cup_position" in ingredients["position"]:
-                                            old_val = ingredients["position"]["cup_position"]
-                                            ingredients["position"]["cup_position"] = float(new_position)
-                                            log("INFO", "Success", service="routine")
-                                    
-                                    # Also update params for subsequent steps (will be used in line 276)
-                                    if "cup_position" in params:
-                                        if isinstance(params["cup_position"], dict):
-                                            params["cup_position"]["cup_position"] = float(new_position)
-                                        else:
-                                            params["cup_position"] = float(new_position)
-                                    
-                                    # Update nested params.position.cup_position if exists
-                                    if "position" in params and isinstance(params["position"], dict):
-                                        if "cup_position" in params["position"]:
-                                            params["position"]["cup_position"] = float(new_position)
-                                            log("INFO", "Success", service="routine")
-                                    
-                                    log("INFO", "Success", service="routine")
-                                    log("INFO", f"Updated task_item['ingredients']: {json.dumps(task_item['ingredients'])}", service="routine")
-                                    log("DEBUG", "Linking", service="routine")
-                                    log("INFO", f"Current params after update: {json.dumps(params)}", service="routine")
-                                    
-                                    # CRITICAL: Notify scheduler about position change so ALL future tasks use updated position
-                                    try:
-                                        log("INFO", f"Notifying scheduler about position change for cup {cup_id}: {current_position} → {new_position}", service="routine")
-                                        position_update_response = await rabbitmq_client.send_request(
-                                            target_service="scheduler",
-                                            action="update_cup_position",
-                                            data={
-                                                "cup_id": cup_id,
-                                                "new_position": float(new_position),
-                                                "old_position": float(current_position),
-                                                "timestamp": datetime.now().isoformat()
-                                            },
-                                            timeout=5
-                                        )
-                                        if position_update_response and position_update_response.get("success"):
-                                            log("INFO", f"Scheduler acknowledged position update for cup {cup_id} to {new_position}", service="routine")
-                                        else:
-                                            log("ERROR", f"Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
-                                    except Exception as e:
-                                        log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
-                                else:
-                                    log("INFO", f"Station {current_position} (1-indexed) is available for cup {cup_id}, no position change needed", service="routine")
+                                # Mark validation as failed
+                                res["passed"] = False
+                                res["error"] = "All cup stations occupied"
                             else:
-                                log("ERROR", f"Could not extract cup_position from task ingredients for cup {cup_id}", service="routine")
+                                # At least one station is available - update position to nearest available
+                                log("INFO", f"[CUP DETECTION] Stations available. Proceeding with position update.", service="routine")
+                                
+                                # Get current cup_position from task ingredients
+                                current_position = None
+                                
+                                # Look for cup_position in ingredients (check multiple possible locations)
+                                # Option 1: Direct key 'cup_position'
+                                if "cup_position" in ingredients:
+                                    cup_pos_data = ingredients["cup_position"]
+                                    if isinstance(cup_pos_data, dict):
+                                        # Extract position value from nested dict: {'cup_position': 1.0}
+                                        nested_value = list(cup_pos_data.values())[0]
+                                        current_position = int(float(nested_value))
+                                    else:
+                                        current_position = int(float(cup_pos_data))
+                                # Option 2: Nested under 'position' key
+                                elif "position" in ingredients and isinstance(ingredients["position"], dict):
+                                    if "cup_position" in ingredients["position"]:
+                                        cup_pos_value = ingredients["position"]["cup_position"]
+                                        current_position = int(float(cup_pos_value))
+                                
+                                if current_position:
+                                    log("INFO", f"Current cup position from task: {current_position} (1-indexed)", service="routine")
+                                    
+                                    # CRITICAL: Convert 1-indexed cup_position to 0-indexed for detection_result comparison
+                                    current_position_0indexed = current_position - 1
+                                    log("INFO", f"Converted to 0-indexed for detection comparison: {current_position_0indexed}", service="routine")
+                                    
+                                    # Find nearest available position (using 0-indexed)
+                                    new_position_0indexed = find_nearest_available_position(current_position_0indexed, detection_result)
+                                    # Convert back to 1-indexed for task storage
+                                    new_position = new_position_0indexed + 1
+                                    
+                                    # Update task params with new position if it changed
+                                    if new_position != current_position:
+                                        log("INFO", f"Position changed: Station {current_position} -> Station {new_position} (task uses 1-indexed)", service="routine")
+                                        
+                                        # Update the task's ingredient data
+                                        if "cup_position" in ingredients:
+                                            if isinstance(ingredients["cup_position"], dict):
+                                                ingredients["cup_position"]["cup_position"] = float(new_position)
+                                            else:
+                                                ingredients["cup_position"] = float(new_position)
+                                        
+                                        # Update nested 'position.cup_position' if exists
+                                        if "position" in ingredients and isinstance(ingredients["position"], dict):
+                                            if "cup_position" in ingredients["position"]:
+                                                ingredients["position"]["cup_position"] = float(new_position)
+                                                log("INFO", "Success", service="routine")
+                                        
+                                        # Also update params for subsequent steps
+                                        if "cup_position" in params:
+                                            if isinstance(params["cup_position"], dict):
+                                                params["cup_position"]["cup_position"] = float(new_position)
+                                            else:
+                                                params["cup_position"] = float(new_position)
+                                        
+                                        if "position" in params and isinstance(params["position"], dict):
+                                            if "cup_position" in params["position"]:
+                                                params["position"]["cup_position"] = float(new_position)
+                                                log("INFO", "Success", service="routine")
+                                        
+                                        log("INFO", "Success", service="routine")
+                                        log("INFO", f"Updated task_item['ingredients']: {json.dumps(task_item['ingredients'])}", service="routine")
+                                        log("DEBUG", "Linking", service="routine")
+                                        log("INFO", f"Current params after update: {json.dumps(params)}", service="routine")
+                                        
+                                        # CRITICAL: Notify scheduler about position change
+                                        try:
+                                            log("INFO", f"Notifying scheduler about position change for cup {cup_id}: {current_position} -> {new_position}", service="routine")
+                                            position_update_response = await rabbitmq_client.send_request(
+                                                target_service="scheduler",
+                                                action="update_cup_position",
+                                                data={
+                                                    "cup_id": cup_id,
+                                                    "new_position": float(new_position),
+                                                    "old_position": float(current_position),
+                                                    "timestamp": datetime.now().isoformat()
+                                                },
+                                                timeout=5
+                                            )
+                                            if position_update_response and position_update_response.get("success"):
+                                                log("INFO", f"Scheduler acknowledged position update for cup {cup_id} to {new_position}", service="routine")
+                                            else:
+                                                log("ERROR", f"Scheduler failed to update position for cup {cup_id}: {position_update_response.get('error', 'Unknown')[:50]}", service="routine")
+                                        except Exception as e:
+                                            log("ERROR", f"Scheduler position update exception for cup {cup_id}: {str(e)[:100]}", service="routine")
+                                    else:
+                                        log("INFO", f"Station {current_position} (1-indexed) is available for cup {cup_id}, no position change needed", service="routine")
+                                else:
+                                    log("ERROR", f"Could not extract cup_position from task ingredients for cup {cup_id}", service="routine")
                 
-                if not res.get("passed", False):
-                    # Validation failed - check if we should process this failure or if it's already being handled
-                    log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
-                    log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
-                    
-                    # Use guard to prevent duplicate processing of same validation failure
-                    should_process = await mark_validation_failure_in_progress(cup_id, function)
-                    
-                    if not should_process:
-                        # This validation failure is already being processed, skip duplicate handling
-                        log("WARNING", f"[VALIDATION FAILED] Duplicate validation failure detected for {function} on cup {cup_id}, skipping duplicate processing", service="routine")
-                        validation_failed_stopped = True
-                        break  # Exit without processing again
-                    
-                    log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
-                    
-                    # Send dashboard message based on validation function mapping
-                    log("INFO", f"[VALIDATION FAILED] Sending dashboard notification for {func_name}", service="routine")
-                    await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
-                    
-                    # Publish validation failed event
-                    log("INFO", f"[VALIDATION FAILED] Publishing validation.failed event", service="routine")
-                    await publish_event("validation.failed", 
-                                {"arm": arm_id, "cup": cup_id,
-                                "step": func_name, "reason": res}, rabbitmq_client)
-                    
-                    # Stop the order and mark task for sub-step resume
-                    # This calls scheduler to:
-                    # 1. Mark CURRENT task (this one) as "pending" (will retry on resume)
-                    # 2. Stop the order via OMS
-                    # When order is resumed, scheduler will resubmit THIS task
-                    # Routine will resume from the exact sub-step that failed (using saved progress)
-                    log("INFO", f"[VALIDATION FAILED] Starting revert and stop process for task: {function}", service="routine")
-                    await revert_previous_step_and_stop(cup_id, function, rabbitmq_client)
-                    
-                    # Set flag to prevent sending feedback at the end
-                    # No feedback = scheduler keeps current task as "pending" (set by revert)
-                    # Progress is preserved so we can resume from this exact sub-step
-                    validation_failed_stopped = True
-                    log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True", service="routine")
-                    
-                    # Break from step loop to stop execution
-                    log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
-                    log("INFO", f"[VALIDATION FAILED] Task {function} will resume from step {step_index} (checkpoint saved)", service="routine")
-                    break  # Stop execution - no feedback sent, task remains pending for sub-step resume
-                    
-            elif step_type == "robot":
-                # Check if this is a cup_station function that requires mutual exclusion
-                is_cup_station = "cup_station" in func_name
-                
-                # For cup_station functions, acquire lock with polling and retry logic
-                if is_cup_station:
-                    # STRICT QUEUE ADHERENCE: Retry to maintain queue order
-                    # The arm will NOT skip this task - it will wait until the resource is available
-                    lock_acquired = False
-                    retry_count = 0
-                    start_wait_time = asyncio.get_event_loop().time()
-                    
-                    log("INFO", f"[ARM-{arm_id}] 🔒 Attempting to acquire cup_station lock for {func_name} (cup {cup_id})", service="routine")
-                    
-                    while not lock_acquired:
-                        if not cup_station_lock.locked():
-                            # Try to acquire the lock (non-blocking check, then acquire)
-                            # Since we just checked it's not locked, acquire should succeed immediately
-                            # but we use acquire() which will wait if another arm got it first
-                            await cup_station_lock.acquire()
-                            cup_station_lock_holder = arm_id
-                            lock_acquired = True
-                            
-                            if retry_count > 0:
-                                wait_duration = asyncio.get_event_loop().time() - start_wait_time
-                                log("INFO", f"[ARM-{arm_id}] ✅ Acquired cup_station lock for {func_name} after {retry_count} retries ({wait_duration:.1f}s)", service="routine")
-                            else:
-                                log("INFO", f"[ARM-{arm_id}] ✅ Acquired cup_station lock for {func_name} (no wait)", service="routine")
-                        else:
-                            # Lock is held by another arm, retry with exponential backoff notification
-                            retry_count += 1
-                            current_holder = cup_station_lock_holder
-                            elapsed_time = asyncio.get_event_loop().time() - start_wait_time
-                            
-                            # Log every 5 retries to avoid spam, but always log first retry
-                            if retry_count == 1 or retry_count % 5 == 0:
-                                log("INFO", f"[ARM-{arm_id}] ⏳ Retry {retry_count}: Waiting for cup_station lock (held by Arm {current_holder}) - {func_name} on cup {cup_id} ({elapsed_time:.1f}s elapsed)", service="routine")
-                            
-                            # Check if we've exceeded maximum wait time
-                            if elapsed_time > RESOURCE_LOCK_MAX_WAIT_TIME:
-                                log("ERROR", f"[ARM-{arm_id}] ❌ Cup station lock timeout after {retry_count} retries ({elapsed_time:.1f}s) for {func_name} on cup {cup_id}", service="routine")
-                                message = f"Resource lock timeout: cup_station unavailable after {elapsed_time:.1f}s"
-                                success = False
-                                break  # Exit retry loop and fail this step
-                            
-                            # Wait before retry (strict queue order - keep retrying)
-                            await asyncio.sleep(RESOURCE_LOCK_RETRY_INTERVAL)
-                    
-                    # If lock acquisition failed (timeout), skip robot execution
-                    if not lock_acquired:
-                        log("ERROR", f"[ARM-{arm_id}] Failed to acquire cup_station lock for {func_name}, skipping robot execution", service="routine")
-                        await publish_event("robot.error", 
+                    if not res.get("passed", False):
+                        # Validation failed - check if we should process this failure or if it's already being handled
+                        log("ERROR", f"[VALIDATION FAILED] Validation {func_name} failed for cup {cup_id}", service="routine")
+                        log("ERROR", f"[VALIDATION FAILED] Failure details: {res.get('details', '')}", service="routine")
+                        
+                        # Use guard to prevent duplicate processing of same validation failure
+                        should_process = await mark_validation_failure_in_progress(cup_id, function)
+                        
+                        if not should_process:
+                            # This validation failure is already being processed, skip duplicate handling
+                            log("WARNING", f"[VALIDATION FAILED] Duplicate validation failure detected for {function} on cup {cup_id}, skipping duplicate processing", service="routine")
+                            validation_failed_stopped = True
+                            break  # Exit without processing again
+                        
+                        log("INFO", f"[VALIDATION FAILED] Initiating validation failure handler sequence", service="routine")
+                        
+                        # Send dashboard message based on validation function mapping
+                        log("INFO", f"[VALIDATION FAILED] Sending dashboard notification for {func_name}", service="routine")
+                        await send_validation_failure_to_dashboard(func_name, cup_id, rabbitmq_client)
+                        
+                        # Publish validation failed event
+                        log("INFO", f"[VALIDATION FAILED] Publishing validation.failed event", service="routine")
+                        await publish_event("validation.failed", 
                                     {"arm": arm_id, "cup": cup_id,
-                                    "step": func_name, "error": "Cup station lock timeout"}, rabbitmq_client)
-                        break  # Exit step loop
-                
-                try:
-                    # Add retry logic for robot actions to handle transient failures during parallel execution
-                    max_retries = 20
-                    retry_delay = 3  # seconds
+                                    "step": func_name, "reason": res}, rabbitmq_client)
+                        
+                        # Stop the order and mark task for sub-step resume
+                        # This calls scheduler to:
+                        # 1. Mark CURRENT task (this one) as "pending" (will retry on resume)
+                        # 2. Stop the order via OMS
+                        # When order is resumed, scheduler will resubmit THIS task
+                        # Routine will resume from the exact sub-step that failed (using saved progress)
+                        log("INFO", f"[VALIDATION FAILED] Starting revert and stop process for task: {function}", service="routine")
+                        await revert_previous_step_and_stop(cup_id, function, rabbitmq_client)
+                        
+                        # Set flag to prevent sending feedback at the end
+                        # No feedback = scheduler keeps current task as "pending" (set by revert)
+                        # Progress is preserved so we can resume from this exact sub-step
+                        validation_failed_stopped = True
+                        log("INFO", f"[VALIDATION FAILED] Set validation_failed_stopped flag to True", service="routine")
+                        
+                        # Break from step loop to stop execution
+                        log("INFO", f"[VALIDATION FAILED] Breaking from step loop - recipe execution stopped for cup {cup_id}", service="routine")
+                        log("INFO", f"[VALIDATION FAILED] Task {function} will resume from step {step_index} (checkpoint saved)", service="routine")
+                        break  # Stop execution - no feedback sent, task remains pending for sub-step resume
+                        
+                elif step_type == "robot":
+                    # Check if this is a cup_station function that requires mutual exclusion
+                    is_cup_station = "cup_station" in func_name
                     
-                    for attempt in range(max_retries):
-                        res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
+                    # For cup_station functions, acquire lock with polling and retry logic
+                    if is_cup_station:
+                        # STRICT QUEUE ADHERENCE: Retry to maintain queue order
+                        # The arm will NOT skip this task - it will wait until the resource is available
+                        lock_acquired = False
+                        retry_count = 0
+                        start_wait_time = asyncio.get_event_loop().time()
                         
-                        if res.get("success", False):
-                            break  # Success, exit retry loop
+                        log("INFO", f"[ARM-{arm_id}] Attempting to acquire cup_station lock for {func_name} (cup {cup_id})", service="routine")
                         
-                        # Check if it's a transient error (timeout, connection issues)
-                        error_msg = res.get('message', '').lower()
-                        is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
+                        while not lock_acquired:
+                            if not cup_station_lock.locked():
+                                # Try to acquire the lock
+                                await cup_station_lock.acquire()
+                                cup_station_lock_holder = arm_id
+                                lock_acquired = True
+                                
+                                if retry_count > 0:
+                                    wait_duration = asyncio.get_event_loop().time() - start_wait_time
+                                    log("INFO", f"[ARM-{arm_id}] Acquired cup_station lock for {func_name} after {retry_count} retries ({wait_duration:.1f}s)", service="routine")
+                                else:
+                                    log("INFO", f"[ARM-{arm_id}] Acquired cup_station lock for {func_name} (no wait)", service="routine")
+                            else:
+                                # Lock is held by another arm, retry
+                                retry_count += 1
+                                current_holder = cup_station_lock_holder
+                                elapsed_time = asyncio.get_event_loop().time() - start_wait_time
+                                
+                                if retry_count == 1 or retry_count % 5 == 0:
+                                    log("INFO", f"[ARM-{arm_id}] Retry {retry_count}: Waiting for cup_station lock (held by Arm {current_holder}) - {func_name} on cup {cup_id} ({elapsed_time:.1f}s elapsed)", service="routine")
+                                
+                                if elapsed_time > RESOURCE_LOCK_MAX_WAIT_TIME:
+                                    log("ERROR", f"[ARM-{arm_id}] Cup station lock timeout after {retry_count} retries ({elapsed_time:.1f}s) for {func_name} on cup {cup_id}", service="routine")
+                                    message = f"Resource lock timeout: cup_station unavailable after {elapsed_time:.1f}s"
+                                    success = False
+                                    break  # Exit retry loop and fail this step
+                                
+                                await asyncio.sleep(RESOURCE_LOCK_RETRY_INTERVAL)
                         
-                        if is_transient and attempt < max_retries - 1:
-                            log("ERROR", f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}", service="routine")
-                            log("INFO", f"[ARM-{arm_id}] Retrying in {retry_delay}s...", service="routine")
-                            await asyncio.sleep(retry_delay)
-                            continue
-                        else:
-                            # Non-transient error or final retry failed
-                            message = f"Robot error: {res.get('message', '')}"
-                            log("ERROR", f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}", service="routine")
+                        # If lock acquisition failed (timeout), skip robot execution
+                        if not lock_acquired:
+                            log("ERROR", f"[ARM-{arm_id}] Failed to acquire cup_station lock for {func_name}, skipping robot execution", service="routine")
                             await publish_event("robot.error", 
                                         {"arm": arm_id, "cup": cup_id,
-                                        "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
-                            success = False
-                            break  # abort on robot error
+                                        "step": func_name, "error": "Cup station lock timeout"}, rabbitmq_client)
+                            break  # Exit step loop
                     
+                    try:
+                        # Add retry logic for robot actions to handle transient failures
+                        max_retries = 20
+                        retry_delay = 3  # seconds
+                        
+                        for attempt in range(max_retries):
+                            res = await call_robot(func_name, params, arm_id=arm_id, rabbitmq_client=rabbitmq_client)
+                            
+                            if res.get("success", False):
+                                break  # Success, exit retry loop
+                            
+                            # Check if it's a transient error (timeout, connection issues)
+                            error_msg = res.get('message', '').lower()
+                            is_transient = any(keyword in error_msg for keyword in ['timeout', 'connection', 'unhealthy', 'health check'])
+                            
+                            if is_transient and attempt < max_retries - 1:
+                                log("ERROR", f"[ARM-{arm_id}] Transient error on {func_name} (attempt {attempt + 1}/{max_retries}): {error_msg}", service="routine")
+                                log("INFO", f"[ARM-{arm_id}] Retrying in {retry_delay}s...", service="routine")
+                                await asyncio.sleep(retry_delay)
+                                continue
+                            else:
+                                # Non-transient error or final retry failed
+                                message = f"Robot error: {res.get('message', '')}"
+                                log("ERROR", f"[ARM-{arm_id}] Robot step failed after {attempt + 1} attempts: {func_name}", service="routine")
+                                await publish_event("robot.error", 
+                                            {"arm": arm_id, "cup": cup_id,
+                                            "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
+                                success = False
+                                break  # abort on robot error
+                        
+                        if not res.get("success", False):
+                            break  # Exit step loop if robot action ultimately failed
+                    finally:
+                        # Always release the lock for cup_station functions (only release if we acquired it)
+                        if is_cup_station and cup_station_lock.locked() and cup_station_lock_holder == arm_id:
+                            cup_station_lock_holder = None
+                            cup_station_lock.release()
+                            log("INFO", f"[ARM-{arm_id}] Released cup_station lock for function: {func_name}", service="routine")
+                        
+                elif step_type == "automation":
+                    log("INFO", "Action", service="routine")
+                    res = await call_automation(func_name, params, rabbitmq_client)
                     if not res.get("success", False):
-                        break  # Exit step loop if robot action ultimately failed
-                finally:
-                    # Always release the lock for cup_station functions (only release if we acquired it)
-                    if is_cup_station and cup_station_lock.locked() and cup_station_lock_holder == arm_id:
-                        cup_station_lock_holder = None
-                        cup_station_lock.release()
-                        log("INFO", f"[ARM-{arm_id}] Released cup_station lock for function: {func_name}", service="routine")
-                    
-            elif step_type == "automation":
-                log("INFO", "Action", service="routine")
-                res = await call_automation(func_name, params, rabbitmq_client)
-                if not res.get("success", False):
-                    message = f"Automation error: {res.get('message', '')}"
-                    log("ERROR", f"Automation execution failed for {func_name} on cup {cup_id}: {res.get('message', '')[:50]}", service="routine")
-                    await publish_event("automation.error", 
-                                {"arm": arm_id, "cup": cup_id,
-                                "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
-                    success = False
-                    break  # abort on automation error
-                else:
-                    log("INFO", "Success", service="routine")
+                        message = f"Automation error: {res.get('message', '')}"
+                        log("ERROR", f"Automation execution failed for {func_name} on cup {cup_id}: {res.get('message', '')[:50]}", service="routine")
+                        await publish_event("automation.error", 
+                                    {"arm": arm_id, "cup": cup_id,
+                                    "step": func_name, "error": res.get("message", "")}, rabbitmq_client)
+                        success = False
+                        break  # abort on automation error
+                    else:
+                        log("INFO", "Success", service="routine")
+            finally:
+                # COLLISION LOCK RELEASE (applies to ALL step types)
+                # Release collision locks if this is the end function for the group
+                # For group sequences, lock is only released after the final function completes
+                release_collision_locks(arm_id, func_name, acquired_collision_locks)
                     
             # publish a step-completed event
             await publish_event("routine.step_completed", 
