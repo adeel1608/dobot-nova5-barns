@@ -428,7 +428,7 @@ MILK_FROTHER_MOVEMENT_OFFSETS = {
     'lift_after_place': (0, 0, 150, 0, 0, 0),  # Lift before placing frother at milk station
     'lift_after_pick': (0, 0, 10, 0, 0, 0),    # Lift after picking frother from milk station
     'cleaning_motion': (0, 5, -150, 0, 0, 0),  # Cleaning motion offset
-    'final_approach': (-5, 0, -5, 0, 0, 0),      # Final approach for frother return
+    'final_approach': (-12.5, 0, -12.5, 0, 0, 0),      # Final approach for frother return
 }
 
 MILK_POURING_OFFSETS = {
@@ -616,20 +616,20 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
 GRAB_PAPER_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
-        'approach':     ( 229.0,        -19,          0,          0,          0,         0),
-        'grip_width':   155,
+        'approach':     ( 222.0,        -5,          0,          0,          0,         0),
+        'grip_width':   145,
         'retreat':      (-350,        0,          0,          0,          0,         0),
     },
     '9oz': {
         'twist_back':   ( -92.886268, 7.237848, -6.756920, 3.452408, -1.172608, 0.187942),
-        'approach':     ( 300,         -30,           7.5,          0,          0,         0),
+        'approach':     ( 295,         -20,           10,          0,          0,         0),
         'grip_width':   160,
         'retreat':      (-300,         0,           0,          0,          0,         0),
     },
     '7oz': {
         'twist_back':   ( -65.440372, -10.652569,   4.188843,   6.867561,   0.095261,  29.626037),
-        'approach':     ( 252.5,         -20,           0.0,          0,          0,         0),
-        'grip_width':   180,
+        'approach':     ( 250,         -10,           0.0,          0,          0,         0),
+        'grip_width':   155,
         'retreat':      (-290,         0,           0,          0,          0,         0),
     },
 }
@@ -703,7 +703,7 @@ PAPER_CUPS_STATION_PARAMS = {
     'sauces_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
         'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at sauces station
-        'position3':    (-38.295812,-75.434312,-68.188894,-32.969245,-127.142100,-0.958200),  # Third position at sauces station (place/pick)
+        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at sauces station (place/pick)
     },
     'milk_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at milk station

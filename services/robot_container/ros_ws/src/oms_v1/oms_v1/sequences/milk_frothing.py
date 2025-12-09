@@ -56,14 +56,14 @@ def get_frother_position(**params) -> bool:
     try:
         print("🎯 Starting milk frother position calibration...")
         print("=" * 50)
-        return_back_to_home()
+        # return_back_to_home()
         
-        # Only sleep for single shot (give time for shot to finish)
-        espresso_data = params.get('espresso', {})
-        is_single_shot = 'espresso_shot_single' in espresso_data or params.get('shot_type') == 'single'
-        if is_single_shot:
-            print("   ⏱️  Waiting 5s for single shot to finish...")
-            time.sleep(5)
+        # # Only sleep for single shot (give time for shot to finish)
+        # espresso_data = params.get('espresso', {})
+        # is_single_shot = 'espresso_shot_single' in espresso_data or params.get('shot_type') == 'single'
+        # if is_single_shot:
+        #     print("   ⏱️  Waiting 5s for single shot to finish...")
+        #     time.sleep(5)
         
         # Set optimal speed for calibration
         print("⚙️ Setting speed factor for precise calibration...")
@@ -79,70 +79,70 @@ def get_frother_position(**params) -> bool:
             return False
         print("   ✅ Successfully moved to north-east home")
         
-        # Step 2: Open gripper to prepare for positioning
-        print("🤏 Step 2/5: Opening gripper for positioning...")
-        gripper_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
-        if gripper_result is False:
-            print("[ERROR] Failed to open gripper")
-            return False
-        print("   ✅ Gripper opened successfully")
+        # # Step 2: Open gripper to prepare for positioning
+        # print("🤏 Step 2/5: Opening gripper for positioning...")
+        # gripper_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
+        # if gripper_result is False:
+        #     print("[ERROR] Failed to open gripper")
+        #     return False
+        # print("   ✅ Gripper opened successfully")
 
-        # Step 3: Steam wand positioning and preparation
-        print("🎯 Step 3/5: Steam wand positioning and preparation...")
-        print("   📍 Moving to steam wand...")
-        move_result = run_skill("move_to", "left_steam_wand", 0.28)
-        if move_result is False:
-            print("[ERROR] Failed to move to steam wand")
-            return False
+        # # Step 3: Steam wand positioning and preparation
+        # print("🎯 Step 3/5: Steam wand positioning and preparation...")
+        # print("   📍 Moving to steam wand...")
+        # move_result = run_skill("move_to", "left_steam_wand", 0.28)
+        # if move_result is False:
+        #     print("[ERROR] Failed to move to steam wand")
+        #     return False
         
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
-        print("   🔧 Grabbing steam wand tool...")
-        grab_result = run_skill("grab_tool", "left_steam_wand")
-        if grab_result is False:
-            print("[ERROR] Failed to grab steam wand tool")
-            return False
+        # print("   🔧 Grabbing steam wand tool...")
+        # grab_result = run_skill("grab_tool", "left_steam_wand")
+        # if grab_result is False:
+        #     print("[ERROR] Failed to grab steam wand tool")
+        #     return False
         
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
-        print("   🤏 Setting grip position...")
-        grip_set_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['place'])
-        if grip_set_result is False:
-            print("[ERROR] Failed to set grip position")
-            return False
+        # print("   🤏 Setting grip position...")
+        # grip_set_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['place'])
+        # if grip_set_result is False:
+        #     print("[ERROR] Failed to set grip position")
+        #     return False
         
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
-        print("   📍 Moving to calibration position...")
-        positioning_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['calibration']['positioning'])
-        if positioning_result is False:
-            print("[ERROR] Failed to move to calibration position")
-            return False
+        # print("   📍 Moving to calibration position...")
+        # positioning_result = run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['calibration']['positioning'])
+        # if positioning_result is False:
+        #     print("[ERROR] Failed to move to calibration position")
+        #     return False
 
-        print("   🤏 Releasing grip for calibration...")
-        release_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
-        if release_result is False:
-            print("[ERROR] Failed to release grip")
-            return False
-        print("   ✅ Steam wand positioning completed")
+        # print("   🤏 Releasing grip for calibration...")
+        # release_result = run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
+        # if release_result is False:
+        #     print("[ERROR] Failed to release grip")
+        #     return False
+        # print("   ✅ Steam wand positioning completed")
         
-        move_ee_result = run_skill("moveEE_movJ", -20, 0, 0, 0, 0, 0)
-        if move_ee_result is False:
-            print("[ERROR] Failed to move end effector")
-            return False
+        # move_ee_result = run_skill("moveEE_movJ", 10, 10, 0, 0, 0, 0)
+        # if move_ee_result is False:
+        #     print("[ERROR] Failed to move end effector")
+        #     return False
         
-        sync_result = run_skill("sync")
-        if sync_result is False:
-            print("[WARNING] Sync operation failed - continuing...")
+        # sync_result = run_skill("sync")
+        # if sync_result is False:
+        #     print("[WARNING] Sync operation failed - continuing...")
         
         # Step 4: Perform multiple approaches for accuracy
-        cycles = 3  # Special case: 3 cycles for frother calibration
+        cycles = 4  # Special case: 3 cycles for frother calibration
         print(f"🎯 Step 4/5: Performing calibration approaches ({cycles} attempts)...")
         for i in range(cycles):
             print(f"   📍 Approach {i+1}/{cycles}...")
