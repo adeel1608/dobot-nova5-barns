@@ -620,10 +620,9 @@ def pick_paper_cup_sauces(**params) -> bool:
         # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
         # Using standard gripper position for sauces station (145 for all sizes)
         gripper_position = 145
-
-        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
+        if run_skill("moveEE", 0,0,5,0,0,0) is False:
             return False
-        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3']) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
             return False
         if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position2']) is False:
             return False
@@ -676,10 +675,9 @@ def pick_paper_cup_milk(**params) -> bool:
         # Paper cups only support 7oz, 9oz, 12oz (no 16oz for paper)
         # Using standard gripper position for milk station (145 for all sizes)
         gripper_position = 145
-
-        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
+        if run_skill("moveEE", 0,0,5,0,0,0) is False:
             return False
-        if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position3']) is False:
+        if run_skill("set_gripper_position", GRIPPER_FULL, gripper_position) is False:
             return False
         if run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2']) is False:
             return False
