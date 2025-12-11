@@ -428,7 +428,7 @@ MILK_FROTHER_MOVEMENT_OFFSETS = {
     'lift_after_place': (0, 0, 150, 0, 0, 0),  # Lift before placing frother at milk station
     'lift_after_pick': (0, 0, 10, 0, 0, 0),    # Lift after picking frother from milk station
     'cleaning_motion': (0, 5, -150, 0, 0, 0),  # Cleaning motion offset
-    'final_approach': (-20, 0, -5, 0, 0, 0),      # Final approach for frother return
+    'final_approach': (-75, 0, 0, 0, 0, 0),      # Final approach for frother return
 }
 
 MILK_POURING_OFFSETS = {
