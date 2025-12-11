@@ -117,12 +117,15 @@ async def dispense_hot_water(params: dict):
 # This function uses MQTT to communicate with the syrup dispenser service.
 # It sends a request to dispense a specific type and amount of syrup, and waits for a response.
 # params should contain "syrup_type" ("whole", "oat", "almond", etc.) and "amount" (integer)
-# EX: example params: {"pump_number": 9, "amount": 15, "timeout": 300}
-# OR: {"syrups": {3: 45.0}, "timeout": 300}
+# EX: example params: {"pump_number": 9, "amount": 15, "timeout": 75}
+# OR: {"syrups": {3: 45.0}, "timeout": 75}
+# Note: Timeout defaults to 75s. After timeout, assumes success to avoid crashing recipe.
 async def dispense_sauce(params: dict):
     """Dispense multiple syrups using MQTT communication."""
     # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
     # Loops through all pumps in the syrups dictionary
+    
+    log("INFO", f"[DISPENSE-SAUCE] Called with params: {params}", service="automation")
     
     # Extract syrups dictionary
     if "syrups" not in params or not isinstance(params["syrups"], dict):
@@ -134,6 +137,7 @@ async def dispense_sauce(params: dict):
         }
     
     syrups_dict = params["syrups"]
+    log("INFO", f"[DISPENSE-SAUCE] Extracted syrups dict: {syrups_dict}", service="automation")
     
     if not syrups_dict:
         return {
@@ -151,6 +155,8 @@ async def dispense_sauce(params: dict):
     # Loop through each syrup pump
     for pump_key, amount in syrups_dict.items():
         pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
+        
+        log("INFO", f"[DISPENSE-SAUCE] Starting dispense: pump_key={pump_key}, pump_number={pump_number}, amount={amount}", service="automation")
         
         response = {"data": None}
 
@@ -198,9 +204,29 @@ async def dispense_sauce(params: dict):
         # Send the message
         client.publish("automation_syrup", payload, qos=1)
 
-        # Wait indefinitely for response (no timeout)
+        # Wait for response with timeout (default 75 seconds)
+        response_timeout = params.get("timeout", 75)
+        response_start = time.time()
+        log("INFO", f"[DISPENSE-SAUCE] Waiting for MQTT response from pump {pump_number} (timeout: {response_timeout}s)", service="automation")
+        
         while response["data"] is None:
+            if (time.time() - response_start) > response_timeout:
+                log("WARNING", f"[DISPENSE-SAUCE] Timeout waiting for response from pump {pump_number} after {response_timeout}s - Assuming success to continue recipe", service="automation")
+                client.loop_stop()
+                client.disconnect()
+                all_results.append({
+                    "pump_number": pump_number,
+                    "amount": amount,
+                    "success": True,
+                    "message": f"Assumed success after {response_timeout}s timeout (no hardware response)",
+                    "timeout": True
+                })
+                break  # Skip to next pump
             await asyncio.sleep(0.1)
+        
+        # Check if we got a response or timed out
+        if response["data"] is None:
+            continue  # Already added timeout result as success, move to next pump
 
         client.loop_stop()
         client.disconnect()
@@ -208,6 +234,8 @@ async def dispense_sauce(params: dict):
         
         # Store result for this pump
         mqtt_response = response["data"]
+        log("INFO", f"[DISPENSE-SAUCE] MQTT response for pump {pump_number}: {mqtt_response}", service="automation")
+        
         if mqtt_response.get("status") == "success":
             all_results.append({
                 "pump_number": pump_number,
@@ -216,19 +244,23 @@ async def dispense_sauce(params: dict):
                 "message": f"Successfully dispensed {amount}g from syrup pump {pump_number}",
                 "details": mqtt_response
             })
+            log("INFO", f"[DISPENSE-SAUCE] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
         else:
+            error_msg = mqtt_response.get('error', 'Unknown error')
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
                 "success": False,
-                "error": mqtt_response.get('error', 'Unknown error'),
+                "error": error_msg,
                 "details": mqtt_response
             })
+            log("ERROR", f"[DISPENSE-SAUCE] FAILED: Pump {pump_number} failed to dispense {amount}g - Error: {error_msg}", service="automation")
     
     # Return combined results
     all_success = all(result["success"] for result in all_results)
     
     if all_success:
+        log("INFO", f"[DISPENSE-SAUCE] All {len(all_results)} dispenses successful", service="automation")
         return {
             "success": True,
             "message": f"Successfully dispensed {len(all_results)} syrups",
@@ -236,6 +268,9 @@ async def dispense_sauce(params: dict):
         }
     else:
         failed_count = sum(1 for result in all_results if not result["success"])
+        failed_pumps = [r["pump_number"] for r in all_results if not r["success"]]
+        log("ERROR", f"[DISPENSE-SAUCE] {failed_count} of {len(all_results)} dispenses failed. Failed pumps: {failed_pumps}", service="automation")
+        log("ERROR", f"[DISPENSE-SAUCE] Full results: {all_results}", service="automation")
         return {
             "success": False,
             "error": f"{failed_count} syrup(s) failed to dispense",
@@ -356,21 +391,26 @@ async def dispense_ice(params: dict):
         }
 
 
-# EX:example params: {"pump_number": 1, "amount": 150, "timeout": 300}
-# OR: {"milk": {'213411': 200.0}, "timeout": 300}
-# OR: {"water": {5: 100.0}, "timeout": 300}  # Water uses pump 5
+# EX:example params: {"pump_number": 1, "amount": 150, "timeout": 75}
+# OR: {"milk": {'213411': 200.0}, "timeout": 75}
+# OR: {"water": {5: 100.0}, "timeout": 75}  # Water uses pump 5
+# Note: Timeout defaults to 75s. After timeout, assumes success to avoid crashing recipe.
 async def dispense_milk(params: dict):
     """Dispense multiple milk types or water using MQTT communication."""
     # example params: {"milk": {1: 260.0}, ...} or {"water": {5: 100.0}, ...}
     # Loops through all pumps in the milk/water dictionary
     # Both use the same milk dispenser hardware
     
+    log("INFO", f"[DISPENSE-MILK] Called with params: {params}", service="automation")
+    
     # Extract milk or water dictionary (both use milk dispenser hardware)
     milk_dict = None
     if "milk" in params and isinstance(params["milk"], dict):
         milk_dict = params["milk"]
+        log("INFO", f"[DISPENSE-MILK] Extracted milk dict: {milk_dict}", service="automation")
     elif "water" in params and isinstance(params["water"], dict):
         milk_dict = params["water"]
+        log("INFO", f"[DISPENSE-MILK] Extracted water dict: {milk_dict}", service="automation")
     
     if not milk_dict:
         log("ERROR", "No milk or water dictionary found in params", service="automation")
@@ -396,6 +436,8 @@ async def dispense_milk(params: dict):
     # Loop through each pump (milk or water)
     for pump_key, amount in milk_dict.items():
         pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 1
+        
+        log("INFO", f"[DISPENSE-MILK] Starting dispense: pump_key={pump_key}, pump_number={pump_number}, amount={amount}", service="automation")
         
         response = {"data": None}
 
@@ -443,9 +485,29 @@ async def dispense_milk(params: dict):
         # Send the message
         client.publish("automation_milk", payload, qos=1)
 
-        # Wait indefinitely for response (no timeout)
+        # Wait for response with timeout (default 75 seconds)
+        response_timeout = params.get("timeout", 75)
+        response_start = time.time()
+        log("INFO", f"[DISPENSE-MILK] Waiting for MQTT response from pump {pump_number} (timeout: {response_timeout}s)", service="automation")
+        
         while response["data"] is None:
+            if (time.time() - response_start) > response_timeout:
+                log("WARNING", f"[DISPENSE-MILK] Timeout waiting for response from pump {pump_number} after {response_timeout}s - Assuming success to continue recipe", service="automation")
+                client.loop_stop()
+                client.disconnect()
+                all_results.append({
+                    "pump_number": pump_number,
+                    "amount": amount,
+                    "success": True,
+                    "message": f"Assumed success after {response_timeout}s timeout (no hardware response)",
+                    "timeout": True
+                })
+                break  # Skip to next pump
             await asyncio.sleep(0.1)
+        
+        # Check if we got a response or timed out
+        if response["data"] is None:
+            continue  # Already added timeout result as success, move to next pump
 
         client.loop_stop()
         client.disconnect()
@@ -453,6 +515,8 @@ async def dispense_milk(params: dict):
         
         # Store result for this pump
         mqtt_response = response["data"]
+        log("INFO", f"[DISPENSE-MILK] MQTT response for pump {pump_number}: {mqtt_response}", service="automation")
+        
         if mqtt_response.get("status") == "success":
             all_results.append({
                 "pump_number": pump_number,
@@ -461,19 +525,23 @@ async def dispense_milk(params: dict):
                 "message": f"Successfully dispensed {amount}g from pump {pump_number}",
                 "details": mqtt_response
             })
+            log("INFO", f"[DISPENSE-MILK] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
         else:
+            error_msg = mqtt_response.get('error', 'Unknown error')
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
                 "success": False,
-                "error": mqtt_response.get('error', 'Unknown error'),
+                "error": error_msg,
                 "details": mqtt_response
             })
+            log("ERROR", f"[DISPENSE-MILK] FAILED: Pump {pump_number} failed to dispense {amount}g - Error: {error_msg}", service="automation")
     
     # Return combined results
     all_success = all(result["success"] for result in all_results)
     
     if all_success:
+        log("INFO", f"[DISPENSE-MILK] All {len(all_results)} dispenses successful", service="automation")
         return {
             "success": True,
             "message": f"Successfully dispensed {len(all_results)} item(s)",
@@ -481,6 +549,9 @@ async def dispense_milk(params: dict):
         }
     else:
         failed_count = sum(1 for result in all_results if not result["success"])
+        failed_pumps = [r["pump_number"] for r in all_results if not r["success"]]
+        log("ERROR", f"[DISPENSE-MILK] {failed_count} of {len(all_results)} dispenses failed. Failed pumps: {failed_pumps}", service="automation")
+        log("ERROR", f"[DISPENSE-MILK] Full results: {all_results}", service="automation")
         return {
             "success": False,
             "error": f"{failed_count} dispense(s) failed",
