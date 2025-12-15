@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: telegraf
+  namespace: barns
+  labels:
+    app: telegraf
+spec:
+  type: ClusterIP
+  ports:
+    - name: udp
+      port: 8094
+      targetPort: 8094
+      protocol: UDP
+  selector:
+    app: telegraf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telegraf
+  namespace: barns
+  labels:
+    app: telegraf
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telegraf
+  template:
+    metadata:
+      labels:
+        app: telegraf
+    spec:
+      containers:
+      - name: telegraf
+        image: telegraf:1.28-alpine
+        ports:
+        - containerPort: 8094
+          name: udp
+          protocol: UDP
+        env:
+        - name: DOCKER_INFLUXDB_INIT_ORG
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: org
+        - name: DOCKER_INFLUXDB_INIT_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: bucket
+        - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: admin-token
+        volumeMounts:
+        - name: telegraf-config
+          mountPath: /etc/telegraf/telegraf.conf
+          subPath: telegraf.conf
+      volumes:
+      - name: telegraf-config
+        configMap:
+          name: telegraf-config
+
+
+
+
+
+
