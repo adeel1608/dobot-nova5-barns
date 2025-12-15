@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-stream-service
+  namespace: barns
+  labels:
+    app: video-stream-service
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      nodePort: 30001
+      protocol: TCP
+  selector:
+    app: video-stream-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-stream-service
+  namespace: barns
+  labels:
+    app: video-stream-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-stream-service
+  template:
+    metadata:
+      labels:
+        app: video-stream-service
+    spec:
+      containers:
+      - name: video-stream-service
+        image: barns-video-stream:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: PYTHONPATH
+          value: "/app"
+        - name: DEBUG
+          value: "false"
+        - name: TELEGRAF_HOST
+          value: "telegraf"
+        - name: TELEGRAF_PORT
+          value: "8094"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: dev
+          mountPath: /dev
+      volumes:
+      - name: dev
+        hostPath:
+          path: /dev
+          type: Directory
+
+
+
+
+
+

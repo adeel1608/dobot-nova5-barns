@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: robot-arm-service
+  namespace: barns
+  labels:
+    app: robot-arm-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: robot-arm-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robot-arm-service
+  namespace: barns
+  labels:
+    app: robot-arm-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: robot-arm-service
+  template:
+    metadata:
+      labels:
+        app: robot-arm-service
+    spec:
+      containers:
+      - name: robot-arm-service
+        image: barns-robot-arm:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: url
+        - name: ROBOT_SIMULATION
+          value: "true"
+        - name: PYTHONPATH
+          value: "/app"
+        - name: DEBUG
+          value: "false"
+        - name: TELEGRAF_HOST
+          value: "telegraf"
+        - name: TELEGRAF_PORT
+          value: "8094"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import socket; socket.create_connection(('rabbitmq', 5672), timeout=10)"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 20
+          failureThreshold: 5
+
+
+
+
+
+
