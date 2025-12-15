@@ -309,7 +309,7 @@ HOME_CALIBRATION_CONSTANTS = {
 HOME_CALIBRATION_PARAMS = {
     'return_home_position': (30.0, -130.0, -100.0, -90.0, 0.0),  # J2-J6 values for return_back_to_home (J1 is calculated)
     'portafilter_cleaner': {
-        'prep_position': (-62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360),  # Preparation position for portafilter cleaner calibration
+        'prep_position': (-54.471272,-22.616722,-132.696136,-55.483162,-49.198364,24.286514),  # Preparation position for portafilter cleaner calibration
     },
     'espresso_grinder_calibration': {
         'prep1': (-62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360),  # First prep position for grinder calibration
@@ -481,20 +481,20 @@ MILK_FROTHING_PARAMS = {
     },
     'pouring': {
         'stage1': {
-            'position':  (-96.090511,-16.227822,-105.010689,-62.553620,-80.923654,-37.499182),  # Stage 1 pouring position
-            'adjust1':   (-80.539307,-18.200583,-106.947316,-59.550868,-75.668198,-108.282181),  # Stage 1 pour angle adjustment
+            'position':  (-96.083982,-16.210451,-105.039001,-62.486753,-80.955525,-37.507634),  # Stage 1 pouring position
+            'adjust1':   (-80.531382,-18.182229,-106.977193,-59.482663,-75.699375,-108.294767),  # Stage 1 pour angle adjustment
         },
         'stage2': {
-            'position':  (-112.597470,-25.100320,-91.773467,-66.901391,-97.398555,-38.595548),  # Stage 2 pouring position
-            'adjust1':   (-98.249548,-23.101207,-99.502494,-61.955516,-93.320597,-109.718195),  # Stage 2 pour angle adjustment
+            'position':  (-112.956263,-24.321635,-93.007182,-66.393067,-97.792107,-38.606995),  # Stage 2 pouring position
+            'adjust1':   (-98.388205,-22.228447,-100.869531,-61.406274,-93.496126,-109.722007),  # Stage 2 pour angle adjustment
         },
         'stage3': {
-            'position':  (-125.114105,-37.188199,-71.438860,-75.359859,-109.898501,-39.479366),  # Stage 3 pouring position
-            'adjust1':   (-113.243644,-31.805247,-85.173972,-67.818178,-108.270379,-110.969427),  # Stage 3 pour angle adjustment
+            'position':  (-126.029066,-35.772446,-73.957985,-74.217283,-110.841058,-39.515233),  # Stage 3 pouring position
+            'adjust1':   (-113.936546,-30.270324,-87.808810,-66.676734,-108.994360,-111.003200),  # Stage 3 pour angle adjustment
         }, 
         'stage4': {
-            'position':  (-134.322409,-54.881074,-37.978813,-91.442778,-119.110896,-40.229369),  # Stage 4 pouring position
-            'adjust1':   (-124.853404,-44.135038,-62.898792,-78.228679,-119.849937,-112.096069),  # Stage 4 pour angle adjustment
+            'position':  (-135.740098,-52.153730,-43.415727,-88.720604,-120.542044,-40.299402),  # Stage 4 pouring position
+            'adjust1':   (-126.144187,-41.865918,-67.172854,-76.221819,-121.161589,-112.185484),  # Stage 4 pour angle adjustment
         }, 
     },
     'cleaning': {
@@ -559,7 +559,7 @@ PLASTIC_CUP_EXTRACT_OFFSETS = {
 }
 
 PLASTIC_CUP_MOVEMENT_OFFSETS = {
-    'pickup_down': (0, -95, 0, 0, 0, 0),  # Move down to pickup cup from station
+    'pickup_down': (0, -100, 0, 0, 0, 0),  # Move down to pickup cup from station
     'place_return_up': (0, 100, 0, 0, 0, 0),  # Move up when returning from placement
 }
 
@@ -690,15 +690,15 @@ PLACE_PAPER_CUP_PARAMS = {
 PAPER_CUPS_STATION_PARAMS = {
     'staging': {
         # Placement positions (same as plastic cups)
-        'place_1':      (-82.522181,-50.735762,-126.581344,-2.476678,-82.420135,-0.099928),  # Stage 1 placement position
-        'place_2':      (-102.824895,-51.843388,-116.847901,-11.124206,-102.725116,-0.024751),  # Stage 2 placement position
-        'place_3':      (-118.730940,-55.562775,-100.920870,-23.327405,-118.638763,0.037636),  # Stage 3 placement position
-        'place_4':      (-130.261824,-62.768263,-79.008060,-38.015172,-130.185224,0.092570),  # Stage 4 placement position
+        'place_1':      (-82.495347,-50.751238,-126.575974,-2.414609,-82.426553,-0.078193),  # Stage 1 placement position
+        'place_2':      (-103.053575,-51.655540,-118.074840,-10.022299,-102.986149,0.016289),  # Stage 2 placement position
+        'place_3':      (-119.620530,-54.959088,-103.132825,-21.640516,-119.557694,0.101475),  # Stage 3 placement position
+        'place_4':      (-131.763914,-61.608221,-82.272711,-35.811243,-131.710665,0.182086),  # Stage 4 placement position
         # Pickup positions for paper cups
-        'pickup_1':     (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),  # Stage 1 pickup position
-        'pickup_2':     (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),  # Stage 2 pickup position
-        'pickup_3':     (-126.092345,-52.392425,-113.869083,-13.545369,-125.993798,0.060536),  # Stage 3 pickup position
-        'pickup_4':     (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489),  # Stage 4 pickup position
+        'pickup_1':     (-79.151479,-53.722102,-144.665085,18.653262,-79.086572,-0.108530),  # Stage 1 pickup position
+        'pickup_2':     (-107.618809,-50.837104,-133.238999,4.322921,-107.550365,0.027873),  # Stage 2 pickup position
+        'pickup_3':     (-127.135882,-52.028920,-115.863508,-11.823941,-127.069217,0.139543),  # Stage 3 pickup position
+        'pickup_4':     (-139.614437,-57.667847,-93.968886,-28.016244,-139.555665,0.242845),  # Stage 4 pickup position
     },
     'sauces_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
