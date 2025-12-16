@@ -74,7 +74,7 @@ def get_slush(**params) -> bool:
                 print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
-        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
         valid_dispensers = ("1", "2")
             
         if cup_size not in valid_cup_sizes:
@@ -201,7 +201,7 @@ def place_slush(**params) -> bool:
                 print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
-        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
         valid_dispensers = ("1", "2")
             
         if cup_size not in valid_cup_sizes:
