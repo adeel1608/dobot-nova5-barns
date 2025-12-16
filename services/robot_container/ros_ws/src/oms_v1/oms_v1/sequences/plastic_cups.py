@@ -91,7 +91,7 @@ def dispense_plastic_cup(**params) -> bool:
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)
         attempt_count = 0
-        while attempt_count < 3:
+        while attempt_count < 5:
             if cup_size == "16oz":
                 home(position=config['home'])
                 run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_FULL)
