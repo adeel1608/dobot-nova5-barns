@@ -45,6 +45,19 @@ from rclpy.time import Time
 from tf2_ros import Buffer, TransformListener
 import tf_transformations
 
+# Custom Exceptions
+class RobotMotionError(Exception):
+    """Base exception for robot motion failures"""
+    pass
+
+class SyncFailureError(RobotMotionError):
+    """Raised when sync operation fails after all retries"""
+    pass
+
+class MovementFailureError(RobotMotionError):
+    """Raised when a movement command fails after all retries"""
+    pass
+
 from std_srvs.srv import Trigger
 from std_msgs.msg import Float32, Int8
 from control_msgs.action import FollowJointTrajectory
@@ -742,25 +755,41 @@ class robot_motion(Node):
         log.error("StopDrag: exceeded max_attempts")
         return False
     
-    def sync(self) -> bool:
+    def sync(self, raise_on_failure: bool = False, max_retries: int = 20) -> bool:
         """
         Wait for the Dobot motion to complete by calling the /dobot_bringup_v3/srv/Sync service.
+
+        Parameters
+        ----------
+        raise_on_failure : bool
+            If True, raises SyncFailureError instead of returning False
+        max_retries : int
+            Maximum number of retry attempts (default: 3, reduced from 20 for faster failure)
 
         Returns
         -------
         True if the service returns res == 0 (motion done), False otherwise.
+        
+        Raises
+        ------
+        SyncFailureError
+            If raise_on_failure=True and sync fails after all attempts
         """
         from dobot_msgs_v3.srv import Sync
         import rclpy
 
         # Ensure service is available
         if not self.sync_cli.wait_for_service(timeout_sec=10.0):
-            self.safe_log('error', 'sync: Sync service unavailable')
+            error_msg = 'sync: Sync service unavailable'
+            self.safe_log('error', error_msg)
+            if raise_on_failure:
+                raise SyncFailureError(error_msg)
             return False
 
-        # Retry logic for robustness
-        max_attempts = 20
+        # Reduced retry logic - fail fast instead of wasting time
+        max_attempts = max_retries
         timeout_sec = 30.0  # Generous timeout for motion completion
+        last_error_msg = None
         
         for attempt in range(1, max_attempts + 1):
             try:
@@ -770,16 +799,24 @@ class robot_motion(Node):
 
                 # Check result
                 if not fut.done():
-                    self.safe_log('warn', f'sync: Timeout after {timeout_sec}s (attempt {attempt}/{max_attempts})')
+                    last_error_msg = f'sync: Timeout after {timeout_sec}s (attempt {attempt}/{max_attempts})'
+                    self.safe_log('warn', last_error_msg)
                     if attempt == max_attempts:
-                        self.safe_log('error', 'sync: All sync attempts timed out')
+                        final_msg = 'sync: All sync attempts timed out'
+                        self.safe_log('error', final_msg)
+                        if raise_on_failure:
+                            raise SyncFailureError(final_msg)
                         return False
                     continue
 
                 if fut.result() is None:
-                    self.safe_log('warn', f'sync: No response from Sync service (attempt {attempt}/{max_attempts})')
+                    last_error_msg = f'sync: No response from Sync service (attempt {attempt}/{max_attempts})'
+                    self.safe_log('warn', last_error_msg)
                     if attempt == max_attempts:
-                        self.safe_log('error', 'sync: No response after all attempts')
+                        final_msg = 'sync: No response after all attempts'
+                        self.safe_log('error', final_msg)
+                        if raise_on_failure:
+                            raise SyncFailureError(final_msg)
                         return False
                     continue
 
@@ -788,21 +825,33 @@ class robot_motion(Node):
                     self.safe_log('info', 'sync: Motion complete')
                     return True
                 else:
-                    self.safe_log('warn', f'sync: Sync returned error code {res_code} (attempt {attempt}/{max_attempts})')
+                    last_error_msg = f'sync: Sync returned error code {res_code} (attempt {attempt}/{max_attempts})'
+                    self.safe_log('warn', last_error_msg)
                     if attempt == max_attempts:
-                        self.safe_log('error', f'sync: Failed with error code {res_code} after all attempts')
+                        final_msg = f'sync: Failed with error code {res_code} after all attempts'
+                        self.safe_log('error', final_msg)
+                        if raise_on_failure:
+                            raise SyncFailureError(final_msg)
                         return False
                     
+            except SyncFailureError:
+                raise  # Re-raise our custom exception
             except Exception as e:
-                self.safe_log('warn', f'sync: Exception during attempt {attempt}/{max_attempts}: {e}')
+                last_error_msg = f'sync: Exception during attempt {attempt}/{max_attempts}: {e}'
+                self.safe_log('warn', last_error_msg)
                 if attempt == max_attempts:
-                    self.safe_log('error', f'sync: Failed with exception after all attempts: {e}')
+                    final_msg = f'sync: Failed with exception after all attempts: {e}'
+                    self.safe_log('error', final_msg)
+                    if raise_on_failure:
+                        raise SyncFailureError(final_msg) from e
                     return False
             
             # Short pause between retries
             import time
             time.sleep(0.5)
 
+        if raise_on_failure:
+            raise SyncFailureError(last_error_msg or 'sync: Failed for unknown reason')
         return False
 
     def set_gripper_position(
@@ -989,7 +1038,13 @@ class robot_motion(Node):
                 return True
 
             log.warn(f"move_to: driver res={fut.result().res}; retrying…")
-            self.sync()
+            
+            # Check sync return value - if sync fails, exit immediately instead of retrying
+            if not self.sync():
+                log.error("move_to: sync failed, aborting further MovL attempts")
+                return False
+            
+            time.sleep(retry_pause)
 
         log.error("move_to: failed after maximum retries")
         return False
@@ -3340,6 +3395,12 @@ class robot_motion(Node):
             log.warn(
                 f"gotoEE_movJ: driver res={fut.result().res}; retrying ({attempt}/{max_attempts})"
             )
+            
+            # Check sync - if it fails, don't waste time retrying
+            if not self.sync():
+                log.error("gotoEE_movJ: sync failed, aborting further attempts")
+                return False
+            
             time.sleep(retry_pause)
         else:
             log.error("gotoEE_movJ: exceeded max_attempts")
