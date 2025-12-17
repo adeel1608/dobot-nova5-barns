@@ -18,7 +18,7 @@ http://<NODE-IP>:30003
 
 For example, if your node IP is `192.168.8.101`:
 ```
-http://192.168.8.101:30003
+http://192.168.8.   101:30003
 ```
 
 #### Option 2: Using Port Forward (Alternative)
@@ -68,4 +68,5 @@ kubectl get nodes -o wide
 # Port forward dashboard
 kubectl port-forward -n barns service/dashboard 3000:80
 ```
+
 
