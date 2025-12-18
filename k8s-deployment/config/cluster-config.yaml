@@ -37,21 +37,21 @@ network:
 
 # Storage Configuration
 storage:
-  base_path: /mnt/barns-data
+  base_path: /mnt/ssd/barns-data
   postgres:
     size: 10Gi
-    path: /mnt/barns-data/postgres
+    path: /mnt/ssd/barns-data/postgres
   rabbitmq:
     size: 5Gi
-    path: /mnt/barns-data/rabbitmq
+    path: /mnt/ssd/barns-data/rabbitmq
   influxdb:
     size: 10Gi
-    path: /mnt/barns-data/influxdb
+    path: /mnt/ssd/barns-data/influxdb
   redis:
     size: 2Gi
-    path: /mnt/barns-data/redis
+    path: /mnt/ssd/barns-data/redis
   config:
-    path: /mnt/barns-config
+    path: /mnt/ssd/barns-config
 
 # Database Credentials
 database:

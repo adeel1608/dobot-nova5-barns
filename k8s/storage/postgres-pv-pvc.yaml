@@ -12,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: /mnt/barns-data/postgres
+    path: /mnt/ssd/barns-data/postgres
     type: DirectoryOrCreate
 ---
 apiVersion: v1

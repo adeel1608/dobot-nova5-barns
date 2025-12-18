@@ -25,8 +25,8 @@ NODE_IP=$(detect_ip)
 print_info "Detected node IP: $NODE_IP"
 
 # Get configuration
-STORAGE_BASE=$(get_config "base_path" "/mnt/barns-data")
-CONFIG_PATH=$(get_config "path" "/mnt/barns-config")
+STORAGE_BASE=$(get_config "base_path" "/mnt/ssd/barns-data")
+CONFIG_PATH="/mnt/ssd/barns-config"  # Fixed path for config files
 
 echo ""
 echo "Configuration:"
@@ -57,6 +57,7 @@ packages=(
     software-properties-common
     git
     dos2unix
+    jq
 )
 
 for pkg in "${packages[@]}"; do
@@ -137,7 +138,18 @@ else
         if ! grep -q '"dns"' /etc/docker/daemon.json; then
             print_warning "Updating Docker DNS configuration..."
             backup_file /etc/docker/daemon.json
-            jq '. + {"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' /etc/docker/daemon.json > /tmp/daemon.json
+            
+            # Check if jq is available, if not use Python
+            if command -v jq &> /dev/null; then
+                jq '. + {"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' /etc/docker/daemon.json > /tmp/daemon.json
+            elif command -v python3 &> /dev/null; then
+                python3 -c "import json; f=open('/etc/docker/daemon.json'); d=json.load(f); f.close(); d['dns']=['8.8.8.8','8.8.4.4','1.1.1.1']; f=open('/tmp/daemon.json','w'); json.dump(d,f,indent=2); f.close()"
+            else
+                # Fallback: manual edit (basic)
+                print_warning "Neither jq nor python3 available, using basic sed replacement"
+                sed 's/^{/{\n  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],/' /etc/docker/daemon.json > /tmp/daemon.json
+            fi
+            
             mv /tmp/daemon.json /etc/docker/daemon.json
             systemctl restart docker
             print_status "Docker DNS configured"
@@ -168,9 +180,19 @@ print_status "containerd configured"
 print_header "Step 6: Installing Kubernetes Components"
 
 if ! is_k8s_installed; then
+    # Create keyrings directory if it doesn't exist
+    mkdir -p /etc/apt/keyrings
+    
     # Add Kubernetes repo
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+    print_info "Adding Kubernetes repository..."
+    if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+        print_status "Kubernetes repository added"
+    else
+        print_error "Failed to add Kubernetes repository"
+        print_error "Check your internet connection"
+        exit 1
+    fi
     
     apt-get update -qq
     apt-get install -y kubelet kubeadm kubectl > /dev/null 2>&1

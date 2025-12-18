@@ -87,7 +87,7 @@ if [ "$DELETE_DATA" = true ]; then
     # Get worker node info
     WORKER_IP=$(get_config "ip" "auto")
     WORKER_USER=$(get_config "ssh_user" "barns")
-    STORAGE_BASE=$(get_config "base_path" "/mnt/barns-data")
+    STORAGE_BASE=$(get_config "base_path" "/mnt/ssd/barns-data")
     
     if [ "$WORKER_IP" != "auto" ]; then
         print_info "Attempting to delete data from worker node..."
@@ -99,7 +99,7 @@ if [ "$DELETE_DATA" = true ]; then
     else
         print_warning "Worker IP not configured, cannot delete data automatically"
         echo "  Manually delete data on worker node:"
-        echo "  sudo rm -rf /mnt/barns-data/*"
+        echo "  sudo rm -rf /mnt/ssd/barns-data/*"
     fi
 else
     print_info "Skipping storage deletion (data preserved)"

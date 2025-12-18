@@ -50,7 +50,7 @@ k8s/
 
 1. **Kubernetes Cluster**: Running cluster (v1.24+)
 2. **kubectl**: Configured to access your cluster
-3. **Storage**: Local storage available at `/mnt/barns-data/` on worker nodes
+3. **Storage**: Local storage available at `/mnt/ssd/barns-data/` on worker nodes
 4. **Docker Images**: Built and tagged BARNS service images
 
 ## Pre-Deployment Setup
@@ -61,15 +61,15 @@ On each Kubernetes node where services will run, create the required directories
 
 ```bash
 # On each node
-sudo mkdir -p /mnt/barns-data/rabbitmq
-sudo mkdir -p /mnt/barns-data/redis
-sudo mkdir -p /mnt/barns-data/postgres
-sudo mkdir -p /mnt/barns-data/influxdb
-sudo mkdir -p /mnt/barns-data/debug_frames_coffee
-sudo mkdir -p /mnt/barns-data/debug_frames_cup
-sudo mkdir -p /mnt/barns-data/cup_models
+sudo mkdir -p /mnt/ssd/barns-data/rabbitmq
+sudo mkdir -p /mnt/ssd/barns-data/redis
+sudo mkdir -p /mnt/ssd/barns-data/postgres
+sudo mkdir -p /mnt/ssd/barns-data/influxdb
+sudo mkdir -p /mnt/ssd/barns-data/debug_frames_coffee
+sudo mkdir -p /mnt/ssd/barns-data/debug_frames_cup
+sudo mkdir -p /mnt/ssd/barns-data/cup_models
 sudo mkdir -p /mnt/barns-config
-sudo chmod -R 777 /mnt/barns-data
+sudo chmod -R 777 /mnt/ssd/barns-data
 sudo chmod -R 755 /mnt/barns-config
 ```
 
@@ -329,7 +329,7 @@ Backup persistent data:
 kubectl exec -n barns deployment/postgres -- pg_dumpall -U postgres > backup.sql
 
 # Backup volumes (from node)
-sudo tar -czf barns-data-backup.tar.gz /mnt/barns-data/
+sudo tar -czf barns-data-backup.tar.gz /mnt/ssd/barns-data/
 ```
 
 ### Updates

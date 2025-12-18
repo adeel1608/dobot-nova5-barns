@@ -123,10 +123,20 @@ fi
 print_header "Step 5: Installing Kubernetes Components"
 
 if ! is_k8s_installed; then
-    # Add Kubernetes repo
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-    echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+
+    # Create keyrings directory if it doesn't exist
+    mkdir -p /etc/apt/keyrings
     
+    # Add Kubernetes repo
+    print_info "Adding Kubernetes repository..."
+    if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /' > /etc/apt/sources.list.d/kubernetes.list
+        print_status "Kubernetes repository added"
+    else
+        print_error "Failed to add Kubernetes repository"
+        print_error "Check your internet connection"
+        exit 1
+    fi
     apt-get update -qq
     apt-get install -y kubelet kubeadm kubectl > /dev/null 2>&1
     apt-mark hold kubelet kubeadm kubectl > /dev/null 2>&1
