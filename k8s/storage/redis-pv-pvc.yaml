@@ -12,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: /mnt/barns-data/redis
+    path: /mnt/ssd/barns-data/redis
     type: DirectoryOrCreate
 ---
 apiVersion: v1

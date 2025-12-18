@@ -12,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: /mnt/barns-data/influxdb
+    path: /mnt/ssd/barns-data/influxdb
     type: DirectoryOrCreate
 ---
 apiVersion: v1

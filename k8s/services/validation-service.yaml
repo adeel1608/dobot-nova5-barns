@@ -79,15 +79,15 @@ spec:
       volumes:
       - name: debug-frames-coffee
         hostPath:
-          path: /mnt/barns-data/debug_frames_coffee
+          path: /mnt/ssd/barns-data/debug_frames_coffee
           type: DirectoryOrCreate
       - name: debug-frames-cup
         hostPath:
-          path: /mnt/barns-data/debug_frames_cup
+          path: /mnt/ssd/barns-data/debug_frames_cup
           type: DirectoryOrCreate
       - name: cup-models
         hostPath:
-          path: /mnt/barns-data/cup_models
+          path: /mnt/ssd/barns-data/cup_models
           type: DirectoryOrCreate
 
 

@@ -170,8 +170,8 @@ kubectl logs -l app=validation-service -n barns | grep FATAL
 ssh worker-node
 
 # Download model
-sudo mkdir -p /mnt/barns-data/cup_models
-cd /mnt/barns-data/cup_models
+sudo mkdir -p /mnt/ssd/barns-data/cup_models
+cd /mnt/ssd/barns-data/cup_models
 sudo wget https://huggingface.co/omeryagmur/rf-detr-large/resolve/main/rf-detr-large.pth
 
 # Set permissions
@@ -284,7 +284,7 @@ kubectl delete pvc postgres-pvc -n barns
 kubectl delete pv postgres-pv
 
 # On worker node, clean data
-ssh worker-node "sudo rm -rf /mnt/barns-data/postgres/pgdata/*"
+ssh worker-node "sudo rm -rf /mnt/ssd/barns-data/postgres/pgdata/*"
 
 # Recreate
 kubectl apply -f k8s/storage/postgres-pv-pvc.yaml

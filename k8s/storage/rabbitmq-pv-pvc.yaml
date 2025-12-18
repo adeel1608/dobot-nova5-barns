@@ -12,7 +12,7 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: manual
   hostPath:
-    path: /mnt/barns-data/rabbitmq
+    path: /mnt/ssd/barns-data/rabbitmq
     type: DirectoryOrCreate
 ---
 apiVersion: v1
