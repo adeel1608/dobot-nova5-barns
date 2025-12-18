@@ -94,11 +94,11 @@ spec:
           name: postgres-init-scripts
       - name: oms-schema
         hostPath:
-          path: /mnt/barns-config/oms-schema.sql
+          path: /mnt/ssd/barns-config/oms-schema.sql
           type: FileOrCreate
       - name: validation-schema
         hostPath:
-          path: /mnt/barns-config/validation-schema.sql
+          path: /mnt/ssd/barns-config/validation-schema.sql
           type: FileOrCreate
 
 
