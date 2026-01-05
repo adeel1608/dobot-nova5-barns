@@ -114,17 +114,17 @@
   "Make Espresso": {
       "steps": [
       {
-          "type": "automation",
-          "function": "grinding_machine",
-          "params": {
-          "shots_number": 2
-          }
-      },
-      {
           "type": "robot",
           "function": "unmount",
           "params": {
           "port": "port_3"
+          }
+      },
+      {
+          "type": "automation",
+          "function": "grinding_machine",
+          "params": {
+          "shots_number": 2
           }
       },
       {
@@ -183,17 +183,17 @@
   "Make Espresso Only": {
     "steps": [
     {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-        "shots_number": 2
-        }
-    },
-    {
         "type": "robot",
         "function": "unmount",
         "params": {
         "port": "port_3"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
         }
     },
     {

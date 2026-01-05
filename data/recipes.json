@@ -150,7 +150,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Cortado": [
@@ -192,7 +192,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Cappuccino": [
@@ -234,7 +234,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Caramel Macchiato": [
@@ -306,7 +306,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Flat White": [
@@ -348,7 +348,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Latte": [
@@ -390,7 +390,7 @@
     {
       "action": "Clean Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+      "depends_on": ["Pour Frothed Milk"]
     }
   ],
   "Iced Latte": [
@@ -725,7 +725,7 @@
       {
         "action": "Clean Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+        "depends_on": ["Pour Frothed Milk"]
       }
   ],
   "White Mocha": [
@@ -797,7 +797,7 @@
       {
         "action": "Clean Milk Pitcher",
         "assigned_arm": "Arm2",
-        "depends_on": ["Pour Frothed Milk", "Clean Portafilter"]
+        "depends_on": ["Pour Frothed Milk"]
       }
   ],
   "Mocha Frappe": [

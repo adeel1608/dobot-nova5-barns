@@ -11,10 +11,10 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
+from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station, _normalize_plastic_cup_size
 from oms_v1.params import (
-    SLUSH_PARAMS, SPEED_NORMAL,
-    log_step, log_success, log_error, _extract_cup_position
+    SLUSH_PARAMS, SPEED_NORMAL, DEFAULT_PLASTIC_CUP_SIZE,
+    log_step, log_success, log_error, _extract_cup_position, _extract_cups_dict
 )
 
 
@@ -30,7 +30,7 @@ def get_slush(**params) -> bool:
     
     Args:
         position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
-        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        cups (dict): Cup dictionary, e.g., {'cup_C9': 1.0} or {'cup_H9': 1.0}
         dispenser (str): Dispenser number ('1' or '2') - optional, will be inferred from premixes if not provided
         premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
         
@@ -38,7 +38,7 @@ def get_slush(**params) -> bool:
         bool: True if slush dispensing completed successfully, False otherwise
         
     Example:
-        success = get_slush(position={'cup_position': 1.0}, dispenser='1')
+        success = get_slush(position={'cup_position': 1.0}, cups={'cup_C16': 1.0}, dispenser='1')
         if success:
             print("Slush dispensed successfully")
     """
@@ -47,7 +47,12 @@ def get_slush(**params) -> bool:
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
         
-        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
+        # Extract and validate cup size parameter using unified helper
+        cups_dict = _extract_cups_dict(params)
+        cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
+        if not cup_size:
+            cup_size = "16oz"  # Fallback to 16oz if extraction fails
+        
         dispenser = params.get("dispenser")
         
         # If no dispenser is provided, try to infer from premixes or use default
@@ -69,7 +74,7 @@ def get_slush(**params) -> bool:
                 print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
-        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
         valid_dispensers = ("1", "2")
             
         if cup_size not in valid_cup_sizes:
@@ -154,7 +159,7 @@ def place_slush(**params) -> bool:
     
     Args:
         position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
-        cup_size (str): Cup size ('16oz' - currently only 16oz supported), defaults to '16oz'
+        cups (dict): Cup dictionary, e.g., {'cup_C9': 1.0} or {'cup_H9': 1.0}
         dispenser (str): Dispenser number used ('1' or '2') - optional, will be inferred from premixes if not provided
         premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
         
@@ -162,7 +167,7 @@ def place_slush(**params) -> bool:
         bool: True if slush placement completed successfully, False otherwise
         
     Example:
-        success = place_slush(position={'cup_position': 2.0}, dispenser='1')
+        success = place_slush(position={'cup_position': 2.0}, cups={'cup_C16': 1.0}, dispenser='1')
         if success:
             print("Slush cup placed successfully")
     """
@@ -171,7 +176,12 @@ def place_slush(**params) -> bool:
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
         
-        cup_size = params.get("cup_size", "16oz")  # Default to 16oz
+        # Extract and validate cup size parameter using unified helper
+        cups_dict = _extract_cups_dict(params)
+        cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
+        if not cup_size:
+            cup_size = "16oz"  # Fallback to 16oz if extraction fails
+        
         dispenser = params.get("dispenser")
         
         # If no dispenser is provided, try to infer from premixes or use default
@@ -191,7 +201,7 @@ def place_slush(**params) -> bool:
                 print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
         
         # Validate parameters
-        valid_cup_sizes = ("16oz",)  # Currently only 16oz supported
+        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
         valid_dispensers = ("1", "2")
             
         if cup_size not in valid_cup_sizes:

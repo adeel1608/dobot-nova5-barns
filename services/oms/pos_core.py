@@ -19,6 +19,7 @@ INGREDIENT_DETAILS: Dict[str, Dict[str, Any]] = {}
 # Hardcoded mappings for milk and syrups categories
 MILK_MAPPINGS = {
     "whole_fat": 1,
+    "whole": 1,  # Same as whole_fat
     "almond": 2,
     "oat": 3,
     "soy": 4,
