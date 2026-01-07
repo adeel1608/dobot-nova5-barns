@@ -123,9 +123,9 @@ def get_slush(**params) -> bool:
                 # Default mapping: most premixes go to dispenser 1
                 # You can extend this mapping as needed
                 if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
-                    dispenser = "1"
-                else:
                     dispenser = "2"
+                else:
+                    dispenser = "1"
                 print(f"[INFO] No dispenser specified, inferred dispenser '{dispenser}' from premix '{premix_name}'")
             else:
                 # Default to dispenser 1 if no premix info
