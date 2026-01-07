@@ -1535,6 +1535,173 @@ def return_espresso_pitcher(**params) -> bool:
         print("[INFO] Pitcher return process terminated due to error")
         return False
 
+def return_cleaned_espresso_pitcher(**params) -> bool:
+    """
+    Return cleaned espresso pitcher to its home position after use.
+    
+    This function performs the cleaned espresso pitcher return sequence:
+    - Navigates to the appropriate cleaned espresso pitcher return location based on port
+    - Positions cleaned espresso pitcher in its designated spot
+    - Releases gripper to place cleaned espresso pitcher
+    - Returns to espresso home position
+    
+    Args:
+        port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
+        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
+        
+    Returns:
+        bool: True if cleaned espresso pitcher returned successfully, False otherwise
+        
+    Raises:
+        Exception: If unexpected error occurs during return process
+        
+    Example:
+        success = return_cleaned_espresso_pitcher(port='port_1')
+        if success:
+            print("Cleaned espresso pitcher returned successfully")
+    """
+    global approach_pitcher, pick_pitcher
+    try:
+        # Normalize from espresso shot if provided
+        # New format: {'espresso': {'espresso_shot_double': 2.0}}
+        espresso_dict = params.get("espresso")
+        shot_cfg = _normalize_espresso_shot(espresso_dict)
+
+        # Extract and validate port parameter (derived from shot when not explicitly provided)
+        port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+        if not port:
+            print("[ERROR] No port parameter provided")
+            return False
+        
+        if port not in ('port_1', 'port_2', 'port_3'):
+            print(f"[ERROR] Unknown port: {port!r}")
+            print("[INFO] Available ports: port_1, port_2, port_3")
+            return False
+        
+        print(f"🔄 Starting espresso pitcher return sequence for {port}")
+        print("=" * 50)
+        
+        run_skill("moveJ_deg", 0,0,0,0,0,-120)
+        time.sleep(1.0)
+        run_skill("moveJ_deg", 0,0,0,0,0,120)
+        time.sleep(1.0)
+        run_skill("approach_machine", "three_group_espresso", "hot_water")
+        run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
+        
+        # Step 1: Return espresso pitcher based on port
+        if port == 'port_1':
+            
+            approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
+            
+            if approach_result is False:
+                print("[ERROR] Failed to approach espresso pitcher 1 return position")
+                return False
+            print("   ✅ Successfully approached pitcher 1 return position")
+            
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")
+            
+            if mount_result is False:
+                print("[ERROR] Failed to position espresso pitcher 1 for return")
+                return False
+            print("   ✅ Successfully positioned pitcher 1 for return")
+            
+            print("🤏 Releasing espresso pitcher 1...")
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
+            
+            if release_result is False:
+                print("[ERROR] Failed to release espresso pitcher 1")
+                return False
+            print("   ✅ Successfully released pitcher 1")
+            
+            print("⬅️ Retreating from espresso pitcher 1...")
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
+            
+            if retreat_result is False:
+                print("[ERROR] Failed to retreat from espresso pitcher 1")
+                return False
+            print("   ✅ Successfully retreated from pitcher 1")
+                
+        elif port == 'port_2':
+            print("📍 Step 1/4: Positioning espresso pitcher 2 for return...")
+            mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")
+            
+            if mount_result is False:
+                print("[ERROR] Failed to position espresso pitcher 2 for return")
+                return False
+            print("   ✅ Successfully positioned pitcher 2 for return")
+            
+            print("🤏 Releasing espresso pitcher 2...")
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
+            
+            if release_result is False:
+                print("[ERROR] Failed to release espresso pitcher 2")
+                return False
+            print("   ✅ Successfully released pitcher 2")
+                
+        elif port == 'port_3':
+            print("📍 Step 1/4: Moving to espresso pitcher 3 return position...")
+            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
+            
+            if move1_result is False:
+                print("[ERROR] Failed to move to espresso pitcher 3 return position 1")
+                return False
+            print("   ✅ Successfully moved to pitcher 3 return position 1")
+            
+            move2_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")
+            
+            if move2_result is False:
+                print("[ERROR] Failed to move to espresso pitcher 3 return position 2")
+                return False
+            print("   ✅ Successfully moved to pitcher 3 return position 2")
+            
+            print("🤏 Releasing espresso pitcher 3...")
+            release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
+            
+            if release_result is False:
+                print("[ERROR] Failed to release espresso pitcher 3")
+                return False
+            print("   ✅ Successfully released pitcher 3")
+            
+            print("⬅️ Retreating from espresso pitcher 3...")
+            retreat_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
+            
+            if retreat_result is False:
+                print("[ERROR] Failed to retreat from espresso pitcher 3")
+                return False
+            print("   ✅ Successfully retreated from pitcher 3")
+        
+        # Step 2: Move to common espresso pitcher area
+        print("🎯 Step 2/4: Moving to espresso pitcher area...")
+        area_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")
+        
+        if area_result is False:
+            print("[ERROR] Failed to move to espresso pitcher area")
+            return False
+        print("   ✅ Successfully moved to pitcher area")
+        
+        # Step 3: Return to espresso home
+        print("🏠 Step 3/4: Returning to espresso home...")
+        home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
+        
+        if home_result is False:
+            print("[ERROR] Failed to return to espresso home")
+            return False
+        print("   ✅ Successfully returned to espresso home")
+        
+        # Final success summary
+        print("=" * 50)
+        print(f"✅ ESPRESSO PITCHER RETURN COMPLETED FOR {port.upper()}")
+        print("   ✓ Pitcher properly placed in designated position")
+        print("   ✓ Gripper released with appropriate force")
+        print("   ✓ Robot returned to home position")
+        print("=" * 50)
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] Unexpected error during espresso pitcher return: {e}")
+        print("[INFO] Pitcher return process terminated due to error")
+        return False
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'unmount': unmount,
@@ -1545,5 +1712,6 @@ SEQUENCES = {
     'get_hot_water': get_hot_water,
     'with_hot_water': with_hot_water,
     'return_espresso_pitcher': return_espresso_pitcher,
+    'return_cleaned_espresso_pitcher': return_cleaned_espresso_pitcher,
     'tamper': tamper,
 }
