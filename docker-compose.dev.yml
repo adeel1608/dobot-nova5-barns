@@ -64,10 +64,9 @@ services:
       POSTGRES_PASSWORD: postgres_admin
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database_init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
-      - ./services/validation/validation_schema.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
-      # - ./services/oms/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db-schema-oms.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
+      - ./db-schema-validation.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
     networks:
       - barns-network
     healthcheck:
