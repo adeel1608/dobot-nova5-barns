@@ -394,6 +394,13 @@
         "params": {
           "port": "port_2"
         }
+      },
+      {
+        "type": "robot",
+        "function": "return_cleaned_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
       }
     ]
   },
