@@ -1593,8 +1593,8 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
                 return False
             
             run_skill("moveEE_movJ", 0,0,10,0,0,0)
-            run_skill("moveJ_deg", 0,0,0,0,0,-150)
-            run_skill("moveJ_deg", 0,0,0,0,0,150)
+            run_skill("moveJ_deg", 0,0,0,0,0,-170)
+            run_skill("moveJ_deg", 0,0,0,0,0,170)
             run_skill("moveEE_movJ", 0,0,-10,0,0,0)
 
             print("🤏 Releasing espresso pitcher 1...")
@@ -1626,8 +1626,8 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
                 return False
 
             run_skill("moveEE_movJ", 0,0,10,0,0,0)
-            run_skill("moveJ_deg", 0,0,0,0,0,-150)
-            run_skill("moveJ_deg", 0,0,0,0,0,150)
+            run_skill("moveJ_deg", 0,0,0,0,0,-170)
+            run_skill("moveJ_deg", 0,0,0,0,0,170)
             run_skill("moveEE_movJ", 0,0,-10,0,0,0)
 
             print("🤏 Releasing espresso pitcher 2...")
