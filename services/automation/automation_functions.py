@@ -297,11 +297,11 @@ async def dispense_ice(params: dict):
         if "cup_c7" in cup_type_lower:
             timer = 1
         elif "cup_c9" in cup_type_lower:
-            timer = 1
+            timer = 1.5
         elif "cup_c12" in cup_type_lower:
-            timer = 1
+            timer = 2
         elif "cup_c16" in cup_type_lower:
-            timer = 1
+            timer = 2.5
         else:
             # Default to timer 0 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")

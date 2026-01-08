@@ -22,18 +22,64 @@ from oms_v1.sequences.computer_vision import detect_cup_gripper
 
 def _normalize_paper_cup_size(cups_dict: Any) -> str:
     """
-    Parse paper cup size from new JSON format.
-    
-    This is a wrapper around the unified _normalize_cup_size function.
-    Use this for backward compatibility in paper cup operations.
+    Universal cup size normalizer for paper cup operations.
+    Accepts BOTH H-codes AND C-codes regardless of prefix.
+    Extracts the numeric size and returns standardized format.
     
     Args:
         cups_dict: Dictionary containing cup information, or a simple string/value
         
     Returns:
         str: Normalized cup size (e.g., '7oz', '9oz', '12oz')
+        
+    Examples:
+        cup_H9 → '9oz'
+        cup_C9 → '9oz'
+        cup_h12 → '12oz'
+        cup_c7 → '7oz'
     """
-    return _normalize_cup_size(cups_dict, cup_type='paper')
+    if not cups_dict:
+        from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+        return DEFAULT_PAPER_CUP_SIZE
+    
+    # Extract the cup code (case-insensitive)
+    if isinstance(cups_dict, dict):
+        cup_key = next(iter(cups_dict.keys()), None)
+        if cup_key:
+            # Convert to uppercase for parsing
+            cup_key_str = str(cup_key).upper()
+            if 'CUP_' in cup_key_str:
+                cup_code = cup_key_str.split('CUP_', 1)[1]
+            else:
+                cup_code = cup_key_str
+            
+            # Extract numeric size from code (works with both H and C prefixes)
+            # H7, H9, H12, C7, C9, C12, C16 → extract the number
+            if cup_code and len(cup_code) >= 2:
+                # Remove H or C prefix if present
+                if cup_code[0] in ('H', 'C'):
+                    size_num = cup_code[1:]
+                else:
+                    size_num = cup_code
+                
+                # Validate and return standardized size (paper cups: 7, 9, 12)
+                if size_num in ('7', '9', '12'):
+                    return f"{size_num}oz"
+    
+    # If parsing failed, try the standard normalizers
+    # Try paper first (since this is paper cup function)
+    result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
+    if result and result != '':
+        return result
+    
+    # Try plastic as fallback
+    result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
+    if result and result != '' and result in ('7oz', '9oz', '12oz'):
+        return result
+    
+    # Final fallback
+    from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+    return DEFAULT_PAPER_CUP_SIZE
 
 def grab_paper_cup(**params) -> bool:
     """

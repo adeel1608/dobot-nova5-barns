@@ -11,11 +11,71 @@ import time
 from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.sequences.home import home
-from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station, _normalize_plastic_cup_size
+from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
     SLUSH_PARAMS, SPEED_NORMAL, DEFAULT_PLASTIC_CUP_SIZE,
-    log_step, log_success, log_error, _extract_cup_position, _extract_cups_dict
+    log_step, log_success, log_error, _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
+
+
+def _normalize_slush_cup_size(cups_dict: Any) -> str:
+    """
+    Universal cup size normalizer for slush operations.
+    Accepts BOTH H-codes AND C-codes regardless of prefix.
+    Extracts the numeric size and returns standardized format.
+    
+    Args:
+        cups_dict: Dictionary containing cup information
+        
+    Returns:
+        str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
+        
+    Examples:
+        cup_H9 → '9oz'
+        cup_C9 → '9oz'
+        cup_h12 → '12oz'
+        cup_c16 → '16oz'
+    """
+    if not cups_dict:
+        return DEFAULT_PLASTIC_CUP_SIZE
+    
+    # Extract the cup code (case-insensitive)
+    if isinstance(cups_dict, dict):
+        cup_key = next(iter(cups_dict.keys()), None)
+        if cup_key:
+            # Convert to uppercase for parsing
+            cup_key_str = str(cup_key).upper()
+            if 'CUP_' in cup_key_str:
+                cup_code = cup_key_str.split('CUP_', 1)[1]
+            else:
+                cup_code = cup_key_str
+            
+            # Extract numeric size from code (works with both H and C prefixes)
+            # H7, H9, H12, C7, C9, C12, C16 → extract the number
+            if cup_code and len(cup_code) >= 2:
+                # Remove H or C prefix if present
+                if cup_code[0] in ('H', 'C'):
+                    size_num = cup_code[1:]
+                else:
+                    size_num = cup_code
+                
+                # Validate and return standardized size
+                if size_num in ('7', '9', '12', '16'):
+                    return f"{size_num}oz"
+    
+    # If parsing failed, try the standard normalizers
+    # Try plastic first
+    result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
+    if result and result != '':
+        return result
+    
+    # Try paper
+    result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
+    if result and result != '':
+        return result
+    
+    # Final fallback
+    return DEFAULT_PLASTIC_CUP_SIZE
 
 
 def get_slush(**params) -> bool:
@@ -47,11 +107,10 @@ def get_slush(**params) -> bool:
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
         
-        # Extract and validate cup size parameter using unified helper
+        # Extract and validate cup size parameter using flexible slush normalizer
+        # This accepts both H-codes (H7, H9, H12) and C-codes (C7, C9, C12, C16)
         cups_dict = _extract_cups_dict(params)
-        cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
-        if not cup_size:
-            cup_size = "16oz"  # Fallback to 16oz if extraction fails
+        cup_size = _normalize_slush_cup_size(cups_dict)
         
         dispenser = params.get("dispenser")
         
@@ -176,11 +235,10 @@ def place_slush(**params) -> bool:
         cup_position = _extract_cup_position(params)
         stage = str(cup_position)  # Convert to string for internal use
         
-        # Extract and validate cup size parameter using unified helper
+        # Extract and validate cup size parameter using flexible slush normalizer
+        # This accepts both H-codes (H7, H9, H12) and C-codes (C7, C9, C12, C16)
         cups_dict = _extract_cups_dict(params)
-        cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
-        if not cup_size:
-            cup_size = "16oz"  # Fallback to 16oz if extraction fails
+        cup_size = _normalize_slush_cup_size(cups_dict)
         
         dispenser = params.get("dispenser")
         
