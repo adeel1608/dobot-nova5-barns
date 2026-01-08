@@ -1536,30 +1536,6 @@ def return_espresso_pitcher(**params) -> bool:
         return False
 
 def return_cleaned_espresso_pitcher(**params) -> bool:
-    """
-    Return cleaned espresso pitcher to its home position after use.
-    
-    This function performs the cleaned espresso pitcher return sequence:
-    - Navigates to the appropriate cleaned espresso pitcher return location based on port
-    - Positions cleaned espresso pitcher in its designated spot
-    - Releases gripper to place cleaned espresso pitcher
-    - Returns to espresso home position
-    
-    Args:
-        port (str): Source port ('port_1', 'port_2', or 'port_3'), defaults to 'port_2'
-        espresso (dict): Espresso configuration to derive port from (e.g., {'espresso_shot_double': 2.0})
-        
-    Returns:
-        bool: True if cleaned espresso pitcher returned successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during return process
-        
-    Example:
-        success = return_cleaned_espresso_pitcher(port='port_1')
-        if success:
-            print("Cleaned espresso pitcher returned successfully")
-    """
     global approach_pitcher, pick_pitcher
     try:
         # Normalize from espresso shot if provided
@@ -1578,33 +1554,49 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             print("[INFO] Available ports: port_1, port_2, port_3")
             return False
         
-        print(f"🔄 Starting espresso pitcher return sequence for {port}")
+        print(f"🥛 Starting espresso pitcher pickup sequence for {port}")
         print("=" * 50)
         
-        run_skill("moveJ_deg", 0,0,0,0,0,-120)
-        time.sleep(1.0)
-        run_skill("moveJ_deg", 0,0,0,0,0,120)
-        time.sleep(1.0)
-        run_skill("approach_machine", "three_group_espresso", "hot_water")
-        run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])
+        # Step 1: Move to espresso home position
+        print("🏠 Step 1/5: Moving to espresso home...")
+        home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
+        if home_result is False:
+            print("[ERROR] Failed to move to espresso home")
+            return False
+        print("   ✅ Successfully moved to espresso home")
         
-        # Step 1: Return espresso pitcher based on port
+        # Step 2: Approach espresso pitcher area
+        print("🎯 Step 2/5: Approaching espresso pitcher area...")
+        approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")
+        if approach_result is False:
+            print("[ERROR] Failed to approach espresso pitcher area")
+            return False
+        print("   ✅ Successfully approached pitcher area")
+        
+        # Step 3: Pick espresso pitcher based on port
+        print(f"🤏 Step 3/5: Picking espresso pitcher for {port}...")
         if port == 'port_1':
             
             approach_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")
-            
             if approach_result is False:
-                print("[ERROR] Failed to approach espresso pitcher 1 return position")
+                print("[ERROR] Failed to approach espresso pitcher 1")
                 return False
-            print("   ✅ Successfully approached pitcher 1 return position")
             
             mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")
-            
             if mount_result is False:
-                print("[ERROR] Failed to position espresso pitcher 1 for return")
+                print("[ERROR] Failed to mount espresso pitcher 1")
                 return False
-            print("   ✅ Successfully positioned pitcher 1 for return")
             
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])
+            if grip_result is False:
+                print("[ERROR] Failed to grip espresso pitcher 1")
+                return False
+            
+            run_skill("moveEE_movJ", 0,0,10,0,0,0)
+            run_skill("moveJ_deg", 0,0,0,0,0,-150)
+            run_skill("moveJ_deg", 0,0,0,0,0,150)
+            run_skill("moveEE_movJ", 0,0,-10,0,0,0)
+
             print("🤏 Releasing espresso pitcher 1...")
             release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
@@ -1622,14 +1614,22 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully retreated from pitcher 1")
                 
         elif port == 'port_2':
-            print("📍 Step 1/4: Positioning espresso pitcher 2 for return...")
+            
             mount_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")
-            
             if mount_result is False:
-                print("[ERROR] Failed to position espresso pitcher 2 for return")
+                print("[ERROR] Failed to mount espresso pitcher 2")
                 return False
-            print("   ✅ Successfully positioned pitcher 2 for return")
             
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_2'])
+            if grip_result is False:
+                print("[ERROR] Failed to grip espresso pitcher 2")
+                return False
+
+            run_skill("moveEE_movJ", 0,0,10,0,0,0)
+            run_skill("moveJ_deg", 0,0,0,0,0,-150)
+            run_skill("moveJ_deg", 0,0,0,0,0,150)
+            run_skill("moveEE_movJ", 0,0,-10,0,0,0)
+
             print("🤏 Releasing espresso pitcher 2...")
             release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
@@ -1639,21 +1639,28 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             print("   ✅ Successfully released pitcher 2")
                 
         elif port == 'port_3':
-            print("📍 Step 1/4: Moving to espresso pitcher 3 return position...")
-            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
+            # Port 3 pitcher sequence
             
+            move1_result = run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")
             if move1_result is False:
-                print("[ERROR] Failed to move to espresso pitcher 3 return position 1")
+                print("[ERROR] Failed to move to espresso pitcher 3 position 1")
                 return False
-            print("   ✅ Successfully moved to pitcher 3 return position 1")
             
             move2_result = run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")
-            
             if move2_result is False:
-                print("[ERROR] Failed to move to espresso pitcher 3 return position 2")
+                print("[ERROR] Failed to move to espresso pitcher 3 position 2")
                 return False
-            print("   ✅ Successfully moved to pitcher 3 return position 2")
             
+            grip_result = run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])
+            if grip_result is False:
+                print("[ERROR] Failed to grip espresso pitcher 3")
+                return False
+
+            run_skill("moveEE_movJ", 0,0,10,0,0,0)
+            run_skill("moveJ_deg", 0,0,0,0,0,-150)
+            run_skill("moveJ_deg", 0,0,0,0,0,150)
+            run_skill("moveEE_movJ", 0,0,-10,0,0,0)
+
             print("🤏 Releasing espresso pitcher 3...")
             release_result = run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)
             
