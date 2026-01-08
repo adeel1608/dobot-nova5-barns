@@ -397,7 +397,7 @@
       },
       {
         "type": "robot",
-        "function": "return_clean_espresso_pitcher",
+        "function": "return_cleaned_espresso_pitcher",
         "params": {
           "port": "port_2"
         }
