@@ -1215,9 +1215,10 @@ async def initialize_frother(params: dict):
     # This function doesn't use any parameters from params dict
     # It just sends a frother_init command to the MQTT broker
     response = {"data": None}
-
+    log("INFO", "Connecting to frother...", service="automation")
     def on_connect(client, userdata, flags, rc, props=None):
         client.subscribe("automation_frother_init/response", qos=1)
+        log("INFO", "Subscribed to frother_init response", service="automation")
 
     def on_message(client, userdata, msg):
         try:

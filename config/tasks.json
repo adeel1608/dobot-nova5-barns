@@ -382,6 +382,14 @@
         }
       },
       {
+          "type": "automation",
+          "function": "coffee_machine",
+          "params": {
+          "coffee_t": 2,
+          "slot_number": 3
+          }
+      },
+      {
         "type": "robot",
         "function": "clean_portafilter",
         "params": {
