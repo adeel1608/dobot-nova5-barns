@@ -1,0 +1,119 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robot2
+  namespace: barns
+  labels:
+    app: robot2
+    component: robotics
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: robot2
+  template:
+    metadata:
+      labels:
+        app: robot2
+        component: robotics
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: barns-nuc15crsu7
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: robot2
+        image: barns-robot2:latest
+        imagePullPolicy: Never
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - SYS_ADMIN
+              - SYS_RAWIO
+              - NET_ADMIN
+        env:
+        - name: WORKSPACE_DIR
+          value: "/opt/ros_ws"
+        - name: ROBOT_ID
+          value: "2"
+        - name: DOBOT_TYPE
+          value: "nova5"
+        - name: IP_ADDRESS
+          value: "192.168.200.248"
+        - name: ROS_DOMAIN_ID
+          value: "1"
+        - name: CAMERA_SERIAL_NUMBER
+          value: "CP1Z842000F6"
+        - name: CAM_NAME
+          value: "cam1"
+        - name: DEVICE_ID
+          value: "2"
+        - name: DEVICE_NUM
+          value: "2"
+        - name: ORBBEC_CONNECTION_DELAY
+          value: "3000"
+        - name: USBFS_MEMORY_MB
+          value: "128"
+        volumeMounts:
+        - name: dev
+          mountPath: /dev
+        - name: sys
+          mountPath: /sys
+        - name: run-udev
+          mountPath: /run/udev
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "1000m"
+          limits:
+            memory: "4Gi"
+            cpu: "2000m"
+        startupProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot2-startup.sh"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot2-startup.sh"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot2-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+      volumes:
+      - name: dev
+        hostPath:
+          path: /dev
+          type: Directory
+      - name: sys
+        hostPath:
+          path: /sys
+          type: Directory
+      - name: run-udev
+        hostPath:
+          path: /run/udev
+          type: DirectoryOrCreate
+      restartPolicy: Always

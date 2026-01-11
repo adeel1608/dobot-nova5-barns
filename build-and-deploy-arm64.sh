@@ -82,7 +82,7 @@ case $choice in
         ./build-images-arm64.sh
         
         print_status "Copying images to worker node..."
-        for image in barns-api-bridge barns-validation barns-automation barns-routine barns-robot-arm barns-scheduler barns-oms barns-video-stream barns-dashboard; do
+        for image in barns-api-bridge barns-validation barns-automation barns-routine barns-robot-arm barns-scheduler barns-oms barns-video-stream barns-dashboard barns-robot1 barns-robot2; do
             echo "  - Copying $image:latest..."
             docker save ${image}:latest | ssh ${SSH_USER}@${WORKER_HOST} "docker load"
         done
