@@ -226,6 +226,34 @@ else
     exit 1
 fi
 
+# Robot1 Service
+echo ""
+echo "Building robot1-service..."
+$BUILD_CMD \
+  -t barns-robot1:latest \
+  -f services/robot/Dockerfile.robot1 \
+  .
+if [ $? -eq 0 ]; then
+    print_status "robot1-service built successfully"
+else
+    print_error "robot1-service build failed"
+    exit 1
+fi
+
+# Robot2 Service
+echo ""
+echo "Building robot2-service..."
+$BUILD_CMD \
+  -t barns-robot2:latest \
+  -f services/robot/Dockerfile.robot2 \
+  .
+if [ $? -eq 0 ]; then
+    print_status "robot2-service built successfully"
+else
+    print_error "robot2-service build failed"
+    exit 1
+fi
+
 echo ""
 echo "========================================="
 echo "Build Summary"
@@ -250,5 +278,8 @@ echo "  kubectl rollout restart deployment/routine-service -n barns"
 echo "  kubectl rollout restart deployment/scheduler-service -n barns"
 echo "  kubectl rollout restart deployment/validation-service -n barns"
 echo "  kubectl rollout restart deployment/video-stream-service -n barns"
+echo ""
+echo "  kubectl rollout restart deployment/robot1 -n barns"
+echo "  kubectl rollout restart deployment/robot2 -n barns"
 echo ""
 
