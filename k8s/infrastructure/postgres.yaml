@@ -59,12 +59,12 @@ spec:
         - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d/01-init.sql
           subPath: 01-init.sql
-        - name: oms-schema
+        - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d/02-oms-schema.sql
-          # subPath: schema.sql
-        - name: validation-schema
+          subPath: 02-oms-schema.sql
+        - name: init-scripts
           mountPath: /docker-entrypoint-initdb.d/03-validation-schema.sql
-          # subPath: validation_schema.sql
+          subPath: 03-validation-schema.sql
         livenessProbe:
           exec:
             command:
@@ -92,14 +92,6 @@ spec:
       - name: init-scripts
         configMap:
           name: postgres-init-scripts
-      - name: oms-schema
-        hostPath:
-          path: /mnt/ssd/barns-config/oms-schema.sql
-          type: FileOrCreate
-      - name: validation-schema
-        hostPath:
-          path: /mnt/ssd/barns-config/validation-schema.sql
-          type: FileOrCreate
 
 
 

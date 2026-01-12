@@ -5,7 +5,7 @@ metadata:
   namespace: barns
 data:
   01-init.sql: |
-    -- File: ./database_init.sql (same level as docker-compose.yml)
+    -- File: ./db-init.sql (same level as docker-compose.yml)
 
     -- Create databases
     CREATE DATABASE barns_oms;
@@ -48,6 +48,172 @@ data:
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO validation_user;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO validation_user;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO validation_user;
+
+  02-oms-schema.sql: |
+    -- Initialize database schema for BARNS OMS
+
+    -- Connect to OMS database and set user context
+    \c barns_oms barns_user;
+
+    -- 1. ORDERS TABLE
+    CREATE TABLE IF NOT EXISTS orders (
+      id              BIGSERIAL PRIMARY KEY,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      status          VARCHAR(20) NOT NULL,          -- e.g. 'queued','processing','completed','error'
+      started_at      TIMESTAMPTZ,
+      completed_at    TIMESTAMPTZ,
+      error_message   TEXT
+    );
+
+    -- 2. ORDER ITEMS (CUPS) TABLE
+    CREATE TABLE IF NOT EXISTS order_items (
+      id              BIGSERIAL PRIMARY KEY,
+      order_id        BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      cup_id          TEXT NOT NULL,                 -- e.g. 'cup_001'
+      sequence_index  INT NOT NULL,                  -- position in order
+      drink_type      TEXT NOT NULL,                 -- e.g. 'latte','espresso'
+      cup_size        TEXT NOT NULL,                 -- e.g. 'small','medium','large'
+      addons          JSONB DEFAULT '[]'::JSONB,     -- e.g. ["extra_shot","vanilla"]
+      ingredients     JSONB DEFAULT '{}'::JSONB,     -- structured ingredients dict
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- 3. TASKS TABLE
+    -- One high-level task per arm per cup (assigned by Scheduler)
+    CREATE TABLE IF NOT EXISTS tasks (
+      id               BIGSERIAL PRIMARY KEY,
+      order_id         BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      item_id          BIGINT NOT NULL REFERENCES order_items(id) ON DELETE CASCADE,
+      arm_id           INT NOT NULL,                 -- 1 or 2
+      function_name    TEXT NOT NULL,                -- e.g. 'pull_espresso'
+      status           VARCHAR(20) NOT NULL,         -- 'queued','running','completed','failed'
+      queued_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      started_at       TIMESTAMPTZ,
+      completed_at     TIMESTAMPTZ,
+      error_message    TEXT
+    );
+
+    -- 4. TASK STEPS LOG
+    -- Detailed logs of each micro-step within a task (from Routine service)
+    CREATE TABLE IF NOT EXISTS task_steps (
+      id               BIGSERIAL PRIMARY KEY,
+      task_id          BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      step_index       INT NOT NULL,                 -- order in sequence
+      step_type        VARCHAR(10) NOT NULL,         -- 'validation' or 'robot'
+      function_name    TEXT NOT NULL,                -- e.g. 'check_weight', 'activate_pump'
+      params           JSONB NOT NULL,               -- actual parameters used
+      status           VARCHAR(20) NOT NULL,         -- 'pending','running','passed','failed'
+      started_at       TIMESTAMPTZ,
+      completed_at     TIMESTAMPTZ,
+      error_message    TEXT
+    );
+
+    -- 5. EVENTS TABLE
+    -- All published events for auditing/analytics
+    CREATE TABLE IF NOT EXISTS events (
+      id               BIGSERIAL PRIMARY KEY,
+      event_type       TEXT NOT NULL,                -- e.g. 'order.received','routine.completed'
+      payload          JSONB NOT NULL,               -- full event JSON
+      created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    -- 6. ALERTS TABLE
+    -- Critical alerts extracted from events (ingestion by Event Handler)
+    CREATE TABLE IF NOT EXISTS alerts (
+      id               BIGSERIAL PRIMARY KEY,
+      event_id         BIGINT NOT NULL REFERENCES events(id),
+      alert_type       TEXT NOT NULL,                -- e.g. 'validation.failed','ingredient.low'
+      severity         VARCHAR(10) NOT NULL,         -- e.g. 'warning','critical'
+      acknowledged     BOOLEAN NOT NULL DEFAULT FALSE,
+      acknowledged_at  TIMESTAMPTZ
+    );
+
+    -- Create indexes for better performance
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+    CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+    CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_order_id ON tasks(order_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    CREATE INDEX IF NOT EXISTS idx_task_steps_task_id ON task_steps(task_id);
+    CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);
+    CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at);
+    CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts(acknowledged);
+
+  03-validation-schema.sql: |
+    -- File: ./services/validation/schema.sql
+
+    -- Connect to Validation database and set user context
+    \c barns_validation validation_user;
+
+    -- Set configuration for the session
+    SET statement_timeout = 0;
+    SET lock_timeout = 0;
+    SET idle_in_transaction_session_timeout = 0;
+    SET client_encoding = 'UTF8';
+    SET standard_conforming_strings = on;
+    SET check_function_bodies = false;
+    SET xmloption = content;
+    SET client_min_messages = warning;
+    SET row_security = off;
+    SET default_tablespace = '';
+    SET default_table_access_method = heap;
+
+    -- Inventory Table
+    CREATE TABLE IF NOT EXISTS public.inventory (
+        id integer NOT NULL,
+        ingredient_type character varying(50) NOT NULL,
+        subtype character varying(50) NOT NULL,
+        current_amount numeric(10,2) NOT NULL,
+        last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Inventory Sequence
+    CREATE SEQUENCE IF NOT EXISTS public.inventory_id_seq
+        AS integer
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+    ALTER SEQUENCE public.inventory_id_seq OWNED BY public.inventory.id;
+    ALTER TABLE ONLY public.inventory ALTER COLUMN id SET DEFAULT nextval('public.inventory_id_seq'::regclass);
+
+    -- Initial Data
+    INSERT INTO public.inventory (id, ingredient_type, subtype, current_amount, last_updated) VALUES
+    (1, 'coffee_beans', 'regular', 5000.00, '2025-07-13 10:43:31.892028'),
+    (2, 'coffee_beans', 'decaf', 3000.00, '2025-07-08 12:43:55.681776'),
+    (3, 'cups', 'cup_H7', 25.00, '2025-07-08 12:43:55.806483'),
+    (4, 'cups', 'cup_H9', 25.00, '2025-07-08 12:43:55.897223'),
+    (5, 'cups', 'cup_H12', 25.00, '2025-07-08 12:43:55.989214'),
+    (6, 'cups', 'cup_C7', 50.00, '2025-07-08 12:43:56.090518'),
+    (7, 'cups', 'cup_C9', 50.00, '2025-07-08 12:43:56.181739'),
+    (8, 'cups', 'cup_C12', 50.00, '2025-07-08 12:43:56.376387'),
+    (9, 'cups', 'cup_C16', 50.00, '2025-07-08 12:43:56.510802'),
+    (10, 'milk', 'whole_fat_milk', 1000.00, '2025-07-08 12:43:56.596484'),
+    (11, 'milk', 'low_fat_milk', 1000.00, '2025-07-08 12:43:56.674165'),
+    (12, 'milk', 'lactose_free_milk', 1000.00, '2025-07-08 12:43:56.756757'),
+    (13, 'milk', 'almond_milk', 1000.00, '2025-07-08 12:43:56.856309'),
+    (14, 'syrups', 'vanilla_syrup', 1000.00, '2025-07-08 12:47:59.745037'),
+    (15, 'syrups', 'caramel_syrup', 1000.00, '2025-07-08 12:43:57.065299'),
+    (16, 'syrups', 'hazelnut_syrup', 1000.00, '2025-07-08 12:43:57.163559'),
+    (17, 'syrups', 'peached_iced_syrup', 1000.00, '2025-07-08 12:43:57.259803'),
+    (18, 'syrups', 'passion_fruit_iced_syrup', 1000.00, '2025-07-08 12:43:57.373636'),
+    (19, 'syrups', 'ice_tea_syrup', 1000.00, '2025-07-08 12:43:57.463725'),
+    (20, 'syrups', 'white_chocolate_sauce', 1000.00, '2025-07-08 12:43:57.564843'),
+    (21, 'syrups', 'caramel_sauce', 1000.00, '2025-07-08 12:43:57.661456'),
+    (22, 'syrups', 'condense_milk_sauce', 200.00, '2025-07-08 12:43:57.734225'),
+    (23, 'premixes', 'mocha_frappe', 3000.00, '2025-07-08 12:43:57.858503'),
+    (24, 'premixes', 'chocolate_frappe', 3000.00, '2025-07-08 12:43:57.997022'),
+    (25, 'premixes', 'half_and_half', 2000.00, '2025-07-08 12:43:58.164684');
+
+    SELECT pg_catalog.setval('public.inventory_id_seq', 25, true);
+
+    ALTER TABLE ONLY public.inventory
+        ADD CONSTRAINT inventory_ingredient_type_subtype_key UNIQUE (ingredient_type, subtype);
+
+    ALTER TABLE ONLY public.inventory
+        ADD CONSTRAINT inventory_pkey PRIMARY KEY (id);
 
 
 

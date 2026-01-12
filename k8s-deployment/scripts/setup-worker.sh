@@ -232,12 +232,28 @@ fi
 # Step 8: Configure network reconfiguration
 print_header "Step 8: Configuring Network Reconfiguration"
 
-# Create kubelet configuration with dynamic node-ip
-cat > /etc/default/kubelet <<'EOF'
-KUBELET_EXTRA_ARGS="--node-ip=$(ip route get 8.8.8.8 | grep -oP 'src \K\S+')"
+# Create script to update kubelet IP on boot
+cat > /usr/local/bin/update-kubelet-ip.sh <<'EOF'
+#!/bin/bash
+# Get the IP of the interface used for default route
+NODE_IP=$(ip route get 8.8.8.8 | grep -oP 'src \K\S+')
+# Write to environment file
+echo "KUBELET_EXTRA_ARGS=\"--node-ip=$NODE_IP\"" > /etc/default/kubelet
 EOF
 
-print_status "Kubelet configured for dynamic IP"
+chmod +x /usr/local/bin/update-kubelet-ip.sh
+
+# Configure kubelet systemd drop-in to run update script before start
+mkdir -p /etc/systemd/system/kubelet.service.d
+cat > /etc/systemd/system/kubelet.service.d/10-dynamic-ip.conf <<EOF
+[Service]
+ExecStartPre=/usr/local/bin/update-kubelet-ip.sh
+EOF
+
+# Reload systemd to pick up changes
+systemctl daemon-reload
+
+print_status "Kubelet configured for dynamic IP (systemd hook installed)"
 
 # Step 9: Check for join command
 print_header "Step 9: Checking for Join Command"
