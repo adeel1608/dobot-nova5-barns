@@ -65,8 +65,8 @@ RUN ln -s /usr/bin/python3 /usr/bin/python
 
 # ---- Install Orbbec SDK BEFORE building orbbec_camera ----------
 ARG  ORBBEC_SDK_VERSION=2.4.8
-ARG  ORBBEC_SDK_URL_PRIMARY=https://github.com/orbbec/OrbbecSDK_v2/releases/download/v${ORBBEC_SDK_VERSION}/OrbbecSDK_v${ORBBEC_SDK_VERSION}_amd64.deb
-ARG  ORBBEC_SDK_URL_FALLBACK=https://github.com/orbbec/OrbbecSDK_v2/releases/download/v${ORBBEC_SDK_VERSION}/OrbbecSDK_v${ORBBEC_SDK_VERSION}_Ubuntu22.04_amd64.deb
+ARG  ORBBEC_SDK_URL_PRIMARY=https://github.com/orbbec/OrbbecSDK_v2/releases/download/v${ORBBEC_SDK_VERSION}/OrbbecSDK_v${ORBBEC_SDK_VERSION}_arm64.deb
+ARG  ORBBEC_SDK_URL_FALLBACK=https://github.com/orbbec/OrbbecSDK_v2/releases/download/v${ORBBEC_SDK_VERSION}/OrbbecSDK_v${ORBBEC_SDK_VERSION}_Ubuntu22.04_arm64.deb
 
 RUN set -e \
   && mkdir -p /etc/udev/rules.d \
