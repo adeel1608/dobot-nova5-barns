@@ -35,23 +35,23 @@ RUN apt-get update && apt-get install -y \
 
 # Install ROS 2 packages
 RUN apt-get update && apt-get install -y \
-    ros-\-ros2-control \
-    ros-\-ros2-controllers \
-    ros-\-moveit \
-    ros-\-image-transport \
-    ros-\-image-transport-plugins \
-    ros-\-compressed-image-transport \
-    ros-\-camera-info-manager \
-    ros-\-diagnostic-updater \
-    ros-\-diagnostic-msgs \
-    ros-\-statistics-msgs \
-    ros-\-tf-transformations \
-    ros-\-kinematics-interface-kdl \
-    ros-\-ros-testing \
-    ros-\-launch-testing \
-    ros-\-launch-testing-ament-cmake \
-    ros-\-image-publisher \
-    ros-\-backward-ros \
+    ros-humble-ros2-control \
+    ros-humble-ros2-controllers \
+    ros-humble-moveit \
+    ros-humble-image-transport \
+    ros-humble-image-transport-plugins \
+    ros-humble-compressed-image-transport \
+    ros-humble-camera-info-manager \
+    ros-humble-diagnostic-updater \
+    ros-humble-diagnostic-msgs \
+    ros-humble-statistics-msgs \
+    ros-humble-tf-transformations \
+    ros-humble-kinematics-interface-kdl \
+    ros-humble-ros-testing \
+    ros-humble-launch-testing \
+    ros-humble-launch-testing-ament-cmake \
+    ros-humble-image-publisher \
+    ros-humble-backward-ros \
     && rm -rf /var/lib/apt/lists/*
 
 # Install OrbbecSDK specific dependencies
