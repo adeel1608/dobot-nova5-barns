@@ -25,18 +25,64 @@ from oms_v1.sequences.computer_vision import detect_cup_gripper
 
 def _normalize_plastic_cup_size(cups_dict: Any) -> str:
     """
-    Parse plastic cup size from new JSON format.
-    
-    This is a wrapper around the unified _normalize_cup_size function.
-    Use this for backward compatibility in plastic cup operations.
+    Universal cup size normalizer for plastic cup operations.
+    Accepts BOTH H-codes AND C-codes regardless of prefix.
+    Extracts the numeric size and returns standardized format.
     
     Args:
         cups_dict: Dictionary containing cup information, or a simple string/value
         
     Returns:
         str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
+        
+    Examples:
+        cup_H9 → '9oz'
+        cup_C9 → '9oz'
+        cup_h12 → '12oz'
+        cup_c16 → '16oz'
     """
-    return _normalize_cup_size(cups_dict, cup_type='plastic')
+    if not cups_dict:
+        from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+        return DEFAULT_PLASTIC_CUP_SIZE
+    
+    # Extract the cup code (case-insensitive)
+    if isinstance(cups_dict, dict):
+        cup_key = next(iter(cups_dict.keys()), None)
+        if cup_key:
+            # Convert to uppercase for parsing
+            cup_key_str = str(cup_key).upper()
+            if 'CUP_' in cup_key_str:
+                cup_code = cup_key_str.split('CUP_', 1)[1]
+            else:
+                cup_code = cup_key_str
+            
+            # Extract numeric size from code (works with both H and C prefixes)
+            # H7, H9, H12, C7, C9, C12, C16 → extract the number
+            if cup_code and len(cup_code) >= 2:
+                # Remove H or C prefix if present
+                if cup_code[0] in ('H', 'C'):
+                    size_num = cup_code[1:]
+                else:
+                    size_num = cup_code
+                
+                # Validate and return standardized size
+                if size_num in ('7', '9', '12', '16'):
+                    return f"{size_num}oz"
+    
+    # If parsing failed, try the standard normalizers
+    # Try plastic first
+    result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
+    if result and result != '':
+        return result
+    
+    # Try paper
+    result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
+    if result and result != '':
+        return result
+    
+    # Final fallback
+    from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+    return DEFAULT_PLASTIC_CUP_SIZE
 
 def dispense_plastic_cup(**params) -> bool:
     try:
@@ -91,7 +137,7 @@ def dispense_plastic_cup(**params) -> bool:
         print(f"🥤 Starting plastic cup grab sequence for {cup_size}")
         print("=" * 50)
         attempt_count = 0
-        while attempt_count < 3:
+        while attempt_count < 5:
             if cup_size == "16oz":
                 home(position=config['home'])
                 run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_FULL)

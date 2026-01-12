@@ -114,17 +114,17 @@
   "Make Espresso": {
       "steps": [
       {
-          "type": "automation",
-          "function": "grinding_machine",
-          "params": {
-          "shots_number": 2
-          }
-      },
-      {
           "type": "robot",
           "function": "unmount",
           "params": {
           "port": "port_3"
+          }
+      },
+      {
+          "type": "automation",
+          "function": "grinding_machine",
+          "params": {
+          "shots_number": 2
           }
       },
       {
@@ -183,17 +183,17 @@
   "Make Espresso Only": {
     "steps": [
     {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-        "shots_number": 2
-        }
-    },
-    {
         "type": "robot",
         "function": "unmount",
         "params": {
         "port": "port_3"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
         }
     },
     {
@@ -382,6 +382,14 @@
         }
       },
       {
+          "type": "automation",
+          "function": "coffee_machine",
+          "params": {
+          "coffee_t": 2,
+          "slot_number": 3
+          }
+      },
+      {
         "type": "robot",
         "function": "clean_portafilter",
         "params": {
@@ -391,6 +399,13 @@
       {
         "type": "robot",
         "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_cleaned_espresso_pitcher",
         "params": {
           "port": "port_2"
         }

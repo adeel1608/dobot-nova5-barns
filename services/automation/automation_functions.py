@@ -297,11 +297,11 @@ async def dispense_ice(params: dict):
         if "cup_c7" in cup_type_lower:
             timer = 1
         elif "cup_c9" in cup_type_lower:
-            timer = 1
+            timer = 1.5
         elif "cup_c12" in cup_type_lower:
-            timer = 1
+            timer = 2
         elif "cup_c16" in cup_type_lower:
-            timer = 1
+            timer = 2.5
         else:
             # Default to timer 0 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")
@@ -582,11 +582,11 @@ async def slush_machine(params: dict):
         # Map cup type to timer value (in milliseconds)
         cup_type_lower = cup_type.lower()
         if "cup_c9" in cup_type_lower:
-            timer = 6000
+            timer = 17000
         elif "cup_c12" in cup_type_lower:
-            timer = 8000
+            timer = 19000
         elif "cup_c16" in cup_type_lower:
-            timer = 10000
+            timer = 21000
         else:
             # Default to timer 10000 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 10000", service="automation")
@@ -1215,9 +1215,10 @@ async def initialize_frother(params: dict):
     # This function doesn't use any parameters from params dict
     # It just sends a frother_init command to the MQTT broker
     response = {"data": None}
-
+    log("INFO", "Connecting to frother...", service="automation")
     def on_connect(client, userdata, flags, rc, props=None):
         client.subscribe("automation_frother_init/response", qos=1)
+        log("INFO", "Subscribed to frother_init response", service="automation")
 
     def on_message(client, userdata, msg):
         try:
