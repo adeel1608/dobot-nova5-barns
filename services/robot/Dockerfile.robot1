@@ -96,7 +96,7 @@ RUN . /opt/ros/humble/setup.sh && \
 
 # Build the workspace
 RUN . /opt/ros/humble/setup.sh && \
-    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+    colcon build --symlink-install --packages-skip orbbec_camera --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 # Final runtime stage
 FROM base AS runtime
