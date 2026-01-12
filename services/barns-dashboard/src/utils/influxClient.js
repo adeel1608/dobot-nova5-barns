@@ -5,13 +5,13 @@
 
 const INFLUX_CONFIG = {
   // Priority:
-  // 1. explicit VITE_INFLUX_URL env var
-  // 2. during local development (vite) use relative path '/api/v2' so the Vite proxy forwards to localhost:8086
-  // 3. in containerized runtime use the docker service name
-  url: import.meta.env.VITE_INFLUX_URL || (import.meta.env && import.meta.env.DEV ? '/api/v2' : (window.location.hostname === 'localhost' ? '/api/v2' : 'http://influxdb:8086/api/v2')),
-  token: import.meta.env.VITE_INFLUX_TOKEN || 'barns-super-secret-token',
-  org: import.meta.env.VITE_INFLUX_ORG || 'barns',
-  bucket: import.meta.env.VITE_INFLUX_BUCKET || 'logs'
+  // 1. Runtime env var (window.env) via entrypoint.sh
+  // 2. Build-time env var (import.meta.env)
+  // 3. Fallbacks
+  url: (window.env && window.env.VITE_INFLUX_URL) || import.meta.env.VITE_INFLUX_URL || (import.meta.env && import.meta.env.DEV ? '/api/v2' : (window.location.hostname === 'localhost' ? '/api/v2' : 'http://influxdb:8086/api/v2')),
+  token: (window.env && window.env.VITE_INFLUX_TOKEN) || import.meta.env.VITE_INFLUX_TOKEN || 'barns-super-secret-token',
+  org: (window.env && window.env.VITE_INFLUX_ORG) || import.meta.env.VITE_INFLUX_ORG || 'barns',
+  bucket: (window.env && window.env.VITE_INFLUX_BUCKET) || import.meta.env.VITE_INFLUX_BUCKET || 'logs'
 };
 
 /**
@@ -30,7 +30,7 @@ const parseCSV = (csv) => {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
     // Skip empty lines and annotation lines (start with #)
     if (!line || line.startsWith('#')) {
       continue;
@@ -53,15 +53,15 @@ const parseCSV = (csv) => {
     // Parse data row
     const record = {};
     let hasData = false;
-    
+
     headers.forEach((header, idx) => {
       let value = values[idx].trim();
-      
+
       // Remove quotes if present
       if (value.startsWith('"') && value.endsWith('"')) {
         value = value.slice(1, -1);
       }
-      
+
       // Skip empty header names (InfluxDB often has empty first column)
       if (header && header !== '') {
         record[header] = value;
@@ -84,15 +84,15 @@ const parseCSV = (csv) => {
 export const queryInflux = async (fluxQuery) => {
   try {
     const queryUrl = `${INFLUX_CONFIG.url}/query?org=${INFLUX_CONFIG.org}`;
-    
+
     // Debug logging (set to false in production)
     const DEBUG = true;
-    
+
     if (DEBUG) {
       console.log('📡 InfluxDB Query URL:', queryUrl);
       console.log('📝 Query:', fluxQuery.substring(0, 200) + '...');
     }
-    
+
     const response = await fetch(queryUrl, {
       method: 'POST',
       headers: {
@@ -114,19 +114,19 @@ export const queryInflux = async (fluxQuery) => {
     }
 
     const csv = await response.text();
-    
+
     if (DEBUG) {
       console.log('📄 Raw CSV response:', csv.substring(0, 500));
       console.log('📄 CSV length:', csv.length, 'bytes');
     }
-    
+
     const results = parseCSV(csv);
-    
+
     if (DEBUG && results.length > 0) {
       console.log('✅ Parsed results:', results.length, 'records');
       console.log('📋 Sample record:', results[0]);
     }
-    
+
     return results;
   } catch (error) {
     console.error('❌ Failed to query InfluxDB:', error);
