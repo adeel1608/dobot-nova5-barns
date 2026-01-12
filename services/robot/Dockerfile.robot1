@@ -77,7 +77,7 @@ RUN python3 -m pip install --upgrade pip && \
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Initialize rosdep
-RUN rosdep update
+RUN rosdep update || true
 
 # Builder stage - build ROS workspace
 FROM base AS builder
