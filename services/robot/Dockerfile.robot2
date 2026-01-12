@@ -1,4 +1,4 @@
-﻿FROM ros:humble-ros-base-jammy AS base
+FROM ros:humble-ros-base-jammy AS base
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -93,11 +93,11 @@ COPY services/robot_container/ros_ws/src ./src
 COPY shared ./src/shared
 
 # Install workspace dependencies using rosdep
-RUN . /opt/ros/\/setup.sh && \
+RUN . /opt/ros/humble/setup.sh && \
     rosdep install --from-paths src --ignore-src -r -y || true
 
 # Build the workspace
-RUN . /opt/ros/\/setup.sh && \
+RUN . /opt/ros/humble/setup.sh && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 
 # Final runtime stage
