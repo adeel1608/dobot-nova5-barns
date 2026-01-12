@@ -117,7 +117,7 @@ COPY ros_ws/src /root/ros_ws/src
 
 # Install rosdep dependencies and build in one layer to reduce layers
 RUN rosdep update --rosdistro="${ROS_DISTRO}" -q || true && \
-    rosdep install --from-paths src --ignore-src -y -q \
+    rosdep install --from-paths src --ignore-src -y -q --skip-keys " ament_clang_format ament_lint_auto ament_lint_common\ \
     --rosdistro "${ROS_DISTRO}" || true && \
     /bin/bash -c "source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --symlink-install \
