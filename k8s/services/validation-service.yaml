@@ -22,8 +22,18 @@ spec:
         image: barns-validation:latest
         imagePullPolicy: IfNotPresent
         env:
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
         - name: RABBITMQ_URL
-          value: "amqp://admin:admin123@localhost:5672/"
+          value: "amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@rabbitmq:5672/"
         - name: POSTGRES_HOST
           value: "postgres"
         - name: POSTGRES_PORT
