@@ -20,7 +20,7 @@ spec:
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: k8s-master
+        kubernetes.io/hostname: ubuntu
       hostNetwork: true
       hostPID: true
       hostIPC: true
@@ -117,10 +117,4 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
-      tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
+

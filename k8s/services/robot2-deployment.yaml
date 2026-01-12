@@ -20,7 +20,7 @@ spec:
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: barns-nuc15crsu7
+        kubernetes.io/hostname: qss-jetson
       hostNetwork: true
       hostPID: true
       hostIPC: true
@@ -117,3 +117,10 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
