@@ -245,8 +245,8 @@ echo ""
 echo "Building robot2-service..."
 $BUILD_CMD \
   -t barns-robot2:latest \
-  -f services/robot/Dockerfile.robot2 \
-  .
+  -f services/robot_container/docker/dev.Dockerfile \
+  services/robot_container
 if [ $? -eq 0 ]; then
     print_status "robot2-service built successfully"
 else
