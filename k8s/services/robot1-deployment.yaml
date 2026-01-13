@@ -1,4 +1,4 @@
-﻿apiVersion: apps/v1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: robot1
@@ -20,7 +20,14 @@ spec:
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: ubuntu
+        kubernetes.io/hostname: qss-jetson
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
       hostNetwork: true
       hostPID: true
       hostIPC: true
@@ -59,6 +66,8 @@ spec:
           value: "3000"
         - name: USBFS_MEMORY_MB
           value: "128"
+        - name: RABBITMQ_URL
+          value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
         volumeMounts:
         - name: dev
           mountPath: /dev

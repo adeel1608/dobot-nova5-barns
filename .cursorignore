@@ -1,4 +1,5 @@
 *
-! robot1-startup.sh
-! robot2-startup.sh
-! install-robot-dependencies.sh
+!robot1-startup.sh
+!robot2-startup.sh
+!install-robot-dependencies.sh
+!build-images-arm64.sh
