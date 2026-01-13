@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # BARNS Robot Image Build Script
 # Usage: ./build-robot-images.sh robot1   (on master)
 #        ./build-robot-images.sh robot2   (on worker)
@@ -30,10 +30,10 @@ echo ""
 
 if docker build --no-cache -t barns-${ROBOT}:latest -f services/robot/Dockerfile.${ROBOT} .; then
     echo ""
-    echo -e "${GREEN}âœ“ Image built successfully!${NC}"
+    echo -e "${GREEN}??? Image built successfully!${NC}"
 else
     echo ""
-    echo -e "${YELLOW}âœ— Build failed${NC}"
+    echo -e "${YELLOW}??? Build failed${NC}"
     exit 1
 fi
 
@@ -42,16 +42,16 @@ echo -e "${GREEN}Importing to containerd...${NC}"
 
 if docker save barns-${ROBOT}:latest | sudo ctr -n k8s.io images import -; then
     echo ""
-    echo -e "${GREEN}âœ“ Image imported to containerd${NC}"
+    echo -e "${GREEN}??? Image imported to containerd${NC}"
 else
     echo ""
-    echo -e "${YELLOW}âœ— Import failed${NC}"
+    echo -e "${YELLOW}??? Import failed${NC}"
     exit 1
 fi
 
 echo ""
 echo -e "${BLUE}=========================================${NC}"
-echo -e "${GREEN}âœ“ Done! Image barns-${ROBOT}:latest is ready for Kubernetes${NC}"
+echo -e "${GREEN}??? Done! Image barns-${ROBOT}:latest is ready for Kubernetes${NC}"
 echo -e "${BLUE}=========================================${NC}"
 echo ""
 echo "Next steps:"
