@@ -3,7 +3,6 @@
 # BARNS Robot Dependencies Installation Script
 # Follows official OrbbecSDK ROS2 installation procedure
 ###############################
-
 set -euo pipefail
 
 # Default values
