@@ -2,7 +2,6 @@
 # BARNS Robot Image Build Script
 # Usage: ./build-robot-images.sh robot1   (on master)
 #        ./build-robot-images.sh robot2   (on worker)
-
 set -euo pipefail
 
 ROBOT=$1
