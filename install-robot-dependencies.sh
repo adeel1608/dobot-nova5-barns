@@ -269,12 +269,40 @@ build_workspace() {
     info "Installing ROS dependencies..."
     rosdep install --from-paths src --ignore-src -y -q --rosdistro "${ROS_DISTRO}" || warn "Some rosdep dependencies failed to install"
     
+    # Determine optimal parallel workers for memory-constrained systems (like Jetson)
+    # Default to 2 for Jetson devices, allow override via COLCON_PARALLEL_WORKERS env var
+    local num_cores=$(nproc)
+    local parallel_workers=${COLCON_PARALLEL_WORKERS:-}
+    
+    if [ -z "$parallel_workers" ]; then
+        # Auto-detect Jetson or low-memory systems
+        local total_mem_kb=$(grep MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}' || echo "0")
+        local total_mem_gb=$((total_mem_kb / 1024 / 1024))
+        
+        if [ "$total_mem_gb" -lt 8 ] || [ -f /etc/nv_tegra_release ]; then
+            # Jetson or low-memory system: use 2 workers max
+            parallel_workers=2
+            info "Detected Jetson or low-memory system (${total_mem_gb}GB RAM), using 2 parallel workers"
+        elif [ "$total_mem_gb" -lt 16 ]; then
+            # Medium memory: use half cores, min 2
+            parallel_workers=$((num_cores / 2))
+            [ "$parallel_workers" -lt 2 ] && parallel_workers=2
+            info "Detected medium-memory system (${total_mem_gb}GB RAM), using ${parallel_workers} parallel workers"
+        else
+            # High memory: use all cores
+            parallel_workers=$num_cores
+            info "Detected high-memory system (${total_mem_gb}GB RAM), using ${parallel_workers} parallel workers"
+        fi
+    else
+        info "Using user-specified parallel workers: ${parallel_workers}"
+    fi
+    
     # Build workspace with proper configuration for OrbbecSDK
-    info "Building workspace with colcon..."
+    info "Building workspace with colcon (${parallel_workers} parallel workers)..."
     colcon build --symlink-install \
         --cmake-args -DCMAKE_BUILD_TYPE=Release \
         --continue-on-error \
-        --parallel-workers $(nproc) \
+        --parallel-workers ${parallel_workers} \
         --event-handlers console_direct+
     
     # Check if critical packages built successfully
