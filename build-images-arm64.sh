@@ -78,6 +78,16 @@ else
     fi
 fi
 
+# Check for Jetson/low-memory system
+if [ -f /etc/nv_tegra_release ] 2>/dev/null; then
+    print_warning "Jetson device detected!"
+    print_warning "If you encounter OOM errors (exit code 137), try:"
+    print_warning "  1. Add swap space: sudo fallocate -l 8G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile"
+    print_warning "  2. Set COLCON_PARALLEL_WORKERS=2 before building"
+    print_warning "  3. Build images one at a time instead of all at once"
+    echo ""
+fi
+
 # Determine build command
 if [ "$USE_BUILDX" = true ] && docker buildx version &> /dev/null; then
     BUILD_CMD="docker buildx build --platform linux/arm64 --load"
