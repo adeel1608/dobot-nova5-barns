@@ -715,8 +715,6 @@ PAPER_CUPS_STATION_PARAMS = {
 # ─── CLEANING PARAMETERS ──────────────────────────────────────────────────────────
 CLEANING_PARAMS = {
     'hard_brush_adjust': (-102.563631,-4.349989,-116.815596,-58.573670,-102.493498,-149.923394),  # Adjustment position for hard brush cleaning
-    'cleaning_motion_1': (0, 0, 0, 0, 0, 0),  # First cleaning motion offset
-    'cleaning_motion_2': (0, 0, 0.0, 0, 0, 0),  # Second cleaning motion offset
     'retreat_hard': (0, 0, 100, 0, 0, 0),  # Retreat offset after hard brush
     'retreat_soft': (0, 0, 150, 0, 0, 0),  # Retreat offset after soft brush
 }

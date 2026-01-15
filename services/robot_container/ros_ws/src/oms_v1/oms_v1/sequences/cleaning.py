@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 from oms_v1.manipulate_node import run_skill
 from oms_v1.params import (
     ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT,
-    DELAY_SHORT
+    DELAY_VERY_SHORT
 )
 
 
@@ -54,10 +54,12 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
         return False
-    if not ok(run_skill("moveEE_movJ", -1,0,50,0,0,0)):
+    # time.sleep(DELAY_VERY_SHORT)
+    if not ok(run_skill("moveEE_movJ", 0,0,50,0,0,0)):
         return False
-    if not ok(run_skill("moveEE_movJ", -1,0,-50,0,0,0)):
+    if not ok(run_skill("moveEE_movJ", 0,0,-35,-2.5,0,0)):
         return False
+    # time.sleep(DELAY_VERY_SHORT)
     if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
         return False
 
@@ -66,11 +68,23 @@ def clean_portafilter(**params) -> bool:
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
         return False
-    if not ok(run_skill("moveEE", -7.5,7.5,10,1.1,0,0)):
+    # time.sleep(DELAY_VERY_SHORT)
+    if not ok(run_skill("moveEE_movJ", 0,0,50,0,0,0)):
         return False
-    if not ok(run_skill("moveEE", 7.5,-7.5,-7.5,1.1,0,0)):
+    if not ok(run_skill("moveEE_movJ", 0,0,-55,0,0,0)):
         return False
-    time.sleep(DELAY_SHORT)
+    if not ok(run_skill("moveEE_movJ", 0,10,0,0,0,0)):
+        return False
+    # time.sleep(DELAY_VERY_SHORT)
+    if not ok(run_skill("moveEE_movJ", 10,0,0,0,0,0)):
+        return False
+    # time.sleep(DELAY_VERY_SHORT)
+    if not ok(run_skill("moveEE_movJ", -20,0,0,0,0,0)):
+        return False
+    # time.sleep(DELAY_VERY_SHORT)
+    if not ok(run_skill("moveEE_movJ", 0,-10,10,-2.5,0,0)):
+        return False
+    # time.sleep(DELAY_VERY_SHORT)
     if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
         return False
 

@@ -14,7 +14,7 @@ from oms_v1.sequences.home import home
 from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
     SLUSH_PARAMS, SPEED_NORMAL, DEFAULT_PLASTIC_CUP_SIZE,
-    log_step, log_success, log_error, _extract_cup_position, _extract_cups_dict, _normalize_cup_size
+    _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 
 
@@ -81,251 +81,107 @@ def _normalize_slush_cup_size(cups_dict: Any) -> str:
 def get_slush(**params) -> bool:
     """
     Get slush from specified dispenser and prepare for serving.
-    
-    This function handles slush dispensing for different stages, cup sizes, and dispensers:
-    1. Grabs plastic cup of specified size
-    2. Moves to intermediate positioning
-    3. Navigates to appropriate slush dispenser
-    4. Positions cup under dispenser for slush dispensing
-    
-    Args:
-        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
-        cups (dict): Cup dictionary, e.g., {'cup_C9': 1.0} or {'cup_H9': 1.0}
-        dispenser (str): Dispenser number ('1' or '2') - optional, will be inferred from premixes if not provided
-        premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
-        
-    Returns:
-        bool: True if slush dispensing completed successfully, False otherwise
-        
-    Example:
-        success = get_slush(position={'cup_position': 1.0}, cups={'cup_C16': 1.0}, dispenser='1')
-        if success:
-            print("Slush dispensed successfully")
     """
-    try:
-        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
-        cup_position = _extract_cup_position(params)
-        stage = str(cup_position)  # Convert to string for internal use
-        
-        # Extract and validate cup size parameter using flexible slush normalizer
-        # This accepts both H-codes (H7, H9, H12) and C-codes (C7, C9, C12, C16)
-        cups_dict = _extract_cups_dict(params)
-        cup_size = _normalize_slush_cup_size(cups_dict)
-        
-        dispenser = params.get("dispenser")
-        
-        # If no dispenser is provided, try to infer from premixes or use default
-        if not dispenser:
-            premixes = params.get("premixes", {})
-            if premixes:
-                # Map premix types to dispensers
-                premix_name = list(premixes.keys())[0] if premixes else ""
-                # Default mapping: most premixes go to dispenser 1
-                # You can extend this mapping as needed
-                if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
-                    dispenser = "2"
-                else:
-                    dispenser = "1"
-                print(f"[INFO] No dispenser specified, inferred dispenser '{dispenser}' from premix '{premix_name}'")
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+    
+    cups_dict = _extract_cups_dict(params)
+    cup_size = _normalize_slush_cup_size(cups_dict)
+    
+    dispenser = params.get("dispenser")
+    
+    if not dispenser:
+        premixes = params.get("premixes", {})
+        if premixes:
+            premix_name = list(premixes.keys())[0] if premixes else ""
+            if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
+                dispenser = "2"
             else:
-                # Default to dispenser 1 if no premix info
                 dispenser = "1"
-                print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
-        
-        # Validate parameters
-        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
-        valid_dispensers = ("1", "2")
-            
-        if cup_size not in valid_cup_sizes:
-            print(f"[ERROR] Invalid cup size: {cup_size!r}")
-            print(f"[INFO] Valid cup sizes: {', '.join(valid_cup_sizes)}")
-            return False
-            
-        if dispenser not in valid_dispensers:
-            print(f"[ERROR] Invalid dispenser: {dispenser!r}")
-            print(f"[INFO] Valid dispensers: {', '.join(valid_dispensers)}")
-            return False
-        
-        print(f"🥤 Starting slush dispensing: Stage {stage}, {cup_size}, Dispenser {dispenser}")
-        print("=" * 50)
-        
-        # Step 1: Grab plastic cup
-        log_step(1, 4, f"Grabbing {cup_size} plastic cup")
-        # Convert cup_size to proper cups dict format (e.g., "16oz" -> {"cup_C16": 1.0})
-        cup_code = f"cup_C{cup_size.replace('oz', '')}"
-        if not dispense_plastic_cup(cups={cup_code: 1.0}):
-            log_error(f"Failed to grab {cup_size} plastic cup")
-            return False
-        log_success("Cup grabbed successfully", indent=1)
-        
-        # Step 2: Move to intermediate positioning
-        print("📍 Step 2/4: Moving to intermediate positioning...")
-        pos1_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['intermediate'])
-        if not pos1_result:
-            print("[ERROR] Failed to move to intermediate position")
-            return False
-        print("   ✅ Successfully moved to intermediate position")
-        
-        # Step 3: Move to slush area
-        print("🧊 Step 3/4: Moving to slush dispensing area...")
-        pos2_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])
-        if not pos2_result:
-            print("[ERROR] Failed to move to slush area")
-            return False
-        print("   ✅ Successfully positioned in slush area")
-        
-        # Step 4: Position at specific dispenser
-        print(f"🎯 Step 4/4: Positioning at dispenser {dispenser}...")
-        if dispenser == "1":
-            print("   📍 Moving to dispenser 1...")
-            dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
-        else:  # dispenser == "2"
-            print("   📍 Moving to dispenser 2...")
-            pos3_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])
-            if not pos3_result:
-                print("[ERROR] Failed to move to dispenser 2 intermediate position")
-                return False
-            dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
-        
-        if not dispenser_result:
-            print(f"[ERROR] Failed to position at dispenser {dispenser}")
-            return False
-        print(f"   ✅ Successfully positioned at dispenser {dispenser}")
-        
-        # Final success summary
-        print("=" * 50)
-        print(f"✅ SLUSH DISPENSING COMPLETED SUCCESSFULLY")
-        print(f"   ✓ Stage: {stage}, Cup: {cup_size}, Dispenser: {dispenser}")
-        print("   ✓ Cup positioned for slush dispensing")
-        print("   ✓ Ready for slush dispensing operation")
-        print("=" * 50)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during slush dispensing: {e}")
-        print("[INFO] Slush dispensing process terminated due to error")
+        else:
+            dispenser = "1"
+    
+    valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")
+    valid_dispensers = ("1", "2")
+    
+    if cup_size not in valid_cup_sizes or dispenser not in valid_dispensers:
         return False
+    
+    cup_code = f"cup_C{cup_size.replace('oz', '')}"
+    if not dispense_plastic_cup(cups={cup_code: 1.0}):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['intermediate'])):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
+        return False
+    
+    if dispenser == "1":
+        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
+    else:
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])):
+            return False
+        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
+    
+    if not ok(dispenser_result):
+        return False
+    
+    return True
 
 def place_slush(**params) -> bool:
     """
     Place slush-filled cup at specified staging area after dispensing.
-    
-    This function handles the placement of slush-filled cups:
-    1. Sets appropriate speed for careful handling
-    2. Moves away from dispenser safely
-    3. Navigates to home position
-    4. Places cup at designated staging area
-    
-    Args:
-        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
-        cups (dict): Cup dictionary, e.g., {'cup_C9': 1.0} or {'cup_H9': 1.0}
-        dispenser (str): Dispenser number used ('1' or '2') - optional, will be inferred from premixes if not provided
-        premixes (dict): Premix dictionary to infer dispenser if not explicitly provided
-        
-    Returns:
-        bool: True if slush placement completed successfully, False otherwise
-        
-    Example:
-        success = place_slush(position={'cup_position': 2.0}, cups={'cup_C16': 1.0}, dispenser='1')
-        if success:
-            print("Slush cup placed successfully")
     """
-    try:
-        # Extract cup position from new format: {'position': {'cup_position': 1.0}}
-        cup_position = _extract_cup_position(params)
-        stage = str(cup_position)  # Convert to string for internal use
-        
-        # Extract and validate cup size parameter using flexible slush normalizer
-        # This accepts both H-codes (H7, H9, H12) and C-codes (C7, C9, C12, C16)
-        cups_dict = _extract_cups_dict(params)
-        cup_size = _normalize_slush_cup_size(cups_dict)
-        
-        dispenser = params.get("dispenser")
-        
-        # If no dispenser is provided, try to infer from premixes or use default
-        if not dispenser:
-            premixes = params.get("premixes", {})
-            if premixes:
-                # Map premix types to dispensers (same logic as get_slush)
-                premix_name = list(premixes.keys())[0] if premixes else ""
-                if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
-                    dispenser = "2"
-                else:
-                    dispenser = "1"
-                print(f"[INFO] No dispenser specified, inferred dispenser '{dispenser}' from premix '{premix_name}'")
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+    
+    cups_dict = _extract_cups_dict(params)
+    cup_size = _normalize_slush_cup_size(cups_dict)
+    
+    dispenser = params.get("dispenser")
+    
+    if not dispenser:
+        premixes = params.get("premixes", {})
+        if premixes:
+            premix_name = list(premixes.keys())[0] if premixes else ""
+            if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
+                dispenser = "2"
             else:
-                # Default to dispenser 1 if no premix info
                 dispenser = "1"
-                print(f"[INFO] No dispenser specified, defaulting to dispenser '1'")
-        
-        # Validate parameters
-        valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")  # All plastic cup sizes supported
-        valid_dispensers = ("1", "2")
-            
-        if cup_size not in valid_cup_sizes:
-            print(f"[ERROR] Invalid cup size: {cup_size!r}")
-            print(f"[INFO] Valid cup sizes: {', '.join(valid_cup_sizes)}")
-            return False
-            
-        if dispenser not in valid_dispensers:
-            print(f"[ERROR] Invalid dispenser: {dispenser!r}")
-            print(f"[INFO] Valid dispensers: {', '.join(valid_dispensers)}")
-            return False
-        
-        print(f"🧊 Starting slush placement: Stage {stage}, {cup_size}, from Dispenser {dispenser}")
-        print("=" * 50)
-        
-        # Step 1: Set careful handling speed
-        print("⚙️ Step 1/4: Setting careful handling speed...")
-        speed_result = run_skill("set_speed_factor", SPEED_NORMAL)
-        if not speed_result:
-            print("[WARNING] Failed to set speed factor - continuing with default")
         else:
-            print("   ✅ Speed factor set for careful handling")
-        
-        # Step 2: Move away from dispenser safely
-        print(f"⬅️ Step 2/4: Moving away from dispenser {dispenser}...")
-        if dispenser == "1":
-            print("   📍 Moving away from dispenser 1...")
-            retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
-        else:  # dispenser == "2"
-            print("   📍 Moving away from dispenser 2...")
-            retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
-        
-        if not retreat_result:
-            print(f"[ERROR] Failed to move away from dispenser {dispenser}")
-            return False
-        print(f"   ✅ Successfully moved away from dispenser {dispenser}")
-        
-        # Step 3: Navigate to home position
-        print("🏠 Step 3/4: Navigating to home position...")
-        if not home(position="north"):
-            print("[ERROR] Failed to move to north home position")
-            return False
-        print("   ✅ Successfully moved to home position")
-        
-        # Step 4: Place slush cup at designated stage
-        print(f"📍 Step 4/4: Placing slush cup at stage {stage}...")
-        # Convert cup_size to proper cups dict format (e.g., "16oz" -> {"cup_C16": 1.0})
-        cup_code = f"cup_C{cup_size.replace('oz', '')}"
-        if not place_plastic_cup_station(position={'cup_position': int(stage)}, cups={cup_code: 1.0}):
-            print(f"[ERROR] Failed to place slush cup at stage {stage}")
-            return False
-        print(f"   ✅ Successfully placed slush cup at stage {stage}")
-        
-        # Final success summary
-        print("=" * 50)
-        print(f"✅ SLUSH PLACEMENT COMPLETED SUCCESSFULLY")
-        print(f"   ✓ Stage: {stage}, Cup: {cup_size}, from Dispenser: {dispenser}")
-        print("   ✓ Slush cup safely transported and placed")
-        print("   ✓ Ready for customer service")
-        print("=" * 50)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during slush placement: {e}")
-        print("[INFO] Slush placement process terminated due to error")
+            dispenser = "1"
+    
+    valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")
+    valid_dispensers = ("1", "2")
+    
+    if cup_size not in valid_cup_sizes or dispenser not in valid_dispensers:
         return False
+    
+    run_skill("set_speed_factor", SPEED_NORMAL)
+    
+    if dispenser == "1":
+        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
+    else:
+        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
+    
+    if not ok(retreat_result):
+        return False
+    
+    if not home(position="north"):
+        return False
+    
+    cup_code = f"cup_C{cup_size.replace('oz', '')}"
+    if not place_plastic_cup_station(position={'cup_position': int(stage)}, cups={cup_code: 1.0}):
+        return False
+    
+    return True
       
 # Register functions for CLI discovery and external access
 SEQUENCES = {
