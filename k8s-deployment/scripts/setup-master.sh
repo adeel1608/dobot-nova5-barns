@@ -210,6 +210,24 @@ print_status "kubelet configured with SSD storage"
 # Step 6: Initialize Kubernetes cluster
 print_header "Step 6: Initializing Kubernetes Cluster"
 
+# Check if critical ports are in use
+print_info "Checking if Kubernetes ports are available..."
+PORTS_IN_USE=$(netstat -tulpn 2>/dev/null | grep -E ':(6443|2379|2380)' || true)
+
+if [ -n "$PORTS_IN_USE" ]; then
+    print_error "Kubernetes ports are already in use:"
+    echo "$PORTS_IN_USE"
+    echo ""
+    print_error "A previous Kubernetes installation is still running."
+    print_error "Please run the cleanup script first:"
+    echo ""
+    echo "  sudo ./cleanup.sh"
+    echo ""
+    echo "Then run this setup script again."
+    exit 1
+fi
+print_status "All required ports are available"
+
 if is_node_in_cluster; then
     print_info "Node already in cluster"
     
