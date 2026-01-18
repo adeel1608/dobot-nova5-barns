@@ -144,7 +144,7 @@ if [ -L /var/lib/docker ]; then
     print_status "Removed docker symlink"
 fi
 
-# Step 6: Remove systemd overrides
+# Step 6: Remove systemd overrides and config backups
 print_header "Step 6: Cleaning Systemd Configuration"
 
 rm -f /etc/systemd/system/kubelet.service.d/20-ssd-root.conf
@@ -153,6 +153,11 @@ rm -f /etc/systemd/system/kubelet.service.d/10-exec-start.conf
 rm -f /etc/systemd/system/kubelet.service.d/20-node-ip.conf
 systemctl daemon-reload
 print_status "Systemd configuration cleaned"
+
+# Remove kubelet config backups
+print_info "Removing kubelet config backups..."
+rm -f /var/lib/kubelet/config.yaml.backup* 2>/dev/null || true
+print_status "Config backups removed"
 
 # Step 7: Restart containerd
 print_header "Step 7: Restarting Container Runtime"

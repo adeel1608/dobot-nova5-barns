@@ -285,26 +285,72 @@ kubeadm init --config=/tmp/kubeadm-config.yaml | tee /tmp/kubeadm-init.log
 
 print_status "Cluster initialized"
 
-# CRITICAL: Configure kubelet to use --root-dir flag
-print_info "Configuring kubelet with proper ExecStart override..."
+# CRITICAL: Force containerd to use SSD with bind mount
+print_info "Forcing containerd to use SSD storage via bind mount..."
 
-# Create a drop-in that overrides ExecStart with all necessary flags
-# This works even if the main service doesn't use KUBELET_EXTRA_ARGS
-cat > /etc/systemd/system/kubelet.service.d/10-exec-start.conf <<EOF
-[Service]
-# Clear any previous ExecStart
-ExecStart=
-# Set ExecStart with SSD root-dir and node-ip
-ExecStart=/usr/bin/kubelet --root-dir=$SSD_MOUNT/var/lib/kubelet --node-ip=$NODE_IP
-EOF
+# Stop services temporarily
+systemctl stop kubelet
+systemctl stop containerd
 
-print_status "Created kubelet ExecStart override with --root-dir and --node-ip"
+# Move any existing containerd data to SSD
+if [ -d "/var/lib/containerd" ] && [ "$(ls -A /var/lib/containerd 2>/dev/null)" ]; then
+    print_info "Moving existing containerd data to SSD..."
+    rsync -a /var/lib/containerd/ "$SSD_MOUNT/var/lib/containerd/"
+    rm -rf /var/lib/containerd
+fi
 
-# Reload systemd and restart kubelet to apply changes
-systemctl daemon-reload
-systemctl restart kubelet
+# Create bind mount directory
+mkdir -p /var/lib/containerd
+mkdir -p "$SSD_MOUNT/var/lib/containerd"
+
+# Create bind mount to FORCE containerd to use SSD
+mount --bind "$SSD_MOUNT/var/lib/containerd" /var/lib/containerd
+
+# Make bind mount persistent across reboots
+if ! grep -q "$SSD_MOUNT/var/lib/containerd /var/lib/containerd" /etc/fstab; then
+    echo "$SSD_MOUNT/var/lib/containerd /var/lib/containerd none bind 0 0" >> /etc/fstab
+    print_status "Bind mount added to /etc/fstab"
+fi
+
+print_status "Containerd forced to use SSD via bind mount"
+
+# Restart services
+systemctl start containerd
+sleep 3
+systemctl start kubelet
 sleep 5
-print_status "kubelet restarted with SSD configuration"
+
+# CRITICAL: Configure kubelet to use SSD root directory
+print_info "Configuring kubelet to use SSD via config.yaml..."
+
+# Wait a moment for kubeadm to create the config file
+sleep 3
+
+# Modify kubelet config.yaml to set rootDirectory
+KUBELET_CONFIG="/var/lib/kubelet/config.yaml"
+
+if [ -f "$KUBELET_CONFIG" ]; then
+    # Backup the config
+    cp "$KUBELET_CONFIG" "${KUBELET_CONFIG}.backup.$(date +%s)"
+    
+    # Check if rootDirectory is already set
+    if grep -q "^rootDirectory:" "$KUBELET_CONFIG"; then
+        print_info "Updating existing rootDirectory in config..."
+        sed -i "s|^rootDirectory:.*|rootDirectory: $SSD_MOUNT/var/lib/kubelet|" "$KUBELET_CONFIG"
+    else
+        print_info "Adding rootDirectory to config..."
+        echo "rootDirectory: $SSD_MOUNT/var/lib/kubelet" >> "$KUBELET_CONFIG"
+    fi
+    
+    print_status "Updated kubelet config.yaml with SSD root directory"
+    
+    # Restart kubelet to apply changes
+    systemctl restart kubelet
+    sleep 5
+    print_status "kubelet restarted with SSD configuration"
+else
+    print_warning "Kubelet config.yaml not found yet, will be configured on first start"
+fi
 
 # Configure kubectl for root
 export KUBECONFIG=/etc/kubernetes/admin.conf
@@ -393,13 +439,24 @@ print_header "Step 11: Verifying SSD Configuration"
 
 sleep 3
 
-# Verify kubelet is using --root-dir
-if ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | grep -q "root-dir=$SSD_MOUNT"; then
-    print_status "kubelet is using --root-dir=$SSD_MOUNT/var/lib/kubelet"
+# Verify kubelet root directory in config
+KUBELET_CONFIG="/var/lib/kubelet/config.yaml"
+if [ -f "$KUBELET_CONFIG" ] && grep -q "rootDirectory: $SSD_MOUNT" "$KUBELET_CONFIG"; then
+    print_status "kubelet config.yaml has rootDirectory: $SSD_MOUNT/var/lib/kubelet"
 else
-    print_warning "kubelet may not be using --root-dir flag yet"
-    print_info "Current kubelet command:"
-    ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | head -1 || echo "kubelet not found in process list"
+    print_warning "kubelet config.yaml may not have rootDirectory set correctly"
+    if [ -f "$KUBELET_CONFIG" ]; then
+        print_info "Current rootDirectory setting:"
+        grep "rootDirectory" "$KUBELET_CONFIG" || echo "  Not set"
+    fi
+fi
+
+# Verify SSD kubelet directory exists and is being used
+if [ -d "$SSD_MOUNT/var/lib/kubelet" ]; then
+    KUBELET_SIZE=$(du -sh "$SSD_MOUNT/var/lib/kubelet" 2>/dev/null | cut -f1)
+    print_status "SSD kubelet directory exists: $KUBELET_SIZE"
+else
+    print_warning "SSD kubelet directory not yet created"
 fi
 
 # Verify kubelet is using --node-ip
@@ -413,7 +470,7 @@ fi
 if ps aux | grep etcd | grep -v grep | grep -q "data-dir=$SSD_MOUNT"; then
     print_status "etcd is using --data-dir=$SSD_MOUNT/var/lib/etcd"
 else
-    print_warning "etcd may still be starting, check with: ps aux | grep etcd"
+    print_warning "etcd may still be starting"
 fi
 
 # Show disk usage
