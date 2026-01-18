@@ -300,6 +300,46 @@ else
     exit 1
 fi
 
+
+# 2. Import to containerd on worker
+# Create this script on worker:
+cat > import-to-containerd.sh << 'EOF'
+#!/bin/bash
+set -e
+GREEN='\033[0;32m'
+NC='\033[0m'
+print_status() { echo -e "${GREEN}[✓]${NC} $1"; }
+
+IMAGES=(
+    "barns-api-bridge:latest"
+    "barns-validation:latest"
+    "barns-automation:latest"
+    "barns-routine:latest"
+    "barns-robot-arm:latest"
+    "barns-scheduler:latest"
+    "barns-oms:latest"
+    "barns-video-stream:latest"
+    "barns-dashboard:latest"
+    "barns-robot1:latest"
+    "barns-robot2:latest"
+)
+
+for IMAGE in "${IMAGES[@]}"; do
+    if docker images "$IMAGE" --format "{{.Repository}}:{{.Tag}}" | grep -q "$IMAGE"; then
+        echo "Importing $IMAGE..."
+        docker save "$IMAGE" | sudo ctr -n k8s.io images import - --all-platforms
+        echo "✓ $IMAGE imported"
+    fi
+done
+EOF
+
+chmod +x import-to-containerd.sh
+sudo ./import-to-containerd.sh
+
+# 3. Verify images are available
+sudo ctr -n k8s.io images ls | grep barns
+
+
 echo ""
 echo "========================================="
 echo "Build Summary"
