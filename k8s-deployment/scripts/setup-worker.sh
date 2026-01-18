@@ -321,6 +321,30 @@ if [ -f /tmp/k8s-join-command.sh ]; then
         bash /tmp/k8s-join-command.sh
         print_status "Joined cluster"
         
+        # CRITICAL: Configure kubelet to use --root-dir flag
+        print_info "Ensuring kubelet uses SSD for --root-dir..."
+        if [ -f /etc/systemd/system/kubelet.service.d/10-kubeadm.conf ]; then
+            # Backup original
+            cp /etc/systemd/system/kubelet.service.d/10-kubeadm.conf \
+               /etc/systemd/system/kubelet.service.d/10-kubeadm.conf.backup
+            
+            # Check if --root-dir already exists
+            if ! grep -q "root-dir=" /etc/systemd/system/kubelet.service.d/10-kubeadm.conf; then
+                # Add --root-dir to the ExecStart line
+                sed -i '/^ExecStart=\/usr\/bin\/kubelet/s/$/ --root-dir=\/mnt\/ssd\/var\/lib\/kubelet/' \
+                    /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
+                print_status "Added --root-dir to kubelet ExecStart"
+            else
+                print_info "kubelet already has --root-dir configured"
+            fi
+        fi
+        
+        # Reload systemd and restart kubelet to apply changes
+        systemctl daemon-reload
+        systemctl restart kubelet
+        sleep 5
+        print_status "kubelet restarted with SSD configuration"
+        
         # Wait for node to be ready
         print_info "Waiting for node to be ready..."
         sleep 10
@@ -328,12 +352,22 @@ if [ -f /tmp/k8s-join-command.sh ]; then
     else
         print_info "Skipping cluster join. Run manually later:"
         echo "  sudo bash /tmp/k8s-join-command.sh"
+        echo ""
+        print_warning "IMPORTANT: After joining, run this to configure kubelet for SSD:"
+        echo "  sudo sed -i '/^ExecStart=\\/usr\\/bin\\/kubelet/s/$/ --root-dir=\\/mnt\\/ssd\\/var\\/lib\\/kubelet/' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+        echo "  sudo systemctl daemon-reload"
+        echo "  sudo systemctl restart kubelet"
     fi
 else
     print_warning "Join command not found at /tmp/k8s-join-command.sh"
     print_info "Copy join command from master node:"
     echo "  scp master-node:/tmp/k8s-join-command.sh /tmp/"
     echo "  sudo bash /tmp/k8s-join-command.sh"
+    echo ""
+    print_warning "IMPORTANT: After joining, run this to configure kubelet for SSD:"
+    echo "  sudo sed -i '/^ExecStart=\\/usr\\/bin\\/kubelet/s/$/ --root-dir=\\/mnt\\/ssd\\/var\\/lib\\/kubelet/' /etc/systemd/system/kubelet.service.d/10-kubeadm.conf"
+    echo "  sudo systemctl daemon-reload"
+    echo "  sudo systemctl restart kubelet"
 fi
 
 # Step 10: Install additional tools
@@ -353,6 +387,26 @@ if ! command_exists python3; then
     print_status "Python3 installed"
 else
     print_info "Python3 already installed"
+fi
+
+# Step 11: Verify SSD Configuration
+if is_node_in_cluster; then
+    print_header "Step 11: Verifying SSD Configuration"
+    
+    sleep 3
+    
+    # Verify kubelet is using --root-dir
+    if ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | grep -q "root-dir=$SSD_MOUNT"; then
+        print_status "kubelet is using --root-dir=$SSD_MOUNT/var/lib/kubelet"
+    else
+        print_warning "kubelet may not be using --root-dir flag yet"
+        print_info "Check with: ps aux | grep kubelet | grep root-dir"
+    fi
+    
+    # Show disk usage
+    print_info "Disk usage:"
+    df -h / | tail -1
+    df -h $SSD_MOUNT | tail -1
 fi
 
 # Completion
