@@ -149,6 +149,8 @@ print_header "Step 6: Cleaning Systemd Configuration"
 
 rm -f /etc/systemd/system/kubelet.service.d/20-ssd-root.conf
 rm -f /etc/systemd/system/kubelet.service.d/10-dynamic-ip.conf
+rm -f /etc/systemd/system/kubelet.service.d/10-exec-start.conf
+rm -f /etc/systemd/system/kubelet.service.d/20-node-ip.conf
 systemctl daemon-reload
 print_status "Systemd configuration cleaned"
 

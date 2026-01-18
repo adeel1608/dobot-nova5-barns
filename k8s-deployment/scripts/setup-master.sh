@@ -196,16 +196,13 @@ else
     print_info "Kubernetes already installed: $(get_k8s_version)"
 fi
 
-# Configure kubelet to use SSD
+# Configure kubelet to use SSD (will be finalized after kubeadm init)
 print_info "Configuring kubelet to use SSD storage..."
 mkdir -p /etc/systemd/system/kubelet.service.d
-cat > /etc/systemd/system/kubelet.service.d/20-ssd-root.conf <<EOF
-[Service]
-Environment="KUBELET_EXTRA_ARGS=--root-dir=$SSD_MOUNT/var/lib/kubelet"
-EOF
 
-systemctl daemon-reload
-print_status "kubelet configured with SSD storage"
+# Note: We'll create the proper ExecStart override after kubeadm init
+# For now, just create the directory
+print_status "kubelet directory prepared for SSD storage"
 
 # Step 6: Initialize Kubernetes cluster
 print_header "Step 6: Initializing Kubernetes Cluster"
@@ -289,22 +286,19 @@ kubeadm init --config=/tmp/kubeadm-config.yaml | tee /tmp/kubeadm-init.log
 print_status "Cluster initialized"
 
 # CRITICAL: Configure kubelet to use --root-dir flag
-print_info "Ensuring kubelet uses SSD for --root-dir..."
-if [ -f /etc/systemd/system/kubelet.service.d/10-kubeadm.conf ]; then
-    # Backup original
-    cp /etc/systemd/system/kubelet.service.d/10-kubeadm.conf \
-       /etc/systemd/system/kubelet.service.d/10-kubeadm.conf.backup
-    
-    # Check if --root-dir already exists
-    if ! grep -q "root-dir=" /etc/systemd/system/kubelet.service.d/10-kubeadm.conf; then
-        # Add --root-dir to the ExecStart line
-        sed -i '/^ExecStart=\/usr\/bin\/kubelet/s/$/ --root-dir=\/mnt\/ssd\/var\/lib\/kubelet/' \
-            /etc/systemd/system/kubelet.service.d/10-kubeadm.conf
-        print_status "Added --root-dir to kubelet ExecStart"
-    else
-        print_info "kubelet already has --root-dir configured"
-    fi
-fi
+print_info "Configuring kubelet with proper ExecStart override..."
+
+# Create a drop-in that overrides ExecStart with all necessary flags
+# This works even if the main service doesn't use KUBELET_EXTRA_ARGS
+cat > /etc/systemd/system/kubelet.service.d/10-exec-start.conf <<EOF
+[Service]
+# Clear any previous ExecStart
+ExecStart=
+# Set ExecStart with SSD root-dir and node-ip
+ExecStart=/usr/bin/kubelet --root-dir=$SSD_MOUNT/var/lib/kubelet --node-ip=$NODE_IP
+EOF
+
+print_status "Created kubelet ExecStart override with --root-dir and --node-ip"
 
 # Reload systemd and restart kubelet to apply changes
 systemctl daemon-reload
@@ -404,7 +398,15 @@ if ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | grep -q "root-dir=$SSD_M
     print_status "kubelet is using --root-dir=$SSD_MOUNT/var/lib/kubelet"
 else
     print_warning "kubelet may not be using --root-dir flag yet"
-    print_info "Check with: ps aux | grep kubelet | grep root-dir"
+    print_info "Current kubelet command:"
+    ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | head -1 || echo "kubelet not found in process list"
+fi
+
+# Verify kubelet is using --node-ip
+if ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | grep -q "node-ip=$NODE_IP"; then
+    print_status "kubelet is using --node-ip=$NODE_IP"
+else
+    print_warning "kubelet may not be using --node-ip flag"
 fi
 
 # Verify etcd is using SSD
