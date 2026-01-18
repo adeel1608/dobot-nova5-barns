@@ -245,6 +245,42 @@ $BUILD_CMD \
   .
 if [ $? -eq 0 ]; then
     print_status "robot1-service built successfully"
+    
+    # #region agent log
+    LOG_FILE="d:\\D-Drive\\BARNS\\.cursor\\debug.log"
+    TIMESTAMP=$(date +%s%3N)
+    echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:robot1-build\",\"message\":\"Robot1 image built successfully\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":$(docker images barns-robot1:latest --format '{{.ID}}' | wc -l)},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
+    # #endregion
+    
+    # Check if image exists in Docker
+    if docker images barns-robot1:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "barns-robot1:latest"; then
+        DOCKER_IMAGE_ID=$(docker images barns-robot1:latest --format "{{.ID}}")
+        
+        # #region agent log
+        TIMESTAMP=$(date +%s%3N)
+        echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:docker-verify\",\"message\":\"Image verified in Docker\",\"data\":{\"image\":\"barns-robot1:latest\",\"id\":\"${DOCKER_IMAGE_ID}\"},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
+        # #endregion
+        
+        # Check if containerd import is needed
+        if command -v ctr &> /dev/null; then
+            if ! ctr -n k8s.io images ls 2>/dev/null | grep -q "barns-robot1:latest"; then
+                print_warning "Image built in Docker but not found in containerd"
+                print_warning "Kubernetes uses containerd, so you need to import the image:"
+                echo "  docker save barns-robot1:latest | sudo ctr -n k8s.io images import -"
+                
+                # #region agent log
+                TIMESTAMP=$(date +%s%3N)
+                echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image not in containerd - import needed\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":true,\"containerdExists\":false},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
+                # #endregion
+            else
+                # #region agent log
+                TIMESTAMP=$(date +%s%3N)
+                CONTAINERD_REF=$(ctr -n k8s.io images ls 2>/dev/null | grep "barns-robot1:latest" | awk '{print $1}' | head -1)
+                echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image found in containerd\",\"data\":{\"image\":\"barns-robot1:latest\",\"containerdRef\":\"${CONTAINERD_REF}\",\"containerdExists\":true},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
+                # #endregion
+            fi
+        fi
+    fi
 else
     print_error "robot1-service build failed"
     exit 1

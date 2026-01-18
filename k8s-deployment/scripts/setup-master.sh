@@ -29,6 +29,15 @@ POD_CIDR=$(get_config "pod_cidr" "10.244.0.0/16")
 SERVICE_CIDR=$(get_config "service_cidr" "10.96.0.0/12")
 CNI=$(get_config "cni" "flannel")
 CLUSTER_NAME=$(get_config "name" "barns-cluster")
+SSD_MOUNT=$(get_config "ssd_mount" "/mnt/ssd")
+
+# Verify SSD is mounted
+if [ ! -d "$SSD_MOUNT" ]; then
+    print_error "SSD not mounted at $SSD_MOUNT"
+    print_error "Please mount your SSD and try again"
+    exit 1
+fi
+print_status "SSD found at $SSD_MOUNT"
 
 echo ""
 echo "Configuration:"
@@ -36,6 +45,7 @@ echo "  Node IP: $NODE_IP"
 echo "  Pod CIDR: $POD_CIDR"
 echo "  Service CIDR: $SERVICE_CIDR"
 echo "  CNI: $CNI"
+echo "  SSD Mount: $SSD_MOUNT"
 echo ""
 
 if ! ask_yes_no "Continue with installation?"; then
@@ -100,24 +110,64 @@ EOF
 sysctl --system > /dev/null 2>&1
 print_status "Sysctl configured"
 
+# Step 3.5: Create SSD storage directories
+print_header "Step 3.5: Setting up SSD Storage"
+
+directories=(
+    "$SSD_MOUNT/var/lib/kubelet"
+    "$SSD_MOUNT/var/lib/containerd"
+    "$SSD_MOUNT/var/lib/etcd"
+    "$SSD_MOUNT/k8s-data"
+    "$SSD_MOUNT/barns-data"
+)
+
+for dir in "${directories[@]}"; do
+    ensure_directory "$dir"
+done
+
+print_status "SSD storage directories created"
+
 # Step 4: Install containerd
 print_header "Step 4: Installing containerd"
 
 if ! command_exists containerd; then
     apt-get install -y containerd > /dev/null 2>&1
-    
-    # Configure containerd
-    mkdir -p /etc/containerd
-    containerd config default > /etc/containerd/config.toml
-    sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-    
-    systemctl restart containerd
-    systemctl enable containerd > /dev/null 2>&1
-    
-    print_status "containerd installed and configured"
-else
-    print_info "containerd already installed"
+    print_status "containerd installed"
 fi
+
+# Configure containerd to use SSD
+print_info "Configuring containerd to use SSD storage..."
+mkdir -p /etc/containerd
+cat > /etc/containerd/config.toml <<EOF
+version = 2
+
+[plugins]
+  [plugins."io.containerd.grpc.v1.cri"]
+    sandbox_image = "registry.k8s.io/pause:3.9"
+    
+    [plugins."io.containerd.grpc.v1.cri".containerd]
+      snapshotter = "overlayfs"
+      default_runtime_name = "runc"
+      
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          runtime_type = "io.containerd.runc.v2"
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+            SystemdCgroup = true
+
+    [plugins."io.containerd.grpc.v1.cri".cni]
+      bin_dir = "/opt/cni/bin"
+      conf_dir = "/etc/cni/net.d"
+
+# Container and image storage on SSD
+root = "$SSD_MOUNT/var/lib/containerd"
+state = "/run/containerd"
+EOF
+
+systemctl restart containerd
+systemctl enable containerd > /dev/null 2>&1
+
+print_status "containerd configured with SSD storage"
 
 # Step 5: Install Kubernetes components
 print_header "Step 5: Installing Kubernetes Components"
@@ -146,6 +196,17 @@ else
     print_info "Kubernetes already installed: $(get_k8s_version)"
 fi
 
+# Configure kubelet to use SSD
+print_info "Configuring kubelet to use SSD storage..."
+mkdir -p /etc/systemd/system/kubelet.service.d
+cat > /etc/systemd/system/kubelet.service.d/20-ssd-root.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--root-dir=$SSD_MOUNT/var/lib/kubelet"
+EOF
+
+systemctl daemon-reload
+print_status "kubelet configured with SSD storage"
+
 # Step 6: Initialize Kubernetes cluster
 print_header "Step 6: Initializing Kubernetes Cluster"
 
@@ -172,7 +233,7 @@ fi
 
 print_info "Initializing cluster with IP $NODE_IP..."
 
-# Create kubeadm config
+# Create kubeadm config with SSD paths
 cat > /tmp/kubeadm-config.yaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: InitConfiguration
@@ -183,6 +244,11 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 clusterName: ${CLUSTER_NAME}
+etcd:
+  local:
+    dataDir: ${SSD_MOUNT}/var/lib/etcd
+    extraArgs:
+      quota-backend-bytes: "8589934592"
 networking:
   podSubnet: ${POD_CIDR}
   serviceSubnet: ${SERVICE_CIDR}
@@ -190,6 +256,13 @@ networking:
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 cgroupDriver: systemd
+containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+evictionHard:
+  memory.available: "200Mi"
+  nodefs.available: "5%"
+  nodefs.inodesFree: "5%"
+  imagefs.available: "10%"
+failSwapOn: false
 EOF
 
 # Initialize cluster
@@ -286,6 +359,10 @@ echo ""
 echo "Cluster Information:"
 echo "  Master IP: $NODE_IP"
 echo "  API Server: https://${NODE_IP}:6443"
+echo "  SSD Storage: $SSD_MOUNT"
+echo "  etcd Data: $SSD_MOUNT/var/lib/etcd"
+echo "  Kubelet Data: $SSD_MOUNT/var/lib/kubelet"
+echo "  Container Data: $SSD_MOUNT/var/lib/containerd"
 echo ""
 echo "Next Steps:"
 echo ""
@@ -318,6 +395,10 @@ Setup Date: $(date)
 Pod CIDR: $POD_CIDR
 Service CIDR: $SERVICE_CIDR
 CNI: $CNI
+SSD Mount: $SSD_MOUNT
+etcd Data: $SSD_MOUNT/var/lib/etcd
+Kubelet Data: $SSD_MOUNT/var/lib/kubelet
+Container Data: $SSD_MOUNT/var/lib/containerd
 
 Join Command:
 $JOIN_COMMAND

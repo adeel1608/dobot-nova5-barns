@@ -3,3 +3,10 @@
 !robot2-startup.sh
 !install-robot-dependencies.sh
 !build-images-arm64.sh
+!k8s-deployment
+!k8s-deployment/scripts/**
+!k8s-deployment/**
+!k8s-deployment/scripts/setup-master.sh
+!k8s-deployment/scripts/setup-worker.sh
+!/k8s
+!k8s/**
