@@ -67,6 +67,19 @@ print_status "Kubernetes config removed"
 rm -rf /etc/cni/net.d/
 print_status "CNI config removed"
 
+# Clean up internal storage directories (not SSD)
+print_info "Cleaning up internal storage directories..."
+rm -rf /var/lib/kubelet 2>/dev/null || true
+rm -rf /var/lib/etcd 2>/dev/null || true
+print_status "Internal storage directories removed"
+
+# Clean up any backup directories
+rm -rf /var/lib/kubelet.backup* 2>/dev/null || true
+rm -rf /var/lib/containerd.backup* 2>/dev/null || true
+rm -rf /var/lib/etcd.backup* 2>/dev/null || true
+rm -rf /var/lib/docker.backup* 2>/dev/null || true
+print_status "Backup directories removed"
+
 # Step 4: Clean up network
 print_header "Step 4: Cleaning up Network"
 
@@ -86,27 +99,49 @@ echo "This will remove:"
 echo "  - $SSD_MOUNT/var/lib/kubelet"
 echo "  - $SSD_MOUNT/var/lib/containerd"
 echo "  - $SSD_MOUNT/var/lib/etcd"
+echo "  - $SSD_MOUNT/var/lib/docker"
 echo ""
 print_info "Application data ($SSD_MOUNT/barns-data) will NOT be removed"
 echo ""
 
 if ask_yes_no "Clean Kubernetes data from SSD?"; then
-    # Stop containerd first
+    # Stop services first
     systemctl stop containerd || true
     systemctl stop docker || true
+    sleep 2
     
-    # Clean Kubernetes data
+    # Clean Kubernetes data from SSD
     rm -rf "$SSD_MOUNT/var/lib/kubelet"
     rm -rf "$SSD_MOUNT/var/lib/containerd"
     rm -rf "$SSD_MOUNT/var/lib/etcd"
+    rm -rf "$SSD_MOUNT/var/lib/docker"
     
     print_status "Kubernetes data removed from SSD"
     
-    # Restart containerd
+    # Restart services
     systemctl start containerd || true
     systemctl start docker || true
 else
     print_info "Keeping Kubernetes data on SSD"
+fi
+
+# Remove symlinks if they exist
+print_info "Removing symlinks from /var/lib..."
+if [ -L /var/lib/kubelet ]; then
+    rm -f /var/lib/kubelet
+    print_status "Removed kubelet symlink"
+fi
+if [ -L /var/lib/containerd ]; then
+    rm -f /var/lib/containerd
+    print_status "Removed containerd symlink"
+fi
+if [ -L /var/lib/etcd ]; then
+    rm -f /var/lib/etcd
+    print_status "Removed etcd symlink"
+fi
+if [ -L /var/lib/docker ]; then
+    rm -f /var/lib/docker
+    print_status "Removed docker symlink"
 fi
 
 # Step 6: Remove systemd overrides
