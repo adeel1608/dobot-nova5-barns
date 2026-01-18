@@ -34,10 +34,21 @@ if ! ask_yes_no "Continue with cleanup?"; then
     exit 0
 fi
 
-# Step 1: Stop kubelet
+# Step 1: Stop kubelet and disable it
 print_header "Step 1: Stopping Kubernetes Services"
 systemctl stop kubelet || true
-print_status "kubelet stopped"
+systemctl disable kubelet || true
+print_status "kubelet stopped and disabled"
+
+# Kill any remaining Kubernetes processes
+print_info "Killing remaining Kubernetes processes..."
+pkill -9 kube-apiserver 2>/dev/null || true
+pkill -9 etcd 2>/dev/null || true
+pkill -9 kube-controller-manager 2>/dev/null || true
+pkill -9 kube-scheduler 2>/dev/null || true
+pkill -9 kube-proxy 2>/dev/null || true
+pkill -9 kubelet 2>/dev/null || true
+print_status "Processes killed"
 
 # Step 2: Reset kubeadm
 print_header "Step 2: Resetting Kubernetes"
@@ -112,6 +123,30 @@ print_header "Step 7: Restarting Container Runtime"
 systemctl restart containerd || true
 systemctl restart docker || true
 print_status "Container runtime restarted"
+
+# Step 8: Verify ports are free
+print_header "Step 8: Verifying Cleanup"
+
+sleep 2
+
+# Check if critical Kubernetes ports are free
+PORTS_IN_USE=$(netstat -tulpn 2>/dev/null | grep -E ':(6443|2379|2380)' || true)
+
+if [ -n "$PORTS_IN_USE" ]; then
+    print_warning "Some Kubernetes ports are still in use:"
+    echo "$PORTS_IN_USE"
+    print_info "Waiting 5 more seconds for processes to fully terminate..."
+    sleep 5
+    
+    PORTS_IN_USE=$(netstat -tulpn 2>/dev/null | grep -E ':(6443|2379|2380)' || true)
+    if [ -n "$PORTS_IN_USE" ]; then
+        print_warning "Ports still in use. You may need to reboot."
+    else
+        print_status "All Kubernetes ports are now free"
+    fi
+else
+    print_status "All Kubernetes ports are free"
+fi
 
 # Completion
 print_header "Cleanup Complete!"
