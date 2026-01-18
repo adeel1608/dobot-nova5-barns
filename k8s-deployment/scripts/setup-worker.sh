@@ -25,12 +25,22 @@ NODE_IP=$(detect_ip)
 print_info "Detected node IP: $NODE_IP"
 
 # Get configuration
-STORAGE_BASE=$(get_config "base_path" "/mnt/ssd/barns-data")
-CONFIG_PATH="/mnt/ssd/barns-config"  # Fixed path for config files
+SSD_MOUNT=$(get_config "ssd_mount" "/mnt/ssd")
+STORAGE_BASE="$SSD_MOUNT/barns-data"
+CONFIG_PATH="$SSD_MOUNT/barns-config"
+
+# Verify SSD is mounted
+if [ ! -d "$SSD_MOUNT" ]; then
+    print_error "SSD not mounted at $SSD_MOUNT"
+    print_error "Please mount your SSD and try again"
+    exit 1
+fi
+print_status "SSD found at $SSD_MOUNT"
 
 echo ""
 echo "Configuration:"
 echo "  Node IP: $NODE_IP"
+echo "  SSD Mount: $SSD_MOUNT"
 echo "  Storage Base: $STORAGE_BASE"
 echo "  Config Path: $CONFIG_PATH"
 echo ""
@@ -100,6 +110,30 @@ EOF
 sysctl --system > /dev/null 2>&1
 print_status "Sysctl configured"
 
+# Step 3.5: Create SSD storage directories
+print_header "Step 3.5: Setting up SSD Storage"
+
+directories=(
+    "$SSD_MOUNT/var/lib/kubelet"
+    "$SSD_MOUNT/var/lib/containerd"
+    "$SSD_MOUNT/var/lib/docker"
+    "$SSD_MOUNT/k8s-data"
+    "$STORAGE_BASE"
+    "$STORAGE_BASE/postgres"
+    "$STORAGE_BASE/postgres/pgdata"
+    "$STORAGE_BASE/rabbitmq"
+    "$STORAGE_BASE/influxdb"
+    "$STORAGE_BASE/redis"
+    "$STORAGE_BASE/cup_models"
+    "$CONFIG_PATH"
+)
+
+for dir in "${directories[@]}"; do
+    ensure_directory "$dir"
+done
+
+print_status "SSD storage directories created"
+
 # Step 4: Install Docker
 print_header "Step 4: Installing Docker"
 
@@ -111,9 +145,10 @@ if ! is_docker_installed; then
     apt-get update -qq
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
     
-    # Configure Docker daemon
+    # Configure Docker daemon with SSD storage
     cat > /etc/docker/daemon.json <<EOF
 {
+    "data-root": "$SSD_MOUNT/var/lib/docker",
     "exec-opts": ["native.cgroupdriver=systemd"],
     "log-driver": "json-file",
     "log-opts": {
@@ -166,15 +201,38 @@ fi
 # Step 5: Install containerd
 print_header "Step 5: Configuring containerd"
 
-# Configure containerd for Kubernetes
+# Configure containerd for Kubernetes with SSD storage
 mkdir -p /etc/containerd
-containerd config default > /etc/containerd/config.toml
-sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+cat > /etc/containerd/config.toml <<EOF
+version = 2
+
+[plugins]
+  [plugins."io.containerd.grpc.v1.cri"]
+    sandbox_image = "registry.k8s.io/pause:3.9"
+    
+    [plugins."io.containerd.grpc.v1.cri".containerd]
+      snapshotter = "overlayfs"
+      default_runtime_name = "runc"
+      
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          runtime_type = "io.containerd.runc.v2"
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+            SystemdCgroup = true
+
+    [plugins."io.containerd.grpc.v1.cri".cni]
+      bin_dir = "/opt/cni/bin"
+      conf_dir = "/etc/cni/net.d"
+
+# Container and image storage on SSD
+root = "$SSD_MOUNT/var/lib/containerd"
+state = "/run/containerd"
+EOF
 
 systemctl restart containerd
 systemctl enable containerd > /dev/null 2>&1
 
-print_status "containerd configured"
+print_status "containerd configured with SSD storage"
 
 # Step 6: Install Kubernetes components
 print_header "Step 6: Installing Kubernetes Components"
@@ -203,25 +261,22 @@ else
     print_info "Kubernetes already installed: $(get_k8s_version)"
 fi
 
-# Step 7: Create storage directories
-print_header "Step 7: Creating Storage Directories"
+# Configure kubelet to use SSD
+print_info "Configuring kubelet to use SSD storage..."
+mkdir -p /etc/systemd/system/kubelet.service.d
+cat > /etc/systemd/system/kubelet.service.d/20-ssd-root.conf <<EOF
+[Service]
+Environment="KUBELET_EXTRA_ARGS=--root-dir=$SSD_MOUNT/var/lib/kubelet"
+EOF
 
-directories=(
-    "$STORAGE_BASE"
-    "$STORAGE_BASE/postgres"
-    "$STORAGE_BASE/postgres/pgdata"
-    "$STORAGE_BASE/rabbitmq"
-    "$STORAGE_BASE/influxdb"
-    "$STORAGE_BASE/redis"
-    "$STORAGE_BASE/cup_models"
-    "$CONFIG_PATH"
-)
+systemctl daemon-reload
+print_status "kubelet configured with SSD storage"
 
-for dir in "${directories[@]}"; do
-    ensure_directory "$dir"
-done
+# Step 7: Verify storage directories
+print_header "Step 7: Verifying Storage Directories"
 
-print_status "Storage directories created"
+# Storage directories were already created in Step 3.5
+print_status "Storage directories verified"
 
 # Set permissions
 if [ -n "$SUDO_USER" ]; then
@@ -306,7 +361,11 @@ print_header "Worker Node Setup Complete!"
 echo ""
 echo "Node Information:"
 echo "  Worker IP: $NODE_IP"
+echo "  SSD Mount: $SSD_MOUNT"
 echo "  Storage Base: $STORAGE_BASE"
+echo "  Kubelet Data: $SSD_MOUNT/var/lib/kubelet"
+echo "  Container Data: $SSD_MOUNT/var/lib/containerd"
+echo "  Docker Data: $SSD_MOUNT/var/lib/docker"
 echo "  Docker Version: $(docker --version)"
 echo "  Kubernetes Version: $(get_k8s_version)"
 echo ""
@@ -346,8 +405,12 @@ Worker Node Information
 ========================
 Node IP: $NODE_IP
 Setup Date: $(date)
+SSD Mount: $SSD_MOUNT
 Storage Base: $STORAGE_BASE
 Config Path: $CONFIG_PATH
+Kubelet Data: $SSD_MOUNT/var/lib/kubelet
+Container Data: $SSD_MOUNT/var/lib/containerd
+Docker Data: $SSD_MOUNT/var/lib/docker
 Docker Version: $(docker --version)
 Kubernetes Version: $(get_k8s_version)
 EOF

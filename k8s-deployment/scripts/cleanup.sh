@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # BARNS Kubernetes Cleanup Script
-# Removes BARNS deployment from Kubernetes
+# This script cleans up Kubernetes installation and optionally SSD data
 
 set -e
 
@@ -9,134 +9,125 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
-print_header "BARNS Kubernetes Cleanup v${BARNS_DEPLOY_VERSION}"
+print_header "BARNS Kubernetes Cleanup Script"
 
-# Check if kubectl is available
-if ! command_exists kubectl; then
-    print_error "kubectl not found"
+# Check if running as root
+if ! is_root; then
+    print_error "This script must be run with sudo"
     exit 1
 fi
 
-# Get configuration
-NAMESPACE=$(get_config "namespace" "barns")
+# Get SSD mount point
+SSD_MOUNT=$(get_config "ssd_mount" "/mnt/ssd")
 
-print_warning "This will DELETE all BARNS resources from Kubernetes"
-print_warning "Namespace: $NAMESPACE"
+echo ""
+echo "This script will clean up Kubernetes on this node."
+echo ""
+print_warning "WARNING: This will:"
+echo "  - Stop all Kubernetes services"
+echo "  - Remove Kubernetes cluster configuration"
+echo "  - Clean up network settings"
 echo ""
 
-if ! ask_yes_no "Are you sure you want to continue?"; then
-    print_info "Cleanup cancelled"
+if ! ask_yes_no "Continue with cleanup?"; then
+    print_warning "Cleanup cancelled"
     exit 0
 fi
 
-echo ""
-if ! ask_yes_no "Delete persistent data as well? (Cannot be undone!)"; then
-    DELETE_DATA=false
-    print_info "Persistent data will be preserved"
-else
-    DELETE_DATA=true
-    print_warning "Persistent data will be DELETED"
-fi
+# Step 1: Stop kubelet
+print_header "Step 1: Stopping Kubernetes Services"
+systemctl stop kubelet || true
+print_status "kubelet stopped"
+
+# Step 2: Reset kubeadm
+print_header "Step 2: Resetting Kubernetes"
+kubeadm reset -f || true
+print_status "kubeadm reset complete"
+
+# Step 3: Clean up directories
+print_header "Step 3: Cleaning up Directories"
+
+# Remove Kubernetes configuration
+rm -rf /etc/kubernetes/
+rm -rf ~/.kube/
+print_status "Kubernetes config removed"
+
+# Remove CNI configuration
+rm -rf /etc/cni/net.d/
+print_status "CNI config removed"
+
+# Step 4: Clean up network
+print_header "Step 4: Cleaning up Network"
+
+# Clean up iptables
+iptables -F 2>/dev/null || true
+iptables -t nat -F 2>/dev/null || true
+iptables -t mangle -F 2>/dev/null || true
+iptables -X 2>/dev/null || true
+print_status "iptables cleaned"
+
+# Step 5: Ask about SSD data cleanup
+print_header "Step 5: SSD Data Cleanup"
 
 echo ""
+print_warning "Do you want to clean Kubernetes data from SSD ($SSD_MOUNT)?"
+echo "This will remove:"
+echo "  - $SSD_MOUNT/var/lib/kubelet"
+echo "  - $SSD_MOUNT/var/lib/containerd"
+echo "  - $SSD_MOUNT/var/lib/etcd"
+echo ""
+print_info "Application data ($SSD_MOUNT/barns-data) will NOT be removed"
+echo ""
 
-# Step 1: Delete deployments and statefulsets
-print_header "Step 1: Deleting Deployments"
-
-kubectl delete deployments --all -n "$NAMESPACE" 2>/dev/null || true
-kubectl delete statefulsets --all -n "$NAMESPACE" 2>/dev/null || true
-
-print_status "Deployments and StatefulSets deleted"
-
-# Wait for pods to terminate
-print_info "Waiting for pods to terminate..."
-sleep 10
-
-# Force delete remaining pods
-REMAINING_PODS=$(kubectl get pods -n "$NAMESPACE" --no-headers 2>/dev/null | wc -l)
-if [ "$REMAINING_PODS" -gt 0 ]; then
-    print_info "Force deleting remaining pods..."
-    kubectl delete pods --all -n "$NAMESPACE" --force --grace-period=0 2>/dev/null || true
-fi
-
-# Step 2: Delete services
-print_header "Step 2: Deleting Services"
-
-kubectl delete services --all -n "$NAMESPACE" 2>/dev/null || true
-
-print_status "Services deleted"
-
-# Step 3: Delete configmaps and secrets
-print_header "Step 3: Deleting ConfigMaps and Secrets"
-
-kubectl delete configmaps --all -n "$NAMESPACE" 2>/dev/null || true
-kubectl delete secrets --all -n "$NAMESPACE" 2>/dev/null || true
-
-print_status "ConfigMaps and Secrets deleted"
-
-# Step 4: Delete storage
-if [ "$DELETE_DATA" = true ]; then
-    print_header "Step 4: Deleting Persistent Storage"
+if ask_yes_no "Clean Kubernetes data from SSD?"; then
+    # Stop containerd first
+    systemctl stop containerd || true
+    systemctl stop docker || true
     
-    print_warning "Deleting PVCs and PVs..."
-    kubectl delete pvc --all -n "$NAMESPACE" 2>/dev/null || true
-    kubectl delete pv -l app=barns 2>/dev/null || true
+    # Clean Kubernetes data
+    rm -rf "$SSD_MOUNT/var/lib/kubelet"
+    rm -rf "$SSD_MOUNT/var/lib/containerd"
+    rm -rf "$SSD_MOUNT/var/lib/etcd"
     
-    print_status "Storage deleted"
+    print_status "Kubernetes data removed from SSD"
     
-    # Get worker node info
-    WORKER_IP=$(get_config "ip" "auto")
-    WORKER_USER=$(get_config "ssh_user" "barns")
-    STORAGE_BASE=$(get_config "base_path" "/mnt/ssd/barns-data")
-    
-    if [ "$WORKER_IP" != "auto" ]; then
-        print_info "Attempting to delete data from worker node..."
-        
-        if ask_yes_no "Delete data directories on worker node ($STORAGE_BASE)?"; then
-            ssh "${WORKER_USER}@${WORKER_IP}" "sudo rm -rf ${STORAGE_BASE}/*" 2>/dev/null || \
-                print_warning "Could not delete data from worker node (may need manual cleanup)"
-        fi
-    else
-        print_warning "Worker IP not configured, cannot delete data automatically"
-        echo "  Manually delete data on worker node:"
-        echo "  sudo rm -rf /mnt/ssd/barns-data/*"
-    fi
+    # Restart containerd
+    systemctl start containerd || true
+    systemctl start docker || true
 else
-    print_info "Skipping storage deletion (data preserved)"
+    print_info "Keeping Kubernetes data on SSD"
 fi
 
-# Step 5: Delete namespace
-print_header "Step 5: Deleting Namespace"
+# Step 6: Remove systemd overrides
+print_header "Step 6: Cleaning Systemd Configuration"
 
-if ask_yes_no "Delete namespace '$NAMESPACE'?"; then
-    kubectl delete namespace "$NAMESPACE" 2>/dev/null || true
-    
-    print_info "Waiting for namespace to be deleted..."
-    kubectl wait --for=delete namespace/"$NAMESPACE" --timeout=60s 2>/dev/null || true
-    
-    print_status "Namespace deleted"
-else
-    print_info "Namespace preserved"
-fi
+rm -f /etc/systemd/system/kubelet.service.d/20-ssd-root.conf
+rm -f /etc/systemd/system/kubelet.service.d/10-dynamic-ip.conf
+systemctl daemon-reload
+print_status "Systemd configuration cleaned"
+
+# Step 7: Restart containerd
+print_header "Step 7: Restarting Container Runtime"
+
+systemctl restart containerd || true
+systemctl restart docker || true
+print_status "Container runtime restarted"
 
 # Completion
 print_header "Cleanup Complete!"
 
 echo ""
-print_status "BARNS has been removed from Kubernetes"
+echo "Kubernetes has been cleaned up from this node."
 echo ""
 
-if [ "$DELETE_DATA" = true ]; then
-    print_warning "All data has been deleted"
-else
-    print_info "Persistent data has been preserved"
-    echo "  PVCs and PVs can be reused for future deployments"
+if [ -d "$SSD_MOUNT/barns-data" ]; then
+    print_info "Application data preserved at: $SSD_MOUNT/barns-data"
 fi
 
 echo ""
-echo "To redeploy BARNS:"
-echo "  ./deploy-k8s.sh"
+echo "To reinstall Kubernetes:"
+echo "  Master node: sudo ./setup-master.sh"
+echo "  Worker node: sudo ./setup-worker.sh"
 echo ""
 
-log_message "INFO" "Cleanup completed"
-
+log_message "INFO" "Cleanup completed successfully"
