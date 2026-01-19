@@ -1,0 +1,62 @@
+# ROS2 Build Artifacts
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+.eggs/
+*.manifest
+*.spec
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.cproject
+.pydevproject
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+
+# ROS
+COLCON_IGNORE
+
+# Calibration data (optional - uncomment if you want to version control these)
+# src/pickn_place/share/machine_pose_data_memory.yaml
+# src/pickn_place/share/pose_data_memory.yaml
+# src/pickn_place/share/axab_calibration.yaml
+
+# Compiled messages
+*.pyc
+
+# Test results
+.pytest_cache/
+*.xml
+
+# Documentation
+*.pdf
+docs/_build/
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Temporary files
+*.log
+*.out
+

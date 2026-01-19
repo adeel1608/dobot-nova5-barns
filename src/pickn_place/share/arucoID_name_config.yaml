@@ -1,0 +1,33 @@
+aruco_id:
+  - id: 1
+    name: calibration_tag_1
+  - id: 2
+    name: calibration_tag_2
+  - id: 3
+    name: calibration_tag_3
+  - id: 4
+    name: calibration_tag_4
+  - id: 11
+    name: single_portafilter
+  - id: 12
+    name: double_portafilter
+  - id: 13
+    name: milk_frother_1
+  - id: 14
+    name: milk_frother_2
+  - id: 15
+    name: espresso_pitcher_1
+  - id: 16
+    name: espresso_pitcher_2
+  - id: 17
+    name: espresso_pitcher_3
+  - id: 18
+    name: left_steam_wand
+  - id: 23
+    name: portafilter_cleaner
+  - id: 31
+    name: espresso_grinder
+  - id: 32
+    name: slush_machine
+  - id: 41
+    name: three_group_espresso
