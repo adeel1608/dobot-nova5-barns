@@ -210,33 +210,6 @@ print_info "Removing kubelet config backups..."
 rm -f /var/lib/kubelet/config.yaml.backup* 2>/dev/null || true
 print_status "Config backups removed"
 
-# Step 7: Clean up container images (optional)
-print_header "Step 7: Container Images Cleanup"
-
-echo ""
-print_warning "Do you want to remove all container images?"
-echo "This will free up disk space but require re-downloading images."
-echo ""
-
-if ask_yes_no "Remove all container images?"; then
-    print_info "Removing Docker/containerd images and containers..."
-    
-    # Docker cleanup
-    if command -v docker &> /dev/null; then
-        docker system prune -a -f --volumes 2>/dev/null || true
-        print_status "Docker images removed"
-    fi
-    
-    # Containerd cleanup
-    if command -v crictl &> /dev/null; then
-        crictl rmi --prune 2>/dev/null || true
-        crictl rm -a -f 2>/dev/null || true
-        print_status "containerd images removed"
-    fi
-else
-    print_info "Keeping container images"
-fi
-
 print_info "Container runtime will be configured during next setup"
 print_info "Do not attempt to start containerd/docker until running setup script"
 

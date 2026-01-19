@@ -125,17 +125,29 @@ for dir in "${directories[@]}"; do
     ensure_directory "$dir"
 done
 
-print_status "SSD storage directories created"
-
 # Create symlinks from /var/lib to SSD
 print_info "Creating symlinks to SSD storage..."
 
-# Remove existing directories/symlinks if they exist
+# Stop services and kill processes
+systemctl stop kubelet 2>/dev/null || true
+systemctl stop containerd 2>/dev/null || true
+sleep 1
+pkill -9 containerd 2>/dev/null || true
+pkill -9 containerd-shim 2>/dev/null || true
+
+# Unmount volumes
+for path in /var/lib/kubelet /var/lib/containerd /var/lib/etcd; do
+    for mount in $(mount | grep "$path" | awk '{print $3}' | sort -r); do
+        umount -f "$mount" 2>/dev/null || umount -l "$mount" 2>/dev/null || true
+    done
+done
+
+# Remove existing directories/symlinks
 for path in /var/lib/kubelet /var/lib/containerd /var/lib/etcd; do
     if [ -L "$path" ]; then
         rm -f "$path"
     elif [ -d "$path" ]; then
-        rm -rf "$path"
+        rm -rf "$path" 2>/dev/null || umount -l "$path" 2>/dev/null && rm -rf "$path" || true
     fi
 done
 
