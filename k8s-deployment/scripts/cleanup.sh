@@ -104,10 +104,26 @@ echo ""
 print_info "Application data ($SSD_MOUNT/barns-data) will NOT be removed"
 echo ""
 
+# Always remove symlinks first (before asking about SSD cleanup)
+print_info "Removing symlinks from /var/lib..."
+for path in /var/lib/kubelet /var/lib/containerd /var/lib/etcd /var/lib/docker; do
+    if [ -L "$path" ]; then
+        rm -f "$path"
+        print_status "Removed symlink: $path"
+    fi
+done
+
 if ask_yes_no "Clean Kubernetes data from SSD?"; then
     # Stop services first
+    print_info "Stopping container services..."
+    systemctl stop kubelet || true
     systemctl stop containerd || true
     systemctl stop docker || true
+    sleep 3
+    
+    # Kill any remaining processes
+    pkill -9 containerd || true
+    pkill -9 dockerd || true
     sleep 2
     
     # Clean Kubernetes data from SSD
@@ -118,30 +134,9 @@ if ask_yes_no "Clean Kubernetes data from SSD?"; then
     
     print_status "Kubernetes data removed from SSD"
     
-    # Restart services
-    systemctl start containerd || true
-    systemctl start docker || true
+    print_info "Note: Container services will be configured during next setup"
 else
     print_info "Keeping Kubernetes data on SSD"
-fi
-
-# Remove symlinks if they exist
-print_info "Removing symlinks from /var/lib..."
-if [ -L /var/lib/kubelet ]; then
-    rm -f /var/lib/kubelet
-    print_status "Removed kubelet symlink"
-fi
-if [ -L /var/lib/containerd ]; then
-    rm -f /var/lib/containerd
-    print_status "Removed containerd symlink"
-fi
-if [ -L /var/lib/etcd ]; then
-    rm -f /var/lib/etcd
-    print_status "Removed etcd symlink"
-fi
-if [ -L /var/lib/docker ]; then
-    rm -f /var/lib/docker
-    print_status "Removed docker symlink"
 fi
 
 # Step 6: Remove systemd overrides and config backups
@@ -159,12 +154,11 @@ print_info "Removing kubelet config backups..."
 rm -f /var/lib/kubelet/config.yaml.backup* 2>/dev/null || true
 print_status "Config backups removed"
 
-# Step 7: Restart containerd
-print_header "Step 7: Restarting Container Runtime"
+# Step 7: Note about container runtime
+print_header "Step 7: Container Runtime Status"
 
-systemctl restart containerd || true
-systemctl restart docker || true
-print_status "Container runtime restarted"
+print_info "Container runtime will be configured during next setup"
+print_info "Do not attempt to start containerd/docker until running setup script"
 
 # Step 8: Verify ports are free
 print_header "Step 8: Verifying Cleanup"

@@ -127,6 +127,25 @@ done
 
 print_status "SSD storage directories created"
 
+# Create symlinks from /var/lib to SSD
+print_info "Creating symlinks to SSD storage..."
+
+# Remove existing directories/symlinks if they exist
+for path in /var/lib/kubelet /var/lib/containerd /var/lib/etcd; do
+    if [ -L "$path" ]; then
+        rm -f "$path"
+    elif [ -d "$path" ]; then
+        rm -rf "$path"
+    fi
+done
+
+# Create the symlinks
+ln -sf "$SSD_MOUNT/var/lib/kubelet" /var/lib/kubelet
+ln -sf "$SSD_MOUNT/var/lib/containerd" /var/lib/containerd
+ln -sf "$SSD_MOUNT/var/lib/etcd" /var/lib/etcd
+
+print_status "Symlinks created to SSD storage"
+
 # Step 4: Install containerd
 print_header "Step 4: Installing containerd"
 
