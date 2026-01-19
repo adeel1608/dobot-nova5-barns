@@ -46,6 +46,9 @@ k8s-deployment/
 │   ├── common.sh           # Shared functions
 │   ├── setup-master.sh     # Master node setup
 │   ├── setup-worker.sh     # Worker node setup
+│   ├── fix-containerd.sh   # Fix storage symlinks
+│   ├── update-network.sh   # Update network/IP
+│   ├── verify-setup.sh     # Verify configuration
 │   ├── build-images.sh     # Build Docker images
 │   ├── deploy-k8s.sh       # Deploy to K8s
 │   ├── fix-database.sh     # Initialize database
