@@ -347,7 +347,7 @@ def mount(**params) -> bool:
     
     run_skill("sync")
     
-    if not ok(run_skill("move_portafilter_arc_movJ", 43.0)):
+    if not ok(run_skill("move_portafilter_arc_movJ", 43.5)):
         return False
     
     run_skill("sync")
