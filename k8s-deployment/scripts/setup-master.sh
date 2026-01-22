@@ -9,6 +9,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+# =============================================================================
+# STORAGE CONFIGURATION
+# =============================================================================
+# Directory for Kubernetes storage (will be created if doesn't exist)
+# Default: /mnt/ssd (works on main disk or separate SSD)
+# Change this if you want different location (e.g., /opt/k8s-storage)
+SSD_MOUNT="/mnt/ssd"
+# =============================================================================
+
 print_header "BARNS Kubernetes Master Node Setup v${BARNS_DEPLOY_VERSION}"
 
 # Check if running as root
@@ -29,15 +38,15 @@ POD_CIDR=$(get_config "pod_cidr" "10.244.0.0/16")
 SERVICE_CIDR=$(get_config "service_cidr" "10.96.0.0/12")
 CNI=$(get_config "cni" "flannel")
 CLUSTER_NAME=$(get_config "name" "barns-cluster")
-SSD_MOUNT=$(get_config "ssd_mount" "/mnt/ssd")
 
-# Verify SSD is mounted
+# Create storage directory if it doesn't exist
 if [ ! -d "$SSD_MOUNT" ]; then
-    print_error "SSD not mounted at $SSD_MOUNT"
-    print_error "Please mount your SSD and try again"
-    exit 1
+    print_info "Creating storage directory: $SSD_MOUNT"
+    mkdir -p "$SSD_MOUNT"
+    print_status "Storage directory created"
+else
+    print_status "Storage directory found: $SSD_MOUNT"
 fi
-print_status "SSD found at $SSD_MOUNT"
 
 echo ""
 echo "Configuration:"
@@ -125,8 +134,8 @@ for dir in "${directories[@]}"; do
     ensure_directory "$dir"
 done
 
-# Create symlinks from /var/lib to SSD
-print_info "Creating symlinks to SSD storage..."
+# Create symlinks from /var/lib to storage
+print_info "Creating symlinks to storage..."
 
 # Stop services and kill processes
 systemctl stop kubelet 2>/dev/null || true
