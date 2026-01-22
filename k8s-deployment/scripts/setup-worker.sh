@@ -9,6 +9,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
+# =============================================================================
+# STORAGE CONFIGURATION
+# =============================================================================
+# Directory for Kubernetes storage (will be created if doesn't exist)
+# Default: /mnt/ssd (works on main disk or separate SSD)
+# Change this if you want different location (e.g., /opt/k8s-storage)
+SSD_MOUNT="/mnt/ssd"
+# =============================================================================
+
 print_header "BARNS Kubernetes Worker Node Setup v${BARNS_DEPLOY_VERSION}"
 
 # Check if running as root
@@ -25,17 +34,17 @@ NODE_IP=$(detect_ip)
 print_info "Detected node IP: $NODE_IP"
 
 # Get configuration
-SSD_MOUNT=$(get_config "ssd_mount" "/mnt/ssd")
 STORAGE_BASE="$SSD_MOUNT/barns-data"
 CONFIG_PATH="$SSD_MOUNT/barns-config"
 
-# Verify SSD is mounted
+# Create storage directory if it doesn't exist
 if [ ! -d "$SSD_MOUNT" ]; then
-    print_error "SSD not mounted at $SSD_MOUNT"
-    print_error "Please mount your SSD and try again"
-    exit 1
+    print_info "Creating storage directory: $SSD_MOUNT"
+    mkdir -p "$SSD_MOUNT"
+    print_status "Storage directory created"
+else
+    print_status "Storage directory found: $SSD_MOUNT"
 fi
-print_status "SSD found at $SSD_MOUNT"
 
 echo ""
 echo "Configuration:"
@@ -134,15 +143,37 @@ done
 
 print_status "SSD storage directories created"
 
-# Create symlinks from /var/lib to SSD
-print_info "Creating symlinks to SSD storage..."
+# Create symlinks from /var/lib to storage
+print_info "Creating symlinks to storage..."
 
-# Remove existing directories/symlinks if they exist
+# Stop services that might be using these directories
+systemctl stop kubelet 2>/dev/null || true
+systemctl stop containerd 2>/dev/null || true
+systemctl stop docker 2>/dev/null || true
+sleep 2
+
+# Kill any remaining processes
+pkill -9 containerd 2>/dev/null || true
+pkill -9 containerd-shim 2>/dev/null || true
+pkill -9 dockerd 2>/dev/null || true
+sleep 1
+
+# Unmount any volumes under these paths
+for path in /var/lib/kubelet /var/lib/containerd /var/lib/docker; do
+    if [ -d "$path" ] || [ -L "$path" ]; then
+        for mount in $(mount | grep "$path" | awk '{print $3}' | sort -r); do
+            umount -f "$mount" 2>/dev/null || umount -l "$mount" 2>/dev/null || true
+        done
+    fi
+done
+sleep 1
+
+# Remove existing directories/symlinks
 for path in /var/lib/kubelet /var/lib/containerd /var/lib/docker; do
     if [ -L "$path" ]; then
         rm -f "$path"
     elif [ -d "$path" ]; then
-        rm -rf "$path"
+        rm -rf "$path" 2>/dev/null || (umount -l "$path" 2>/dev/null && rm -rf "$path") || true
     fi
 done
 
@@ -151,7 +182,7 @@ ln -sf "$SSD_MOUNT/var/lib/kubelet" /var/lib/kubelet
 ln -sf "$SSD_MOUNT/var/lib/containerd" /var/lib/containerd
 ln -sf "$SSD_MOUNT/var/lib/docker" /var/lib/docker
 
-print_status "Symlinks created to SSD storage"
+print_status "Symlinks created to storage"
 
 # Step 4: Install Docker
 print_header "Step 4: Installing Docker"
