@@ -20,7 +20,7 @@ spec:
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: ubuntu
+        kubernetes.io/hostname: k8s-master
       hostNetwork: true
       hostPID: true
       hostIPC: true
