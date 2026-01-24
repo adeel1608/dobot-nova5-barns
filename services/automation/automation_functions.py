@@ -283,7 +283,7 @@ async def dispense_sauce(params: dict):
 async def dispense_ice(params: dict):
     """Dispense ice using MQTT communication."""
     # example params: {"cups": {"cup_c16": 1.0}, "timeout": 300}
-    # OR flat format: {"timer": 4, "timeout": 300}
+    # OR flat format: {"weight": 4, "timeout": 300}
 
     cups_dict = params["cups"]
     # Handle nested cups dictionary format
@@ -292,23 +292,23 @@ async def dispense_ice(params: dict):
         # Extract cup type from first key (e.g., "cup_c7", "cup_c9", "cup_c12", "cup_c16")
         cup_type = list(cups_dict.keys())[0]
         
-        # Map cup type to timer value
+        # Map cup type to weight value
         cup_type_lower = cup_type.lower()
         if "cup_c7" in cup_type_lower:
-            timer = 1
+            weight = 64.0  #grams of ice
         elif "cup_c9" in cup_type_lower:
-            timer = 1.5
+            weight = 84.0  #grams of ice
         elif "cup_c12" in cup_type_lower:
-            timer = 2
+            weight = 120.0  #grams of ice
         elif "cup_c16" in cup_type_lower:
-            timer = 2.5
+            weight = 180.0  #grams of ice
         else:
-            # Default to timer 0 if unknown cup type
-            log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to timer 0", service="automation")
-            timer = 0
+            # Default to weight 0 if unknown cup type
+            log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to weight 0", service="automation")
+            weight = 0
     else:
         # Fallback to flat parameter format
-        timer = params.get("timer", 0)
+        weight = params.get("weight", 0)
     
     response = {"data": None}
 
@@ -322,7 +322,7 @@ async def dispense_ice(params: dict):
         except json.JSONDecodeError:
             pass
 
-    payload = json.dumps({"timer": timer})
+    payload = json.dumps({"weight": weight})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -379,7 +379,7 @@ async def dispense_ice(params: dict):
     if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully dispensed ice (timer={timer})",
+            "message": f"Successfully dispensed ice (weight={weight})",
             "details": mqtt_response
         }
     else:
