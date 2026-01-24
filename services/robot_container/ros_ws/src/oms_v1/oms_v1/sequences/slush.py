@@ -77,7 +77,6 @@ def _normalize_slush_cup_size(cups_dict: Any) -> str:
     # Final fallback
     return DEFAULT_PLASTIC_CUP_SIZE
 
-
 def get_slush(**params) -> bool:
     """
     Get slush from specified dispenser and prepare for serving.
