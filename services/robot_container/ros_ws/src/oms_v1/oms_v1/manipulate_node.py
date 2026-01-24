@@ -702,6 +702,7 @@ class robot_motion(Node):
         • Disable drag-mode (StopDrag).
         Retries driver-error responses up to `max_attempts`, but aborts on
         transport time-outs.  Returns **True** on full success.
+        Ensures robot is NOT in drag mode before starting by calling StopDrag first.
         """
 
         import time, rclpy
@@ -723,6 +724,13 @@ class robot_motion(Node):
             return getattr(fut.result(), "res", 1)   # driver result code
 
         # ----------------------------------------------------------------------#
+        # 0)  StopDrag first (ensure NOT in drag mode) -------------------------#
+        res = _try_srv(self.stop_drag_cli, "StopDrag")
+        if res == 0:
+            log.info("StopDrag OK (cleared any existing drag mode)")
+        elif res is not None:
+            log.info(f"StopDrag returned {res} (robot likely not in drag mode, continuing)")
+        
         # 1)  StartDrag  --------------------------------------------------------#
         for attempt in range(1, max_attempts + 1):
             res = _try_srv(self.start_drag_cli, "StartDrag")
