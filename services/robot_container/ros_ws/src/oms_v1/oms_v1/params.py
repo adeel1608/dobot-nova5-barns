@@ -589,12 +589,12 @@ PLASTIC_CUPS_PARAMS = {
         'pickup_4':     (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489),  # Stage 4 pickup position
     },
     'sauces_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
-        'position2':    (-39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578),  # Second position at sauces station (place/pick)
+        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
+        'position2':    (-26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
-        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at milk station
-        'position2':    (-26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240),  # Second position at milk station (place/pick)
+        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position2':    (-39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578),  # Second position at milk station (place/pick)
     },
 }
 
@@ -700,15 +700,15 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_3':     (-127.135882,-52.028920,-115.863508,-11.823941,-127.069217,0.139543),  # Stage 3 pickup position
         'pickup_4':     (-139.614437,-57.667847,-93.968886,-28.016244,-139.555665,0.242845),  # Stage 4 pickup position
     },
-    'sauces_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
-        'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at sauces station
-        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at sauces station (place/pick)
-    },
     'milk_station': {
-        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at milk station
-        'position2':    (-25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913),  # Second position at milk station
-        'position3':    (-25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561),  # Third position at milk station (place/pick)
+        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at milk station
+        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at milk station (place/pick)
+    },
+    'sauces_station': {
+        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
+        'position2':    (-25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913),  # Second position at sauces station
+        'position3':    (-25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561),  # Third position at sauces station (place/pick)
     },
 }
 
