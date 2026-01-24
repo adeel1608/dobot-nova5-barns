@@ -600,11 +600,11 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             return False
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])):
             return False
-        run_skill("moveEE_movJ", 0,0,10,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-130)
+        run_skill("moveEE_movJ", 0,250,10,0,0,0)
+        run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("sync")
-        run_skill("moveJ_deg", 0,0,0,0,0,130)
-        run_skill("moveEE_movJ", 0,0,-10,0,0,0)
+        run_skill("moveJ_deg", 0,0,0,0,0,135)
+        run_skill("moveEE_movJ", 0,-250,-10,0,0,0)
         if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
             return False
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
@@ -615,9 +615,9 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_2'])):
             return False
         run_skill("moveEE_movJ", 0,0,10,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-130)
+        run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("sync")
-        run_skill("moveJ_deg", 0,0,0,0,0,130)
+        run_skill("moveJ_deg", 0,0,0,0,0,135)
         run_skill("moveEE_movJ", 0,0,-10,0,0,0)
         if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
             return False
@@ -628,10 +628,10 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             return False
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])):
             return False
-        run_skill("moveEE_movJ", 0,0,10,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-150)
-        run_skill("moveJ_deg", 0,0,0,0,0,150)
-        run_skill("moveEE_movJ", 0,0,-10,0,0,0)
+        run_skill("moveEE_movJ", 0,-250,10,0,0,0)
+        run_skill("moveJ_deg", 0,0,0,0,0,-135)
+        run_skill("moveJ_deg", 0,0,0,0,0,135)
+        run_skill("moveEE_movJ", 0,250,-10,0,0,0)
         if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
             return False
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):

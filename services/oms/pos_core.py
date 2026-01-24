@@ -23,15 +23,16 @@ MILK_MAPPINGS = {
     "almond": 2,
     "oat": 3,
     "soy": 4,
-    "normal_water": 5,  # Water uses milk pump 5
+ # Water uses milk pump 5
     "lactose_free": 6,
     "low_fat": 7,
-}
-
-SYRUP_MAPPINGS = {
     "white_chocolate": 9,
     "caramel_sauce": 10,
     "condense_milk": 20,
+}
+
+SYRUP_MAPPINGS = {
+    "normal_water": 5, 
     "hazelnut": 12,
     "vanilla": 13,
     "peach_iced_tea": 14,
