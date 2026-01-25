@@ -18,26 +18,26 @@ INGREDIENT_DETAILS: Dict[str, Dict[str, Any]] = {}
 
 # Hardcoded mappings for milk and syrups categories
 MILK_MAPPINGS = {
-    "whole_fat": 1,
-    "whole": 1,  # Same as whole_fat
-    "almond": 2,
-    "oat": 3,
-    "soy": 4,
+    "whole_fat": 20,
+    "whole": 20,  # Same as whole_fat
+    "almond": 18,
+    "oat": 17,
  # Water uses milk pump 5
-    "lactose_free": 6,
-    "low_fat": 7,
-    "white_chocolate": 9,
-    "caramel_sauce": 10,
-    "condense_milk": 20,
+    "lactose_free": 15,
+    "low_fat": 19,
+    "white_chocolate": 12,
+    "caramel_sauce": 16,
+    "condense_milk": 8,
 }
 
 SYRUP_MAPPINGS = {
-    "normal_water": 5, 
-    "hazelnut": 12,
-    "vanilla": 13,
-    "peach_iced_tea": 14,
-    "passion_fruit_puree": 15,
-    "ice_tea": 16,
+    "normal_water": 1, 
+    "hazelnut": 14,
+    "vanilla": 7,
+    "peach_iced_tea": 9,
+    "passion_fruit_puree": 11,
+    "ice_tea": 13,
+    "caramel_syrup": 23,
 }
 
 
