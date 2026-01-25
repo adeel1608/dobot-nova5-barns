@@ -574,7 +574,7 @@ PLASTIC_CUPS_PARAMS = {
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
-        'position2':    (42.109539,-70.156235,-73.393562,-35.314400,-43.783558,0.039427),  # Second ice position (dispense)
+        'position2':    (46.241082,-71.126117,-82.426418,-26.093993,-43.687633,-0.302819),  # Second ice position (dispense)
     },
     'staging': {
         # Staging positions for placing plastic cups

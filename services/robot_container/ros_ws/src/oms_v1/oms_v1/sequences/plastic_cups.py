@@ -239,6 +239,9 @@ def go_to_ice(**params) -> bool:
     
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position2'])):
         return False
+
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+        return False
     
     run_skill("sync")
     return True
@@ -250,6 +253,9 @@ def go_home_with_ice(**params) -> bool:
     def ok(r):
         return r not in (False, None)
     
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, 145)):
+        return False
+
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
         return False
     
