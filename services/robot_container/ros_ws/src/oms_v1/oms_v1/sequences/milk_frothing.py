@@ -146,10 +146,10 @@ def mount_frother(**params) -> bool:
     if not ok(run_skill("mount_machine", "left_steam_wand", "deep_froth")):
         return False
     
-    run_skill("sync")
-    run_skill("release_tension")
-    run_skill("moveEE_movJ", 10,-10,-5,0,0,0)
-    run_skill("moveEE_movJ", 0,0,5,0,0,0)
+    # run_skill("sync")
+    # run_skill("release_tension")
+    # run_skill("moveEE_movJ", 10,-10,-5,0,0,0)
+    # run_skill("moveEE_movJ", 0,0,5,0,0,0)
     
     milk_data = params.get('milk', {})
     volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0

@@ -468,7 +468,7 @@ MILK_FROTHING_PARAMS = {
         'place_pre1':  (-6.988280,-50.951061,-132.741623,2.908280,-92.178726,8.730732),  # First pre-placement position at milk station
         'place_pre2':  (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second pre-placement position at milk station
         'place_approach': (-40.325470,-71.810158,-65.020432,-39.404678,-117.536209,8.156257),  # Approach position for placing frother at milk station
-        'place_final': (-40.471085,-72.541191,-65.464928,-39.197475,-117.510132,10.384305),  # Final placement position at milk station
+        'place_final': (-40.189131,-72.847691,-64.628552,-39.734056,-117.229183,10.369100),  # Final placement position at milk station
         'pick_retreat1': (-40.325470,-71.810158,-65.020432,-39.404678,-117.536209,8.156257),  # First retreat position when picking from milk station
         'pick_retreat2': (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second retreat position when picking from milk station
     },
@@ -574,7 +574,7 @@ PLASTIC_CUPS_PARAMS = {
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
-        'position2':    (42.109539,-70.156235,-73.393562,-35.314400,-43.783558,0.039427),  # Second ice position (dispense)
+        'position2':    (46.241082,-71.126117,-82.426418,-26.093993,-43.687633,-0.302819),  # Second ice position (dispense)
     },
     'staging': {
         # Staging positions for placing plastic cups
