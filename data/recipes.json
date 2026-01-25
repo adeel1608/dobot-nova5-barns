@@ -791,7 +791,20 @@
     {
       "action": "Get Slush",
       "assigned_arm": "Arm2",
-      "depends_on": []
+      "depends_on": ["Validate Ingredients"]
     }
+  ],
+  "Test": [
+      {
+        "action": "Dispense Sauce",
+        "assigned_arm": "Arm2",
+        "depends_on": []
+      },
+      {
+        "action": "Dispense Milk",
+        "assigned_arm": "Arm2",
+        "depends_on": ["Dispense Sauce"]
+      }
+
   ]
 }
