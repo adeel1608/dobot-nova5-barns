@@ -573,6 +573,31 @@
       }
     ]
   },
+  "Place Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "milk_cup_detection_absent",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup_milk",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_paper_cup_milk",
+        "params": {}
+      }
+    ]
+  },
   "Pick Paper Cup Station": {
     "steps": [
       {
