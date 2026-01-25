@@ -46,7 +46,7 @@ def get_frother_position(**params) -> bool:
     if not ok(run_skill("get_machine_position", "left_steam_wand")):
         return False
     
-    if not ok(run_skill(home(position="north_east"))):
+    if not home(position="north_east"):
         return False
 
     return True

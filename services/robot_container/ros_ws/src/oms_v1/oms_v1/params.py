@@ -466,11 +466,11 @@ MILK_FROTHING_PARAMS = {
     },
     'milk_station': {
         'place_pre1':  (-6.988280,-50.951061,-132.741623,2.908280,-92.178726,8.730732),  # First pre-placement position at milk station
-        'place_pre2':  (-57.382032,-65.567226,-78.030915,-38.698776,-141.282324,7.575189),  # Second pre-placement position at milk station
-        'place_approach': (-39.943313,-81.476677,-37.317640,-62.915747,-123.895024,8.408029),  # Approach position for placing frother at milk station
-        'place_final': (-41.303119,-79.710969,-43.589438,-58.440315,-125.248155,8.356563),  # Final placement position at milk station
-        'pick_retreat1': (-39.943313,-81.476677,-37.317640,-62.915747,-123.895024,8.408029),  # First retreat position when picking from milk station
-        'pick_retreat2': (-57.382032,-65.567226,-78.030915,-38.698776,-141.282324,7.575189),  # Second retreat position when picking from milk station
+        'place_pre2':  (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second pre-placement position at milk station
+        'place_approach': (-40.353764,-80.520250,-39.594864,-61.603808,-124.302865,8.392879),  # Approach position for placing frother at milk station
+        'place_final': (-41.761384,-78.884208,-45.607757,-57.259329,-125.704104,8.339073),  # Final placement position at milk station
+        'pick_retreat1': (-40.353764,-80.520250,-39.594864,-61.603808,-124.302865,8.392879),  # First retreat position when picking from milk station
+        'pick_retreat2': (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second retreat position when picking from milk station
     },
     'mounting': {
         'prep':        (-4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837),  # Preparation position for mounting frother
