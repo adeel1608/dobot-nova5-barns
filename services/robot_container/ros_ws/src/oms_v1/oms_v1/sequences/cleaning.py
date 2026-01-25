@@ -44,7 +44,7 @@ def clean_portafilter(**params) -> bool:
     #     return False
 
     # 2) Go to cleaning station home
-    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+    if not ok(run_skill("gotoJ_deg", -35.223076,-2.939468,-128.314575,-47.896400,-73.999352,1.973845)):
         return False
 
     # 3) Hard brush
