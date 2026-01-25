@@ -109,7 +109,7 @@ def place_frother_milk_station(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_final'])):
         return False
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['place'])):
+    if not ok(run_skill("set_gripper_position", 50, MILK_FROTHER_GRIPPER_POSITIONS['place'])):
         return False
     return True
 
