@@ -383,7 +383,7 @@
       },
       {
           "type": "automation",
-          "function": "coffee_machine",
+          "function": "coffee_machine_purge",
           "params": {
           "coffee_t": 2,
           "slot_number": 3
