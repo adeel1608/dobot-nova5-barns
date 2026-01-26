@@ -679,7 +679,7 @@ async def slush_machine(params: dict):
 async def coffee_machine(params: dict):
 
     """coffee machine using MQTT communication."""
-    # coffee_t is the number of the shots 1,2
+    # coffee_t values: 1=single long, 2=double long, 3=purge
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
@@ -688,17 +688,18 @@ async def coffee_machine(params: dict):
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
     else:
         # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 3)
+        coffee_t = params.get("coffee_t", 1)
     
+    # Map coffee types to slots
     if coffee_t == 1:
         slot_number = 3
     elif coffee_t == 2:
         slot_number = 1
     elif coffee_t == 3:
-        coffee_t = 1
-        slot_number = 2
+        # Purge - use slot from params or default to slot 3
+        slot_number = params.get("slot_number", 3)
     else:
-        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
+        raise ValueError(f"Invalid coffee_t: {coffee_t}. Must be 1 (single), 2 (double), or 3 (purge)")
         
     # slot_number = params.get("slot_number", 1)
     response = {"data": None}
@@ -788,7 +789,7 @@ async def coffee_machine(params: dict):
 
 async def coffee_machine_wait(params: dict):
     """coffee machine using MQTT communication."""
-    # coffee_t is the number of the shots 1,2
+    # coffee_t values: 1=single long, 2=double long, 3=purge
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
@@ -797,17 +798,18 @@ async def coffee_machine_wait(params: dict):
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
     else:
         # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 3)
+        coffee_t = params.get("coffee_t", 1)
     
+    # Map coffee types to slots
     if coffee_t == 1:
         slot_number = 3
     elif coffee_t == 2:
         slot_number = 1
     elif coffee_t == 3:
-        coffee_t = 1
-        slot_number = 2
+        # Purge - use slot from params or default to slot 3
+        slot_number = params.get("slot_number", 3)
     else:
-        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
+        raise ValueError(f"Invalid coffee_t: {coffee_t}. Must be 1 (single), 2 (double), or 3 (purge)")
         
     # slot_number = params.get("slot_number", 1)
     response = {"data": None}
@@ -987,7 +989,7 @@ async def grinding_machine(params: dict):
 
 # EX: example params: {"tampering": 1}
 async def tampering_machine(params: dict):
-    """tampering machine using MQTT communication."""
+    """tampering machine using MQTT communication - runs tamper cycle TWICE."""
     # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
     
     # Handle nested espresso dictionary format
@@ -1055,6 +1057,9 @@ async def tampering_machine(params: dict):
     # Give a moment for subscription to be processed
     time.sleep(0.5)
     
+    # First tamper cycle
+    log("INFO", f"Starting tamper cycle 1/2 (calibration={calibration}ms)", service="automation")
+    response["data"] = None
     client.publish("automation_tampering", payload, qos=1)
 
     timeout = params.get("timeout", 120)
@@ -1064,30 +1069,77 @@ async def tampering_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        log("ERROR", "Timeout: No response from tampering machine", service="automation")
+        log("ERROR", "Timeout: No response from tampering machine (cycle 1)", service="automation")
+        client.loop_stop()
+        client.disconnect()
         return {
             "success": False,
-            "error": "Timeout: No response from tampering machine",
-            "message": "Timeout: No response from tampering machine"
+            "error": "Timeout: No response from tampering machine (cycle 1)",
+            "message": "Timeout: No response from tampering machine (cycle 1)"
         }
 
+    cycle1_response = response["data"]
+    if cycle1_response.get("status") != "success":
+        log("ERROR", f"Tamper cycle 1 failed: {cycle1_response.get('error', 'Unknown error')}", service="automation")
+        client.loop_stop()
+        client.disconnect()
+        return {
+            "success": False,
+            "error": cycle1_response.get('error', 'Unknown error'),
+            "message": f"Failed to complete tampering cycle 1: {cycle1_response.get('error', 'Unknown error')}",
+            "details": cycle1_response
+        }
+    
+    log("INFO", "Tamper cycle 1/2 completed successfully", service="automation")
+    
+    # Wait a moment between cycles
+    await asyncio.sleep(1)
+    
+    # Second tamper cycle
+    log("INFO", f"Starting tamper cycle 2/2 (calibration={calibration}ms)", service="automation")
+    response["data"] = None
+    client.publish("automation_tampering", payload, qos=1)
+
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from tampering machine (cycle 2)", service="automation")
+        client.loop_stop()
+        client.disconnect()
+        return {
+            "success": False,
+            "error": "Timeout: No response from tampering machine (cycle 2)",
+            "message": "Timeout: No response from tampering machine (cycle 2)"
+        }
+
+    cycle2_response = response["data"]
+    
     client.loop_stop()
     client.disconnect()
 
-
-    mqtt_response = response["data"]
-    if mqtt_response.get("status") == "success":
+    if cycle2_response.get("status") == "success":
+        log("INFO", "Tamper cycle 2/2 completed successfully - Both cycles complete", service="automation")
         return {
             "success": True,
-            "message": f"Successfully completed tampering operation (calibration={calibration})",
-            "details": mqtt_response
+            "message": f"Successfully completed both tampering cycles (calibration={calibration}ms)",
+            "details": {
+                "cycle_1": cycle1_response,
+                "cycle_2": cycle2_response
+            }
         }
     else:
+        log("ERROR", f"Tamper cycle 2 failed: {cycle2_response.get('error', 'Unknown error')}", service="automation")
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to complete tampering: {mqtt_response.get('error', 'Unknown error')}",
-            "details": mqtt_response
+            "error": cycle2_response.get('error', 'Unknown error'),
+            "message": f"Failed to complete tampering cycle 2: {cycle2_response.get('error', 'Unknown error')}",
+            "details": {
+                "cycle_1": cycle1_response,
+                "cycle_2": cycle2_response
+            }
         }
 
 async def automation_test(params: dict):
