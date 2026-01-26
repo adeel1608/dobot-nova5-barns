@@ -37,7 +37,14 @@ def get_frother_position(**params) -> bool:
     if not home(position="north_east"):
         return False
     
-    cycles = 4
+    run_skill("move_to", "left_steam_wand", 0.29)
+    run_skill("sync")
+    run_skill("grab_tool", "left_steam_wand")
+    run_skill("set_gripper_position", 255, 255, 255)
+    run_skill("gotoJ_deg", -43.788200,-68.169113,-36.695751,-72.909874,-90.922371,6.132053)
+    run_skill("set_gripper_position", 255, 0,255)
+    
+    cycles = 3
     for i in range(cycles):
         time.sleep(CALIBRATION_SETTLE_TIME)
         if not ok(run_skill("move_to", "left_steam_wand", 0.29)):
