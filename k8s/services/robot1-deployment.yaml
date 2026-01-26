@@ -20,14 +20,7 @@ spec:
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: qss-jetson
-      tolerations:
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
+        kubernetes.io/hostname: k8s-master
       hostNetwork: true
       hostPID: true
       hostIPC: true
@@ -47,21 +40,21 @@ spec:
         - name: WORKSPACE_DIR
           value: "/opt/ros_ws"
         - name: ROBOT_ID
-          value: "1"
+          value: "2"
         - name: DOBOT_TYPE
           value: "nova5"
         - name: IP_ADDRESS
-          value: "192.168.200.249"
+          value: "192.168.200.248"
         - name: ROS_DOMAIN_ID
-          value: "0"
+          value: "1"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000YW"
+          value: "CP1Z842000F6"
         - name: CAM_NAME
-          value: "cam0"
+          value: "cam1"
         - name: DEVICE_ID
-          value: "1"
+          value: "2"
         - name: DEVICE_NUM
-          value: "1"
+          value: "2"
         - name: ORBBEC_CONNECTION_DELAY
           value: "3000"
         - name: USBFS_MEMORY_MB
@@ -126,4 +119,10 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
-
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule

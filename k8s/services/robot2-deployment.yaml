@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: robot2
+  name: robot1
   namespace: barns
   labels:
-    app: robot2
+    app: robot1
     component: robotics
 spec:
   replicas: 1
@@ -12,22 +12,29 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app: robot2
+      app: robot1
   template:
     metadata:
       labels:
-        app: robot2
+        app: robot1
         component: robotics
     spec:
       nodeSelector:
-        kubernetes.io/hostname: k8s-master
+        kubernetes.io/hostname: qss-jetson
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
       hostNetwork: true
       hostPID: true
       hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
-      - name: robot2
-        image: barns-robot2:latest
+      - name: robot1
+        image: barns-robot1:latest
         imagePullPolicy: Never
         securityContext:
           privileged: true
@@ -40,21 +47,21 @@ spec:
         - name: WORKSPACE_DIR
           value: "/opt/ros_ws"
         - name: ROBOT_ID
-          value: "2"
+          value: "1"
         - name: DOBOT_TYPE
           value: "nova5"
         - name: IP_ADDRESS
-          value: "192.168.200.248"
+          value: "192.168.200.249"
         - name: ROS_DOMAIN_ID
-          value: "1"
+          value: "0"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000F6"
+          value: "CP1Z842000YW"
         - name: CAM_NAME
-          value: "cam1"
+          value: "cam0"
         - name: DEVICE_ID
-          value: "2"
+          value: "1"
         - name: DEVICE_NUM
-          value: "2"
+          value: "1"
         - name: ORBBEC_CONNECTION_DELAY
           value: "3000"
         - name: USBFS_MEMORY_MB
@@ -80,7 +87,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot2-startup.sh"
+            - "pgrep -f robot1-startup.sh"
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -90,7 +97,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot2-startup.sh"
+            - "pgrep -f robot1-startup.sh"
           initialDelaySeconds: 60
           periodSeconds: 30
           timeoutSeconds: 10
@@ -100,7 +107,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot2-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
+            - "pgrep -f robot1-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
           initialDelaySeconds: 90
           periodSeconds: 30
           timeoutSeconds: 10
@@ -119,10 +126,4 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
-      tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
+
