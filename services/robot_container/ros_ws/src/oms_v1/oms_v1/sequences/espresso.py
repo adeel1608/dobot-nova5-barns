@@ -209,7 +209,7 @@ def grinder(**params) -> bool:
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])):
         return False
     
-    run_skill("moveEE_movJ", -15, 15, 0, 0, 0, 0)
+    run_skill("moveEE_movJ", -50, 50, 0, 0, 0, 0)
     
     approach_tool_result = run_skill("approach_tool", portafilter_tool)
     if not ok(approach_tool_result):
