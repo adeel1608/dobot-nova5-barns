@@ -1,10 +1,10 @@
-apiVersion: apps/v1
+﻿apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: robot1
+  name: robot2
   namespace: barns
   labels:
-    app: robot1
+    app: robot2
     component: robotics
 spec:
   replicas: 1
@@ -12,11 +12,11 @@ spec:
     type: Recreate
   selector:
     matchLabels:
-      app: robot1
+      app: robot2
   template:
     metadata:
       labels:
-        app: robot1
+        app: robot2
         component: robotics
     spec:
       nodeSelector:
@@ -33,8 +33,8 @@ spec:
       hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
-      - name: robot1
-        image: barns-robot1:latest
+      - name: robot2
+        image: barns-robot2:latest
         imagePullPolicy: Never
         securityContext:
           privileged: true
@@ -87,7 +87,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot1-startup.sh"
+            - "pgrep -f robot2-startup.sh"
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
@@ -97,7 +97,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot1-startup.sh"
+            - "pgrep -f robot2-startup.sh"
           initialDelaySeconds: 60
           periodSeconds: 30
           timeoutSeconds: 10
@@ -107,7 +107,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            - "pgrep -f robot1-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
+            - "pgrep -f robot2-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
           initialDelaySeconds: 90
           periodSeconds: 30
           timeoutSeconds: 10
