@@ -209,13 +209,13 @@ def grinder(**params) -> bool:
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])):
         return False
     
-    run_skill("moveEE_movJ", -50, 50, 0, 0, 0, 0)
+    run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)
     
-    approach_tool_result = run_skill("approach_tool", portafilter_tool)
-    if not ok(approach_tool_result):
-        fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
-        if not ok(run_skill("approach_tool", fallback_tool)):
-            return False
+    # approach_tool_result = run_skill("approach_tool", portafilter_tool)
+    # if not ok(approach_tool_result):
+    #     fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+    #     if not ok(run_skill("approach_tool", fallback_tool)):
+    #         return False
     
     return True
     
@@ -233,14 +233,14 @@ def tamper(**params) -> bool:
     if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
         return False
     
-    run_skill("sync")
+    # run_skill("sync")
     
-    approach_tool_result = run_skill("approach_tool", portafilter_tool)
-    if not ok(approach_tool_result):
-        fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
-        if not ok(run_skill("approach_tool", fallback_tool)):
-            return False
-        portafilter_tool = fallback_tool
+    # approach_tool_result = run_skill("approach_tool", portafilter_tool)
+    # if not ok(approach_tool_result):
+    #     fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
+    #     if not ok(run_skill("approach_tool", fallback_tool)):
+    #         return False
+    #     portafilter_tool = fallback_tool
     
     run_skill("sync")
     
@@ -254,7 +254,7 @@ def tamper(**params) -> bool:
     
     run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)
     
-    if not ok(run_skill("moveEE", 0, 0, 20, 0, 0, 0)):
+    if not ok(run_skill("moveEE", 0, 0, 45, 0, 0, 0)):
         return False
     
     if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
