@@ -427,7 +427,7 @@ MILK_FROTHER_GRIPPER_POSITIONS = {
 MILK_FROTHER_MOVEMENT_OFFSETS = {
     'lift_after_place': (0, 0, 150, 0, 0, 0),  # Lift before placing frother at milk station
     'lift_after_pick': (0, 0, 10, 0, 0, 0),    # Lift after picking frother from milk station
-    'cleaning_motion': (0, 5, -150, 0, 0, 0),  # Cleaning motion offset
+    'cleaning_motion': (-25, 5, -150, 0, 0, 0),  # Cleaning motion offset
     'final_approach': (-75, 0, 0, 0, 0, 0),      # Final approach for frother return
 }
 
@@ -454,7 +454,7 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 # Volume-based Z adjustment for frother
-MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.8  # Factor for calculating Z adjustment based on milk volume
+MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.75  # Factor for calculating Z adjustment based on milk volume
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
