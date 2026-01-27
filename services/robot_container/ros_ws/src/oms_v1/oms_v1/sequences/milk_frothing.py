@@ -161,7 +161,7 @@ def mount_frother(**params) -> bool:
     milk_data = params.get('milk', {})
     volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
     z_adjustment = MILK_VOLUME_Z_ADJUSTMENT_FACTOR * volume_ml
-    run_skill("moveEE_movJ", -15, 15, -z_adjustment, 0, 0, 0)
+    run_skill("moveEE_movJ", 0, 20, -z_adjustment, 0, 0, 0)
     
     if not ok(run_skill("sync")):
         return False
