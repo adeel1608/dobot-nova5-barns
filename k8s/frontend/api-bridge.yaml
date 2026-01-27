@@ -50,10 +50,12 @@ spec:
       labels:
         app: api-bridge
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: api-bridge
-        image: barns-api-bridge:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-api-bridge:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
           name: http

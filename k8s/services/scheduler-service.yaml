@@ -32,10 +32,12 @@ spec:
       labels:
         app: scheduler-service
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: scheduler-service
-        image: barns-scheduler:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-scheduler:latest
+        imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL
           valueFrom:

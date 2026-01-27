@@ -50,10 +50,12 @@ spec:
       labels:
         app: oms-service
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: oms-service
-        image: barns-oms:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-oms:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
           name: http

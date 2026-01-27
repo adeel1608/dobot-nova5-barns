@@ -19,6 +19,8 @@ spec:
         app: robot2
         component: robotics
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       nodeSelector:
         kubernetes.io/hostname: qss-jetson
       tolerations:
@@ -34,8 +36,8 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: robot2
-        image: barns-robot2:latest
-        imagePullPolicy: Never
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot2:latest
+        imagePullPolicy: Always
         securityContext:
           privileged: true
           capabilities:
