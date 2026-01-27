@@ -15,12 +15,14 @@ spec:
       labels:
         app: validation-service
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: validation-service
-        image: barns-validation:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-validation:latest
+        imagePullPolicy: Always
         env:
         - name: RABBITMQ_USER
           valueFrom:

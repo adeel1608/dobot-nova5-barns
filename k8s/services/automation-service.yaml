@@ -32,10 +32,12 @@ spec:
       labels:
         app: automation-service
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: automation-service
-        image: barns-automation:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-automation:latest
+        imagePullPolicy: Always
         env:
         - name: RABBITMQ_URL
           valueFrom:

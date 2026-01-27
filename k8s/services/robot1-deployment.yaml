@@ -19,6 +19,8 @@ spec:
         app: robot1
         component: robotics
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       nodeSelector:
         kubernetes.io/hostname: k8s-master
       hostNetwork: true
@@ -27,8 +29,8 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: robot1
-        image: barns-robot1:latest
-        imagePullPolicy: Never
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
+        imagePullPolicy: Always
         securityContext:
           privileged: true
           capabilities:
