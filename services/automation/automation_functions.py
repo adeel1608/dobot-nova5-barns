@@ -1389,7 +1389,7 @@ async def initialize_frother(params: dict):
             pass
 
     # Fixed payload for frother initialization
-    payload = json.dumps({"frother_init": 1})
+    payload = json.dumps({"frother_init": 1, "seconds": 1.5})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
