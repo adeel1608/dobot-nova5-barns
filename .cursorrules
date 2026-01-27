@@ -1,0 +1,47 @@
+# Cost Control Rules for AI Assistant
+
+## STRICT COST LIMITS
+- Each AI request MUST NOT exceed $0.01 USD in token cost
+- If a task requires more than $0.01, ask user for explicit approval first
+- Do NOT read large files unless absolutely necessary
+- Do NOT make multiple tool calls in parallel unless user requests it
+- Limit responses to 500 words maximum unless user asks for more detail
+
+## Token Conservation Rules
+- When reading files, only read specific line ranges, not entire files
+- Avoid reading log files or terminal outputs longer than 50 lines
+- Don't repeat information already provided
+- Use concise explanations instead of verbose ones
+- Only make file edits when explicitly asked by the user
+- Limit codebase_search to specific directories, not entire repo
+
+## Response Guidelines
+- Keep responses under 2000 tokens (approximately 1500 words)
+- Suggest approaches instead of implementing everything immediately
+- Ask which approach user prefers before proceeding with large operations
+- Break large tasks into smaller steps that user can approve individually
+
+## File Operations
+- Read only necessary files, not entire directories
+- Avoid reading files over 200 lines unless critical
+- Don't read the same file multiple times
+- Summarize instead of showing full file contents
+
+## Emergency Stop
+- If user says "stop", "halt", or "too expensive", immediately cease all operations
+- If a single request might exceed $0.01, STOP and ask for approval first
+- Monitor token usage and warn user if approaching limits
+
+## When User Provides Large Outputs
+- Don't process terminal outputs over 100 lines
+- Ask user to provide only relevant portions
+- Don't read entire log dumps
+
+## Cost Estimation
+- ~1K tokens ≈ $0.003
+- ~3K tokens ≈ $0.01 (LIMIT)
+- ~10K tokens ≈ $0.03
+- ~100K tokens ≈ $0.30
+- Reading a 1000-line file ≈ $0.02-0.05
+
+User must explicitly say "I approve higher cost" or "proceed anyway" for requests that might exceed $0.01.
