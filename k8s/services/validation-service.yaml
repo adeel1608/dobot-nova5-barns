@@ -78,6 +78,8 @@ spec:
           mountPath: /app/services/validation/cup_detection/debug_frames_cup
         - name: cup-models
           mountPath: /app/services/validation/cup_detection/models
+        - name: model-cache
+          mountPath: /root/.cache
         livenessProbe:
           exec:
             command:
@@ -100,6 +102,10 @@ spec:
       - name: cup-models
         hostPath:
           path: /mnt/ssd/barns-data/cup_models
+          type: DirectoryOrCreate
+      - name: model-cache
+        hostPath:
+          path: /mnt/ssd/barns-data/model_cache
           type: DirectoryOrCreate
 
 
