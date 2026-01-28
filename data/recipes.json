@@ -7,11 +7,7 @@
     }
   ],
   "Espresso": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -29,11 +25,7 @@
     }
   ],
   "Americano": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -50,11 +42,7 @@
     }
   ],
   "Iced Americano": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
@@ -81,14 +69,14 @@
       "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Dispense Sauce",
+      "action": "Dispense Syrup",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Plastic Cup Sauces"]
     },
     {
       "action": "Pick Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Sauce"]
+      "depends_on": ["Dispense Syrup"]
     },
     {
       "action": "Place Plastic Cup Station",
@@ -112,11 +100,7 @@
     }
   ],
   "Macchiato": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -154,11 +138,7 @@
     }
   ],
   "Cortado": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -196,11 +176,7 @@
     }
   ],
   "Cappuccino": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -238,11 +214,7 @@
     }
   ],
   "Caramel Macchiato": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
     "action": "Dispense Paper Cup",
       "assigned_arm": "Arm1",
@@ -264,14 +236,14 @@
       "depends_on": ["Pick Paper Cup Station"]
     },
     {
-      "action": "Dispense Sauce",
+      "action": "Dispense Syrup",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Paper Cup Sauces"]
     },
     {
       "action": "Pick Paper Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Sauce"]
+      "depends_on": ["Dispense Syrup"]
     },
     {
       "action": "Place Paper Cup Milk",
@@ -279,14 +251,14 @@
       "depends_on": ["Pick Paper Cup Sauces"]
     },
     {
-      "action": "Dispense Milk",
+      "action": "Dispense Sauce",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Paper Cup Milk"]
     },
     {
       "action": "Pick Paper Cup Milk",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Milk"]
+      "depends_on": ["Dispense Sauce"]
     },
     {
       "action": "Place Paper Cup Station",
@@ -325,11 +297,7 @@
     }
   ],
   "Flat White": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -367,11 +335,7 @@
     }
   ],
   "Latte": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -409,11 +373,7 @@
     }
   ],
   "Iced Latte": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
@@ -471,11 +431,7 @@
     }
   ],  
   "Passion Fruit Iced Tea": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
@@ -502,14 +458,14 @@
       "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Dispense Sauce",
+      "action": "Dispense Syrup",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Plastic Cup Sauces"]
     },
     {
       "action": "Pick Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Sauce"]
+      "depends_on": ["Dispense Syrup"]
     },
     {
       "action": "Place Plastic Cup Station",
@@ -518,11 +474,7 @@
     }
   ],
   "Peach Iced Tea": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
@@ -549,14 +501,14 @@
       "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Dispense Sauce",
+      "action": "Dispense Syrup",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Plastic Cup Sauces"]
     },
     {
       "action": "Pick Plastic Cup Sauces",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Sauce"]
+      "depends_on": ["Dispense Syrup"]
     },
     {
       "action": "Place Plastic Cup Station",
@@ -565,11 +517,7 @@
     }
   ],
   "Iced Spanish Latte": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
@@ -596,9 +544,14 @@
       "depends_on": ["Go Home With Ice"]
     },
     {
-      "action": "Dispense Milk",
+      "action": "Dispense Sauce",
       "assigned_arm": "Arm2",
       "depends_on": ["Place Plastic Cup Milk"]
+    },
+    {
+      "action": "Dispense Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Sauce"]
     },
     {
       "action": "Pick Plastic Cup Milk",
@@ -627,11 +580,7 @@
     }
   ],
   "Spanish Latte": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
@@ -653,14 +602,14 @@
         "depends_on": ["Pick Paper Cup Station"]
       },
       {
-        "action": "Dispense Milk",
+        "action": "Dispense Sauce",
         "assigned_arm": "Arm2",
         "depends_on": ["Place Paper Cup Milk"]
       },
       {
         "action": "Pick Paper Cup Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Dispense Milk"]
+        "depends_on": ["Dispense Sauce"]
       },
       {
         "action": "Place Paper Cup Station",
@@ -699,11 +648,7 @@
       }
   ],
   "White Mocha": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm1",
-      "depends_on": []
-    },
+
     {
       "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
@@ -725,14 +670,14 @@
         "depends_on": ["Pick Paper Cup Station"]
       },
       {
-        "action": "Dispense Milk",
+        "action": "Dispense Sauce",
         "assigned_arm": "Arm2",
         "depends_on": ["Place Paper Cup Milk"]
       },
       {
         "action": "Pick Paper Cup Milk",
         "assigned_arm": "Arm2",
-        "depends_on": ["Dispense Milk"]
+        "depends_on": ["Dispense Sauce"]
       },
       {
         "action": "Place Paper Cup Station",
@@ -795,16 +740,7 @@
     }
   ],
   "Test": [
-      {
-        "action": "Dispense Sauce",
-        "assigned_arm": "Arm2",
-        "depends_on": []
-      },
-      {
-        "action": "Dispense Milk",
-        "assigned_arm": "Arm2",
-        "depends_on": ["Dispense Sauce"]
-      }
+
 
   ]
 }

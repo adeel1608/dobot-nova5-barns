@@ -4,6 +4,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Any, Tuple, Optional
+from datetime import datetime
 import httpx
 import sys
 import os
@@ -37,6 +38,11 @@ order_stopped = False  # Flag to signal workers to stop processing
 per_arm_current_cups = {}    # Map arm_name -> cup_id currently being worked on (one cup per arm)
 cup_completion_status = {}   # Map cup_id -> "pending" | "in_progress" | "completed" | "failed"
 
+# Cup validation tracking - validates ingredients before starting a cup
+# This runs in scheduler so both arms can work in parallel without waiting for validation
+cup_validation_status = {}   # Map cup_id -> "pending" | "validating" | "validated" | "failed"
+cup_validation_lock = asyncio.Lock()  # Async lock for validation status updates
+
 # Global RabbitMQ client reference for notifications
 _global_rabbitmq_client = None
 
@@ -45,6 +51,277 @@ def set_rabbitmq_client(client):
     global _global_rabbitmq_client
     _global_rabbitmq_client = client
     log("DEBUG", "RabbitMQ client set", service="scheduler")
+
+
+async def validate_cup_ingredients(cup_id: str) -> dict:
+    """
+    Validate that ingredients are available for a cup before starting its tasks.
+    
+    This function is called by the scheduler before starting any cup's tasks,
+    removing the need for routine service to do validation (which was causing
+    Arm 2 to wait for Arm 1's validation).
+    
+    Args:
+        cup_id: The cup ID to validate ingredients for
+        
+    Returns:
+        dict: {"success": bool, "passed": bool, "details": str, "missing_ingredients": list}
+    """
+    global _global_rabbitmq_client, cup_data_by_cup
+    
+    log("INFO", f"[CUP VALIDATION] Starting ingredient validation for cup {cup_id}", service="scheduler")
+    
+    try:
+        # Get cup data from stored cup information
+        with lock:
+            cup_data = cup_data_by_cup.get(cup_id, {})
+        
+        if not cup_data:
+            log("ERROR", f"[CUP VALIDATION] No cup data found for cup {cup_id}", service="scheduler")
+            return {"success": False, "passed": False, "details": "Cup data not found"}
+        
+        # Extract ingredients from cup data
+        ingredients = cup_data.get("ingredients", {})
+        
+        if not ingredients:
+            log("WARNING", f"[CUP VALIDATION] No ingredients found for cup {cup_id}, skipping validation", service="scheduler")
+            return {"success": True, "passed": True, "details": "No ingredients to validate"}
+        
+        # Build validation payload matching routine service format
+        request_id = f"scheduler-{cup_id}-{time.time()}"
+        payload = {
+            "request_id": request_id,
+            "client_type": "scheduler",
+            "cup_id": cup_id,
+            **ingredients  # Include all ingredients (milk, syrups, cups, espresso, etc.)
+        }
+        
+        log("INFO", f"[CUP VALIDATION] Sending validation request for cup {cup_id}", service="scheduler")
+        log("DEBUG", f"[CUP VALIDATION] Payload keys: {list(payload.keys())}", service="scheduler")
+        
+        if not _global_rabbitmq_client:
+            log("ERROR", f"[CUP VALIDATION] No RabbitMQ client available for validation", service="scheduler")
+            return {"success": False, "passed": False, "details": "RabbitMQ client not available"}
+        
+        # Call validation service - same handler that routine uses
+        response = await _global_rabbitmq_client.send_request(
+            target_service="validation",
+            action="validate_ingredients",
+            data=payload,
+            timeout=30  # 30 second timeout for validation
+        )
+        
+        log("INFO", f"[CUP VALIDATION] Validation response for cup {cup_id}: passed={response.get('passed', False)}", service="scheduler")
+        
+        if response.get("error"):
+            log("ERROR", f"[CUP VALIDATION] Validation service error for cup {cup_id}: {response['error']}", service="scheduler")
+            return {
+                "success": False,
+                "passed": False,
+                "details": f"Validation service error: {response['error']}"
+            }
+        
+        return {
+            "success": True,
+            "passed": response.get("passed", False),
+            "details": response.get("details", ""),
+            "missing_ingredients": response.get("missing_ingredients", [])
+        }
+        
+    except asyncio.TimeoutError:
+        log("ERROR", f"[CUP VALIDATION] Validation timeout for cup {cup_id}", service="scheduler")
+        return {"success": False, "passed": False, "details": "Validation timeout"}
+    except Exception as e:
+        log("ERROR", f"[CUP VALIDATION] Exception during validation for cup {cup_id}: {str(e)[:100]}", service="scheduler")
+        return {"success": False, "passed": False, "details": f"Validation exception: {str(e)}"}
+
+
+async def send_validation_failure_to_dashboard(cup_id: str, validation_result: dict):
+    """
+    Send validation failure notification to dashboard.
+    
+    This mirrors what routine service does when validation fails,
+    allowing the dashboard to show appropriate error messages.
+    
+    Args:
+        cup_id: The cup ID that failed validation
+        validation_result: The validation result containing failure details
+    """
+    global _global_rabbitmq_client
+    
+    try:
+        if not _global_rabbitmq_client:
+            log("WARNING", f"[DASHBOARD NOTIFY] No RabbitMQ client for dashboard notification", service="scheduler")
+            return
+        
+        # Send validation failure event to dashboard
+        # This matches the format used by routine service
+        await _global_rabbitmq_client.send_event("validation.failed.dashboard", {
+            "validation_function": "validate_ingredients",
+            "cup_id": cup_id,
+            "details": validation_result.get("details", ""),
+            "missing_ingredients": validation_result.get("missing_ingredients", []),
+            "timestamp": time.time()
+        })
+        
+        log("INFO", f"[DASHBOARD NOTIFY] Sent validation failure to dashboard for cup {cup_id}", service="scheduler")
+        
+    except Exception as e:
+        log("ERROR", f"[DASHBOARD NOTIFY] Failed to notify dashboard for cup {cup_id}: {str(e)[:100]}", service="scheduler")
+
+
+async def handle_cup_validation_failure(cup_id: str, validation_result: dict):
+    """
+    Handle a cup validation failure by stopping tasks for that cup
+    and notifying the dashboard.
+    
+    This allows the previous cup's tasks to finish while stopping
+    only the failed cup's tasks.
+    
+    Args:
+        cup_id: The cup ID that failed validation
+        validation_result: The validation result containing failure details
+    """
+    global tasks, cup_completion_status, order_stopped, _global_rabbitmq_client
+    
+    log("INFO", f"[VALIDATION FAILURE] Handling validation failure for cup {cup_id}", service="scheduler")
+    
+    # Send notification to dashboard first
+    await send_validation_failure_to_dashboard(cup_id, validation_result)
+    
+    # Mark cup as failed
+    with lock:
+        cup_completion_status[cup_id] = "failed"
+        
+        # Cancel all pending tasks for this cup
+        cancelled_count = 0
+        for task in tasks:
+            if task["cup"] == cup_id and task["status"] == "pending":
+                task["status"] = "cancelled"
+                cancelled_count += 1
+        
+        log("INFO", f"[VALIDATION FAILURE] Cancelled {cancelled_count} pending tasks for cup {cup_id}", service="scheduler")
+    
+    # Extract order_id from cup_id for order-level handling
+    order_id = None
+    if '-' in cup_id:
+        try:
+            order_id = int(cup_id.split('-')[0])
+        except ValueError:
+            log("WARNING", f"[VALIDATION FAILURE] Could not parse order_id from cup_id: {cup_id}", service="scheduler")
+    
+    if order_id:
+        # Check if there are any cups still in progress
+        cups_in_progress = []
+        with lock:
+            for cid, status in cup_completion_status.items():
+                if cid != cup_id and status == "in_progress":
+                    cups_in_progress.append(cid)
+        
+        if cups_in_progress:
+            log("INFO", f"[VALIDATION FAILURE] Cups still in progress: {cups_in_progress}. Letting them finish.", service="scheduler")
+            log("INFO", f"[VALIDATION FAILURE] Setting order_stopped flag to stop new tasks after current cups complete", service="scheduler")
+            
+            # Set order_stopped so no new cups start, but let current cups finish
+            with lock:
+                order_stopped = True
+            
+            # We won't stop the order via OMS yet - we'll do that when the in-progress cups finish
+            # This is handled by check_and_notify_order_completion
+        else:
+            log("INFO", f"[VALIDATION FAILURE] No cups in progress. Stopping order {order_id} immediately.", service="scheduler")
+            
+            # Stop the order via OMS (same as routine does)
+            try:
+                if _global_rabbitmq_client:
+                    stop_response = await _global_rabbitmq_client.send_request(
+                        target_service="oms",
+                        action="stop_order",
+                        data={"order_id": order_id},
+                        timeout=30
+                    )
+                    
+                    if stop_response and stop_response.get("success"):
+                        log("INFO", f"[VALIDATION FAILURE] Successfully stopped order {order_id} via OMS", service="scheduler")
+                    else:
+                        error_msg = stop_response.get('error', 'Unknown') if stop_response else 'No response'
+                        log("WARNING", f"[VALIDATION FAILURE] Failed to stop order {order_id} via OMS: {error_msg[:50]}", service="scheduler")
+            except Exception as e:
+                log("ERROR", f"[VALIDATION FAILURE] Exception stopping order {order_id}: {str(e)[:100]}", service="scheduler")
+    
+    # Emit validation failure event for dashboard tracking
+    try:
+        if _global_rabbitmq_client:
+            await _global_rabbitmq_client.send_event("scheduler.cup_validation_failed", {
+                "cup_id": cup_id,
+                "order_id": order_id,
+                "details": validation_result.get("details", ""),
+                "missing_ingredients": validation_result.get("missing_ingredients", []),
+                "timestamp": time.time()
+            })
+    except Exception as e:
+        log("ERROR", f"[VALIDATION FAILURE] Failed to emit validation failed event: {str(e)[:100]}", service="scheduler")
+
+
+async def validate_and_start_cup(cup_id: str, arm_name: str) -> bool:
+    """
+    Validate a cup's ingredients before starting its tasks.
+    
+    This is called when an arm is about to start working on a new cup.
+    If validation fails, the cup's tasks are cancelled and the order is stopped.
+    
+    Args:
+        cup_id: The cup ID to validate
+        arm_name: The arm that will work on this cup (for logging)
+        
+    Returns:
+        bool: True if validation passed and cup can start, False otherwise
+    """
+    global cup_validation_status, cup_validation_lock
+    
+    async with cup_validation_lock:
+        # Check if this cup has already been validated
+        validation_status = cup_validation_status.get(cup_id)
+        
+        if validation_status == "validated":
+            log("DEBUG", f"[CUP VALIDATION] Cup {cup_id} already validated, proceeding", service="scheduler")
+            return True
+        
+        if validation_status == "failed":
+            log("DEBUG", f"[CUP VALIDATION] Cup {cup_id} already failed validation, skipping", service="scheduler")
+            return False
+        
+        if validation_status == "validating":
+            # Another arm is validating this cup, wait for result
+            log("DEBUG", f"[CUP VALIDATION] Cup {cup_id} is being validated by another arm, waiting", service="scheduler")
+            # Release lock and wait for validation to complete
+            # This shouldn't normally happen with proper cup assignment
+    
+    # Mark cup as validating
+    async with cup_validation_lock:
+        cup_validation_status[cup_id] = "validating"
+    
+    log("INFO", f"[CUP VALIDATION] {arm_name} starting validation for cup {cup_id}", service="scheduler")
+    
+    # Perform validation
+    validation_result = await validate_cup_ingredients(cup_id)
+    
+    if validation_result.get("passed", False):
+        # Validation passed
+        async with cup_validation_lock:
+            cup_validation_status[cup_id] = "validated"
+        log("INFO", f"[CUP VALIDATION] Cup {cup_id} passed validation, {arm_name} can proceed", service="scheduler")
+        return True
+    else:
+        # Validation failed
+        async with cup_validation_lock:
+            cup_validation_status[cup_id] = "failed"
+        log("ERROR", f"[CUP VALIDATION] Cup {cup_id} failed validation: {validation_result.get('details', '')}", service="scheduler")
+        
+        # Handle the failure (notify dashboard, stop tasks, etc.)
+        await handle_cup_validation_failure(cup_id, validation_result)
+        
+        return False
 
 async def _emit_plan_built(order_id: int):
     """Emit current per-arm plan for the given order so UI can render immediately."""
@@ -290,6 +567,8 @@ def select_task_with_per_arm_cup_priority(arm_name: str):
 
 async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_type: str):
     """Submit a task to the routine service via RabbitMQ."""
+    global cup_validation_status
+    
     client = None
     try:
         # Import RabbitMQ client here to avoid circular imports
@@ -309,6 +588,10 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
         ingredients = cup_data.get("ingredients", {})
         addons = cup_data.get("addons", [])
         size = cup_data.get("size")
+        
+        # Check if scheduler has already validated this cup's ingredients
+        # This allows routine to skip the validate_ingredients step
+        scheduler_validated = cup_validation_status.get(cup_id) == "validated"
 
         # Create the payload for the routine service
         payload = {
@@ -319,9 +602,13 @@ async def submit_task_to_routine(arm_id: str, function: str, cup_id: str, drink_
                 "drink_type": drink_type,
                 "size": size,
                 "addons": addons,
-                "ingredients": ingredients
+                "ingredients": ingredients,
+                "scheduler_validated": scheduler_validated  # Flag to skip validation in routine
             }
         }
+        
+        if scheduler_validated:
+            log("DEBUG", f"Cup {cup_id} marked as scheduler_validated - routine will skip validate_ingredients", service="scheduler")
         
         # Send request to routine service via RabbitMQ
         response = await client.send_request(
@@ -354,6 +641,11 @@ async def arm_worker(arm_name: str):
     
     This worker is persistent and handles multiple orders sequentially without exiting.
     It waits for new tasks when the current order completes.
+    
+    VALIDATION INTEGRATION:
+    When starting a NEW cup (not continuing an existing one), this worker validates
+    the cup's ingredients BEFORE starting any tasks. This allows both arms to work
+    in parallel without Arm 2 waiting for Arm 1's validation.
     """
     global completed_count, failed_count, order_stopped, tasks_total, order_completion_logged, order_stopped_logged
     log("INFO", "Worker started", service="scheduler", arm=arm_name)
@@ -364,6 +656,7 @@ async def arm_worker(arm_name: str):
     while True:
         task = None
         current_tasks_total = 0
+        is_new_cup = False  # Track if we're starting a new cup
         
         # Find a pending task for this arm with all dependencies satisfied (Cup-Priority Algorithm)
         with lock:
@@ -396,10 +689,48 @@ async def arm_worker(arm_name: str):
                 break
             # Active order with tasks to process
             elif current_tasks_total > 0:
+                # Get current cup for this arm before selection
+                current_cup_before = per_arm_current_cups.get(arm_name)
                 task = select_task_with_per_arm_cup_priority(arm_name)
+                
+                # Check if we're starting a new cup
+                if task:
+                    current_cup_after = per_arm_current_cups.get(arm_name)
+                    is_new_cup = (current_cup_before != current_cup_after and current_cup_after is not None)
+                    
+                    if is_new_cup:
+                        log("INFO", f"[CUP VALIDATION] {arm_name} detected new cup start: {current_cup_after}", service="scheduler")
             # No active order - wait for tasks
             else:
                 task = None
+        
+        # VALIDATION CHECK FOR NEW CUP (outside lock to allow async validation)
+        if task and is_new_cup:
+            cup_id = task["cup"]
+            
+            log("INFO", f"[CUP VALIDATION] {arm_name} validating ingredients before starting cup {cup_id}", service="scheduler")
+            
+            # Validate cup ingredients before starting
+            validation_passed = await validate_and_start_cup(cup_id, arm_name)
+            
+            if not validation_passed:
+                log("ERROR", f"[CUP VALIDATION] Cup {cup_id} failed validation - {arm_name} cannot start tasks", service="scheduler")
+                
+                # Reset the task status and arm's current cup
+                with lock:
+                    # Reset task to pending (it was set to in_progress by select_task)
+                    task["status"] = "pending"
+                    # Clear this arm's current cup so it can pick up next available cup
+                    per_arm_current_cups[arm_name] = None
+                
+                # Skip this task and continue to look for another cup
+                task = None
+                
+                # Small delay before trying again
+                await asyncio.sleep(0.5)
+                continue
+            
+            log("INFO", f"[CUP VALIDATION] Cup {cup_id} passed validation - {arm_name} proceeding with tasks", service="scheduler")
             
         if task:
             consecutive_no_work_count = 0  # Reset counter when we have work
@@ -1014,7 +1345,7 @@ def reset_scheduler_state_sync():
     """
     global tasks, tasks_by_cup, completed, failed_tasks, failed_count, completed_count
     global tasks_total, order_completion_notified, order_stopped, order_stopped_logged, order_completion_logged
-    global per_arm_current_cups, cup_completion_status, cup_data_by_cup
+    global per_arm_current_cups, cup_completion_status, cup_data_by_cup, cup_validation_status
     
     try:
         log("INFO", "Resetting scheduler state for new order", service="scheduler")
@@ -1033,6 +1364,7 @@ def reset_scheduler_state_sync():
         per_arm_current_cups.clear()
         cup_completion_status.clear()
         cup_data_by_cup.clear()
+        cup_validation_status.clear()  # Reset cup validation tracking for new order
         
         # Keep current_status for debugging, but mark as idle
         current_status.update({
