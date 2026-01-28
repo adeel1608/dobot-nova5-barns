@@ -201,8 +201,8 @@ async def dispense_sauce(params: dict):
         # Give a moment for subscription to be processed
         time.sleep(0.5)
         
-        # Send the message
-        client.publish("automation_sauce", payload, qos=1)
+        # Send the message (sauce uses milk topic - same CAN dispenser handles both)
+        client.publish("automation_milk", payload, qos=1)
 
         # Wait for response with timeout (default 75 seconds)
         response_timeout = params.get("timeout", 75)
