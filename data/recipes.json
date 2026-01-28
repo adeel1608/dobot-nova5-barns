@@ -737,6 +737,11 @@
       "action": "Dispense Sauce",
       "assigned_arm": "Arm2",
       "depends_on": []
+    },
+    {
+      "action": "Dispense Syrup",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Sauce"]
     }
   ]
 }
