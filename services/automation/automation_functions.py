@@ -122,13 +122,13 @@ async def dispense_hot_water(params: dict):
 # Note: Timeout defaults to 75s. After timeout, assumes success to avoid crashing recipe.
 async def dispense_sauce(params: dict):
     """Dispense multiple syrups using MQTT communication."""
-    # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
+    # example params: {"sauce": {12: 5.0, 16: 16.0}, ...}
     # Loops through all pumps in the syrups dictionary
     
     log("INFO", f"[DISPENSE-SAUCE] Called with params: {params}", service="automation")
     
     # Extract syrups dictionary
-    if "syrups" not in params or not isinstance(params["syrups"], dict):
+    if "sauce" not in params or not isinstance(params["sauce"], dict):
         log("ERROR", "No syrups dictionary found in params", service="automation")
         return {
             "success": False,
@@ -136,7 +136,7 @@ async def dispense_sauce(params: dict):
             "message": "Invalid parameters: syrups dictionary required"
         }
     
-    syrups_dict = params["syrups"]
+    syrups_dict = params["sauce"]
     log("INFO", f"[DISPENSE-SAUCE] Extracted syrups dict: {syrups_dict}", service="automation")
     
     if not syrups_dict:
@@ -278,6 +278,163 @@ async def dispense_sauce(params: dict):
             "details": all_results
         }
 
+async def dispense_syrup(params: dict):
+    """Dispense multiple syrups using MQTT communication."""
+    # example params: {"syrups": {2: 5.0, 5: 16.0}, ...}
+    # Loops through all pumps in the syrups dictionary
+    
+    log("INFO", f"[DISPENSE-SYRUP] Called with params: {params}", service="automation")
+    
+    # Extract syrups dictionary
+    if "syrups" not in params or not isinstance(params["syrups"], dict):
+        log("ERROR", "No syrups dictionary found in params", service="automation")
+        return {
+            "success": False,
+            "error": "No syrups dictionary found in params",
+            "message": "Invalid parameters: syrups dictionary required"
+        }
+    
+    syrups_dict = params["syrups"]
+    log("INFO", f"[DISPENSE-SYRUP] Extracted syrups dict: {syrups_dict}", service="automation")
+    
+    if not syrups_dict:
+        return {
+            "success": True,
+            "message": "No syrups to dispense",
+            "details": []
+        }
+    
+    # Prepare for loop through all syrups
+    all_results = []
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker (same as milk)
+    username = params.get("username", "admin")
+    password = params.get("password", "admin123")
+    
+    # Loop through each syrup pump
+    for pump_key, amount in syrups_dict.items():
+        pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else 9
+        
+        log("INFO", f"[DISPENSE-SAUCE] Starting dispense: pump_key={pump_key}, pump_number={pump_number}, amount={amount}", service="automation")
+        
+        response = {"data": None}
+
+        def on_connect(client, userdata, flags, rc, props=None):
+            client.subscribe("automation_syrup/response", qos=1)
+
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode())
+                response["data"] = payload
+            except json.JSONDecodeError:
+                pass
+
+        # Create MQTT payload
+        payload = json.dumps({"pump_number": pump_number, "amount": amount})
+        client = mqtt.Client(protocol=mqtt.MQTTv311)
+        client.username_pw_set(username, password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        
+        # Connect to external MQTT broker for syrup dispensing (same as milk)
+        client.connect(mqtt_host, 1883, 60)
+        
+        client.loop_start()
+        
+        # Wait for connection and subscription to be established
+        connection_timeout = 10
+        connection_start = time.time()
+        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+            time.sleep(0.1)
+        
+        if not client.is_connected():
+            log("ERROR", "Failed to connect to MQTT broker", service="automation")
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": "Failed to connect to MQTT broker"
+            })
+            continue
+        
+        # Give a moment for subscription to be processed
+        time.sleep(0.5)
+        
+        # Send the message
+        client.publish("automation_syrup", payload, qos=1)
+
+        # Wait for response with timeout (default 75 seconds)
+        response_timeout = params.get("timeout", 75)
+        response_start = time.time()
+        log("INFO", f"[DISPENSE-SAUCE] Waiting for MQTT response from pump {pump_number} (timeout: {response_timeout}s)", service="automation")
+        
+        while response["data"] is None:
+            if (time.time() - response_start) > response_timeout:
+                log("WARNING", f"[DISPENSE-SAUCE] Timeout waiting for response from pump {pump_number} after {response_timeout}s - Assuming success to continue recipe", service="automation")
+                client.loop_stop()
+                client.disconnect()
+                all_results.append({
+                    "pump_number": pump_number,
+                    "amount": amount,
+                    "success": True,
+                    "message": f"Assumed success after {response_timeout}s timeout (no hardware response)",
+                    "timeout": True
+                })
+                break  # Skip to next pump
+            await asyncio.sleep(0.1)
+        
+        # Check if we got a response or timed out
+        if response["data"] is None:
+            continue  # Already added timeout result as success, move to next pump
+
+        client.loop_stop()
+        client.disconnect()
+
+        
+        # Store result for this pump
+        mqtt_response = response["data"]
+        log("INFO", f"[DISPENSE-SAUCE] MQTT response for pump {pump_number}: {mqtt_response}", service="automation")
+        
+        if mqtt_response.get("status") == "success":
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": True,
+                "message": f"Successfully dispensed {amount}g from syrup pump {pump_number}",
+                "details": mqtt_response
+            })
+            log("INFO", f"[DISPENSE-SAUCE] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
+        else:
+            error_msg = mqtt_response.get('error', 'Unknown error')
+            all_results.append({
+                "pump_number": pump_number,
+                "amount": amount,
+                "success": False,
+                "error": error_msg,
+                "details": mqtt_response
+            })
+            log("ERROR", f"[DISPENSE-SAUCE] FAILED: Pump {pump_number} failed to dispense {amount}g - Error: {error_msg}", service="automation")
+    
+    # Return combined results
+    all_success = all(result["success"] for result in all_results)
+    
+    if all_success:
+        log("INFO", f"[DISPENSE-SAUCE] All {len(all_results)} dispenses successful", service="automation")
+        return {
+            "success": True,
+            "message": f"Successfully dispensed {len(all_results)} syrups",
+            "details": all_results
+        }
+    else:
+        failed_count = sum(1 for result in all_results if not result["success"])
+        failed_pumps = [r["pump_number"] for r in all_results if not r["success"]]
+        log("ERROR", f"[DISPENSE-SAUCE] {failed_count} of {len(all_results)} dispenses failed. Failed pumps: {failed_pumps}", service="automation")
+        log("ERROR", f"[DISPENSE-SAUCE] Full results: {all_results}", service="automation")
+        return {
+            "success": False,
+            "error": f"{failed_count} syrup(s) failed to dispense",
+            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} syrups",
+            "details": all_results
+        }
 
 
 async def dispense_ice(params: dict):
@@ -679,7 +836,7 @@ async def slush_machine(params: dict):
 async def coffee_machine(params: dict):
 
     """coffee machine using MQTT communication."""
-    # coffee_t values: 1=single long, 2=double long, 3=purge
+    # coffee_t is the number of the shots 1,2
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
@@ -688,130 +845,18 @@ async def coffee_machine(params: dict):
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
     else:
         # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 1)
+        coffee_t = params.get("coffee_t", 3)
     
-    # Map coffee types to slots
     if coffee_t == 1:
         slot_number = 3
     elif coffee_t == 2:
         slot_number = 1
     elif coffee_t == 3:
-        # Purge - use slot from params or default to slot 3
-        slot_number = params.get("slot_number", 3)
+        coffee_t = 1
+        slot_number = 2
     else:
-        raise ValueError(f"Invalid coffee_t: {coffee_t}. Must be 1 (single), 2 (double), or 3 (purge)")
+        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
         
-    # slot_number = params.get("slot_number", 1)
-    response = {"data": None}
-
-    def on_connect(client, userdata, flags, rc, props=None):
-        log("DEBUG", f"Connected with code {rc}", service="automation")
-        client.subscribe("automation_coffee_machine/response", qos=1)
-
-    def on_message(client, userdata, msg):
-        try:
-            payload = json.loads(msg.payload.decode())
-            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
-            response["data"] = payload
-        except json.JSONDecodeError:
-            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
-
-    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.username_pw_set(
-        params.get("username", "admin"), 
-        params.get("password", "admin123")
-    )
-    client.on_connect = on_connect
-    client.on_message = on_message
-    
-    # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
-    
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
-        return {
-            "success": False,
-            "error": "Failed to connect to MQTT broker",
-            "message": "Failed to connect to MQTT broker"
-        }
-    
-    # Give a moment for subscription to be processed
-    time.sleep(0.5)
-    
-    client.publish("automation_coffee_machine", payload, qos=1)
-
-    # timeout = params.get("timeout", 120)
-    # start_time = time.time()
-    return {
-            "success": True,
-            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
-            "details": "Processing coffee"
-        }
-    while response["data"] is None and (time.time() - start_time) < timeout:
-        await asyncio.sleep(0.1)
-
-    if response["data"] is None:
-        log("ERROR", "Timeout: No response from dispenser", service="automation")
-        return {
-            "success": False,
-            "error": "Timeout: No response from dispenser",
-            "message": "Timeout: No response from dispenser"
-        }
-    client.loop_stop()
-    client.disconnect()
-
-    
-    # Standardize the response format
-    mqtt_response = response["data"]
-    if mqtt_response.get("status") == "success":
-        return {
-            "success": True,
-            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
-            "details": mqtt_response
-        }
-    else:
-        return {
-            "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to prepare coffee: {mqtt_response.get('error', 'Unknown error')}",
-            "details": mqtt_response
-        }
-
-async def coffee_machine_purge(params: dict):
-
-    """coffee machine using MQTT communication."""
-    # coffee_t values: 1=single long, 2=double long, 3=purge
-    
-    # Handle nested espresso dictionary format
-    if "espresso" in params and isinstance(params["espresso"], dict):
-        espresso_dict = params["espresso"]
-        # Extract amount from first value (ignore the key name like "espresso_shot_double")
-        coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
-    else:
-        # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 1)
-    
-    # Map coffee types to slots
-    if coffee_t == 1:
-        slot_number = 3
-    elif coffee_t == 2:
-        slot_number = 1
-    elif coffee_t == 3:
-        # Purge - use slot from params or default to slot 3
-        slot_number = params.get("slot_number", 3)
-    else:
-        raise ValueError(f"Invalid coffee_t: {coffee_t}. Must be 1 (single), 2 (double), or 3 (purge)")
-    coffee_t = 3
     # slot_number = params.get("slot_number", 1)
     response = {"data": None}
 
@@ -900,7 +945,7 @@ async def coffee_machine_purge(params: dict):
 
 async def coffee_machine_wait(params: dict):
     """coffee machine using MQTT communication."""
-    # coffee_t values: 1=single long, 2=double long, 3=purge
+    # coffee_t is the number of the shots 1,2
     
     # Handle nested espresso dictionary format
     if "espresso" in params and isinstance(params["espresso"], dict):
@@ -909,18 +954,17 @@ async def coffee_machine_wait(params: dict):
         coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
     else:
         # Fallback to flat parameter format
-        coffee_t = params.get("coffee_t", 1)
+        coffee_t = params.get("coffee_t", 3)
     
-    # Map coffee types to slots
     if coffee_t == 1:
         slot_number = 3
     elif coffee_t == 2:
         slot_number = 1
     elif coffee_t == 3:
-        # Purge - use slot from params or default to slot 3
-        slot_number = params.get("slot_number", 3)
+        coffee_t = 1
+        slot_number = 2
     else:
-        raise ValueError(f"Invalid coffee_t: {coffee_t}. Must be 1 (single), 2 (double), or 3 (purge)")
+        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
         
     # slot_number = params.get("slot_number", 1)
     response = {"data": None}
@@ -1100,7 +1144,7 @@ async def grinding_machine(params: dict):
 
 # EX: example params: {"tampering": 1}
 async def tampering_machine(params: dict):
-    """tampering machine using MQTT communication - runs tamper cycle TWICE."""
+    """tampering machine using MQTT communication."""
     # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
     
     # Handle nested espresso dictionary format
@@ -1117,9 +1161,9 @@ async def tampering_machine(params: dict):
     # If espresso = 2, send tampering: 1, calibration: 2
     tampering = 1  # Always 1
     if espresso_shots == 1:
-        calibration = 3750        ##set values here in ms
+        calibration = 5000        ##set values here in ms
     elif espresso_shots == 2:
-        calibration = 4000        ##set values here in ms
+        calibration = 4500        ##set values here in ms
     else:
         # Default to calibration 1 if unknown shot count
         log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")
@@ -1168,9 +1212,6 @@ async def tampering_machine(params: dict):
     # Give a moment for subscription to be processed
     time.sleep(0.5)
     
-    # First tamper cycle
-    log("INFO", f"Starting tamper cycle 1/2 (calibration={calibration}ms)", service="automation")
-    response["data"] = None
     client.publish("automation_tampering", payload, qos=1)
 
     timeout = params.get("timeout", 120)
@@ -1180,77 +1221,30 @@ async def tampering_machine(params: dict):
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        log("ERROR", "Timeout: No response from tampering machine (cycle 1)", service="automation")
-        client.loop_stop()
-        client.disconnect()
+        log("ERROR", "Timeout: No response from tampering machine", service="automation")
         return {
             "success": False,
-            "error": "Timeout: No response from tampering machine (cycle 1)",
-            "message": "Timeout: No response from tampering machine (cycle 1)"
+            "error": "Timeout: No response from tampering machine",
+            "message": "Timeout: No response from tampering machine"
         }
 
-    cycle1_response = response["data"]
-    if cycle1_response.get("status") != "success":
-        log("ERROR", f"Tamper cycle 1 failed: {cycle1_response.get('error', 'Unknown error')}", service="automation")
-        client.loop_stop()
-        client.disconnect()
-        return {
-            "success": False,
-            "error": cycle1_response.get('error', 'Unknown error'),
-            "message": f"Failed to complete tampering cycle 1: {cycle1_response.get('error', 'Unknown error')}",
-            "details": cycle1_response
-        }
-    
-    log("INFO", "Tamper cycle 1/2 completed successfully", service="automation")
-    
-    # Wait a moment between cycles
-    await asyncio.sleep(1)
-    
-    # Second tamper cycle
-    log("INFO", f"Starting tamper cycle 2/2 (calibration={calibration}ms)", service="automation")
-    response["data"] = None
-    client.publish("automation_tampering", payload, qos=1)
-
-    start_time = time.time()
-
-    while response["data"] is None and (time.time() - start_time) < timeout:
-        await asyncio.sleep(0.1)
-
-    if response["data"] is None:
-        log("ERROR", "Timeout: No response from tampering machine (cycle 2)", service="automation")
-        client.loop_stop()
-        client.disconnect()
-        return {
-            "success": False,
-            "error": "Timeout: No response from tampering machine (cycle 2)",
-            "message": "Timeout: No response from tampering machine (cycle 2)"
-        }
-
-    cycle2_response = response["data"]
-    
     client.loop_stop()
     client.disconnect()
 
-    if cycle2_response.get("status") == "success":
-        log("INFO", "Tamper cycle 2/2 completed successfully - Both cycles complete", service="automation")
+
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
         return {
             "success": True,
-            "message": f"Successfully completed both tampering cycles (calibration={calibration}ms)",
-            "details": {
-                "cycle_1": cycle1_response,
-                "cycle_2": cycle2_response
-            }
+            "message": f"Successfully completed tampering operation (calibration={calibration})",
+            "details": mqtt_response
         }
     else:
-        log("ERROR", f"Tamper cycle 2 failed: {cycle2_response.get('error', 'Unknown error')}", service="automation")
         return {
             "success": False,
-            "error": cycle2_response.get('error', 'Unknown error'),
-            "message": f"Failed to complete tampering cycle 2: {cycle2_response.get('error', 'Unknown error')}",
-            "details": {
-                "cycle_1": cycle1_response,
-                "cycle_2": cycle2_response
-            }
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to complete tampering: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
         }
 
 async def automation_test(params: dict):
@@ -1389,7 +1383,7 @@ async def initialize_frother(params: dict):
             pass
 
     # Fixed payload for frother initialization
-    payload = json.dumps({"frother_init": 1, "seconds": 1.5})
+    payload = json.dumps({"frother_init": 1})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
@@ -1750,12 +1744,12 @@ async def automation_test4(params: dict):
 
 # Map function names to implementations
 AUTOMATION_FUNCTIONS = {
+    "dispense_syrup": dispense_syrup,
     "dispense_sauce": dispense_sauce,
     "dispense_milk": dispense_milk,
     "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,
     "coffee_machine": coffee_machine,
-    "coffee_machine_purge": coffee_machine_purge,
     "coffee_machine_wait": coffee_machine_wait,
     "grinding_machine": grinding_machine,   
     "tampering_machine" : tampering_machine,

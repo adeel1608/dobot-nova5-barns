@@ -113,7 +113,11 @@
                 "max_capacity": 1000,
                 "warning_threshold": 200,
                 "critical_threshold": 100
-            },
+            }
+        }
+    },
+    "sauce": {
+        "subtypes": {
             "white_chocolate_sauce": {
                 "max_capacity": 2500,
                 "warning_threshold": 300,

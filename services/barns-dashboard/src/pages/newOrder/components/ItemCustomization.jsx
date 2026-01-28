@@ -25,8 +25,8 @@ export default function ItemCustomization({
   // Categories that can only have one selection (replaceable)
   const replaceableCategories = ['espresso', 'milk', 'temperature', 'ice'];
   
-  // Categories that can have multiple with quantity (syrups, etc)
-  const additiveCategories = ['syrups', 'toppings', 'extras'];
+  // Categories that can have multiple with quantity (syrups, sauces, etc)
+  const additiveCategories = ['syrups', 'sauce', 'toppings', 'extras'];
 
   // Get current selection for a replaceable category
   const getCurrentSelection = (category) => {

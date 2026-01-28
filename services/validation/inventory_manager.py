@@ -29,6 +29,7 @@ class InventoryManager:
             "cups": {},
             "milk": {},
             "syrups": {},
+            "sauce": {},
             "premixes": {}
         }
         
@@ -67,9 +68,18 @@ class InventoryManager:
                     db_data = self.db_client.get_inventory(ingredient_type, subtype)
                     
                     # Combine DB data with rules
+                    # Handle None db_data safely
+                    if db_data:
+                        current_amount = db_data.get("current_amount", 0)
+                        last_updated = db_data.get("last_updated")
+                        last_updated_str = last_updated.isoformat() if last_updated else datetime.now().isoformat()
+                    else:
+                        current_amount = 0
+                        last_updated_str = datetime.now().isoformat()
+                    
                     self.inventory_cache[ingredient_type][subtype] = {
-                        "current_amount": db_data.get("current_amount", 0) if db_data else 0,
-                        "last_updated": db_data.get("last_updated").isoformat() if db_data.get("last_updated") else datetime.now().isoformat(),
+                        "current_amount": current_amount,
+                        "last_updated": last_updated_str,
                         "warning_threshold": limits["warning_threshold"],
                         "critical_threshold": limits["critical_threshold"],
                         "low_threshold": limits.get("low_threshold", limits["critical_threshold"]),
