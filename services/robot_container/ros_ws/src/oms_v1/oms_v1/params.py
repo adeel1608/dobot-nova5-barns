@@ -20,9 +20,9 @@ SPEED_FAST = 100         # Fast movements
 # ── Gripper Positions ──
 GRIPPER_OPEN = 0         # Fully open gripper
 GRIPPER_RELEASE_GENTLE = 10  # Gentle release for placing cups
-GRIPPER_RELEASE = 50     # Standard release position
+GRIPPER_RELEASE = 25     # Standard release position
 GRIPPER_HOLD_LOOSE = 75  # Loose hold for station placement
-GRIPPER_RELEASE_PITCHER = 75  # Release position for espresso pitcher
+GRIPPER_RELEASE_PITCHER = 25  # Release position for espresso pitcher
 GRIPPER_LIGHT = 100      # Light grip
 GRIPPER_PITCHER_1 = 105  # Gripper setting for espresso pitcher port 2 & 3
 GRIPPER_PITCHER_2 = 110  # Gripper setting for espresso pitcher port 1
