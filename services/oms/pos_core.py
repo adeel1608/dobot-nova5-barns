@@ -38,7 +38,7 @@ SYRUP_MAPPINGS = {
 }
 SAUCE_MAPPINGS = {
     "white_chocolate": 12,
-    "caramel": 16,
+    "caramel_sauce": 16,
     "condense_milk": 8,
 }
 
