@@ -26,6 +26,15 @@
       }
     ]
   },
+  "Dispense Syrup": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_syrup",
+        "params": {}
+      }
+    ]
+  },
   "Dispense Slush": {
     "steps": [
       {
