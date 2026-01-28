@@ -11,7 +11,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -29,7 +29,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {"action":"Pour Americano",
       "assigned_arm": "Arm1",
@@ -46,7 +46,7 @@
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Go To Ice",
@@ -86,7 +86,7 @@
     {
       "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -104,7 +104,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -119,7 +119,7 @@
     {
       "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Froth Milk",
@@ -142,7 +142,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -157,7 +157,7 @@
     {
       "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Froth Milk",
@@ -180,7 +180,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -195,7 +195,7 @@
     {
       "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Froth Milk",
@@ -218,7 +218,7 @@
     {
     "action": "Dispense Paper Cup",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Make Espresso Only",
@@ -301,7 +301,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -316,7 +316,7 @@
     {
       "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []  
     },
     {
       "action": "Froth Milk",
@@ -339,7 +339,7 @@
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -354,7 +354,7 @@
     {
       "action": "Dispense Milk Pitcher",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Froth Milk",
@@ -377,7 +377,7 @@
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Go To Ice",
@@ -417,7 +417,7 @@
     {
       "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -435,7 +435,7 @@
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Go To Ice",
@@ -478,7 +478,7 @@
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Go To Ice",
@@ -521,7 +521,7 @@
     {
       "action": "Dispense Plastic Cup",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Go To Ice",
@@ -566,7 +566,7 @@
     {
       "action": "Make Espresso Only",
       "assigned_arm": "Arm1",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     },
     {
       "action": "Pour Espresso",
@@ -584,7 +584,7 @@
     {
       "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
-        "depends_on": ["Validate Ingredients"]
+        "depends_on": []
       },
       {
         "action": "Make Espresso Only",
@@ -652,7 +652,7 @@
     {
       "action": "Dispense Paper Cup",
         "assigned_arm": "Arm1",
-        "depends_on": ["Validate Ingredients"]
+        "depends_on": []
       },
       {
         "action": "Make Espresso Only",
@@ -716,31 +716,27 @@
       }
   ],
   "Mocha Frappe": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
+
     {
       "action": "Get Slush",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []
     }
   ],
   "Chocolate Frappe": [
-    {
-      "action": "Validate Ingredients",
-      "assigned_arm": "Arm2",
-      "depends_on": []
-    },
+
     {
       "action": "Get Slush",
       "assigned_arm": "Arm2",
-      "depends_on": ["Validate Ingredients"]
+      "depends_on": []  
     }
   ],
   "Test": [
 
-
+    {
+      "action": "Dispense Slush",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    }
   ]
 }

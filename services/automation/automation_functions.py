@@ -1047,6 +1047,110 @@ async def coffee_machine_wait(params: dict):
             "details": mqtt_response
         }
 
+async def coffee_machine_purge(params: dict):
+    """coffee machine using MQTT communication."""
+    # coffee_t is the number of the shots 1,2
+    
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        # Extract amount from first value (ignore the key name like "espresso_shot_double")
+        coffee_t = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format
+        coffee_t = params.get("coffee_t", 3)
+    
+    if coffee_t == 1:
+        slot_number = 3
+    elif coffee_t == 2:
+        slot_number = 1
+    elif coffee_t == 3:
+        coffee_t = 1
+        slot_number = 2
+    else:
+        raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
+    coffee_t = 3
+    # slot_number = params.get("slot_number", 1)
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        log("DEBUG", f"Connected with code {rc}", service="automation")
+        client.subscribe("automation_coffee_machine/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
+
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
+    client.connect(mqtt_host, 1883, 60)
+    
+    client.loop_start()
+    
+    # Wait for connection and subscription to be established
+    connection_timeout = 10
+    connection_start = time.time()
+    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
+        time.sleep(0.1)
+    
+    if not client.is_connected():
+        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine", payload, qos=1)
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from dispenser", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from dispenser",
+            "message": "Timeout: No response from dispenser"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": mqtt_response
+        }
+    else:
+        return {
+            "success": False,
+            "error": mqtt_response.get('error', 'Unknown error'),
+            "message": f"Failed to prepare coffee: {mqtt_response.get('error', 'Unknown error')}",
+            "details": mqtt_response
+        }
+
 # EX: example params: {"shots_number": 1, "timeout": 300}
 # OR: {"espresso": {"espresso_shot_double": 2.0}, "timeout": 300}
 async def grinding_machine(params: dict):
@@ -1750,6 +1854,7 @@ AUTOMATION_FUNCTIONS = {
     "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,
     "coffee_machine": coffee_machine,
+    "coffee_machine_purge": coffee_machine_purge,
     "coffee_machine_wait": coffee_machine_wait,
     "grinding_machine": grinding_machine,   
     "tampering_machine" : tampering_machine,
