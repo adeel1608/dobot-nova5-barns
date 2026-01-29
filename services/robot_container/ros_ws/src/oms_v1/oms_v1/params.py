@@ -590,11 +590,11 @@ PLASTIC_CUPS_PARAMS = {
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240),  # Second position at sauces station (place/pick)
+        'position2':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578),  # Second position at milk station (place/pick)
+        'position2':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Second position at milk station (place/pick)
     },
 }
 
@@ -702,13 +702,13 @@ PAPER_CUPS_STATION_PARAMS = {
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at milk station
-        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at milk station (place/pick)
+        'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
+        'position3':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913),  # Second position at sauces station
-        'position3':    (-25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561),  # Third position at sauces station (place/pick)
+        'position2':    (-27.222216,-64.822159,-96.371883,-18.623413,-117.140324,0.020276),  # Second position at sauces station
+        'position3':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Third position at sauces station (place/pick)
     },
 }
 

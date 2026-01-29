@@ -433,8 +433,6 @@ def pick_plastic_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
-    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2'])):
-        return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
         return False
     
@@ -503,8 +501,6 @@ def pick_plastic_cup_milk(**params) -> bool:
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
-        return False
-    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position2'])):
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1'])):
         return False
