@@ -17,6 +17,15 @@ spec:
     spec:
       imagePullSecrets:
       - name: gcr-json-key
+      nodeSelector:
+        kubernetes.io/hostname: qss-jetson
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
@@ -86,7 +95,7 @@ spec:
             - python
             - -c
             - "import socket; socket.create_connection(('localhost', 5672), timeout=5)"
-          initialDelaySeconds: 40
+          initialDelaySeconds: 600
           periodSeconds: 30
           timeoutSeconds: 10
           failureThreshold: 3
