@@ -470,7 +470,7 @@
     {
       "action": "Place Plastic Cup Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick Plastic Cup Milk"]
+      "depends_on": ["Pick Plastic Cup Sauces"]
     }
   ],
   "Peach Iced Tea": [
@@ -513,7 +513,7 @@
     {
       "action": "Place Plastic Cup Station",
       "assigned_arm": "Arm2",
-      "depends_on": ["Pick Plastic Cup Milk"]
+      "depends_on": ["Pick Plastic Cup Sauces"]
     }
   ],
   "Iced Spanish Latte": [

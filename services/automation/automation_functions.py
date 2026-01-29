@@ -1036,6 +1036,7 @@ async def coffee_machine_wait(params: dict):
         }
 
 async def coffee_machine_purge(params: dict):
+
     """coffee machine using MQTT communication."""
     # coffee_t is the number of the shots 1,2
     
@@ -1057,7 +1058,8 @@ async def coffee_machine_purge(params: dict):
         slot_number = 2
     else:
         raise ValueError(f"Invalid triple shot not supported: {coffee_t}")
-    coffee_t = 3
+
+    coffee_t=3    
     # slot_number = params.get("slot_number", 1)
     response = {"data": None}
 
@@ -1107,8 +1109,13 @@ async def coffee_machine_purge(params: dict):
     
     client.publish("automation_coffee_machine", payload, qos=1)
 
-    timeout = params.get("timeout", 120)
-    start_time = time.time()
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
     while response["data"] is None and (time.time() - start_time) < timeout:
         await asyncio.sleep(0.1)
 
@@ -1250,9 +1257,9 @@ async def tampering_machine(params: dict):
     # If espresso = 2, send tampering: 1, calibration: 2
     tampering = 1  # Always 1
     if espresso_shots == 1:
-        calibration = 5000        ##set values here in ms
+        calibration = 4000        ##set values here in ms
     elif espresso_shots == 2:
-        calibration = 4500        ##set values here in ms
+        calibration = 3750        ##set values here in ms
     else:
         # Default to calibration 1 if unknown shot count
         log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")
