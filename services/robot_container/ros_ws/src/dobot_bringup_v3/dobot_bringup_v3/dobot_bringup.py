@@ -188,12 +188,20 @@ class adderServer(Node):
         Also triggers reconnection on connection errors.
         """
         try:
+            # Check if response is empty or None
+            if not return_t or return_t.strip() == "":
+                self.get_logger().error("Unexpected response format: empty response")
+                if not self.connection_lost:
+                    self.connection_lost = True
+                    self.get_logger().warn("Empty response detected - connection may be unstable.")
+                return (False, -1)
+            
             # Check if this is an error message
             if return_t.startswith("Error"):
                 self.get_logger().error(f"Robot communication error: {return_t}")
                 
                 # Check if it's a connection error
-                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused"]
+                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused", "No valid socket"]
                 is_connection_error = any(err in return_t for err in connection_errors)
                 
                 if is_connection_error and not self.connection_lost:
@@ -205,10 +213,14 @@ class adderServer(Node):
             # Try to parse the normal response format
             bracket_pos = return_t.find("{")
             if bracket_pos == -1:
-                self.get_logger().error(f"Unexpected response format: {return_t}")
+                self.get_logger().error(f"Unexpected response format (no bracket): '{return_t}'")
                 return (False, -1)
             
-            return_tt = return_t[:bracket_pos-1]
+            return_tt = return_t[:bracket_pos-1].strip()
+            if not return_tt:
+                self.get_logger().error(f"Unexpected response format (empty code): '{return_t}'")
+                return (False, -1)
+                
             response_code = int(return_tt)
             
             # Reset reconnection counter on successful command

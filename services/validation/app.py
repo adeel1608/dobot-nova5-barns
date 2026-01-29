@@ -116,6 +116,7 @@ class ValidationServiceApp:
         self.rabbitmq_client.register_handler("update_milk", self.handle_update_milk)
         self.rabbitmq_client.register_handler("update_water", self.handle_update_water)
         self.rabbitmq_client.register_handler("update_syrup", self.handle_update_syrup)
+        self.rabbitmq_client.register_handler("update_sauce", self.handle_update_sauce)
         
         # System handlers
         self.rabbitmq_client.register_handler("health", self.handle_health)
@@ -766,6 +767,35 @@ class ValidationServiceApp:
                 "cup_id": data.get("cup_id"),
                 "passed": False,
                 "error": f"Syrup update failed: {str(e)}"
+            }
+    
+    async def handle_update_sauce(self, data: Dict[Any, Any]) -> Dict[Any, Any]:
+        """
+        Handle sauce update requests from routine service - deducts ONLY sauces.
+        """
+        try:
+            payload = self._extract_routine_payload(data)
+            cup_id = payload.get('cup_id', data.get('cup_id', 'unknown'))
+            request_id = payload.get('request_id', data.get('request_id', 'no-id'))
+            log("INFO", f"Processing sauce update (deduction) request for cup {cup_id}: {request_id}", service="validation")
+            
+            # Use the generic ingredient update method with specific_ingredient="sauce"
+            result = self.main_validation.process_ingredient_update_request(payload, specific_ingredient="sauce")
+            
+            # Send inventory status update events if successful
+            if result.get("passed"):
+                await self.send_inventory_status_event({"sauce"})
+                await self.send_all_inventory_status()
+            
+            return result
+            
+        except Exception as e:
+            log("ERROR", f"Error in update_sauce: {e}", service="validation")
+            return {
+                "request_id": data.get("request_id"),
+                "cup_id": data.get("cup_id"),
+                "passed": False,
+                "error": f"Sauce update failed: {str(e)}"
             }
     
     # =============================================================================

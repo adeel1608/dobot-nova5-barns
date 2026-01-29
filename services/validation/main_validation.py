@@ -34,14 +34,17 @@ MILK_ID_TO_SUBTYPE = {
 }
 
 SYRUP_ID_TO_SUBTYPE = {
-    9: "white_chocolate_sauce",   # white_chocolate -> white_chocolate_sauce
-    10: "caramel_sauce",          # caramel_sauce -> caramel_sauce
-    11: "condense_milk_sauce",    # condense_milk -> condense_milk_sauce
     12: "hazelnut_syrup",         # hazelnut -> hazelnut_syrup
     13: "vanilla_syrup",          # vanilla -> vanilla_syrup
     14: "peached_iced_syrup",     # peach_iced_tea -> peached_iced_syrup
     15: "passion_fruit_iced_syrup", # passion_fruit_puree -> passion_fruit_iced_syrup
     16: "ice_tea_syrup",          # ice_tea -> ice_tea_syrup
+}
+
+SAUCE_ID_TO_SUBTYPE = {
+    9: "white_chocolate_sauce",   # white_chocolate -> white_chocolate_sauce
+    10: "caramel_sauce",          # caramel_sauce -> caramel_sauce
+    11: "condense_milk_sauce",    # condense_milk -> condense_milk_sauce
 }
 
 # Water is special - ID 5 in MILK_MAPPINGS
@@ -1034,6 +1037,15 @@ class MainValidation:
                                 log("WARNING", f"Unknown syrup ID: {numeric_id}", service="validation")
                                 continue
                         
+                        elif ingredient_key == "sauce":
+                            # Map numeric ID to sauce subtype
+                            if numeric_id in SAUCE_ID_TO_SUBTYPE:
+                                inventory_subtype = SAUCE_ID_TO_SUBTYPE[numeric_id]
+                                inventory_category = "sauce"
+                            else:
+                                log("WARNING", f"Unknown sauce ID: {numeric_id}", service="validation")
+                                continue
+                        
                         # If we have a valid mapping, check inventory
                         if inventory_category and inventory_subtype:
                             if inventory_subtype in current_inventory[inventory_category]:
@@ -1308,6 +1320,20 @@ class MainValidation:
                                     "id": numeric_id,
                                     "status": "unknown_id",
                                     "message": f"Unknown syrup ID: {numeric_id}"
+                                }
+                                continue
+                        
+                        elif ingredient_key == "sauce":
+                            # Map numeric ID to sauce subtype
+                            if numeric_id in SAUCE_ID_TO_SUBTYPE:
+                                inventory_subtype = SAUCE_ID_TO_SUBTYPE[numeric_id]
+                                inventory_category = "sauce"
+                            else:
+                                log("WARNING", f"Unknown sauce ID: {numeric_id}", service="validation")
+                                result["details"][f"sauce_id_{numeric_id}"] = {
+                                    "id": numeric_id,
+                                    "status": "unknown_id",
+                                    "message": f"Unknown sauce ID: {numeric_id}"
                                 }
                                 continue
                         

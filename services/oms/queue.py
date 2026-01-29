@@ -186,8 +186,8 @@ def sync_with_database():
         from . import db
         
         # Get all queued orders from database
-        queued_orders = db.get_orders(status='queued')
-        queued_order_ids = [order['id'] for order in queued_orders]
+        queued_orders_result = db.get_orders(status='queued')
+        queued_order_ids = [order['id'] for order in queued_orders_result['orders']]
         
         # Get current queue
         current_queue = get_queue()

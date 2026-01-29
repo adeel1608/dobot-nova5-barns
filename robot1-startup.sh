@@ -612,23 +612,23 @@ start_robot() {
         
         # Determine appropriate position
         j1_val=
-        if   awk "BEGIN {exit !($a1 >= -22.49 && $a1 <=  22.49)}"; then j1_val=0.0
-        elif awk "BEGIN {exit !($a1 >=  22.51 && $a1 <=  67.49)}"; then j1_val=45.0
-        elif awk "BEGIN {exit !($a1 >=  67.51 && $a1 <= 112.49)}"; then j1_val=90.0
-        elif awk "BEGIN {exit !($a1 >= 112.51 && $a1 <= 157.49)}"; then j1_val=135.0
-        elif awk "BEGIN {exit !($a1 >= 157.51 && $a1 <= 202.49)}"; then j1_val=180.0
-        elif awk "BEGIN {exit !($a1 >= 202.51 && $a1 <= 247.49)}"; then j1_val=-135.0
-        elif awk "BEGIN {exit !($a1 >= 247.51 && $a1 <= 292.49)}"; then j1_val=-90.0
-        elif awk "BEGIN {exit !($a1 >= 292.51 && $a1 <= 337.49)}"; then j1_val=-45.0
-        elif awk "BEGIN {exit !($a1 >= 337.51 && $a1 <= 360.00)}"; then j1_val=0.0
-        elif awk "BEGIN {exit !($a1 <= -22.51 && $a1 >= -67.49)}"; then j1_val=-45.0
-        elif awk "BEGIN {exit !($a1 <= -67.51 && $a1 >= -112.49)}"; then j1_val=-90.0
-        elif awk "BEGIN {exit !($a1 <= -112.51 && $a1 >= -157.49)}"; then j1_val=-135.0
-        elif awk "BEGIN {exit !($a1 <= -157.51 && $a1 >= -202.49)}"; then j1_val=-180.0
-        elif awk "BEGIN {exit !($a1 <= -202.51 && $a1 >= -247.49)}"; then j1_val=135.0
-        elif awk "BEGIN {exit !($a1 <= -247.51 && $a1 >= -292.49)}"; then j1_val=90.0
-        elif awk "BEGIN {exit !($a1 <= -292.51 && $a1 >= -337.49)}"; then j1_val=45.0
-        elif awk "BEGIN {exit !($a1 <= -337.51 && $a1 >= -360.00)}"; then j1_val=0.0
+        if   awk -v val="$a1" "BEGIN {exit !(val >= -22.49 && val <=  22.49)}"; then j1_val=0.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >=  22.51 && val <=  67.49)}"; then j1_val=45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >=  67.51 && val <= 112.49)}"; then j1_val=90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 112.51 && val <= 157.49)}"; then j1_val=135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 157.51 && val <= 202.49)}"; then j1_val=180.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 202.51 && val <= 247.49)}"; then j1_val=-135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 247.51 && val <= 292.49)}"; then j1_val=-90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 292.51 && val <= 337.49)}"; then j1_val=-45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 337.51 && val <= 360.00)}"; then j1_val=0.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -22.51 && val >= -67.49)}"; then j1_val=-45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -67.51 && val >= -112.49)}"; then j1_val=-90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -112.51 && val >= -157.49)}"; then j1_val=-135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -157.51 && val >= -202.49)}"; then j1_val=-180.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -202.51 && val >= -247.49)}"; then j1_val=135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -247.51 && val >= -292.49)}"; then j1_val=90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -292.51 && val >= -337.49)}"; then j1_val=45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -337.51 && val >= -360.00)}"; then j1_val=0.0
         fi
         
         if [[ -n "$j1_val" ]]; then

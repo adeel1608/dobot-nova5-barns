@@ -18,27 +18,29 @@ INGREDIENT_DETAILS: Dict[str, Dict[str, Any]] = {}
 
 # Hardcoded mappings for milk and syrups categories
 MILK_MAPPINGS = {
-    "whole_fat": 1,
-    "whole": 1,  # Same as whole_fat
-    "almond": 2,
-    "oat": 3,
-    "soy": 4,
-    "normal_water": 5,  # Water uses milk pump 5
-    "lactose_free": 6,
-    "low_fat": 7,
+    "whole_fat": 20,
+    "whole": 20,  # Same as whole_fat
+    "almond": 18,
+    "oat": 17,
+ # Water uses milk pump 5
+    "lactose_free": 15,
+    "low_fat": 19,
 }
 
 SYRUP_MAPPINGS = {
-    "white_chocolate": 9,
-    "caramel_sauce": 10,
-    "condense_milk": 20,
-    "hazelnut": 12,
-    "vanilla": 13,
-    "peach_iced_tea": 14,
-    "passion_fruit_puree": 15,
-    "ice_tea": 16,
+    "normal_water": 1, 
+    "hazelnut": 14,
+    "vanilla": 7,
+    "peach_iced_tea": 9,
+    "passion_fruit_puree": 11,
+    "ice_tea": 13,
+    "caramel_syrup": 23,
 }
-
+SAUCE_MAPPINGS = {
+    "white_chocolate": 12,
+    "caramel_sauce": 16,
+    "condense_milk": 8,
+}
 
 # ------------------------------------------------------------------------------
 # Dataclasses for parsed order representation
@@ -274,7 +276,7 @@ def _get_ingredient_details(ingredient_id: str) -> Dict[str, Any]:
 
 def _map_ingredient_id(ingredient_id: str, category: str, ingredient_type: str) -> Any:
     """
-    Map ingredient ID to numeric value for milk, water, and syrups categories.
+    Map ingredient ID to numeric value for milk, water, syrups, and sauce categories.
     For other categories, return the original ingredient_id.
     """
     if category == "milk":
@@ -288,6 +290,10 @@ def _map_ingredient_id(ingredient_id: str, category: str, ingredient_type: str) 
     elif category == "syrups":
         # Try to map using type or id
         mapped_id = SYRUP_MAPPINGS.get(ingredient_type) or SYRUP_MAPPINGS.get(ingredient_id)
+        return mapped_id if mapped_id is not None else ingredient_id
+    elif category == "sauce":
+        # Try to map using type or id
+        mapped_id = SAUCE_MAPPINGS.get(ingredient_type) or SAUCE_MAPPINGS.get(ingredient_id)
         return mapped_id if mapped_id is not None else ingredient_id
     else:
         return ingredient_id
