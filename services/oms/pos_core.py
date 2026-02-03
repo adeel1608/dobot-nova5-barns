@@ -42,6 +42,50 @@ SAUCE_MAPPINGS = {
     "condense_milk": 8,
 }
 
+# Cup capacity and ingredient density constants
+CUP_VOLUMES = {
+    "H7": 207,   # 7oz hot cup (ml)
+    "H9": 266,   # 9oz hot cup (ml)
+    "H12": 355,  # 12oz hot cup (ml)
+    "C7": 207,   # 7oz cold cup (ml)
+    "C9": 266,   # 9oz cold cup (ml)
+    "C12": 355,  # 12oz cold cup (ml)
+    "C16": 473,  # 16oz cold cup (ml)
+}
+
+# Ingredient densities (g/ml) for volume conversion
+INGREDIENT_DENSITIES = {
+    "milk": 1.03,
+    "syrups": 1.32,
+    "sauce": 1.35,
+    "espresso": 1.02,
+    "toppings": 1.20,
+    "extras": 1.15,
+}
+
+# Temperature foam percentages (% of milk replaced by foam)
+TEMPERATURE_FOAM_PERCENTAGES = {
+    "kids": 0,
+    "standard": 10,
+    "extra_hot": 15,
+    "regular": 10,  # Alias for standard
+    "normal": 10,   # Default
+}
+
+# Espresso shot weights (in grams)
+ESPRESSO_SHOT_WEIGHTS = {
+    "single_shot": 18,
+    "double_shot": 36,
+    "tripple_shot": 54,
+    "single": 18,
+    "double": 36,
+    "triple": 54,
+    "tripple": 54,  # Typo alias
+}
+
+# Maximum milk substitution percentage (after free space is filled)
+MAX_MILK_SUBSTITUTION_PERCENT = 30
+
 # ------------------------------------------------------------------------------
 # Dataclasses for parsed order representation
 # ------------------------------------------------------------------------------
@@ -66,6 +110,8 @@ class ParsedIngredient:
     foam: Optional[str] = None
     level: Optional[str] = None
     cup_position: Optional[Any] = None
+    adjusted_amount: Optional[float] = None  # Final amount after capacity adjustments
+    milk_reduction_percent: Optional[float] = None  # Percentage reduced for capacity
 
 
 @dataclass
@@ -307,30 +353,41 @@ def _extract_kitchen_info(
     Returns: (kitchen_modifiers, manual_notes)
     """
     ice_level = "normal"
+    ice_amount_grams = None  # Actual ice amount in grams if specified
     temperature = "normal"
     foam = "normal"
     manual_notes = []
 
     for note in kitchen_notes:
         note_type = note.get("type", "").lower()
-        detail = note.get("detail", "").lower()
+        detail = note.get("detail", "").lower() if note.get("detail") else ""
         qty = note.get("qty", 0)
 
-        # If qty is 0, it's a modifier for automation
+        # Handle ice specially - it can have qty > 0 (grams) AND be an automation modifier
+        if "ice" in note_type:
+            ice_level = detail.replace(" ", "_") if detail else ice_level
+            if qty > 0:
+                ice_amount_grams = qty  # Store actual grams for ice adjustment
+            continue  # Don't add ice to manual notes
+        
+        # Temperature and foam with qty=0 are automation modifiers
         if qty == 0:
-            if "ice" in note_type:
-                ice_level = detail.replace(" ", "_")
-            elif "temperature" in note_type or "temprature" in note_type:
+            if "temperature" in note_type or "temprature" in note_type:
                 temperature = detail.replace(" ", "_")
             elif "foam" in note_type:
                 foam = detail.replace(" ", "_")
         else:
-            # If qty > 0, it's a manual note for barista
+            # If qty > 0 and not ice, it's a manual note for barista
             manual_notes.append(
                 {"type": note.get("type"), "quantity": qty, "detail": note.get("detail")}
             )
 
-    kitchen_modifiers = {"ice_level": ice_level, "temperature": temperature, "foam": foam}
+    kitchen_modifiers = {
+        "ice_level": ice_level, 
+        "ice_amount_grams": ice_amount_grams,
+        "temperature": temperature, 
+        "foam": foam
+    }
 
     return kitchen_modifiers, manual_notes
 
@@ -427,12 +484,121 @@ def _apply_ingredient_modifications(
     return final_ingredients
 
 
+def _calculate_milk_adjustments(
+    ingredients: List[Dict[str, Any]], 
+    kitchen_modifiers: Dict[str, Any],
+    cup_size: str
+) -> Tuple[float, float, float]:
+    """
+    Calculate milk adjustments based on three-phase capacity logic.
+    
+    Phase 1: Apply foam reduction based on temperature
+    Phase 2: Calculate free space in cup
+    Phase 3: Apply milk substitution from addon overflow (max 30%)
+    
+    Returns: (foam_reduced_milk, milk_substitution_amount, milk_substitution_percent)
+    """
+    # Find milk ingredient and get base amount
+    milk_ingredient = next((ing for ing in ingredients if ing["category"] == "milk"), None)
+    if not milk_ingredient:
+        return 0.0, 0.0, 0.0
+    
+    base_milk_amount = milk_ingredient.get("quantity", 1) * milk_ingredient.get("unit_amount", 1)
+    
+    # Phase 1: Apply foam reduction based on temperature
+    temperature = kitchen_modifiers.get("temperature", "normal")
+    foam_percent = TEMPERATURE_FOAM_PERCENTAGES.get(temperature, TEMPERATURE_FOAM_PERCENTAGES["normal"])
+    foam_reduced_milk = base_milk_amount * (1 - foam_percent / 100)
+    
+    # Phase 2: Calculate cup free space
+    cup_volume = CUP_VOLUMES.get(cup_size, 266)  # Default to H9
+    
+    # Calculate foam volume (foam takes up space in the cup)
+    foam_volume = base_milk_amount * (foam_percent / 100)
+    
+    # Calculate fixed recipe volume (non-milk ingredients that cannot be adjusted)
+    fixed_recipe_volume = foam_volume  # Foam takes up cup space
+    
+    # Categories that don't occupy liquid volume OR are handled separately
+    skip_categories = ["cups", "position", "ice", "milk"]  # milk handled separately
+    
+    for ing in ingredients:
+        category = ing.get("category", "")
+        
+        # Skip non-liquid categories, milk (calculated separately), and add-ons
+        if category in skip_categories or ing.get("is_addon"):
+            continue
+            
+        qty = ing.get("quantity", 1)
+        amount = ing.get("unit_amount", 0)
+        base_units = ing.get("base_units", "")
+        
+        # Direct liquid volumes (ml)
+        if base_units == "ml":
+            fixed_recipe_volume += qty * amount
+        # Espresso shots - use actual weights
+        elif base_units == "shots" or category == "espresso":
+            espresso_type = (ing.get("type", "double_shot") or "double_shot").lower().replace(" ", "_")
+            shot_weight = ESPRESSO_SHOT_WEIGHTS.get(espresso_type, ESPRESSO_SHOT_WEIGHTS["double_shot"])
+            espresso_volume = (shot_weight * qty) / INGREDIENT_DENSITIES.get("espresso", 1.02)
+            fixed_recipe_volume += espresso_volume
+        # Weight-based ingredients (grams) - convert to volume
+        elif base_units in ["grams", "g"]:
+            density = INGREDIENT_DENSITIES.get(category, 1.0)
+            volume = (amount * qty) / density
+            fixed_recipe_volume += volume
+    
+    # Phase 3: Calculate addon volume
+    total_addon_volume = 0.0
+    for ing in ingredients:
+        if ing.get("is_addon"):
+            category = ing.get("category", "extras")
+            
+            # Skip ice - it's measured in grams and doesn't affect liquid volume
+            if category == "ice":
+                continue
+            
+            qty = ing.get("quantity", 1)
+            weight = ing.get("unit_amount", 10) * qty  # Assume weight in grams
+            
+            # Convert weight to volume using density
+            density = INGREDIENT_DENSITIES.get(category, INGREDIENT_DENSITIES.get("extras", 1.15))
+            volume = weight / density
+            total_addon_volume += volume
+    
+    # Calculate available space for milk
+    # Cup capacity - fixed ingredients - add-ons = space available for milk
+    space_for_milk = cup_volume - fixed_recipe_volume - total_addon_volume
+    
+    # Milk must be reduced if foam_reduced_milk exceeds available space
+    if space_for_milk < foam_reduced_milk:
+        milk_substitution_amount = foam_reduced_milk - max(0, space_for_milk)
+    else:
+        milk_substitution_amount = 0
+    
+    milk_substitution_percent = (milk_substitution_amount / foam_reduced_milk * 100) if foam_reduced_milk > 0 else 0
+    
+    # Check if exceeds 30% limit
+    max_substitution = foam_reduced_milk * (MAX_MILK_SUBSTITUTION_PERCENT / 100)
+    if milk_substitution_amount > max_substitution:
+        print(f"WARNING: Milk substitution ({milk_substitution_percent:.1f}%) exceeds {MAX_MILK_SUBSTITUTION_PERCENT}% limit")
+    
+    return foam_reduced_milk, milk_substitution_amount, milk_substitution_percent
+
+
 def _create_ingredient_list(
-    ingredients: List[Dict[str, Any]], kitchen_modifiers: Dict[str, Any]
+    ingredients: List[Dict[str, Any]], 
+    kitchen_modifiers: Dict[str, Any],
+    cup_size: str = "H9"
 ) -> List[ParsedIngredient]:
     """Create flat list of ingredients with kitchen modifications applied."""
 
     ingredient_list: List[ParsedIngredient] = []
+    
+    # Calculate milk adjustments using three-phase logic
+    foam_reduced_milk, milk_substitution_amount, milk_substitution_percent = _calculate_milk_adjustments(
+        ingredients, kitchen_modifiers, cup_size
+    )
 
     for ingredient in ingredients:
         category = ingredient["category"]
@@ -481,26 +647,42 @@ def _create_ingredient_list(
             ingredient_obj.temperature = kitchen_modifiers.get("temperature", "normal")
 
         # Apply foam to milk ingredients
-        if category == "milk" and ingredient.get("foam_sensitive", False):
-            ingredient_obj.foam = kitchen_modifiers.get("foam", "normal")
+        if category == "milk":
+            # Apply foam setting if ingredient is foam-sensitive
+            if ingredient.get("foam_sensitive", False):
+                ingredient_obj.foam = kitchen_modifiers.get("foam", "normal")
+            
+            # ALWAYS apply milk adjustments from capacity calculation for milk ingredients
+            if foam_reduced_milk > 0:
+                adjusted_milk = foam_reduced_milk - milk_substitution_amount
+                ingredient_obj.adjusted_amount = adjusted_milk
+                ingredient_obj.milk_reduction_percent = milk_substitution_percent
+                # Update total_amount to reflect adjustment
+                ingredient_obj.total_amount = adjusted_milk
 
         # Apply ice level to ice ingredients
-        if category == "ice" and ingredient.get("ice_sensitive", False):
+        if category == "ice":
             ice_level = kitchen_modifiers.get("ice_level", "normal")
+            ice_amount_grams = kitchen_modifiers.get("ice_amount_grams")
             ingredient_obj.level = ice_level
 
-            # Adjust quantity based on ice level
-            base_qty = ingredient.get("quantity", 8)
-            if ice_level == "extra" or ice_level == "extra_ice":
-                ingredient_obj.quantity = int(base_qty * 1.5)
-            elif ice_level == "light" or ice_level == "light_ice":
-                ingredient_obj.quantity = int(base_qty * 0.5)
-            elif ice_level == "no_ice":
-                ingredient_obj.quantity = 0
-            # Recalculate total amount
-            ingredient_obj.total_amount = (
-                ingredient_obj.quantity * ingredient_obj.unit_amount
-            )
+            # If explicit gram amount was provided, use it directly
+            if ice_amount_grams is not None:
+                ingredient_obj.total_amount = ice_amount_grams
+                ingredient_obj.adjusted_amount = ice_amount_grams
+            elif ingredient.get("ice_sensitive", False):
+                # Adjust quantity based on ice level (legacy behavior)
+                base_qty = ingredient.get("quantity", 8)
+                if ice_level == "extra" or ice_level == "extra_ice":
+                    ingredient_obj.quantity = int(base_qty * 1.5)
+                elif ice_level == "light" or ice_level == "light_ice":
+                    ingredient_obj.quantity = int(base_qty * 0.5)
+                elif ice_level == "no_ice":
+                    ingredient_obj.quantity = 0
+                # Recalculate total amount
+                ingredient_obj.total_amount = (
+                    ingredient_obj.quantity * ingredient_obj.unit_amount
+                )
 
         ingredient_list.append(ingredient_obj)
 
@@ -539,9 +721,15 @@ def parse_transaction(tx: Dict[str, Any]) -> ParsedOrder:
         final_ingredients = _apply_ingredient_modifications(
             base_ingredients, modifications, kitchen_modifiers
         )
+        
+        # Get cup size from ingredients for capacity calculation
+        cup_size = "H9"  # Default
+        cup_ingredient = next((ing for ing in final_ingredients if ing.get("category") == "cups"), None)
+        if cup_ingredient:
+            cup_size = cup_ingredient.get("type", "H9")
 
         # Create flat ingredient list with modifiers applied
-        ingredients_list = _create_ingredient_list(final_ingredients, kitchen_modifiers)
+        ingredients_list = _create_ingredient_list(final_ingredients, kitchen_modifiers, cup_size)
 
         # Filter validation requirements (excluding items that don't need validation)
         validation_required = []
