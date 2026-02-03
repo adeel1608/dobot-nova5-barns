@@ -403,8 +403,28 @@ def _apply_ingredient_modifications(
     final_ingredients = deepcopy(base_ingredients)
 
 
-    # Apply replacements (modifications where isAddon=False, isModified=True)
+    # Handle ice modifications separately (ice uses grams directly)
     for mod in modifications:
+        if mod.get("isIceModification") or (mod.get("category") == "ice" and mod.get("isModified")):
+            initial_id = mod.get("initialItemId")
+            ice_amount_grams = mod.get("iceAmountGrams") or mod.get("qty", 0)
+            
+            # Find and update the ice ingredient with actual gram amount
+            for i, ingredient in enumerate(final_ingredients):
+                if ingredient.get("ingredient_id") == initial_id or ingredient.get("category") == "ice":
+                    # Update ice with actual gram amount
+                    final_ingredients[i]["unit_amount"] = ice_amount_grams
+                    final_ingredients[i]["quantity"] = 1  # quantity is 1, unit_amount is grams
+                    final_ingredients[i]["modified"] = True
+                    final_ingredients[i]["ice_amount_grams"] = ice_amount_grams
+                    break
+    
+    # Apply replacements (modifications where isAddon=False, isModified=True, but NOT ice)
+    for mod in modifications:
+        # Skip ice modifications (handled above)
+        if mod.get("isIceModification") or mod.get("category") == "ice":
+            continue
+            
         if not mod.get("isAddon", False) and mod.get("isModified"):
             initial_id = mod.get("initialItemId")
             new_id = mod.get("itemId")
@@ -615,21 +635,43 @@ def _create_ingredient_list(
         if category == "position" and cup_pos_value is None:
             cup_pos_value = ingredient.get("unit_amount", 1)
         
-        # Create base ingredient object
-        ingredient_obj = ParsedIngredient(
-            category=ingredient["category"],
-            type=ingredient["type"],
-            ingredient_id=mapped_ingredient_id,
-            ingredient_name=ingredient.get(
-                "ingredient_name", _lookup_ingredient_name(original_ingredient_id)
-            ),
-            quantity=ingredient.get("quantity", 1),
-            unit_amount=ingredient.get("unit_amount", 1),
-            total_amount=ingredient.get("quantity", 1) * ingredient.get("unit_amount", 1),
-            automated=ingredient.get("automated", True),
-            needs_validation=ingredient.get("needs_validation", True),
-            cup_position=cup_pos_value
-        )
+        # For ice, use ice_amount_grams directly if available (skip quantity * unit_amount multiplication)
+        # Check both ingredient and kitchen_modifiers for ice grams
+        ice_grams_from_ingredient = ingredient.get("ice_amount_grams")
+        ice_grams_from_modifiers = kitchen_modifiers.get("ice_amount_grams")
+        ice_grams = ice_grams_from_ingredient or ice_grams_from_modifiers
+        
+        if category == "ice" and ice_grams:
+            ingredient_obj = ParsedIngredient(
+                category=ingredient["category"],
+                type=ingredient["type"],
+                ingredient_id=mapped_ingredient_id,
+                ingredient_name=ingredient.get(
+                    "ingredient_name", _lookup_ingredient_name(original_ingredient_id)
+                ),
+                quantity=1,
+                unit_amount=ice_grams,
+                total_amount=ice_grams,  # Use grams directly, no multiplication
+                automated=ingredient.get("automated", True),
+                needs_validation=ingredient.get("needs_validation", True),
+                cup_position=cup_pos_value
+            )
+        else:
+            # Create base ingredient object
+            ingredient_obj = ParsedIngredient(
+                category=ingredient["category"],
+                type=ingredient["type"],
+                ingredient_id=mapped_ingredient_id,
+                ingredient_name=ingredient.get(
+                    "ingredient_name", _lookup_ingredient_name(original_ingredient_id)
+                ),
+                quantity=ingredient.get("quantity", 1),
+                unit_amount=ingredient.get("unit_amount", 1),
+                total_amount=ingredient.get("quantity", 1) * ingredient.get("unit_amount", 1),
+                automated=ingredient.get("automated", True),
+                needs_validation=ingredient.get("needs_validation", True),
+                cup_position=cup_pos_value
+            )
 
         # Add modification flags if present
         if ingredient.get("modified"):
@@ -663,15 +705,14 @@ def _create_ingredient_list(
         # Apply ice level to ice ingredients
         if category == "ice":
             ice_level = kitchen_modifiers.get("ice_level", "normal")
-            ice_amount_grams = kitchen_modifiers.get("ice_amount_grams")
             ingredient_obj.level = ice_level
-
-            # If explicit gram amount was provided, use it directly
-            if ice_amount_grams is not None:
-                ingredient_obj.total_amount = ice_amount_grams
-                ingredient_obj.adjusted_amount = ice_amount_grams
-            elif ingredient.get("ice_sensitive", False):
-                # Adjust quantity based on ice level (legacy behavior)
+            
+            # If ice_grams was already set at creation time, use that
+            # Otherwise fall back to legacy ice level behavior for unmodified ice
+            if ice_grams:
+                ingredient_obj.adjusted_amount = ice_grams
+            elif ingredient.get("ice_sensitive", False) and not ingredient.get("ice_amount_grams"):
+                # Legacy behavior for drinks where ice wasn't explicitly modified
                 base_qty = ingredient.get("quantity", 8)
                 if ice_level == "extra" or ice_level == "extra_ice":
                     ingredient_obj.quantity = int(base_qty * 1.5)

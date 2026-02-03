@@ -101,6 +101,54 @@ export default function ItemCustomization({
     }
   }, [item.selectedMenuItem, item.kitchen_notes, itemId, updateCartItem]);
   
+  // Initialize ice amount in item_ingredients when item is first added
+  const iceInitialized = React.useRef(false);
+  
+  useEffect(() => {
+    if (!item.selectedMenuItem) return;
+    if (iceInitialized.current) return;
+    
+    const iceIngredient = item.selectedMenuItem.default_ingredients?.find(
+      ing => ing.category === 'ice'
+    );
+    
+    if (!iceIngredient) {
+      iceInitialized.current = true;
+      return;
+    }
+    
+    // Check if ice modification already exists in item_ingredients
+    const existingIceMod = (item.item_ingredients || []).find(
+      mod => mod.isIceModification || mod.category === 'ice'
+    );
+    
+    // If no ice modification exists, add the default
+    if (!existingIceMod) {
+      iceInitialized.current = true;
+      const defaultIceAmount = Math.min(
+        (iceIngredient.unit_amount || 0) * (iceIngredient.quantity || 1), 
+        300
+      );
+      
+      const iceModification = {
+        itemId: iceIngredient.ingredient_id,
+        initialItemId: iceIngredient.ingredient_id,
+        category: 'ice',
+        isModified: true,
+        isAddon: false,
+        isIceModification: true,
+        iceAmountGrams: defaultIceAmount,
+        qty: defaultIceAmount,
+      };
+      
+      updateCartItem(itemId, {
+        item_ingredients: [...(item.item_ingredients || []), iceModification]
+      });
+    } else {
+      iceInitialized.current = true;
+    }
+  }, [item.selectedMenuItem, item.item_ingredients, itemId, updateCartItem]);
+  
   // Capacity calculation state
   const [capacityInfo, setCapacityInfo] = useState(null);
   
@@ -381,41 +429,42 @@ export default function ItemCustomization({
     
     setIceAmount(newAmount);
     
-    // Update kitchen notes with ice level
+    // Get ice ingredient details
     const iceIngredient = item.selectedMenuItem?.default_ingredients?.find(
       ing => ing.category === 'ice'
     );
     
     if (!iceIngredient) return;
     
-    const defaultAmount = Math.min((iceIngredient.unit_amount || 0) * (iceIngredient.quantity || 1), 300);
-    
-    // Determine ice level based on amount
-    let iceLevel = 'normal';
-    if (newAmount === 0) {
-      iceLevel = 'no_ice';
-    } else if (newAmount < defaultAmount * 0.7) {
-      iceLevel = 'light';
-    } else if (newAmount > defaultAmount * 1.3) {
-      iceLevel = 'extra';
-    }
-    
-    // Add or update ice note in kitchen notes
-    const existingIceIndex = item.kitchen_notes.findIndex(
-      note => note.type.toLowerCase().includes('ice')
+    // Update ice as an ingredient modification in item_ingredients (not kitchen_notes)
+    // This ensures the actual gram amount is sent in the order
+    const existingIceModIndex = (item.item_ingredients || []).findIndex(
+      mod => mod.category === 'ice' && mod.isIceModification
     );
     
-    if (existingIceIndex >= 0) {
-      updateKitchenNote(itemId, existingIceIndex, 'detail', iceLevel);
-      updateKitchenNote(itemId, existingIceIndex, 'qty', newAmount);
+    if (existingIceModIndex >= 0) {
+      // Update existing ice modification
+      const updatedIngredients = [...(item.item_ingredients || [])];
+      updatedIngredients[existingIceModIndex] = {
+        ...updatedIngredients[existingIceModIndex],
+        iceAmountGrams: newAmount,
+        qty: newAmount,  // qty in grams for ice
+      };
+      updateCartItem(itemId, { item_ingredients: updatedIngredients });
     } else {
-      const iceNote = {
-        type: 'Ice',
-        detail: iceLevel,
-        qty: newAmount,
+      // Add new ice modification
+      const iceModification = {
+        itemId: iceIngredient.ingredient_id,
+        initialItemId: iceIngredient.ingredient_id,
+        category: 'ice',
+        isModified: true,
+        isAddon: false,
+        isIceModification: true,  // Flag to identify ice modifications
+        iceAmountGrams: newAmount,
+        qty: newAmount,  // qty in grams for ice
       };
       updateCartItem(itemId, {
-        kitchen_notes: [...(item.kitchen_notes || []), iceNote]
+        item_ingredients: [...(item.item_ingredients || []), iceModification]
       });
     }
   };
