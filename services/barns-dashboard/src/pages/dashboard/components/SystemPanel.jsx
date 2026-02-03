@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
+import { SERVICE_OFFLINE_MESSAGE } from '../../../utils/errorHandler';
 
 export default function SystemPanel() {
-  const { 
-    systemStatus, 
-    emergencyStop, 
-    resumeOperations, 
-    isLoading, 
+  const { t } = useTranslation('dashboard');
+  const {
+    systemStatus,
+    emergencyStop,
+    resumeOperations,
+    isLoading,
     errors,
-    orders 
+    orders
   } = useStore();
   
   const [activeTab, setActiveTab] = useState('overview');
@@ -235,7 +238,7 @@ export default function SystemPanel() {
         {errors.system && (
           <div className="p-2 bg-red-50 border border-red-200 rounded mt-3">
             <div className="text-xs text-red-700">
-              <span className="font-medium">Error:</span> {errors.system}
+              <span className="font-medium">{t('error')}:</span> {errors.system === SERVICE_OFFLINE_MESSAGE ? t('serviceOfflineUnreachable') : errors.system}
             </div>
           </div>
         )}

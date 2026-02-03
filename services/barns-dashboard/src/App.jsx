@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import useStore from "./store";
+import { useTranslationsStore, useTranslation } from "./store/translationsStore";
 import DashboardPage from "./pages/dashboard";
 import AlertsPage from "./pages/alerts";
 import InventoryPage from "./pages/inventory";
@@ -26,10 +27,25 @@ export default function App() {
     alerts,
   } = useStore();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // const [activeTab, setActiveTab] = useState("dashboard");
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const langDropdownRef = useRef(null);
+  const { languages, currentLocale, setCurrentLocale } = useTranslationsStore();
+  const { t: tApp } = useTranslation("app");
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target)) {
+        setLangDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const [activeTab, setActiveTab] = useState(() => {
-    const hash = window.location.hash.replace("#/", "");
-    return hash || "dashboard";
+    const hash = window.location.hash.replace("#/", "").trim();
+    const main = hash ? hash.split("/")[0] : "";
+    return main || "dashboard";
   });
 
   useEffect(() => {
@@ -133,7 +149,7 @@ export default function App() {
                       : "text-gray-400 hover:text-green-800"
                   }`}
                 >
-                  Dashboard
+                  {tApp("navDashboard")}
                 </button>
                 <button
                   onClick={() => {
@@ -147,7 +163,7 @@ export default function App() {
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
                   }`}
                 >
-                  Notifications
+                  {tApp("navNotifications")}
                 </button>
                 <button
                   onClick={() => {
@@ -161,7 +177,7 @@ export default function App() {
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
                   }`}
                 >
-                  Inventory
+                  {tApp("navInventory")}
                 </button>
                 <button
                   onClick={() => {
@@ -175,7 +191,7 @@ export default function App() {
                       : "text-gray-400 hover:text-white hover:bg-green-800"
                   }`}
                 >
-                  Cameras
+                  {tApp("navCameras")}
                 </button>
                 <button
                   onClick={() => {
@@ -189,7 +205,7 @@ export default function App() {
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
                   }`}
                 >
-                  Settings
+                  {tApp("navSettings")}
                 </button>
               </div>
             </div>
@@ -204,6 +220,42 @@ export default function App() {
                 className="h-10 w-auto object-contain pt-2"
                 style={{ height: '40px' }}
               />
+
+              {/* Language selector */}
+              <div className="relative" ref={langDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setLangDropdownOpen(!langDropdownOpen)}
+                  className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-200 hover:text-gray-900 transition-colors flex-shrink-0"
+                  title="Change language"
+                  aria-label="Change language"
+                >
+                  <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                </button>
+                {langDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        type="button"
+                        onClick={() => {
+                          setCurrentLocale(lang.code);
+                          setLangDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          currentLocale === lang.code
+                            ? "bg-green-50 text-green-800 font-medium"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {lang.name} ({lang.code})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               
               {/* Notification Bell */}
               <div className="relative">
@@ -257,12 +309,12 @@ export default function App() {
           <div className="lg:hidden mt-4 pt-4 border-t border-gray-300">
             <div className="flex flex-wrap gap-2">
               {[
-                { key: "dashboard", label: "Dashboard" },
-                { key: "alerts", label: "Notifications" },
-                { key: "inventory", label: "Inventory" },
-                { key: "cameras", label: "Cameras" },
-                { key: "settings", label: "Settings" }
-              ].map(({ key, label }) => (
+                { key: "dashboard", labelKey: "navDashboard" },
+                { key: "alerts", labelKey: "navNotifications" },
+                { key: "inventory", labelKey: "navInventory" },
+                { key: "cameras", labelKey: "navCameras" },
+                { key: "settings", labelKey: "navSettings" }
+              ].map(({ key, labelKey }) => (
                 <button
                   key={key}
                   onClick={() => {
@@ -276,7 +328,7 @@ export default function App() {
                       : "text-gray-600 hover:text-green-800"
                   }`}
                 >
-                  {label}
+                  {tApp(labelKey)}
                 </button>
               ))}
             </div>

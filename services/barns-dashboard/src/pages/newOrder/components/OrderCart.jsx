@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from '../../../store/translationsStore';
 import ItemCustomization from './ItemCustomization';
 
 export default function OrderCart({
@@ -24,27 +25,26 @@ export default function OrderCart({
   handleCancel,
   isLoading
 }) {
+  const { t } = useTranslation('newOrder');
   const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div className="order-cart">
-      {/* Cart Header */}
       <div className="cart-header">
-        <h2 className="cart-title">Your Order</h2>
+        <h2 className="cart-title">{t('yourOrder')}</h2>
         <div className="cart-count">
-          {totalItems} item{totalItems !== 1 ? 's' : ''}
+          {totalItems} {t('totalItems')}
         </div>
       </div>
 
-      {/* Cart Items */}
       <div className="cart-items">
         {cartItems.length === 0 ? (
           <div className="empty-cart">
             <svg className="empty-cart-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
             </svg>
-            <p className="empty-cart-text">Your cart is empty</p>
-            <p className="empty-cart-subtext">Add items from the menu to get started</p>
+            <p className="empty-cart-text">{t('cartEmpty')}</p>
+            <p className="empty-cart-subtext">{t('addItemsToStart')}</p>
           </div>
         ) : (
           cartItems.map((item) => (
@@ -58,7 +58,7 @@ export default function OrderCart({
                 <button
                   onClick={() => removeFromCart(item.id)}
                   className="remove-item-btn"
-                  title="Remove item"
+                  title={t('removeItem')}
                 >
                   <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -68,7 +68,7 @@ export default function OrderCart({
 
               {/* Quantity Controls */}
               <div className="quantity-controls">
-                <label className="quantity-label">Quantity:</label>
+                <label className="quantity-label">{t('quantity')}:</label>
                 <div className="quantity-buttons">
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
@@ -94,7 +94,7 @@ export default function OrderCart({
                 <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                 </svg>
-                Customize
+                {t('customize')}
                 <svg 
                   className={`chevron ${item.isCustomizeOpen ? 'open' : ''}`} 
                   fill="none" 
@@ -149,7 +149,7 @@ export default function OrderCart({
         {cartItems.length > 0 && (
           <div className="order-summary">
             <div className="summary-row">
-              <span className="summary-label">Total Items:</span>
+              <span className="summary-label">{t('totalItems')}:</span>
               <span className="summary-value">{totalItems}</span>
             </div>
           </div>
@@ -162,7 +162,7 @@ export default function OrderCart({
             disabled={isLoading}
             className="btn-cancel"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             onClick={handleSubmitOrder}
@@ -175,14 +175,14 @@ export default function OrderCart({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Processing...
+                {t('processing')}
               </>
             ) : (
               <>
                 <svg className="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                Process Order
+                {t('processOrder')}
               </>
             )}
           </button>

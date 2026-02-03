@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from '../../../store/translationsStore';
 import DrinkIcon from './DrinkIcon';
 
 export default function MenuGrid({
@@ -16,6 +17,7 @@ export default function MenuGrid({
   categories = ['all'],
   addToCart = () => {}
 }) {
+  const { t } = useTranslation('newOrder');
   // Get available sizes for a drink
   const getSizesForDrink = (drinkName) => {
     if (!menuItems || !Array.isArray(menuItems)) return [];
@@ -52,7 +54,7 @@ export default function MenuGrid({
           </svg>
           <input
             type="text"
-            placeholder="Search drinks..."
+            placeholder={t('searchDrinks')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
@@ -75,7 +77,7 @@ export default function MenuGrid({
               onClick={() => setSelectedCategory(category)}
               className={`category-btn ${selectedCategory === category ? 'active' : ''}`}
             >
-              {category === 'all' ? 'All Drinks' : category}
+              {category === 'all' ? t('allDrinks') : category}
             </button>
           ))}
         </div>
@@ -88,8 +90,8 @@ export default function MenuGrid({
             <svg className="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <p className="empty-text">No drinks found</p>
-            <p className="empty-subtext">Try adjusting your search or category filter</p>
+            <p className="empty-text">{t('noDrinksFound')}</p>
+            <p className="empty-subtext">{t('tryAdjustSearch')}</p>
           </div>
         ) : (
           drinkNames.map(drinkName => {

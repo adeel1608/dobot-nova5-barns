@@ -92,12 +92,40 @@ ls -la dist/
 # Serve with nginx (handled by Docker)
 ```
 
-### Docker Deployment
+### Docker Deployment (production build)
 
 ```bash
 docker-compose up -d dashboard
 # Access at http://localhost:3000
 ```
+
+### Run with Docker Dev (hot reload, easy to change code)
+
+Use this when you want to run the full stack and edit the dashboard with live reload.
+
+1. **Start Docker Desktop** (or ensure the Docker daemon is running).
+
+2. From the repo root (`BARNS/`), start the dev stack:
+
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d
+   ```
+
+3. Open the dashboard at **http://localhost:3000**. The dashboard runs the Vite dev server inside a container; the app source is mounted from `services/barns-dashboard/`. Edit any file under `services/barns-dashboard/src/` (or related config) and save; the browser will hot-reload.
+
+4. To view logs (e.g. dashboard or api-bridge):
+
+   ```bash
+   docker compose -f docker-compose.dev.yml logs -f dashboard
+   ```
+
+5. To stop the stack:
+
+   ```bash
+   docker compose -f docker-compose.dev.yml down
+   ```
+
+Backend services (API bridge on 8000, video stream on 8001, InfluxDB on 8086, etc.) are started by the same compose file and are used by the dashboard.
 
 ## Configuration
 
@@ -139,8 +167,8 @@ Served via nginx in production (port 80 internal, 3000 external).
    - Trend visualizations
 
 5. **Settings** (`src/pages/settings/`)
-   - System configuration
-   - User preferences
+   - Monitoring, System Logs, Ingredient Settings
+   - **Translations**: Add and edit per-page language translations. Users can add languages, add translation keys per page, and set text for each key per language. Data is stored in localStorage. To use translations in a page, import `useTranslation` from the store and call `t('key')` for each label; the app display language is set in Settings > Translations.
 
 ### API Integration
 
