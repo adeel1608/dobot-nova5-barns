@@ -90,6 +90,8 @@ class ArucoPerceptionNode(Node):
         # Intrinsics flags
         self.camera_info_received = False
         self.depth_info_received  = False
+        self.image_received       = False
+        self.depth_image_received = False
 
         # Latest frames
         self.latest_depth_image = None
@@ -348,4 +350,7 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
