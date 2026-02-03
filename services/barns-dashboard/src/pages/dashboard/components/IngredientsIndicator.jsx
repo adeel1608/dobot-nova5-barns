@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useInventoryStore } from '../../../store/inventoryStore';
+import { useTranslation } from '../../../store/translationsStore';
 import { CATEGORY_INFO } from '../../../utils/inventoryData';
 import useStore from '../../../store';
 // import socket from '../../../utils/socketConfigure'; // Removed old Socket.IO - using WebSocket now
@@ -9,7 +10,7 @@ const IngredientsIndicator = () => {
     inventoryStatus,
     fetchInventoryStatus,
   } = useInventoryStore();
-
+  const { t } = useTranslation('dashboard');
   const { navigateToTab } = useStore();
   // const [isSocketConnected, setSocketConnected] = useState(socket.connected); // Removed old Socket.IO
   const [isSocketConnected, setSocketConnected] = useState(false);
@@ -159,13 +160,13 @@ const IngredientsIndicator = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">Inventory Status</h2>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">{t('inventoryStatus')}</h2>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-400">Live</span>
+          <span className="text-xs text-gray-400">{t('live')}</span>
           <div
             className={`w-2 h-2 rounded-full ${isSocketConnected ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}
-            title={isSocketConnected ? 'Connected' : 'Disconnected'}
+            title={isSocketConnected ? t('connected') : t('disconnected')}
           ></div>
         </div>
       </div>
@@ -232,8 +233,8 @@ const IngredientsIndicator = () => {
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
             </svg>
           </div>
-          <h4 className="text-sm font-medium text-gray-700 mb-1">All Items Stocked</h4>
-          <p className="text-xs text-gray-500">All inventory items are at 100%</p>
+          <h4 className="text-sm font-medium text-gray-700 mb-1">{t('allItemsStocked')}</h4>
+          <p className="text-xs text-gray-500">{t('allInventoryFull')}</p>
         </div>
       )}
     </div>

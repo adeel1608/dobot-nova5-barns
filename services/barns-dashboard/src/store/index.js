@@ -304,4 +304,5 @@ export const useMainStore = create((set, get) => ({
 }));
 
 // Export individual stores for direct usage
-export { useDashboardStore, useAlertsStore, useInventoryStore, useCamerasStore, useLogsStore }; 
+export { useDashboardStore, useAlertsStore, useInventoryStore, useCamerasStore, useLogsStore };
+export { useTranslationsStore, useTranslation } from './translationsStore'; 

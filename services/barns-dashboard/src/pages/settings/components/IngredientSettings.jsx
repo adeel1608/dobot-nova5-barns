@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { inventoryAPI } from '../../../api';
 import { apiClient } from '../../../api/base';
+import { useTranslation } from '../../../store/translationsStore';
 
 export default function IngredientSettings() {
+  const { t } = useTranslation('settings');
   const [ingredientData, setIngredientData] = useState({});
   const [editedValues, setEditedValues] = useState({});
   const [loading, setLoading] = useState(true);
@@ -158,12 +160,12 @@ export default function IngredientSettings() {
   };
 
   const categories = [
-    { id: 'all', name: 'All Categories' },
-    { id: 'coffee_beans', name: 'Coffee Beans' },
-    { id: 'cups', name: 'Cups' },
-    { id: 'milk', name: 'Milk' },
-    { id: 'syrups', name: 'Syrups' },
-    { id: 'premixes', name: 'Premixes' }
+    { id: 'all', nameKey: 'allCategories' },
+    { id: 'coffee_beans', nameKey: 'coffeeBeans' },
+    { id: 'cups', nameKey: 'cups' },
+    { id: 'milk', nameKey: 'milk' },
+    { id: 'syrups', nameKey: 'syrups' },
+    { id: 'premixes', nameKey: 'premixes' }
   ];
 
   const formatName = (str) => {
@@ -190,7 +192,7 @@ export default function IngredientSettings() {
       <div className="p-6 bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Loading ingredient settings...</span>
+          <span className="ml-3 text-gray-600">{t('ingredientsLoading')}</span>
         </div>
       </div>
     );
@@ -226,9 +228,9 @@ export default function IngredientSettings() {
       <div className="p-6 pb-0 flex-shrink-0">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Ingredient Capacity Settings</h2>
+            <h2 className="text-xl font-bold text-gray-900">{t('ingredientsTitle')}</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Configure maximum capacity and threshold limits for inventory ingredients
+              {t('ingredientsSubtitle')}
             </p>
           </div>
           
@@ -239,7 +241,7 @@ export default function IngredientSettings() {
                 disabled={saving}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
-                Reset
+                {t('reset')}
               </button>
               <button
                 onClick={handleSave}
@@ -249,14 +251,14 @@ export default function IngredientSettings() {
                 {saving ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Saving...
+                    {t('saving')}
                   </>
                 ) : (
                   <>
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    Save Changes
+                    {t('saveChanges')}
                   </>
                 )}
               </button>
@@ -269,7 +271,7 @@ export default function IngredientSettings() {
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search ingredients..."
+              placeholder={t('searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -285,7 +287,7 @@ export default function IngredientSettings() {
             className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {categories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
+              <option key={cat.id} value={cat.id}>{t(cat.nameKey)}</option>
             ))}
           </select>
         </div>
@@ -298,8 +300,8 @@ export default function IngredientSettings() {
             <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
             </svg>
-            <p className="text-lg font-medium mb-2">No ingredients found</p>
-            <p className="text-sm">Try adjusting your search or filter criteria</p>
+            <p className="text-lg font-medium mb-2">{t('noIngredientsFound')}</p>
+            <p className="text-sm">{t('tryCriteria')}</p>
           </div>
         ) : (
             <div className="space-y-6">
@@ -317,7 +319,7 @@ export default function IngredientSettings() {
                     <span className="text-2xl mr-3">{getCategoryIcon(category)}</span>
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900">{formatName(category)}</h3>
-                      <p className="text-xs text-gray-600">{Object.keys(subtypes).length} item(s)</p>
+                      <p className="text-xs text-gray-600">{Object.keys(subtypes).length} {t('itemsCount')}</p>
                     </div>
                   </div>
                 </div>
@@ -328,19 +330,19 @@ export default function IngredientSettings() {
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          Ingredient
+                          {t('ingredient')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          Current Amount
+                          {t('currentAmount')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          Max Capacity
+                          {t('maxCapacity')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          Warning Threshold
+                          {t('warningThreshold')}
                         </th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                          Critical Threshold
+                          {t('criticalThreshold')}
                         </th>
                       </tr>
                     </thead>

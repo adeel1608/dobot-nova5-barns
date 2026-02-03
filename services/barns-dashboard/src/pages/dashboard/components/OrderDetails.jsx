@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
 import stop from '../../../assets/stop.png';
 import coffee from '../../../assets/Coffee.png';
 import lighting from '../../../assets/lighting.png';
@@ -7,6 +8,7 @@ import dots from '../../../assets/dots.png';
 import progressing from '../../../assets/progressing.png';
 import circledots from '../../../assets/circledots.png';
 export default function OrderDetails() {
+  const { t } = useTranslation('dashboard');
   const { orders, schedulerTasks, schedulerTaskStatus, schedulerStatusMessage, taskTimings, updateTaskTiming } = useStore(state => ({
     orders: state.orders,
     schedulerTasks: state.schedulerTasks || { Arm1: [], Arm2: [] },
@@ -53,13 +55,13 @@ export default function OrderDetails() {
       <div className=" rounded-lg border border-gray-200 flex flex-col h-full ">
         {/* Header - Responsive */}
         <div className="p-2 md:p-3  flex-shrink-0 flex  justify-between  p-4">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">Current Order</h2>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">{t('currentOrder')}</h2>
           <div className="flex items-center space-x-2">
             <button 
               onClick={() => setShowTaskInterface(true)}
               className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
             >
-              Show Tasks
+              {t('showTasks')}
             </button>
             <button className="flex text-red bg-red-300 hover:bg-red-600 text-white" style={{ padding: '0.3rem', outline: 'none', }}>
               {/* Stop */}
@@ -72,8 +74,8 @@ export default function OrderDetails() {
         <div className="flex-1 flex items-center justify-center text-gray-500 p-3 md:p-4">
           <div className="text-center">
             <img src={coffee} alt="Coffee" className="w-20 h-20 mx-auto mb-2 md:mb-3" />
-            <p className="text-sm font-medium">No Order Processing</p>
-            <p className="text-xs text-gray-400 mt-1">System is idle</p>
+            <p className="text-sm font-medium">{t('noOrderProcessing')}</p>
+            <p className="text-xs text-gray-400 mt-1">{t('systemIdle')}</p>
           </div>
         </div>
       </div>
@@ -88,7 +90,7 @@ export default function OrderDetails() {
       ...order,
       itemName: order.cups && order.cups.length > 0 
         ? order.cups.map(cup => `${cup.drink_type || cup.type} (${cup.cup_size || cup.size})`).join(', ')
-        : 'Unknown Item',
+        : t('unknownItem'),
       createdAt: order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A',
       startedAt: order.started_at ? new Date(order.started_at).toLocaleString() : 'N/A'
     };
@@ -244,7 +246,7 @@ export default function OrderDetails() {
           <div className="mb-3 sm:mb-4 flex-shrink-0">
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs sm:text-sm font-medium text-gray-700">
-                Cup Progress: {cupProgress.completed}/{cupProgress.total} Completed
+                {t('cupProgress')}: {cupProgress.completed}/{cupProgress.total} {t('completedLabel')}
               </span>
               <span className="text-xs font-semibold text-gray-600">{cupProgress.percentage}%</span>
             </div>
@@ -267,22 +269,23 @@ export default function OrderDetails() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 flex-1 overflow-hidden">
           {/* Left Column - Arm 1 Tasks (Live) */}
           <div className="flex flex-col h-full overflow-hidden">
-            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">Robot Arm 1</h3>
+            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">{t('robotArm1')}</h3>
             <div ref={arm1ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
               {schedulerTasks.Arm1.length === 0 ? (
-                <div className="text-xs text-gray-400">No tasks yet.</div>
+                <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
               ) : (
                 <div className="space-y-2 sm:space-y-3">
-                  {schedulerTasks.Arm1.map((t, idx) => (
+                  {schedulerTasks.Arm1.map((task, idx) => (
                     <TaskRow
-                      key={`${t.cup_id}:${t.action}:${idx}`}
-                      refKey={`Arm1:${t.cup_id}:${t.action}`}
+                      key={`${task.cup_id}:${task.action}:${idx}`}
+                      refKey={`Arm1:${task.cup_id}:${task.action}`}
                       registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
-                      action={t.action}
-                      cup={t.cup_id}
-                      status={t.status}
+                      action={task.action}
+                      cup={task.cup_id}
+                      status={task.status}
                       taskTimings={taskTimings}
                       currentTime={currentTime}
+                      t={t}
                     />
                   ))}
                 </div>
@@ -295,19 +298,20 @@ export default function OrderDetails() {
             <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">Robot Arm 2</h3>
             <div ref={arm2ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
               {schedulerTasks.Arm2.length === 0 ? (
-                <div className="text-xs text-gray-400">No tasks yet.</div>
+                <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
               ) : (
                 <div className="space-y-2 sm:space-y-3">
-                  {schedulerTasks.Arm2.map((t, idx) => (
+                  {schedulerTasks.Arm2.map((task, idx) => (
                     <TaskRow
-                      key={`${t.cup_id}:${t.action}:${idx}`}
-                      refKey={`Arm2:${t.cup_id}:${t.action}`}
+                      key={`${task.cup_id}:${task.action}:${idx}`}
+                      refKey={`Arm2:${task.cup_id}:${task.action}`}
                       registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
-                      action={t.action}
-                      cup={t.cup_id}
-                      status={t.status}
+                      action={task.action}
+                      cup={task.cup_id}
+                      status={task.status}
                       taskTimings={taskTimings}
                       currentTime={currentTime}
+                      t={t}
                     />
                   ))}
                 </div>
@@ -320,7 +324,7 @@ export default function OrderDetails() {
   );
 } 
 
-function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, currentTime }) {
+function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, currentTime, t }) {
   const taskKey = `${cup}:${action}`;
   const timing = taskTimings[taskKey];
   
@@ -348,11 +352,12 @@ function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, curren
   const elapsedTime = getElapsedTime();
   
   const getBadge = (s) => {
-    if (s === 'completed') return <span className="text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Completed</span>;
-    if (s === 'failed') return <span className="text-[10px] sm:text-xs font-medium bg-white-100 text-red-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Failed</span>;
-    if (s === 'in_progress' || s === 'submitted') return <span className="text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">In&nbsp;Progress</span>;
-    if (s === 'cancelled') return <span className="text-[10px] sm:text-xs font-medium bg-gray-200 text-gray-600 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Cancelled</span>;
-    return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">Pending</span>;
+    if (!t) return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{status}</span>;
+    if (s === 'completed') return <span className="text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('completedLabel')}</span>;
+    if (s === 'failed') return <span className="text-[10px] sm:text-xs font-medium bg-white-100 text-red-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('failed')}</span>;
+    if (s === 'in_progress' || s === 'submitted') return <span className="text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('inProgress')}</span>;
+    if (s === 'cancelled') return <span className="text-[10px] sm:text-xs font-medium bg-gray-200 text-gray-600 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('cancelled')}</span>;
+    return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('pending')}</span>;
   };
 
   const getIcon = (s) => {
@@ -408,7 +413,7 @@ function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, curren
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2 mb-1">
           <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
-            Cup {cup.split('-')[1] || cup}
+            {t ? t('cup') + ' ' : ''}{cup.split('-')[1] || cup}
           </span>
           <div className="flex-shrink-0">
             {getBadge(status)}
