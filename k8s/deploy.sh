@@ -37,6 +37,16 @@ fi
 
 print_status "kubectl found"
 
+# Create the image pull secret
+kubectl create secret docker-registry gcr-json-key \
+  --docker-server=me-central2-docker.pkg.dev \
+  --docker-username=_json_key \
+  --docker-password="$(gcloud auth print-access-token)" \
+  --docker-email=qssairobotics@gcpqss.com \
+  -n barns \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+
 # Step 1: Create Namespace
 echo ""
 echo "Step 1: Creating namespace..."
