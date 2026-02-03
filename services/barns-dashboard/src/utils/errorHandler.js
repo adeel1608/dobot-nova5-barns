@@ -3,13 +3,16 @@
  * Provides consistent error handling and user-friendly error messages
  */
 
+/** Message shown when service is offline; UI can match this to show translated text. */
+export const SERVICE_OFFLINE_MESSAGE = 'Service is offline or unreachable. Please check if the service is running.';
+
 /**
  * Extract user-friendly error messages from API errors
  */
 export function extractErrorMessage(error) {
   // Network/Connection errors
   if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
-    return 'Service is offline or unreachable. Please check if the service is running.';
+    return SERVICE_OFFLINE_MESSAGE;
   }
   
   if (error.code === 'ENOTFOUND') {

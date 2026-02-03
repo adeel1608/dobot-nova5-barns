@@ -19,6 +19,7 @@ import {
   getAvailableServices,
   getLogStatistics
 } from '../../../utils/influxClient';
+import { useTranslation } from '../../../store/translationsStore';
 import '../../../utils/debugInflux'; // Loads debug utility into window
 
 // Service colors matching Grafana dashboard
@@ -42,6 +43,7 @@ const LEVEL_COLORS = {
 };
 
 export default function MonitoringPanel() {
+  const { t } = useTranslation('settings');
   // State
   const [timeRange, setTimeRange] = useState('-30m');
   const [selectedServices, setSelectedServices] = useState(['.*']);
@@ -315,7 +317,7 @@ export default function MonitoringPanel() {
               <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              <h2 className="text-lg font-bold text-gray-900">System Monitoring</h2>
+              <h2 className="text-lg font-bold text-gray-900">{t('monitoringTitle')}</h2>
               <div className="flex items-center gap-1.5 ml-2">
                 <div className={`w-2 h-2 rounded-full ${
                   connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' :
@@ -323,7 +325,7 @@ export default function MonitoringPanel() {
                   'bg-red-500'
                 }`}></div>
                 <span className="text-xs text-gray-500">
-                  {lastUpdate ? lastUpdate.toLocaleTimeString() : 'Connecting...'}
+                  {lastUpdate ? lastUpdate.toLocaleTimeString() : t('connecting')}
                 </span>
               </div>
             </div>
@@ -331,23 +333,23 @@ export default function MonitoringPanel() {
             {/* Stats with separators */}
             <div className="flex items-center gap-3 text-xs border-l border-gray-200 pl-6">
               <div className="flex items-center gap-1">
-                <span className="text-gray-500">Total:</span>
+                <span className="text-gray-500">{t('total')}:</span>
                 <span className="font-bold text-gray-900">{totalLogs.toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-gray-500">Errors:</span>
+                <span className="text-gray-500">{t('errors')}:</span>
                 <span className="font-bold text-red-600">{(logStats.ERROR || 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-gray-500">Warn:</span>
+                <span className="text-gray-500">{t('warn')}:</span>
                 <span className="font-bold text-yellow-600">{(logStats.WARNING || 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-gray-500">Info:</span>
+                <span className="text-gray-500">{t('info')}:</span>
                 <span className="font-bold text-blue-600">{(logStats.INFO || 0).toLocaleString()}</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-gray-500">Debug:</span>
+                <span className="text-gray-500">{t('debug')}:</span>
                 <span className="font-bold text-purple-600">{(logStats.DEBUG || 0).toLocaleString()}</span>
               </div>
             </div>
@@ -387,7 +389,7 @@ export default function MonitoringPanel() {
               >
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedServices.includes('.*') 
-                    ? 'All Services' 
+                    ? t('allServices') 
                     : selectedServices.length === 1 
                       ? selectedServices[0]
                       : `${selectedServices.length} selected`
@@ -407,7 +409,7 @@ export default function MonitoringPanel() {
                         }}
                         className="w-4 h-4 mr-3 rounded text-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-semibold text-gray-900">All Services</span>
+                      <span className="text-sm font-semibold text-gray-900">{t('allServices')}</span>
                       <span className="ml-auto text-xs text-gray-500">({availableServices.length})</span>
                     </label>
                     
@@ -439,8 +441,8 @@ export default function MonitoringPanel() {
                   <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 rounded-b-xl flex items-center justify-between">
                     <span className="text-xs text-gray-600">
                       {selectedServices.includes('.*') 
-                        ? 'All services selected'
-                        : `${selectedServices.length} of ${availableServices.length} selected`
+                        ? t('allServicesSelected')
+                        : t('selectedOfSelected').replace('{count}', selectedServices.length).replace('{total}', availableServices.length)
                       }
                     </span>
                     <button
@@ -450,7 +452,7 @@ export default function MonitoringPanel() {
                       }}
                       className="text-sm text-blue-600 hover:text-blue-700 font-semibold transition-colors"
                     >
-                      Done
+                      {t('done')}
                     </button>
                   </div>
                 </div>
@@ -470,9 +472,11 @@ export default function MonitoringPanel() {
               }}
               className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
-              <option value="all">All Levels</option>
+              <option value="all">{t('allLevels')}</option>
               {Object.keys(LEVEL_COLORS).map(level => (
-                <option key={level} value={level}>{level}</option>
+                <option key={level} value={level}>
+                  {level === 'ERROR' ? t('error') : level === 'WARNING' ? t('warning') : level === 'INFO' ? t('info') : level === 'DEBUG' ? t('debug') : level === 'SUCCESS' ? t('success') : level}
+                </option>
               ))}
             </select>
 
@@ -482,14 +486,14 @@ export default function MonitoringPanel() {
               onChange={(e) => setTimeRange(e.target.value)}
               className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             >
-              <option value="-5m">Last 5 min</option>
-              <option value="-15m">Last 15 min</option>
-              <option value="-30m">Last 30 min</option>
-              <option value="-1h">Last 1 hour</option>
-              <option value="-3h">Last 3 hours</option>
-              <option value="-6h">Last 6 hours</option>
-              <option value="-12h">Last 12 hours</option>
-              <option value="-24h">Last 24 hours</option>
+              <option value="-5m">{t('last5Min')}</option>
+              <option value="-15m">{t('last15Min')}</option>
+              <option value="-30m">{t('last30Min')}</option>
+              <option value="-1h">{t('last1Hour')}</option>
+              <option value="-3h">{t('last3Hours')}</option>
+              <option value="-6h">{t('last6Hours')}</option>
+              <option value="-12h">{t('last12Hours')}</option>
+              <option value="-24h">{t('last24Hours')}</option>
             </select>
 
             {/* Auto Refresh Toggle with Interval Selector */}
@@ -501,7 +505,7 @@ export default function MonitoringPanel() {
                   onChange={(e) => setAutoRefresh(e.target.checked)}
                   className="w-4 h-4 rounded text-blue-600 cursor-pointer focus:ring-2 focus:ring-blue-500"
                 />
-                <span className="text-sm font-medium text-gray-700">Auto</span>
+                <span className="text-sm font-medium text-gray-700">{t('auto')}</span>
               </label>
               <select
                 value={refreshInterval}
@@ -526,7 +530,7 @@ export default function MonitoringPanel() {
               <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh
+              {t('refresh')}
             </button>
 
             {/* Export Button */}
@@ -542,15 +546,18 @@ export default function MonitoringPanel() {
           </div>
         </div>
 
-        {/* Error Banner */}
+        {/* Error Banner - single translated message to avoid mixed language */}
         {error && (
           <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
             <svg className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
             </svg>
             <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">Connection Error</p>
-              <p className="text-xs text-red-700 mt-0.5">{error}</p>
+              <p className="text-sm font-medium text-red-800">
+                {/InfluxDB|500|Internal Server Error/i.test(error)
+                  ? t('monitoringServiceUnavailable')
+                  : t('connectionError')}
+              </p>
             </div>
           </div>
         )}
@@ -563,7 +570,7 @@ export default function MonitoringPanel() {
         <div className="flex flex-col gap-3 h-full min-h-0">
           {/* Combined Log Volume & Error Rate Chart */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex-1 min-h-0 flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Log Volume & Error Rate</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">{t('logVolume')}</h3>
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={logVolume}>
@@ -577,6 +584,7 @@ export default function MonitoringPanel() {
                 {Object.keys(LEVEL_COLORS).map(level => (
                   <Area
                     key={level}
+                    name={level === 'ERROR' ? t('error') : level === 'WARNING' ? t('warning') : level === 'INFO' ? t('info') : level === 'DEBUG' ? t('debug') : level === 'SUCCESS' ? t('success') : level}
                     type="monotone"
                     dataKey={level}
                     stackId="1"
@@ -592,14 +600,14 @@ export default function MonitoringPanel() {
 
           {/* Error Distribution by Service */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex-1 min-h-0 flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Error Distribution</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">{t('errorDistribution')}</h3>
             {errorDistribution.length === 0 ? (
               <div className="flex items-center justify-center flex-1">
                 <div className="text-center text-gray-500">
                   <svg className="w-6 h-6 mx-auto mb-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <p className="text-xs font-medium">No errors</p>
+                  <p className="text-xs font-medium">{t('noErrors')}</p>
                 </div>
               </div>
             ) : (
@@ -633,20 +641,20 @@ export default function MonitoringPanel() {
 
           {/* Error Rate by Service Over Time */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex-1 min-h-0 flex flex-col">
-            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Error Rate by Service</h3>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">{t('errorRateByService')}</h3>
             {errorRate.length === 0 ? (
               <div className="flex items-center justify-center flex-1">
                 <div className="text-center text-gray-500">
                   <svg className="w-6 h-6 mx-auto mb-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                   </svg>
-                  <p className="text-xs font-medium">No errors</p>
+                  <p className="text-xs font-medium">{t('noErrors')}</p>
                 </div>
               </div>
             ) : (
               <div className="flex-1 min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={errorRate}>
+                <LineChart data={errorRate}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="time" stroke="#6b7280" style={{ fontSize: '9px' }} />
                     <YAxis stroke="#6b7280" style={{ fontSize: '10px' }} />
@@ -681,20 +689,20 @@ export default function MonitoringPanel() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex flex-col h-full min-h-0">
           <div className="flex items-center justify-between mb-2 flex-shrink-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-900">Recent Logs</h3>
+              <h3 className="text-sm font-semibold text-gray-900">{t('recentLogs')}</h3>
               {newLogsCount > 0 && (
                 <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded-full animate-pulse">
-                  +{newLogsCount} new
+                  {t('newLogsBadge').replace('{count}', newLogsCount)}
                 </span>
               )}
               {autoRefresh && connectionStatus === 'connected' && (
                 <span className="px-2 py-0.5 bg-blue-500 text-white text-xs font-medium rounded flex items-center gap-1">
                   <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
-                  LIVE
+                  {t('liveBadge')}
                 </span>
               )}
               <span className="text-xs text-gray-500">
-                ({searchQuery ? `${filteredLogs.length} filtered, ` : ''}Showing {Math.min(logLimit, filteredLogs.length)} of {recentLogs.length})
+                ({searchQuery ? t('filteredComma').replace('{count}', filteredLogs.length) : ''}{t('showingOfTotal').replace('{shown}', Math.min(logLimit, filteredLogs.length)).replace('{total}', recentLogs.length)})
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -705,19 +713,19 @@ export default function MonitoringPanel() {
                   onChange={(e) => setAutoScroll(e.target.checked)}
                   className="w-3.5 h-3.5 rounded text-blue-600 cursor-pointer"
                 />
-                Auto-scroll
+                {t('autoScroll')}
               </label>
               <select
                 value={logLimit}
                 onChange={(e) => setLogLimit(parseInt(e.target.value))}
                 className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
-                <option value="25">Show 25</option>
-                <option value="50">Show 50</option>
-                <option value="100">Show 100</option>
-                <option value="200">Show 200</option>
-                <option value="500">Show 500</option>
-                <option value="1000">Show 1000</option>
+                <option value="25">{t('showN').replace('{n}', 25)}</option>
+                <option value="50">{t('showN').replace('{n}', 50)}</option>
+                <option value="100">{t('showN').replace('{n}', 100)}</option>
+                <option value="200">{t('showN').replace('{n}', 200)}</option>
+                <option value="500">{t('showN').replace('{n}', 500)}</option>
+                <option value="1000">{t('showN').replace('{n}', 1000)}</option>
               </select>
             </div>
           </div>
@@ -729,7 +737,7 @@ export default function MonitoringPanel() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search logs by message, service, or level..."
+                placeholder={t('searchLogsPlaceholder')}
                 className="w-full px-3 py-1.5 pl-8 bg-gray-50 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               />
               <svg className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -754,16 +762,16 @@ export default function MonitoringPanel() {
                   <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                  <p className="text-sm font-medium">No logs found</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Adjust filters or time range</p>
+                  <p className="text-sm font-medium">{t('noLogsFound')}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t('adjustFilters')}</p>
                 </div>
               ) : filteredLogs.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  <p className="text-sm font-medium">No matching logs</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Try a different search query</p>
+                  <p className="text-sm font-medium">{t('noMatchingLogs')}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t('adjustFilters')}</p>
                 </div>
               ) : (
                 filteredLogs.slice(0, logLimit).map((log, idx) => (
@@ -776,15 +784,15 @@ export default function MonitoringPanel() {
 
         {/* Right Column: Top Errors (Full Height) */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 flex flex-col h-full min-h-0">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Top 20 Errors</h3>
+          <h3 className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">{t('topErrors')}</h3>
           <div className="flex-1 overflow-y-auto min-h-0">
             {topErrors.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-xs font-medium">No errors</p>
-                <p className="text-xs text-gray-400 mt-0.5">System OK</p>
+                <p className="text-xs font-medium">{t('noErrors')}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{t('systemOk')}</p>
               </div>
             ) : (
               <div className="space-y-1">

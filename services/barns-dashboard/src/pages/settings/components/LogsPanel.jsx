@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
 
 export default function LogsPanel() {
   const { systemLogs, clearLogs, systemStatus, checkSystemHealth } = useStore();
+  const { t } = useTranslation('settings');
   const [filterLevel, setFilterLevel] = useState('ERROR'); // Default to ERROR only to reduce spam
   const [filterService, setFilterService] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -121,21 +123,21 @@ export default function LogsPanel() {
         return (
           <div className="flex items-center text-green-600">
             <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-            Online
+            {t('online')}
           </div>
         );
       case 'offline':
         return (
           <div className="flex items-center text-red-600">
             <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-            Offline
+            {t('offline')}
           </div>
         );
       default:
         return (
           <div className="flex items-center text-gray-500">
             <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-            Unknown
+            {t('unknown')}
           </div>
         );
     }
@@ -182,9 +184,9 @@ export default function LogsPanel() {
               <svg className="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <h2 className="text-lg font-semibold text-gray-900">System Logs</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('logsTitle')}</h2>
               <span className="ml-3 px-2 py-1 bg-gray-100 rounded-full text-xs font-medium text-gray-700">
-                {filteredLogs.length} entries
+                {filteredLogs.length} {t('logsEntries')}
               </span>
             </div>
           </div>
@@ -243,7 +245,7 @@ export default function LogsPanel() {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Export
+                {t('export')}
               </button>
               
               <button
@@ -253,7 +255,7 @@ export default function LogsPanel() {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H8a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Clear
+                {t('clear')}
               </button>
             </div>
           </div>
@@ -266,27 +268,27 @@ export default function LogsPanel() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center space-x-6">
               <div className="flex items-center text-sm">
-                <span className="text-gray-500 mr-2">Total:</span>
+                <span className="text-gray-500 mr-2">{t('total')}:</span>
                 <span className="font-bold text-gray-900">{stats.total}</span>
               </div>
               <div className="flex items-center text-sm">
                 <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
-                <span className="text-gray-500 mr-1">Errors:</span>
+                <span className="text-gray-500 mr-1">{t('errors')}:</span>
                 <span className="font-bold text-red-600">{stats.error}</span>
               </div>
               <div className="flex items-center text-sm">
                 <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
-                <span className="text-gray-500 mr-1">Warnings:</span>
+                <span className="text-gray-500 mr-1">{t('warnings')}:</span>
                 <span className="font-bold text-yellow-600">{stats.warning}</span>
               </div>
               <div className="flex items-center text-sm">
                 <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                <span className="text-gray-500 mr-1">Info:</span>
+                <span className="text-gray-500 mr-1">{t('info')}:</span>
                 <span className="font-bold text-blue-600">{stats.info}</span>
               </div>
               <div className="flex items-center text-sm">
                 <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
-                <span className="text-gray-500 mr-1">Success:</span>
+                <span className="text-gray-500 mr-1">{t('success')}:</span>
                 <span className="font-bold text-green-600">{stats.success}</span>
               </div>
             </div>
@@ -307,23 +309,23 @@ export default function LogsPanel() {
       <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
         <div className="flex flex-wrap gap-6 text-sm">
           <div className="flex items-center">
-            <span className="text-gray-600 mr-2 font-medium">OMS:</span>
+            <span className="text-gray-600 mr-2 font-medium">{t('oms')}:</span>
             {getServiceStatus('oms')}
           </div>
           <div className="flex items-center">
-            <span className="text-gray-600 mr-2 font-medium">Scheduler:</span>
+            <span className="text-gray-600 mr-2 font-medium">{t('scheduler')}:</span>
             {getServiceStatus('scheduler')}
           </div>
           <div className="flex items-center">
-            <span className="text-gray-600 mr-2 font-medium">Routine:</span>
+            <span className="text-gray-600 mr-2 font-medium">{t('routine')}:</span>
             {getServiceStatus('routine')}
           </div>
           <div className="flex items-center">
-            <span className="text-gray-600 mr-2 font-medium">Validation:</span>
+            <span className="text-gray-600 mr-2 font-medium">{t('validation')}:</span>
             {getServiceStatus('validation')}
           </div>
           <div className="flex items-center">
-            <span className="text-gray-600 mr-2 font-medium">Video:</span>
+            <span className="text-gray-600 mr-2 font-medium">{t('video')}:</span>
             {getServiceStatus('videoStream')}
           </div>
         </div>
@@ -336,7 +338,7 @@ export default function LogsPanel() {
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search logs..."
+              placeholder={t('searchLogs')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -352,11 +354,11 @@ export default function LogsPanel() {
             onChange={(e) => setFilterLevel(e.target.value)}
             className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="ALL">All Levels</option>
-            <option value="ERROR">🔴 Errors</option>
-            <option value="WARNING">🟡 Warnings</option>
-            <option value="INFO">🔵 Info</option>
-            <option value="SUCCESS">🟢 Success</option>
+            <option value="ALL">{t('allLevels')}</option>
+            <option value="ERROR">{t('error')}</option>
+            <option value="WARNING">{t('warning')}</option>
+            <option value="INFO">{t('info')}</option>
+            <option value="SUCCESS">{t('success')}</option>
           </select>
           
           {/* Service filter */}
@@ -367,7 +369,7 @@ export default function LogsPanel() {
           >
             {services.map(service => (
               <option key={service} value={service}>
-                {service === 'ALL' ? 'All Services' : service}
+                {service === 'ALL' ? t('allServices') : service}
               </option>
             ))}
           </select>
@@ -387,12 +389,12 @@ export default function LogsPanel() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <p className="text-lg font-medium mb-2 text-gray-900">
-                {systemLogs.length === 0 ? 'No logs recorded yet' : 'No logs match your filters'}
+                {systemLogs.length === 0 ? t('noLogsRecordedYet') : t('noLogsMatchFilters')}
               </p>
               <p className="text-sm">
                 {systemLogs.length === 0 
-                  ? 'System logs will appear here as they are generated' 
-                  : 'Try adjusting your search terms or filters'
+                  ? t('systemLogsWillAppear') 
+                  : t('tryAdjustingSearchFilters')
                 }
               </p>
             </div>
@@ -432,11 +434,11 @@ export default function LogsPanel() {
                       
                       {log.details && (
                         <details className="mt-3">
-                          <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 flex items-center">
+                            <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 flex items-center">
                             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            Show details
+                            {t('showDetails')}
                           </summary>
                           <pre className="mt-2 text-xs text-gray-700 bg-gray-100 p-3 rounded border border-gray-200 overflow-x-auto font-mono">
                             {typeof log.details === 'string' ? log.details : JSON.stringify(log.details, null, 2)}
