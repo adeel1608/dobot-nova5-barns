@@ -19,6 +19,7 @@ requests==2.31.0
 # Deep Learning Framework (for cup detection)
 torch==2.8.0
 torchvision==0.23.0
+transformers>=4.40.0,<5.0.0
 
 # Optional: Performance monitoring
 psutil==5.9.0
