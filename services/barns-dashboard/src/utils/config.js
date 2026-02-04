@@ -13,7 +13,7 @@ export const API_CONFIG = {
   // ---- Development ----
   API_BASE: process.env.NODE_ENV === 'development' ? 'http://localhost:8000/api' : '/api',
   WEBSOCKET_BASE: process.env.NODE_ENV === 'development' ? 'ws://localhost:8000/ws' : '/ws',
-  VIDEO_STREAM: (window.env && window.env.VIDEO_STREAM_URL) || 'http://localhost:8001'
+  VIDEO_STREAM: (window.env && window.env.VIDEO_STREAM_URL) || 'http://localhost:30001'
 };
 
 // WebSocket Configuration
