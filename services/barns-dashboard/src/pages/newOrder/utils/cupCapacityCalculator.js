@@ -227,29 +227,30 @@ export function calculateRecipeVolume(ingredients) {
   for (const ing of ingredients) {
     const amount = ing.unit_amount || 0;
     const quantity = ing.quantity || 1;
-    const baseUnits = ing.base_units || '';
-    const category = ing.category || '';
+    const baseUnits = (ing.base_units || '').toLowerCase();
+    const category = (ing.category || '').toLowerCase();
     const type = (ing.type || '').toLowerCase().replace(/\s+/g, '_');
     
     // Skip ice - it's measured in grams and doesn't affect liquid volume
-    if (category.toLowerCase() === 'ice') {
+    if (category === 'ice') {
       continue;
     }
     
-    // Only count liquid volumes (ml)
-    if (baseUnits === 'ml') {
-      total += amount * quantity;
-    }
     // Espresso shots - use actual weights converted to volume
-    else if (baseUnits === 'shots' || category.toLowerCase() === 'espresso') {
+    if (baseUnits === 'shots' || category === 'espresso') {
       // Get espresso weight based on type (single, double, triple)
       const shotWeight = ESPRESSO_SHOT_WEIGHTS[type] || ESPRESSO_SHOT_WEIGHTS.double_shot;
       // Convert weight to volume using espresso density
       const espressoVolume = (shotWeight * quantity) / INGREDIENT_DENSITIES.espresso;
       total += espressoVolume;
     }
-    // Weight-based ingredients (grams) - convert to volume
-    else if (baseUnits === 'grams' || baseUnits === 'g') {
+    // Volumes in ml - use directly
+    else if (baseUnits === 'ml') {
+      total += amount * quantity;
+    }
+    // Default: treat as grams and convert to volume using density
+    // This handles 'grams', 'g', 'pumps', undefined, etc.
+    else {
       const density = INGREDIENT_DENSITIES[category] || 1.0;
       const volume = (amount * quantity) / density;
       total += volume;

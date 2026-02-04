@@ -519,11 +519,19 @@ def _calculate_milk_adjustments(
     Returns: (foam_reduced_milk, milk_substitution_amount, milk_substitution_percent)
     """
     # Find milk ingredient and get base amount
-    milk_ingredient = next((ing for ing in ingredients if ing["category"] == "milk"), None)
+    milk_ingredient = next((ing for ing in ingredients if (ing.get("category", "") or "").lower() == "milk"), None)
     if not milk_ingredient:
         return 0.0, 0.0, 0.0
     
-    base_milk_amount = milk_ingredient.get("quantity", 1) * milk_ingredient.get("unit_amount", 1)
+    # Calculate milk volume - convert from grams to ml if needed
+    milk_weight = milk_ingredient.get("quantity", 1) * milk_ingredient.get("unit_amount", 1)
+    milk_base_units = (milk_ingredient.get("base_units", "") or "").lower()
+    
+    if milk_base_units == "ml":
+        base_milk_amount = milk_weight
+    else:
+        # Convert grams to ml using milk density
+        base_milk_amount = milk_weight / INGREDIENT_DENSITIES.get("milk", 1.03)
     
     # Phase 1: Apply foam reduction based on temperature
     temperature = kitchen_modifiers.get("temperature", "normal")
@@ -540,10 +548,10 @@ def _calculate_milk_adjustments(
     fixed_recipe_volume = foam_volume  # Foam takes up cup space
     
     # Categories that don't occupy liquid volume OR are handled separately
-    skip_categories = ["cups", "position", "ice", "milk"]  # milk handled separately
+    skip_categories = ["cups", "position", "ice", "milk", "temperature"]  # milk handled separately, temperature is not a volume
     
     for ing in ingredients:
-        category = ing.get("category", "")
+        category = (ing.get("category", "") or "").lower()
         
         # Skip non-liquid categories, milk (calculated separately), and add-ons
         if category in skip_categories or ing.get("is_addon"):
@@ -551,19 +559,20 @@ def _calculate_milk_adjustments(
             
         qty = ing.get("quantity", 1)
         amount = ing.get("unit_amount", 0)
-        base_units = ing.get("base_units", "")
+        base_units = (ing.get("base_units", "") or "").lower()
         
-        # Direct liquid volumes (ml)
-        if base_units == "ml":
-            fixed_recipe_volume += qty * amount
         # Espresso shots - use actual weights
-        elif base_units == "shots" or category == "espresso":
+        if base_units == "shots" or category == "espresso":
             espresso_type = (ing.get("type", "double_shot") or "double_shot").lower().replace(" ", "_")
             shot_weight = ESPRESSO_SHOT_WEIGHTS.get(espresso_type, ESPRESSO_SHOT_WEIGHTS["double_shot"])
             espresso_volume = (shot_weight * qty) / INGREDIENT_DENSITIES.get("espresso", 1.02)
             fixed_recipe_volume += espresso_volume
-        # Weight-based ingredients (grams) - convert to volume
-        elif base_units in ["grams", "g"]:
+        # Direct liquid volumes (ml)
+        elif base_units == "ml":
+            fixed_recipe_volume += qty * amount
+        # Default: treat as grams and convert to volume using density
+        # This handles 'grams', 'g', 'pumps', undefined, etc.
+        else:
             density = INGREDIENT_DENSITIES.get(category, 1.0)
             volume = (amount * qty) / density
             fixed_recipe_volume += volume
@@ -572,7 +581,7 @@ def _calculate_milk_adjustments(
     total_addon_volume = 0.0
     for ing in ingredients:
         if ing.get("is_addon"):
-            category = ing.get("category", "extras")
+            category = (ing.get("category", "extras") or "extras").lower()
             
             # Skip ice - it's measured in grams and doesn't affect liquid volume
             if category == "ice":
