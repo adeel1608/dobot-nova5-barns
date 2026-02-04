@@ -22,7 +22,7 @@ spec:
       imagePullSecrets:
       - name: gcr-json-key
       nodeSelector:
-        kubernetes.io/hostname: k8s-master
+        kubernetes.io/hostname: barns-nuc15crsu7
       hostNetwork: true
       hostPID: true
       hostIPC: true

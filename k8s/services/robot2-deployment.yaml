@@ -22,7 +22,7 @@ spec:
       imagePullSecrets:
       - name: gcr-json-key
       nodeSelector:
-        kubernetes.io/hostname: qss-jetson
+        kubernetes.io/hostname: cvat
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
