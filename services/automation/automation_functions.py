@@ -279,33 +279,41 @@ async def dispense_sauce(params: dict):
         }
 
 async def dispense_syrup(params: dict):
-    """Dispense multiple syrups or water using MQTT communication."""
-    # example params: {"syrups": {2: 5.0, 5: 16.0}, ...} or {"water": {5: 100.0}, ...}
-    # Loops through all pumps in the syrups/water dictionary
+    """Dispense multiple syrups and/or water using MQTT communication."""
+    # example params: {"syrups": {2: 5.0, 5: 16.0}, "water": {1: 100.0}, ...}
+    # Loops through all pumps in the syrups/water dictionaries
     # Water uses milk dispenser hardware but is managed here
     
     log("INFO", f"[DISPENSE-SYRUP] Called with params: {json.dumps(params, default=str)}", service="automation")
     
-    # Extract syrups or water dictionary
-    items_dict = None
-    item_type = None
-    mqtt_topic = None
-    mqtt_response_topic = None
+    # Collect all items to dispense (both syrups and water)
+    items_to_dispense = []
     
-    if "syrups" in params and isinstance(params["syrups"], dict):
-        items_dict = params["syrups"]
-        item_type = "syrup"
-        mqtt_topic = "automation_syrup"
-        mqtt_response_topic = "automation_syrup/response"
-        log("INFO", f"[DISPENSE-SYRUP] Extracted syrups dict: {items_dict}", service="automation")
-    elif "water" in params and isinstance(params["water"], dict):
-        items_dict = params["water"]
-        item_type = "water"
-        mqtt_topic = "automation_milk"  # Water uses milk dispenser hardware
-        mqtt_response_topic = "automation_milk/response"
-        log("INFO", f"[DISPENSE-SYRUP] Extracted water dict: {items_dict}", service="automation")
+    # Check for syrups
+    if "syrups" in params and isinstance(params["syrups"], dict) and params["syrups"]:
+        for pump_key, amount in params["syrups"].items():
+            items_to_dispense.append({
+                "pump_key": pump_key,
+                "amount": amount,
+                "item_type": "syrup",
+                "mqtt_topic": "automation_syrup",
+                "mqtt_response_topic": "automation_syrup/response"
+            })
+        log("INFO", f"[DISPENSE-SYRUP] Extracted {len(params['syrups'])} syrups: {params['syrups']}", service="automation")
     
-    if not items_dict:
+    # Check for water
+    if "water" in params and isinstance(params["water"], dict) and params["water"]:
+        for pump_key, amount in params["water"].items():
+            items_to_dispense.append({
+                "pump_key": pump_key,
+                "amount": amount,
+                "item_type": "water",
+                "mqtt_topic": "automation_syrup",  # Water pump 1 is a syrup motor
+                "mqtt_response_topic": "automation_syrup/response"
+            })
+        log("INFO", f"[DISPENSE-SYRUP] Extracted {len(params['water'])} water pumps: {params['water']}", service="automation")
+    
+    if not items_to_dispense:
         log("ERROR", "No syrups or water dictionary found in params", service="automation")
         return {
             "success": False,
@@ -313,24 +321,22 @@ async def dispense_syrup(params: dict):
             "message": "Invalid parameters: syrups or water dictionary required"
         }
     
-    syrups_dict = items_dict
-    log("INFO", f"[DISPENSE-SYRUP] Processing {item_type} dict: {syrups_dict}", service="automation")
+    log("INFO", f"[DISPENSE-SYRUP] Processing {len(items_to_dispense)} total items (syrups + water)", service="automation")
     
-    if not syrups_dict:
-        return {
-            "success": True,
-            "message": f"No {item_type} to dispense",
-            "details": []
-        }
-    
-    # Prepare for loop through all items (syrups or water)
+    # Prepare for loop through all items (syrups and water)
     all_results = []
     mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
     username = params.get("username", "admin")
     password = params.get("password", "admin123")
     
-    # Loop through each pump
-    for pump_key, amount in syrups_dict.items():
+    # Loop through each item (syrup or water)
+    for item in items_to_dispense:
+        pump_key = item["pump_key"]
+        amount = item["amount"]
+        item_type = item["item_type"]
+        mqtt_topic = item["mqtt_topic"]
+        mqtt_response_topic = item["mqtt_response_topic"]
+        
         pump_number = int(pump_key) if isinstance(pump_key, (int, str)) else (9 if item_type == "syrup" else 1)
         
         log("INFO", f"[DISPENSE-{item_type.upper()}] Starting dispense: pump_key={pump_key}, pump_number={pump_number}, amount={amount}", service="automation")
@@ -370,6 +376,7 @@ async def dispense_syrup(params: dict):
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
+                "item_type": item_type,
                 "success": False,
                 "error": "Failed to connect to MQTT broker"
             })
@@ -394,6 +401,7 @@ async def dispense_syrup(params: dict):
                 all_results.append({
                     "pump_number": pump_number,
                     "amount": amount,
+                    "item_type": item_type,
                     "success": True,
                     "message": f"Assumed success after {response_timeout}s timeout (no hardware response)",
                     "timeout": True
@@ -417,6 +425,7 @@ async def dispense_syrup(params: dict):
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
+                "item_type": item_type,
                 "success": True,
                 "message": f"Successfully dispensed {amount}g from {item_type} pump {pump_number}",
                 "details": mqtt_response
@@ -427,6 +436,7 @@ async def dispense_syrup(params: dict):
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
+                "item_type": item_type,
                 "success": False,
                 "error": error_msg,
                 "details": mqtt_response
@@ -436,22 +446,33 @@ async def dispense_syrup(params: dict):
     # Return combined results
     all_success = all(result["success"] for result in all_results)
     
+    # Count syrups vs water for summary
+    syrup_count = sum(1 for r in all_results if r.get("item_type") == "syrup")
+    water_count = sum(1 for r in all_results if r.get("item_type") == "water")
+    
     if all_success:
-        log("INFO", f"[DISPENSE-{item_type.upper()}] All {len(all_results)} dispenses successful", service="automation")
+        summary_parts = []
+        if syrup_count > 0:
+            summary_parts.append(f"{syrup_count} syrup(s)")
+        if water_count > 0:
+            summary_parts.append(f"{water_count} water pump(s)")
+        summary = " and ".join(summary_parts)
+        
+        log("INFO", f"[DISPENSE-SYRUP/WATER] All {len(all_results)} dispenses successful ({summary})", service="automation")
         return {
             "success": True,
-            "message": f"Successfully dispensed {len(all_results)} {item_type}(s)",
+            "message": f"Successfully dispensed {summary}",
             "details": all_results
         }
     else:
         failed_count = sum(1 for result in all_results if not result["success"])
         failed_pumps = [r["pump_number"] for r in all_results if not r["success"]]
-        log("ERROR", f"[DISPENSE-{item_type.upper()}] {failed_count} of {len(all_results)} dispenses failed. Failed pumps: {failed_pumps}", service="automation")
-        log("ERROR", f"[DISPENSE-{item_type.upper()}] Full results: {all_results}", service="automation")
+        log("ERROR", f"[DISPENSE-SYRUP/WATER] {failed_count} of {len(all_results)} dispenses failed. Failed pumps: {failed_pumps}", service="automation")
+        log("ERROR", f"[DISPENSE-SYRUP/WATER] Full results: {all_results}", service="automation")
         return {
             "success": False,
-            "error": f"{failed_count} {item_type}(s) failed to dispense",
-            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} {item_type}(s)",
+            "error": f"{failed_count} item(s) failed to dispense",
+            "message": f"Completed with {failed_count} failure(s) out of {len(all_results)} total dispenses",
             "details": all_results
         }
 
