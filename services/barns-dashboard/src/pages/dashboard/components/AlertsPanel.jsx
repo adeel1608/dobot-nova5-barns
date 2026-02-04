@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
+import { SERVICE_OFFLINE_MESSAGE } from '../../../utils/errorHandler';
 import viewAll from '../../../assets/viewall.png';
 import { getValidationMessage, getValidationData } from '../../../constants/validationMessages.jsx';
 import { getIngredientData, getSeverityMessage } from '../../../constants/ingredientMappings.jsx';
 
 export default function AlertsPanel() {
+  const { t } = useTranslation('alerts');
   const { 
     alerts, 
     acknowledgeAlert, 
@@ -544,7 +547,7 @@ export default function AlertsPanel() {
       {/* Header - Responsive */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0  ">
         <div className="flex items-center justify-between w-full ">
-          <h2 className="text-base md:text-lg font-semibold text-gray-900">Active Alerts</h2>
+          <h2 className="text-base md:text-lg font-semibold text-gray-900">{t('active')}</h2>
           {/* {unacknowledgedAlerts.length > 0 && (
             <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
               {unacknowledgedAlerts.length}
@@ -582,7 +585,7 @@ export default function AlertsPanel() {
               disabled={isLoading}
               className="text-xs px-2 py-2 mx-1 border border-red-200 bg-red-100 hover:bg-red-200 text-red-800 rounded-lg transition-colors disabled:opacity-10"
             >
-              Retry
+              {t('retry')}
             </h2>
           )}
           {/* {unacknowledgedAlerts.length > 0 && (
@@ -602,7 +605,8 @@ export default function AlertsPanel() {
       {errors.alerts && (
         <div className="px-3 md:px-4 py-2 bg-yellow-50 border-b border-yellow-200">
           <p className="text-xs text-yellow-800">
-            <span className="font-medium">Unable to fetch alerts:</span> {errors.alerts}
+            <span className="font-medium">{t('unableToFetchAlerts')}</span>{' '}
+            {errors.alerts === SERVICE_OFFLINE_MESSAGE ? t('serviceOfflineUnreachable') : errors.alerts}
           </p>
         </div>
       )}
@@ -616,15 +620,15 @@ export default function AlertsPanel() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <p className="text-sm font-medium">Loading alerts...</p>
+              <p className="text-sm font-medium">{t('loadingAlerts')}</p>
             </div>
           ) : unacknowledgedAlerts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4 md:p-6">
               <svg className="w-8 md:w-12 h-8 md:h-12 text-green-400 mb-2 md:mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-sm font-medium">All clear!</p>
-              <p className="text-xs text-gray-400">No active alerts</p>
+              <p className="text-sm font-medium">{t('allClear')}</p>
+              <p className="text-xs text-gray-400">{t('noActiveAlerts')}</p>
             </div>
           ) : (
             <div className="space-y-3 p-3">
@@ -674,9 +678,9 @@ export default function AlertsPanel() {
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                               </svg>
-                              <span>Acknowledging...</span>
+                              <span>{t('acknowledging')}</span>
                             </span>
-                          ) : 'Acknowledge'}
+                          ) : t('acknowledge')}
                         </button>
                       </div>
                     </div>

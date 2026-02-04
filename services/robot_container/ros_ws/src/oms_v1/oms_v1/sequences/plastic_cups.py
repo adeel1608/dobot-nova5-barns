@@ -138,10 +138,13 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                time.sleep(2)
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.1)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
@@ -149,42 +152,41 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                time.sleep(2)
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.1)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
             if cup_size == "9oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+                run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 25.0, 395.0, -32.0, 0, 0, 0)  
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("set_speed_factor", config['speed'])
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", SPEED_FAST)
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.1)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
             if cup_size == "7oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+                run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 403.0, 5.0, 0, 0, 0)  
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("set_speed_factor", config['speed'])
-                run_skill("sync")
-                run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", SPEED_FAST)
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.1)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
@@ -234,7 +236,10 @@ def go_home_with_ice(**params) -> bool:
     """
     def ok(r):
         return r not in (False, None)
-    
+
+    if not ok(run_skill("moveEE_movJ", 0,0,5,0,0,0)):
+        return False
+
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, 145)):
         return False
 
@@ -433,8 +438,6 @@ def pick_plastic_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
-    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2'])):
-        return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
         return False
     
@@ -503,8 +506,6 @@ def pick_plastic_cup_milk(**params) -> bool:
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
-        return False
-    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position2'])):
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1'])):
         return False

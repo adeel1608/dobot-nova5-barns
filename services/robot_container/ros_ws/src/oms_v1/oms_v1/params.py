@@ -569,7 +569,7 @@ PLASTIC_CUPS_PARAMS = {
         # Cup dispenser coordinates for grabbing plastic cups
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
         '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
-        '12oz_coords':  (117.584348,-38.509737,-144.016102,2.779971,-62.300929,-0.175795),  # 12oz cup dispenser position
+        '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
         '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
     },
     'ice_positions': {
@@ -590,11 +590,11 @@ PLASTIC_CUPS_PARAMS = {
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240),  # Second position at sauces station (place/pick)
+        'position2':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578),  # Second position at milk station (place/pick)
+        'position2':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Second position at milk station (place/pick)
     },
 }
 
@@ -702,13 +702,13 @@ PAPER_CUPS_STATION_PARAMS = {
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at milk station
-        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at milk station (place/pick)
+        'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
+        'position3':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913),  # Second position at sauces station
-        'position3':    (-25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561),  # Third position at sauces station (place/pick)
+        'position2':    (-27.222216,-64.822159,-96.371883,-18.623413,-117.140324,0.020276),  # Second position at sauces station
+        'position3':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Third position at sauces station (place/pick)
     },
 }
 

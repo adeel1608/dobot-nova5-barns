@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
+import { SERVICE_OFFLINE_MESSAGE } from '../../../utils/errorHandler';
 import { getValidationMessage, getValidationData } from '../../../constants/validationMessages.jsx';
 import { getIngredientData, getSeverityMessage } from '../../../constants/ingredientMappings.jsx';
 
 export default function AlertPanel() {
+  const { t } = useTranslation('alerts');
   const { 
     alerts, 
     acknowledgedAlerts, 
@@ -177,15 +180,15 @@ export default function AlertPanel() {
   const getSeverityBadge = (severity) => {
     switch (severity?.toLowerCase()) {
       case 'critical':
-        return <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded">Critical</span>;
+        return <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded">{t('critical')}</span>;
       case 'high':
-        return <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded">High</span>;
+        return <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-0.5 rounded">{t('high')}</span>;
       case 'medium':
-        return <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded">Medium</span>;
+        return <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-0.5 rounded">{t('medium')}</span>;
       case 'low':
-        return <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">Low</span>;
+        return <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded">{t('low')}</span>;
       default:
-        return <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">Info</span>;
+        return <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2 py-0.5 rounded">{t('info')}</span>;
     }
   };
 
@@ -195,21 +198,20 @@ export default function AlertPanel() {
       <div className="px-4 py-3 border-b border-gray-200">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center space-x-3">
-            <h2 className="text-lg font-semibold">Alerts Management</h2>
+            <h2 className="text-lg font-semibold">{t('alertsManagement')}</h2>
             {errors.alerts && (
               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                API Error
+                {t('critical')}
               </span>
             )}
           </div>
           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
             displayAlerts.length > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
           }`}>
-            {displayAlerts.length > 0 ? `${displayAlerts.length} Active` : 'All Clear'}
+            {displayAlerts.length > 0 ? `${displayAlerts.length} ${t('active')}` : t('allClear')}
           </span>
         </div>
         
-        {/* Compact Tab Navigation */}
         <div className="flex border-b border-gray-200 -mb-3">
           <button
             onClick={() => setShowAcknowledged(false)}
@@ -219,7 +221,7 @@ export default function AlertPanel() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Active Alerts ({displayAlerts.length})
+            {t('active')} ({displayAlerts.length})
           </button>
           <button
             onClick={() => setShowAcknowledged(true)}
@@ -229,7 +231,7 @@ export default function AlertPanel() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
-            Acknowledged ({displayAcknowledgedAlerts.length})
+            {t('acknowledged')} ({displayAcknowledgedAlerts.length})
           </button>
         </div>
       </div>
@@ -238,8 +240,9 @@ export default function AlertPanel() {
       {errors.alerts && (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex justify-between items-center">
           <div>
-            <span className="font-medium">API Error:</span> {errors.alerts}
-            <p className="text-xs mt-0.5">Using mock data for display purposes.</p>
+            <span className="font-medium">{t('unableToFetchAlerts')}</span>{' '}
+            {errors.alerts === SERVICE_OFFLINE_MESSAGE ? t('serviceOfflineUnreachable') : errors.alerts}
+            <p className="text-xs mt-0.5">{t('serviceOfflineUnreachable')}</p>
           </div>
           <button 
             onClick={retryFetchAlerts}
@@ -267,7 +270,7 @@ export default function AlertPanel() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-sm">No active alerts at this time.</p>
+                <p className="text-sm">{t('noActiveAlerts')}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -350,14 +353,14 @@ export default function AlertPanel() {
                                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                <span>Refilling...</span>
+                                <span>{t('refilling')}</span>
                               </>
                             ) : (
                               <>
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
-                                <span>Refill</span>
+                                <span>{t('refill')}</span>
                               </>
                             )}
                           </button>
@@ -371,7 +374,7 @@ export default function AlertPanel() {
                             className="text-xs bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1.5 rounded-md font-medium disabled:bg-gray-100 disabled:text-gray-400"
                             disabled={errors.alerts || acknowledging}
                           >
-                            {acknowledging ? 'Acknowledging...' : 'Acknowledge'}
+                            {acknowledging ? t('acknowledging') : t('acknowledge')}
                           </button>
                         </div>
                       </div>
@@ -403,7 +406,7 @@ export default function AlertPanel() {
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                               </svg>
-                              <span>System Error</span>
+                              <span>{t('systemError')}</span>
                             </>
                           ) : (
                             <>
@@ -411,7 +414,7 @@ export default function AlertPanel() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              <span>Resume Operation</span>
+                              <span>{t('resumeOperation')}</span>
                             </>
                           )}
                         </button>
@@ -432,7 +435,7 @@ export default function AlertPanel() {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
-                <p className="text-sm">No acknowledged alerts.</p>
+                <p className="text-sm">{t('noAcknowledgedAlerts')}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
@@ -488,7 +491,7 @@ export default function AlertPanel() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-xl font-bold">Alert Details</h3>
+              <h3 className="text-xl font-bold">{t('alertDetails')}</h3>
               <button 
                 onClick={closeAlertDetails}
                 className="text-gray-500 hover:text-gray-700"
@@ -530,7 +533,7 @@ export default function AlertPanel() {
                 onClick={closeAlertDetails}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
               >
-                Close
+                {t('close')}
               </button>
               <button
                 onClick={async () => {
@@ -542,7 +545,7 @@ export default function AlertPanel() {
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-400"
                 disabled={errors.alerts || acknowledging}
               >
-                {acknowledging ? 'Acknowledging...' : 'Acknowledge'}
+                {acknowledging ? t('acknowledging') : t('acknowledge')}
               </button>
               {selectedAlert.alert_type === 'ingredient_threshold' && (
                 <button
@@ -555,7 +558,7 @@ export default function AlertPanel() {
                   disabled={isLoading || errors.system}
                   className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:bg-yellow-400"
                 >
-                  {isLoading ? 'Resuming...' : errors.system ? 'System Error' : 'Resume Operation'}
+                  {isLoading ? t('refilling') : errors.system ? t('systemError') : t('resumeOperation')}
                 </button>
               )}
             </div>

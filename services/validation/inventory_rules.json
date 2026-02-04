@@ -32,7 +32,7 @@
                 "critical_threshold": 25
             },
             "cup_H12": {
-                "max_capacity": 15,
+                "max_capacity": 10,
                 "warning_threshold": 40,
                 "critical_threshold": 20
             },
