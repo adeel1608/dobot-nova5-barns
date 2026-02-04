@@ -569,7 +569,7 @@ PLASTIC_CUPS_PARAMS = {
         # Cup dispenser coordinates for grabbing plastic cups
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
         '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
-        '12oz_coords':  (117.584348,-38.509737,-144.016102,2.779971,-62.300929,-0.175795),  # 12oz cup dispenser position
+        '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
         '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
     },
     'ice_positions': {
