@@ -50,7 +50,7 @@ spec:
               name: rabbitmq-secret
               key: url
         - name: VIDEO_STREAM_URL
-          value: "http://192.168.200.129:30001:8000"
+          value: "http://192.168.200.129:30001"
         - name: API_BRIDGE_URL
           value: "http://api-bridge:8000"
         - name: VITE_INFLUX_URL
