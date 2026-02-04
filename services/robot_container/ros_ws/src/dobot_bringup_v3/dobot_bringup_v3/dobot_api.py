@@ -25,7 +25,7 @@ class DobotApi:
                 self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
                 
                 # Set socket timeout to 5 seconds to prevent hanging indefinitely
-                self.socket_dobot.settimeout(60.0)
+                self.socket_dobot.settimeout(300.0)
                 
                 self.socket_dobot.connect((self.ip, self.port))
                 print(f"Connected to Dobot at {self.ip}:{self.port} with keepalive enabled")
