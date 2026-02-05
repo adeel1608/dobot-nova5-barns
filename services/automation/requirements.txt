@@ -8,3 +8,4 @@ asyncio-mqtt==0.13.0
 redis==5.0.1
 psycopg2-binary==2.9.9
 paho-mqtt==1.6.1
+numpy==1.24.3
