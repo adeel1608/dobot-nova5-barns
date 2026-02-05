@@ -283,6 +283,8 @@ export default function ItemCustomization({
     
     // Calculate adjusted milk or just capacity for non-milk drinks
     let result;
+    const cupVolume = CUP_VOLUMES[cupSize] || 266;
+    
     if (baseMilkAmount > 0) {
       result = calculateAdjustedMilk(
         cupSize,
@@ -291,9 +293,14 @@ export default function ItemCustomization({
         addons,
         recipeVolume
       );
+      
+      // Calculate actual free space for milk drinks:
+      // cupVolume - adjustedMilk - foam - espresso - ice - recipeIngredients - addons
+      // Note: recipeVolume already includes espresso and ice from calculations above
+      const actualUsedVolume = result.adjustedMilkAmount + result.foamReductionAmount + recipeVolume + (result.totalAddonVolume || 0);
+      result.actualFreeSpace = cupVolume - actualUsedVolume;
     } else {
       // For non-milk drinks, calculate capacity including addons
-      const cupVolume = CUP_VOLUMES[cupSize] || 266;
       
       // Calculate total addon volume
       let totalAddonVolume = 0;
@@ -320,6 +327,7 @@ export default function ItemCustomization({
         foamReductionAmount: 0,
         foamReductionPercent: 0,
         freeSpaceRemaining: freeSpace,
+        actualFreeSpace: freeSpace,  // For non-milk drinks, these are the same
         milkSubstitutionAmount: 0,
         milkSubstitutionPercent: 0,
         adjustedMilkAmount: 0,
@@ -335,7 +343,8 @@ export default function ItemCustomization({
     setCapacityInfo(result);
     
     // Update cart item with capacity exceeded status
-    const isCapacityExceeded = result.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || result.freeSpaceRemaining < 0;
+    // Use actualFreeSpace for the visual/physical capacity check
+    const isCapacityExceeded = result.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || result.actualFreeSpace < 0;
     if (item.capacityExceeded !== isCapacityExceeded) {
       updateCartItem(itemId, { capacityExceeded: isCapacityExceeded });
     }
@@ -719,15 +728,16 @@ export default function ItemCustomization({
                 addonsByCategory[category] += addon.volume;
               });
               
-              const milkPercent = (capacityInfo.adjustedMilkAmount / cupVolume) * 100;
-              const foamPercent = (capacityInfo.foamReductionAmount / cupVolume) * 100;
+              const milkVolume = capacityInfo.adjustedMilkAmount || 0;
+              const foamVolume = capacityInfo.foamReductionAmount || 0;
+              
+              const milkPercent = (milkVolume / cupVolume) * 100;
+              const foamPercent = (foamVolume / cupVolume) * 100;
               const espressoPercent = (espressoVolume / cupVolume) * 100;
               
               // Calculate ice volume (convert grams to ml)
               const iceVolume = iceAmount > 0 ? iceAmount / INGREDIENT_DENSITIES.ice : 0;
               const icePercent = (iceVolume / cupVolume) * 100;
-              
-              const freeSpacePercent = (capacityInfo.freeSpaceRemaining / cupVolume) * 100;
               
               // Combine default ingredients and add-ons by category
               const combinedIngredients = {};
@@ -763,6 +773,15 @@ export default function ItemCustomization({
                 addonVolume: volumes.addon,
                 totalVolume: volumes.total
               }));
+              
+              // Calculate total volume of other ingredients (syrups, sauces, water, etc.)
+              const otherIngredientsVolume = ingredientPercentages.reduce((sum, ing) => sum + ing.totalVolume, 0);
+              
+              // Calculate ACTUAL free space: cup volume minus all ingredients
+              // This is the true remaining space in the cup
+              const totalUsedVolume = milkVolume + foamVolume + espressoVolume + iceVolume + otherIngredientsVolume;
+              const actualFreeSpace = Math.max(0, cupVolume - totalUsedVolume);
+              const freeSpacePercent = (actualFreeSpace / cupVolume) * 100;
               
               return (
                 <>
@@ -818,7 +837,7 @@ export default function ItemCustomization({
                       <div 
                         className="capacity-segment free-space"
                         style={{ width: `${freeSpacePercent}%` }}
-                        title={`Free space: ${capacityInfo.freeSpaceRemaining.toFixed(0)}ml`}
+                        title={`Free space: ${actualFreeSpace.toFixed(0)}ml`}
                       />
                     )}
                   </div>
@@ -859,21 +878,21 @@ export default function ItemCustomization({
                           </span>
                         </div>
                       ))}
-                      {freeSpacePercent > 0 && (
+                      {actualFreeSpace > 0 && (
                         <div className="legend-item">
                           <span className="legend-color free-space"></span>
-                          <span className="legend-label">Free: {capacityInfo.freeSpaceRemaining.toFixed(0)}ml</span>
+                          <span className="legend-label">Free: {actualFreeSpace.toFixed(0)}ml</span>
                         </div>
                       )}
                     </div>
                   )}
                   
                   {/* Warning if at capacity or exceeds */}
-                  {(capacityInfo.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || capacityInfo.freeSpaceRemaining < 0) && (
+                  {(capacityInfo.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || actualFreeSpace < 0) && (
                     <div className="capacity-warning capacity-critical">
-                      {capacityInfo.freeSpaceRemaining < 0 ? (
+                      {actualFreeSpace < 0 ? (
                         <>
-                          Critical: Default recipe exceeds cup capacity by {Math.abs(capacityInfo.freeSpaceRemaining).toFixed(0)}ml! 
+                          Critical: Default recipe exceeds cup capacity by {Math.abs(actualFreeSpace).toFixed(0)}ml! 
                           Select a larger cup size or reduce ingredients.
                         </>
                       ) : (
@@ -884,7 +903,7 @@ export default function ItemCustomization({
                       )}
                     </div>
                   )}
-                  {!capacityInfo.canAddMore && capacityInfo.milkSubstitutionPercent <= MAX_MILK_SUBSTITUTION_PERCENT && capacityInfo.freeSpaceRemaining >= 0 && (
+                  {!capacityInfo.canAddMore && capacityInfo.milkSubstitutionPercent <= MAX_MILK_SUBSTITUTION_PERCENT && actualFreeSpace >= 0 && (
                     <div className="capacity-warning">
                       Maximum capacity reached (30% limit)
                     </div>

@@ -179,6 +179,9 @@ export function calculateAdjustedMilk(
     foamReducedMilk
   );
   
+  // Calculate total addon volume for actual free space calculation
+  const totalAddonVolume = addonDetails.reduce((sum, addon) => sum + addon.volume, 0);
+  
   return {
     // Phase 1 results
     baseMilkAmount,
@@ -201,6 +204,7 @@ export function calculateAdjustedMilk(
     
     // Details
     addonDetails,
+    totalAddonVolume,
     temperature,
   };
 }
