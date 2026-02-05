@@ -115,6 +115,8 @@ class adderServer(Node):
             
             if not self.connection_lost:
                 self.get_logger().info("Reconnection successful!")
+                # Give the socket a moment to stabilize before returning
+                time.sleep(0.5)
                 self.reconnect_attempts = 0
                 return True
             else:

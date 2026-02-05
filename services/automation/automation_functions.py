@@ -11,6 +11,7 @@ import time
 #Ibrahim (Disoenser)
 import paho.mqtt.client as mqtt
 import json
+import numpy as np
 
 async def dispense_hot_water(params: dict):
     """Dispense hot water using MQTT communication."""
@@ -476,35 +477,123 @@ async def dispense_syrup(params: dict):
             "details": all_results
         }
 
-async def dispense_ice(params: dict):
-    """Dispense ice using MQTT communication."""
-    # example params: {"cups": {"cup_c16": 1.0}, "timeout": 300}
-    # OR flat format: {"weight": 4, "timeout": 300}
+# Ice dispenser calibration data: input sent -> actual output received
+ICE_CALIBRATION_DATA = {
+    'input': [10, 20, 30, 40, 50, 60, 70, 75, 80, 176.8],
+    'output': [30, 37.1, 47.5, 58, 65.1, 66.6, 70, 97.6, 98.7, 184.3]
+}
 
-    cups_dict = params["cups"]
-    # Handle nested cups dictionary format
-    if "cups" in params and isinstance(params["cups"], dict):
+def calculate_ice_input(desired_output):
+    """
+    Calculate the input value needed to get the desired ice output amount.
+    Uses linear interpolation/extrapolation based on calibration data.
+    Works for ANY value, not just within calibration range.
+    
+    Args:
+        desired_output: The actual weight you want to receive (in grams)
+    
+    Returns:
+        The input value to send to the ice machine
+    """
+    inputs = np.array(ICE_CALIBRATION_DATA['input'])
+    outputs = np.array(ICE_CALIBRATION_DATA['output'])
+    
+    min_output, max_output = min(outputs), max(outputs)
+    
+    # For values outside calibration range, use linear extrapolation from last two points
+    if desired_output > max_output:
+        # Extrapolate using the last two calibration points
+        last_two_outputs = outputs[-2:]
+        last_two_inputs = inputs[-2:]
         
+        # Calculate slope
+        slope = (last_two_inputs[1] - last_two_inputs[0]) / (last_two_outputs[1] - last_two_outputs[0])
+        
+        # Extrapolate
+        required_input = last_two_inputs[1] + slope * (desired_output - last_two_outputs[1])
+        
+        log("INFO", f"[ICE-CALIBRATION] Extrapolating above range: {desired_output}g desired → {required_input:.1f}g input (max calibrated: {max_output}g)", service="automation")
+        
+    elif desired_output < min_output:
+        # Extrapolate using the first two calibration points
+        first_two_outputs = outputs[:2]
+        first_two_inputs = inputs[:2]
+        
+        # Calculate slope
+        slope = (first_two_inputs[1] - first_two_inputs[0]) / (first_two_outputs[1] - first_two_outputs[0])
+        
+        # Extrapolate
+        required_input = first_two_inputs[0] + slope * (desired_output - first_two_outputs[0])
+        
+        log("INFO", f"[ICE-CALIBRATION] Extrapolating below range: {desired_output}g desired → {required_input:.1f}g input (min calibrated: {min_output}g)", service="automation")
+        
+    else:
+        # Within calibration range - use normal interpolation
+        required_input = np.interp(desired_output, outputs, inputs)
+        log("INFO", f"[ICE-CALIBRATION] Within range: {desired_output}g desired → {required_input:.1f}g input", service="automation")
+    
+    # Ensure we don't send negative values
+    required_input = max(0, required_input)
+    
+    return round(required_input, 1)
+
+async def dispense_ice(params: dict):
+    """Dispense ice using MQTT communication with automatic calibration."""
+    # example params: 
+    # NEW FORMAT: {"ice": {"ice_cubes_12oz": 40}, "cups": {"cup_C12": 1.0}, ...}
+    # OLD FORMAT: {"cups": {"cup_c16": 1.0}, "timeout": 300}
+    # FLAT FORMAT: {"weight": 4, "timeout": 300}
+    # Optional: "use_calibration": False to disable auto-calibration
+
+    log("INFO", f"[DISPENSE-ICE] Called with params keys: {list(params.keys())}", service="automation")
+    
+    use_calibration = params.get("use_calibration", True)  # Enable calibration by default
+    
+    # Priority 1: Check for new 'ice' dictionary format
+    if "ice" in params and isinstance(params["ice"], dict):
+        ice_dict = params["ice"]
+        log("INFO", f"[DISPENSE-ICE] Found ice dictionary: {ice_dict}", service="automation")
+        # Extract ice type and amount from first key
+        # e.g., {"ice_cubes_12oz": 40} means 40g of ice
+        ice_type = list(ice_dict.keys())[0]
+        desired_weight = float(ice_dict[ice_type])
+        log("INFO", f"[DISPENSE-ICE] Extracted from ice dict: type={ice_type}, amount={desired_weight}g", service="automation")
+    
+    # Priority 2: Handle nested cups dictionary format (old format)
+    elif "cups" in params and isinstance(params["cups"], dict):
+        cups_dict = params["cups"]
         # Extract cup type from first key (e.g., "cup_c7", "cup_c9", "cup_c12", "cup_c16")
         cup_type = list(cups_dict.keys())[0]
         
-        # Map cup type to weight value
+        # Map cup type to desired weight value (what we want to receive)
         cup_type_lower = cup_type.lower()
         if "cup_c7" in cup_type_lower:
-            weight = 64.0  #grams of ice
+            desired_weight = 64.0  #grams of ice
         elif "cup_c9" in cup_type_lower:
-            weight = 84.0  #grams of ice
+            desired_weight = 84.0  #grams of ice
         elif "cup_c12" in cup_type_lower:
-            weight = 120.0  #grams of ice
+            desired_weight = 120.0  #grams of ice
         elif "cup_c16" in cup_type_lower:
-            weight = 180.0  #grams of ice
+            desired_weight = 180.0  #grams of ice
         else:
             # Default to weight 0 if unknown cup type
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to weight 0", service="automation")
-            weight = 0
+            desired_weight = 0
+        log("INFO", f"[DISPENSE-ICE] Extracted from cups dict: type={cup_type}, amount={desired_weight}g", service="automation")
+    
+    # Priority 3: Fallback to flat parameter format
     else:
-        # Fallback to flat parameter format
-        weight = params.get("weight", 0)
+        desired_weight = params.get("weight", 0)
+        log("INFO", f"[DISPENSE-ICE] Using flat weight parameter: {desired_weight}g", service="automation")
+    
+    # Apply calibration if enabled
+    if use_calibration and desired_weight > 0:
+        weight = calculate_ice_input(desired_weight)
+        log("INFO", f"[DISPENSE-ICE] Desired output: {desired_weight}g → Sending calibrated input: {weight}g", service="automation")
+    else:
+        weight = desired_weight
+        if desired_weight > 0:
+            log("INFO", f"[DISPENSE-ICE] Sending raw input: {weight}g (calibration disabled)", service="automation")
     
     response = {"data": None}
 
@@ -551,6 +640,7 @@ async def dispense_ice(params: dict):
     time.sleep(0.5)
     
     # Now send the message
+    log("INFO", f"[DISPENSE-ICE] Publishing to MQTT: {payload}", service="automation")
     client.publish("automation_ice", payload, qos=1)
 
     timeout = params.get("timeout", 90)  # Reduced to allow buffer for routine service
@@ -573,9 +663,13 @@ async def dispense_ice(params: dict):
     # Standardize the response format
     mqtt_response = response["data"]
     if mqtt_response.get("status") == "success":
+        if use_calibration and weight != desired_weight:
+            message = f"Successfully dispensed ice (desired={desired_weight}g, sent={weight}g calibrated)"
+        else:
+            message = f"Successfully dispensed ice (weight={weight}g)"
         return {
             "success": True,
-            "message": f"Successfully dispensed ice (weight={weight})",
+            "message": message,
             "details": mqtt_response
         }
     else:
