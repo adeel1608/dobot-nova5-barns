@@ -532,15 +532,24 @@ def _calculate_milk_adjustments(
         # Convert grams to ml using milk density
         base_milk_amount = milk_weight / INGREDIENT_DENSITIES.get("milk", 1.03)
     
-    # Phase 1: Apply foam reduction based on temperature
+    # Check if this is an iced drink (cold cup = no foam)
+    # Cold cups start with 'C', hot cups start with 'H'
+    is_iced = cup_size and str(cup_size).upper().startswith('C')
+    
+    # Phase 1: Apply foam reduction based on temperature (skip for iced drinks)
     temperature = kitchen_modifiers.get("temperature", "normal")
-    foam_percent = TEMPERATURE_FOAM_PERCENTAGES.get(temperature, TEMPERATURE_FOAM_PERCENTAGES["normal"])
+    if is_iced:
+        # Iced drinks have no foam - milk is poured cold, not steamed
+        foam_percent = 0
+    else:
+        foam_percent = TEMPERATURE_FOAM_PERCENTAGES.get(temperature, TEMPERATURE_FOAM_PERCENTAGES["normal"])
     foam_reduced_milk = base_milk_amount * (1 - foam_percent / 100)
     
     # Phase 2: Calculate cup free space
     cup_volume = CUP_VOLUMES.get(cup_size, 266)  # Default to H9
     
     # Calculate foam volume (foam takes up space in the cup)
+    # For iced drinks, this will be 0
     foam_volume = base_milk_amount * (foam_percent / 100)
     
     # Calculate fixed recipe volume (non-milk ingredients that cannot be adjusted)

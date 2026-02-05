@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { TEMPERATURE_OPTIONS, DEFAULT_TEMPERATURE, INGREDIENT_DENSITIES, MAX_MILK_SUBSTITUTION_PERCENT, CUP_VOLUMES, ESPRESSO_SHOT_WEIGHTS } from '../../../constants/cupCapacityConfig';
+import { TEMPERATURE_OPTIONS, DEFAULT_TEMPERATURE, INGREDIENT_DENSITIES, MAX_MILK_SUBSTITUTION_PERCENT, CUP_VOLUMES, ESPRESSO_SHOT_WEIGHTS, isIcedCup } from '../../../constants/cupCapacityConfig';
 import { 
   calculateAdjustedMilk, 
   getCupSizeCode, 
@@ -678,6 +678,9 @@ export default function ItemCustomization({
               const cupSize = cupIngredient?.type || 'H9';
               const cupVolume = CUP_VOLUMES[cupSize] || 266;
               
+              // Check if this is an iced drink (cold cup = no foam)
+              const isIced = isIcedCup(cupSize);
+              
               // Calculate espresso volume using current selection (from component state)
               let espressoVolume = 0;
               const defaultEspresso = item.selectedMenuItem.default_ingredients?.find(ing => ing.category === 'espresso');
@@ -915,8 +918,10 @@ export default function ItemCustomization({
         </div>
       )}
       
-      {/* Temperature Selection (Compact) */}
-      {item.selectedMenuItem && item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'milk') && (
+      {/* Temperature Selection (Compact) - Only for hot drinks with milk */}
+      {item.selectedMenuItem && 
+       item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'milk') && 
+       !isIcedCup(item.selectedMenuItem.default_ingredients?.find(ing => ing.category === 'cups')?.type) && (
         <div className="ingredient-category replaceable">
           <label className="category-label">Temperature</label>
           <div className="replaceable-options">
