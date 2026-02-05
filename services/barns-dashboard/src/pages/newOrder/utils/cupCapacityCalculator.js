@@ -14,15 +14,23 @@ import {
   DEFAULT_SYRUP_WEIGHT_PER_PUMP,
   DEFAULT_SAUCE_WEIGHT_PER_PUMP,
   ESPRESSO_SHOT_WEIGHTS,
+  isIcedCup,
 } from '../../../constants/cupCapacityConfig';
 
 /**
  * Phase 1: Apply foam reduction based on temperature
+ * Iced drinks (cold cups) have no foam - milk is served cold without steaming
  * @param {number} baseMilkAmount - Original milk amount in ml
  * @param {string} temperature - Temperature setting (kids, standard, extra_hot)
+ * @param {boolean} isIced - Whether this is an iced drink (no foam)
  * @returns {number} Milk amount after foam reduction
  */
-export function applyFoamReduction(baseMilkAmount, temperature = 'standard') {
+export function applyFoamReduction(baseMilkAmount, temperature = 'standard', isIced = false) {
+  // Iced drinks have no foam - milk is poured cold, not steamed
+  if (isIced) {
+    return baseMilkAmount;
+  }
+  
   const foamPercent = TEMPERATURE_FOAM_PERCENTAGES[temperature] || TEMPERATURE_FOAM_PERCENTAGES.standard;
   const reduction = baseMilkAmount * (foamPercent / 100);
   return baseMilkAmount - reduction;
@@ -135,10 +143,13 @@ export function calculateAdjustedMilk(
   addons = [],
   recipeVolume = 0
 ) {
-  // Phase 1: Apply foam reduction
-  const foamReducedMilk = applyFoamReduction(baseMilkAmount, temperature);
+  // Check if this is an iced drink (cold cup = no foam)
+  const isIced = isIcedCup(cupSize);
+  
+  // Phase 1: Apply foam reduction (skip for iced drinks)
+  const foamReducedMilk = applyFoamReduction(baseMilkAmount, temperature, isIced);
   const foamReductionAmount = baseMilkAmount - foamReducedMilk;
-  const foamReductionPercent = (foamReductionAmount / baseMilkAmount) * 100;
+  const foamReductionPercent = baseMilkAmount > 0 ? (foamReductionAmount / baseMilkAmount) * 100 : 0;
   
   // Phase 2 & 3: Calculate addon impact
   let freeSpaceRemaining = calculateFreeSpace(cupSize, recipeVolume);
@@ -179,6 +190,9 @@ export function calculateAdjustedMilk(
     foamReducedMilk
   );
   
+  // Calculate total addon volume for actual free space calculation
+  const totalAddonVolume = addonDetails.reduce((sum, addon) => sum + addon.volume, 0);
+  
   return {
     // Phase 1 results
     baseMilkAmount,
@@ -201,6 +215,7 @@ export function calculateAdjustedMilk(
     
     // Details
     addonDetails,
+    totalAddonVolume,
     temperature,
   };
 }
