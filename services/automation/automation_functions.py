@@ -545,7 +545,9 @@ async def dispense_ice(params: dict):
     # FLAT FORMAT: {"weight": 4, "timeout": 300}
     # Optional: "use_calibration": False to disable auto-calibration
 
-    log("INFO", f"[DISPENSE-ICE] Called with params keys: {list(params.keys())}", service="automation")
+    log("INFO", f"[DISPENSE-ICE] ========== FUNCTION CALLED ==========", service="automation")
+    log("INFO", f"[DISPENSE-ICE] Full params: {params}", service="automation")
+    log("INFO", f"[DISPENSE-ICE] Params keys: {list(params.keys())}", service="automation")
     
     use_calibration = params.get("use_calibration", True)  # Enable calibration by default
     
@@ -553,11 +555,16 @@ async def dispense_ice(params: dict):
     if "ice" in params and isinstance(params["ice"], dict):
         ice_dict = params["ice"]
         log("INFO", f"[DISPENSE-ICE] Found ice dictionary: {ice_dict}", service="automation")
-        # Extract ice type and amount from first key
-        # e.g., {"ice_cubes_12oz": 40} means 40g of ice
-        ice_type = list(ice_dict.keys())[0]
-        desired_weight = float(ice_dict[ice_type])
-        log("INFO", f"[DISPENSE-ICE] Extracted from ice dict: type={ice_type}, amount={desired_weight}g", service="automation")
+        
+        if not ice_dict:
+            log("ERROR", f"[DISPENSE-ICE] Ice dictionary is empty!", service="automation")
+            desired_weight = 0
+        else:
+            # Extract ice type and amount from first key
+            # e.g., {"ice_cubes_12oz": 40} means 40g of ice
+            ice_type = list(ice_dict.keys())[0]
+            desired_weight = float(ice_dict[ice_type])
+            log("INFO", f"[DISPENSE-ICE] Extracted from ice dict: type={ice_type}, amount={desired_weight}g", service="automation")
     
     # Priority 2: Handle nested cups dictionary format (old format)
     elif "cups" in params and isinstance(params["cups"], dict):
@@ -594,7 +601,15 @@ async def dispense_ice(params: dict):
         weight = desired_weight
         if desired_weight > 0:
             log("INFO", f"[DISPENSE-ICE] Sending raw input: {weight}g (calibration disabled)", service="automation")
+        else:
+            log("ERROR", f"[DISPENSE-ICE] Desired weight is 0! Cannot dispense ice.", service="automation")
+            return {
+                "success": False,
+                "error": "No ice amount specified",
+                "message": "Cannot dispense ice - weight is 0"
+            }
     
+    log("INFO", f"[DISPENSE-ICE] About to connect to MQTT broker...", service="automation")
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -629,19 +644,22 @@ async def dispense_ice(params: dict):
         time.sleep(0.1)
     
     if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+        log("ERROR", "[DISPENSE-ICE] Failed to connect to MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
             "message": "Failed to connect to MQTT broker"
         }
     
+    log("INFO", f"[DISPENSE-ICE] Connected to MQTT broker successfully", service="automation")
+    
     # Give a moment for subscription to be processed
     time.sleep(0.5)
     
     # Now send the message
-    log("INFO", f"[DISPENSE-ICE] Publishing to MQTT: {payload}", service="automation")
-    client.publish("automation_ice", payload, qos=1)
+    log("INFO", f"[DISPENSE-ICE] Publishing to MQTT topic 'automation_ice': {payload}", service="automation")
+    publish_result = client.publish("automation_ice", payload, qos=1)
+    log("INFO", f"[DISPENSE-ICE] Publish result: {publish_result.rc} (0=success)", service="automation")
 
     timeout = params.get("timeout", 90)  # Reduced to allow buffer for routine service
     start_time = time.time()
@@ -662,21 +680,26 @@ async def dispense_ice(params: dict):
     
     # Standardize the response format
     mqtt_response = response["data"]
+    log("INFO", f"[DISPENSE-ICE] Received MQTT response: {mqtt_response}", service="automation")
+    
     if mqtt_response.get("status") == "success":
         if use_calibration and weight != desired_weight:
             message = f"Successfully dispensed ice (desired={desired_weight}g, sent={weight}g calibrated)"
         else:
             message = f"Successfully dispensed ice (weight={weight}g)"
+        log("INFO", f"[DISPENSE-ICE] ✓ SUCCESS: {message}", service="automation")
         return {
             "success": True,
             "message": message,
             "details": mqtt_response
         }
     else:
+        error_msg = mqtt_response.get('error', 'Unknown error')
+        log("ERROR", f"[DISPENSE-ICE] ✗ FAILED: {error_msg}", service="automation")
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to dispense ice: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to dispense ice: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1591,13 +1614,13 @@ async def froth_milk(params: dict):
 
 async def initialize_frother(params: dict):
     """Initialize frother using MQTT communication."""
-    # This function doesn't use any parameters from params dict
-    # It just sends a frother_init command to the MQTT broker
     response = {"data": None}
-    log("INFO", "Connecting to frother...", service="automation")
+    
+    # Get seconds parameter, default to 1.5
+    seconds = params.get("seconds", 1.5)
+    
     def on_connect(client, userdata, flags, rc, props=None):
         client.subscribe("automation_frother_init/response", qos=1)
-        log("INFO", "Subscribed to frother_init response", service="automation")
 
     def on_message(client, userdata, msg):
         try:
@@ -1606,8 +1629,8 @@ async def initialize_frother(params: dict):
         except json.JSONDecodeError:
             pass
 
-    # Fixed payload for frother initialization
-    payload = json.dumps({"frother_init": 1})
+    # Payload for frother initialization with seconds parameter
+    payload = json.dumps({"frother_init": 1, "seconds": seconds})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
         params.get("username", "admin"), 
