@@ -17,7 +17,7 @@ export const CUP_VOLUMES = {
 // Ingredient densities (g/ml) - milk is baseline at ~1.03
 export const INGREDIENT_DENSITIES = {
   milk: 1.03,        // Baseline for milk
-  syrups: 1.32,      // Heavier than milk (sugar content)
+  syrups: 1.12,      // Heavier than milk (sugar content)
   sauce: 1.35,       // Sauces are denser
   espresso: 1.02,    // Similar to water
   ice: 0.92,         // Ice floats (less dense)
