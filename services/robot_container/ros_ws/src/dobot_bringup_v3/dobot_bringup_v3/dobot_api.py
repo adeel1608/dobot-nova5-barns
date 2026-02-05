@@ -7,11 +7,11 @@ class DobotApi:
     def __init__(self, ip, port):
         self.ip = ip
         self.port = port
-        self.socket_dobot = 0
+        self.socket_dobot = None
 
         if self.port == 29999 or self.port == 30003:
             try:
-                self.socket_dobot = socket.socket()
+                self.socket_dobot = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 
                 # Enable TCP keepalive to prevent connection timeouts
                 self.socket_dobot.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -24,11 +24,15 @@ class DobotApi:
                 # Close connection after 3 failed probes
                 self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
                 
-                # Set socket timeout to 5 seconds to prevent hanging indefinitely
-                self.socket_dobot.settimeout(300.0)
+                # Set socket timeout to 30 seconds for connection and operations
+                # 300s is too long and can cause the system to hang
+                self.socket_dobot.settimeout(30.0)
+                
+                # Set TCP_NODELAY to disable Nagle's algorithm for lower latency
+                self.socket_dobot.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 
                 self.socket_dobot.connect((self.ip, self.port))
-                print(f"Connected to Dobot at {self.ip}:{self.port} with keepalive enabled")
+                print(f"Connected to Dobot at {self.ip}:{self.port} with keepalive enabled and 30s timeout")
             except socket.error as e:
                 print(f"Failed to connect to Dobot at {self.ip}:{self.port} - {e}")
                 self.socket_dobot = None
@@ -36,9 +40,10 @@ class DobotApi:
             print(f"Connect to dashboard server need use port {self.port}!")
 
     def send_data(self, string):
-        if self.socket_dobot is None:
-            print("No valid socket connection.")
-            return
+        if self.socket_dobot is None or self.socket_dobot == 0:
+            error_msg = "Error: No valid socket connection"
+            print(error_msg)
+            raise socket.error(error_msg)
         try:
             print(f"Sending: {string}")
             self.socket_dobot.send(str.encode(string, 'utf-8'))
@@ -47,13 +52,21 @@ class DobotApi:
             raise
 
     def wait_reply(self):
-        if self.socket_dobot is None:
-            print("No valid socket connection.")
-            return "No valid socket connection"
+        if self.socket_dobot is None or self.socket_dobot == 0:
+            error_msg = "Error: No valid socket connection"
+            print(error_msg)
+            raise socket.error(error_msg)
         try:
             data = self.socket_dobot.recv(1024)
+            if not data or len(data) == 0:
+                error_msg = "Error: Empty response received from robot"
+                print(error_msg)
+                raise socket.error(error_msg)
             data_str = str(data, encoding="utf-8")
             return data_str
+        except socket.timeout as e:
+            print(f"Socket timeout while receiving data: {e}")
+            raise socket.error(f"Error: Socket timeout - {e}")
         except socket.error as e:
             print(f"Failed to receive data: {e}")
             raise
@@ -62,9 +75,13 @@ class DobotApi:
         """
         Close the port
         """
-        if self.socket_dobot != 0 and self.socket_dobot is not None:
-            self.socket_dobot.close()
-            self.socket_dobot = None
+        if self.socket_dobot is not None:
+            try:
+                self.socket_dobot.close()
+            except Exception as e:
+                print(f"Error closing socket: {e}")
+            finally:
+                self.socket_dobot = None
 
     def sendRecvMsg(self, string):
         # This is the core function that sends a command and waits for a reply.
@@ -72,9 +89,14 @@ class DobotApi:
         try:
             self.send_data(string)
             return self.wait_reply()
+        except socket.error as e:
+            # Socket errors indicate connection problems
+            error_msg = f"Error: Connection error in sendRecvMsg - {e}"
+            print(error_msg)
+            return error_msg
         except Exception as e:
-            # Catch any exception that occurred in send_data or wait_reply
-            error_msg = f"Error in sendRecvMsg: {e}"
+            # Catch any other exception that occurred in send_data or wait_reply
+            error_msg = f"Error: Unexpected error in sendRecvMsg - {e}"
             print(error_msg)
             return error_msg
 
