@@ -216,7 +216,16 @@ export default function ItemCustomization({
     );
     const cupSize = cupIngredient?.type || 'H9';
     
-    // Calculate total recipe volume (excluding ice and espresso initially - we'll add them separately)
+    // Calculate total recipe volume (excluding non-volume categories)
+    // Categories to skip: 
+    // - milk: handled separately in capacity calculation
+    // - espresso: handled separately (added based on shot type)
+    // - ice: handled separately (added from iceAmount state)
+    // - cups: not a consumable volume
+    // - position: not a consumable volume
+    // - temperature: not a consumable volume (it's a setting, not an ingredient)
+    const skipCategories = ['milk', 'espresso', 'ice', 'cups', 'position', 'temperature'];
+    
     let recipeVolume = 0;
     for (const ing of (item.selectedMenuItem.default_ingredients || [])) {
       const amount = ing.unit_amount || 0;
@@ -224,8 +233,8 @@ export default function ItemCustomization({
       const baseUnits = (ing.base_units || '').toLowerCase();
       const category = (ing.category || '').toLowerCase();
       
-      // Skip ice, espresso - handled separately
-      if (category === 'ice' || category === 'espresso') {
+      // Skip non-volume categories
+      if (skipCategories.includes(category)) {
         continue;
       }
       

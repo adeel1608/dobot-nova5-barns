@@ -223,6 +223,15 @@ export function getCupSizeCode(size, cupType = 'hot') {
  * @returns {number} Total volume in ml
  */
 export function calculateRecipeVolume(ingredients) {
+  // Categories to skip (non-volume items):
+  // - milk: handled separately in capacity calculation
+  // - ice: handled separately (added from iceAmount state)
+  // - cups: not a consumable volume
+  // - position: not a consumable volume
+  // - temperature: not a consumable volume (it's a setting, not an ingredient)
+  // Note: espresso IS included here as it contributes to recipe volume
+  const skipCategories = ['milk', 'ice', 'cups', 'position', 'temperature'];
+  
   let total = 0;
   for (const ing of ingredients) {
     const amount = ing.unit_amount || 0;
@@ -231,8 +240,8 @@ export function calculateRecipeVolume(ingredients) {
     const category = (ing.category || '').toLowerCase();
     const type = (ing.type || '').toLowerCase().replace(/\s+/g, '_');
     
-    // Skip ice - it's measured in grams and doesn't affect liquid volume
-    if (category === 'ice') {
+    // Skip non-volume categories
+    if (skipCategories.includes(category)) {
       continue;
     }
     
