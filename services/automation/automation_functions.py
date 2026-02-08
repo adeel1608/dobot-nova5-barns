@@ -107,10 +107,12 @@ async def dispense_hot_water(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to dispense hot water: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to dispense hot water: {error_msg}",
             "details": mqtt_response
         }
 
@@ -247,7 +249,8 @@ async def dispense_sauce(params: dict):
             })
             log("INFO", f"[DISPENSE-SAUCE] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
         else:
-            error_msg = mqtt_response.get('error', 'Unknown error')
+            # Use error field if present, otherwise use status field
+            error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -433,7 +436,8 @@ async def dispense_syrup(params: dict):
             })
             log("INFO", f"[DISPENSE-{item_type.upper()}] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
         else:
-            error_msg = mqtt_response.get('error', 'Unknown error')
+            # Use error field if present, otherwise use status field
+            error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -694,7 +698,8 @@ async def dispense_ice(params: dict):
             "details": mqtt_response
         }
     else:
-        error_msg = mqtt_response.get('error', 'Unknown error')
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         log("ERROR", f"[DISPENSE-ICE] ✗ FAILED: {error_msg}", service="automation")
         return {
             "success": False,
@@ -829,7 +834,8 @@ async def dispense_milk(params: dict):
             })
             log("INFO", f"[DISPENSE-MILK] SUCCESS: Pump {pump_number} dispensed {amount}g", service="automation")
         else:
-            error_msg = mqtt_response.get('error', 'Unknown error')
+            # Use error field if present, otherwise use status field
+            error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -965,10 +971,12 @@ async def slush_machine(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to prepare slush: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to prepare slush: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1075,10 +1083,12 @@ async def coffee_machine(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to prepare coffee: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to prepare coffee: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1179,10 +1189,12 @@ async def coffee_machine_wait(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to prepare coffee: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to prepare coffee: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1290,10 +1302,12 @@ async def coffee_machine_purge(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to prepare coffee: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to prepare coffee: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1383,10 +1397,12 @@ async def grinding_machine(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to grind coffee: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to grind coffee: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1487,10 +1503,12 @@ async def tampering_machine(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to complete tampering: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to complete tampering: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1605,10 +1623,12 @@ async def froth_milk(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to froth milk: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to froth milk: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1691,10 +1711,12 @@ async def initialize_frother(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to initialize frother: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to initialize frother: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1779,10 +1801,12 @@ async def clean_frother(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to clean frother: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to clean frother: {error_msg}",
             "details": mqtt_response
         }
 
@@ -1864,10 +1888,12 @@ async def rinser_machine(params: dict):
             "details": mqtt_response
         }
     else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
         return {
             "success": False,
-            "error": mqtt_response.get('error', 'Unknown error'),
-            "message": f"Failed to complete rinser operation: {mqtt_response.get('error', 'Unknown error')}",
+            "error": error_msg,
+            "message": f"Failed to complete rinser operation: {error_msg}",
             "details": mqtt_response
         }
 
