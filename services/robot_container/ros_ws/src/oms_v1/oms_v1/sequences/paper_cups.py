@@ -384,6 +384,117 @@ def pick_paper_cup_milk(**params) -> bool:
         return False
     return True
 
+def pick_cup_for_hot_water(**params) -> bool:
+    """
+    Pick up a paper cup from a specific stage for hot water.
+    """
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+    
+    cups_dict = _extract_cups_dict(params)
+    if not cups_dict:
+        cups_dict = {"cup_H12": 1.0}
+    
+    size_mapped = _normalize_paper_cup_size(cups_dict)
+    
+    valid_stages = ('1', '2', '3', '4')
+    valid_sizes = ('7oz', '9oz', '12oz')
+    
+    if stage not in valid_stages or size_mapped not in valid_sizes:
+        return False
+    
+    stage_positions = {
+        "1": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_1'],
+        "2": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_2'],
+        "3": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_3'],
+        "4": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_4']
+    }
+    
+    gripper_positions = PAPER_CUP_GRIPPER_POSITIONS
+    
+    if not home(position="west"):
+        return False
+    if stage in ("3", "4"):
+        if not home(position="south_west"):
+            return False
+    
+    if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
+        return False
+    
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_hot_water_down'])):
+        return False
+    
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[size_mapped])):
+        return False
+    
+    run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
+    
+    if not home(position="west"):
+        return False
+    
+    if not home(position="north_west"):
+        return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "hot_water")):
+        return False
+    
+    if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
+        return False
+    
+    run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
+    
+    return True
+
+def return_cup_with_hot_water(**params) -> bool:
+    """
+    Complete hot water dispensing sequence and return to holding position.
+    """
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = f"stage_{cup_position}"
+    
+    stage_params = PLACE_PAPER_CUP_PARAMS.get(str(stage))
+    if not stage_params:
+        return False
+    
+    run_skill("set_speed_factor", ESPRESSO_SPEEDS['hot_water_pour'])
+    
+    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
+        return False
+
+    if not ok(home(position="north_west")):
+        return False
+
+    if not ok(home(position="west")):
+        return False
+    
+    if 'pose' not in stage_params:
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
+        return False
+    
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
+        return False
+    
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])):
+        return False
+    
+    if 'stage_home' in stage_params:
+        if not ok(run_skill("gotoJ_deg", *stage_params['stage_home'])):
+            return False
+    
+    if 'twist_back' in stage_params:
+        if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_back_machine'])):
+            return False
+    
+    return True
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'grab_paper_cup': grab_paper_cup,
@@ -395,4 +506,6 @@ SEQUENCES = {
     'pick_paper_cup_sauces': pick_paper_cup_sauces,
     'place_paper_cup_milk': place_paper_cup_milk,
     'pick_paper_cup_milk': pick_paper_cup_milk,
+    'pick_cup_for_hot_water': pick_cup_for_hot_water,
+    'return_cup_with_hot_water': return_cup_with_hot_water,
 }
