@@ -203,6 +203,100 @@ def check_aruco_status(**params) -> bool:
     check_saved_data()
     return True
 
+def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0):
+    """
+    Convert joint values to cartesian, apply offsets, and convert back to joints.
+    
+    Args:
+        j1-j6: Joint values in degrees
+        x, y, z: Position offsets in mm (default: 0.0)
+        rx, ry, rz: Rotation offsets in degrees (default: 0.0)
+    
+    Returns:
+        Result from inverse_solution with the offset cartesian pose
+    """
+    print(f"Input joints: [{j1}, {j2}, {j3}, {j4}, {j5}, {j6}]")
+    
+    # Get current cartesian position from joint values
+    pos_result = run_skill("positive_solution", j1, j2, j3, j4, j5, j6)
+    
+    if not pos_result or not hasattr(pos_result, 'pose'):
+        print("Failed to get positive solution")
+        return None
+    
+    # Parse pose string: "{x,y,z,rx,ry,rz,...}"
+    try:
+        pose_values = [float(v) for v in pos_result.pose.strip("{}").split(",")[:6]]
+        current_x, current_y, current_z, current_rx, current_ry, current_rz = pose_values
+    except (ValueError, IndexError) as e:
+        print(f"Failed to parse pose string: {e}")
+        return None
+    
+    print(f"Current cartesian: x={current_x:.3f}, y={current_y:.3f}, z={current_z:.3f}, rx={current_rx:.3f}, ry={current_ry:.3f}, rz={current_rz:.3f}")
+    
+    # Apply offsets
+    new_x = current_x + x
+    new_y = current_y + y
+    new_z = current_z + z
+    new_rx = current_rx + rx
+    new_ry = current_ry + ry
+    new_rz = current_rz + rz
+    
+    print(f"Offsets applied: x={x}, y={y}, z={z}, rx={rx}, ry={ry}, rz={rz}")
+    print(f"New cartesian: x={new_x:.3f}, y={new_y:.3f}, z={new_z:.3f}, rx={new_rx:.3f}, ry={new_ry:.3f}, rz={new_rz:.3f}")
+    
+    # Convert back to joint values
+    inv_result = run_skill("inverse_solution", new_x, new_y, new_z, new_rx, new_ry, new_rz)
+    
+    if inv_result and hasattr(inv_result, 'angle'):
+        # Parse angle string: "{j1,j2,j3,j4,j5,j6,...}"
+        try:
+            angle_values = [float(v) for v in inv_result.angle.strip("{}").split(",")[:6]]
+            res_j1, res_j2, res_j3, res_j4, res_j5, res_j6 = angle_values
+            print(f"Resulting joints: [{res_j1:.3f}, {res_j2:.3f}, {res_j3:.3f}, {res_j4:.3f}, {res_j5:.3f}, {res_j6:.3f}]")
+        except (ValueError, IndexError) as e:
+            print(f"Failed to parse angle string: {e}")
+            return None
+    else:
+        print("Failed to get inverse solution")
+        return None
+    
+    return inv_result
+
+def solution_interactive():
+    """
+    Interactive wrapper for solution function that prompts for input.
+    """
+    print("\n=== Joint to Cartesian Offset Solution ===")
+    print("Enter joint values (j1-j6) and optional cartesian offsets (x,y,z,rx,ry,rz)")
+    print("Press Enter to use default value of 0.0 for any parameter\n")
+    
+    try:
+        j1 = float(input("j1 (degrees): ") or 0.0)
+        j2 = float(input("j2 (degrees): ") or 0.0)
+        j3 = float(input("j3 (degrees): ") or 0.0)
+        j4 = float(input("j4 (degrees): ") or 0.0)
+        j5 = float(input("j5 (degrees): ") or 0.0)
+        j6 = float(input("j6 (degrees): ") or 0.0)
+        
+        print("\nCartesian offsets (optional - press Enter for 0.0):")
+        x = float(input("x offset (mm): ") or 0.0)
+        y = float(input("y offset (mm): ") or 0.0)
+        z = float(input("z offset (mm): ") or 0.0)
+        rx = float(input("rx offset (degrees): ") or 0.0)
+        ry = float(input("ry offset (degrees): ") or 0.0)
+        rz = float(input("rz offset (degrees): ") or 0.0)
+        
+        print("\n" + "="*50)
+        return solution(j1, j2, j3, j4, j5, j6, x, y, z, rx, ry, rz)
+        
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+        return None
+    except KeyboardInterrupt:
+        print("\nCancelled")
+        return None
+    
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'home': home,
