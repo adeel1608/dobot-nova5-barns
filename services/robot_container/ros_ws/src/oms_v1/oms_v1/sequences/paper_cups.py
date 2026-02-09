@@ -13,6 +13,7 @@ from oms_v1.params import (
     GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS,
     PAPER_CUPS_NAVIGATION_PARAMS, PAPER_CUPS_STATION_PARAMS,
     PAPER_CUP_GRIPPER_POSITIONS, PAPER_CUP_MOVEMENT_OFFSETS,
+    ESPRESSO_MOVEMENT_OFFSETS,
     ESPRESSO_HOME, GRIPPER_OPEN, GRIPPER_RELEASE, GRIPPER_FULL,
     _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
@@ -427,10 +428,10 @@ def pick_cup_for_hot_water(**params) -> bool:
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_hot_water_down'])):
         return False
     if size_mapped == '12oz':
-        if not ok(run_skill("set_gripper_position", 255,100,255)):
+        if not ok(run_skill("set_gripper_position", 255,120,255)):
             return False
     else:
-        if not ok(run_skill("set_gripper_position", 255,120,255)):
+        if not ok(run_skill("set_gripper_position", 255,140,255)):
             return False
     
     run_skill("set_speed_factor", 50)
@@ -445,8 +446,8 @@ def pick_cup_for_hot_water(**params) -> bool:
     
     if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
         return False
-    
-    # run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
+
+    run_skill("sync")    
     
     return True
 
@@ -481,7 +482,7 @@ def return_cup_with_hot_water(**params) -> bool:
     
     stage_params = stage_params_map.get(stage, {})
     
-    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
+    if not ok(run_skill("moveEE", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
         return False
 
     if stage in ("1"):
