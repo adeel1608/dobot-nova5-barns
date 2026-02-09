@@ -6,6 +6,7 @@ from rclpy.node import Node
 from dobot_msgs_v3.srv import *
 from .dobot_api import *
 import os
+import time
 
 class adderServer(Node):
     def __init__(self, name):
@@ -398,37 +399,80 @@ class adderServer(Node):
     def GetGripperPosition(self, request, response):
         """
         Retrieves the gripper position from the high byte of Register 2002 and responds with the value.
+        Uses retry logic to handle intermittent communication issues.
         """
-        try:
-            # Read Register 2002 (1 register) using GetHoldRegs
-            return_t = self.dashboard.GetHoldRegs(
-                request.index, 2002, 1, "U16"
-            )
+        max_retries = 3
+        retry_delay = 0.05
+        
+        for attempt in range(max_retries):
+            try:
+                # Read Register 2002 (1 register) using GetHoldRegs
+                return_t = self.dashboard.GetHoldRegs(
+                    request.index, 2002, 1, "U16"
+                )
 
-            # Parse response
-            success, response_code = self.safe_parse_response(return_t)
-            if not success:
-                response.position = 0
+                # Parse response
+                success, response_code = self.safe_parse_response(return_t)
+                if not success:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    response.position = 0
+                    return response
+                
+                reg_values = return_t[return_t.find("{") + 1: return_t.find("}")].split(",")
+
+                # Check if the register value is empty or invalid
+                if not reg_values or not reg_values[0] or reg_values[0].strip() == '':
+                    if attempt < max_retries - 1:
+                        self.get_logger().warn(
+                            f"GetGripperPosition: Empty register value on attempt {attempt + 1}/{max_retries}, retrying..."
+                        )
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        self.get_logger().error(
+                            "GetGripperPosition: Failed to read valid register value after all retries"
+                        )
+                        response.position = 0
+                        return response
+
+                # Debugging log for raw register values
+                self.get_logger().info(f"GetGripperPosition: Raw register value from 2002: {reg_values}")
+
+                # Decode the high byte of Register 2002 for the gripper position
+                reg_2002 = int(reg_values[0])
+                position = (reg_2002 >> 8) & 0xFF
+
+                # Log the decoded position
+                self.get_logger().info(f"Decoded gripper position (high byte of 2002): {position}")
+
+                # Populate response
+                response.position = position
                 return response
-            
-            reg_values = return_t[return_t.find("{") + 1: return_t.find("}")].split(",")
-
-            # Debugging log for raw register values
-            self.get_logger().info(f"GetGripperPosition: Raw register value from 2002: {reg_values}")
-
-            # Decode the high byte of Register 2002 for the gripper position
-            reg_2002 = int(reg_values[0])  # Full 16-bit value from Register 2002
-            position = (reg_2002 >> 8) & 0xFF  # Extract the high byte (most significant byte)
-
-            # Log the decoded position
-            self.get_logger().info(f"Decoded gripper position (high byte of 2002): {position}")
-
-            # Populate response
-            response.position = position
-        except Exception as e:
-            # Handle any exceptions and populate error response
-            response.position = 0
-            self.get_logger().error(f"Error in GetGripperPosition: {e}")
+                
+            except ValueError as e:
+                if attempt < max_retries - 1:
+                    self.get_logger().warn(
+                        f"GetGripperPosition: ValueError on attempt {attempt + 1}/{max_retries}: {e}, retrying..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    response.position = 0
+                    self.get_logger().error(f"GetGripperPosition: ValueError after all retries: {e}")
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.get_logger().warn(
+                        f"GetGripperPosition: Exception on attempt {attempt + 1}/{max_retries}: {e}, retrying..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    response.position = 0
+                    self.get_logger().error(f"GetGripperPosition: Exception after all retries: {e}")
+        
         return response
 
     def SetGripperPosition(self, request, response):
