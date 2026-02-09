@@ -1,5 +1,7 @@
 *
 !robot1-startup.sh
+!data
+!data/recipes.json
 !robot2-startup.sh
 !install-robot-dependencies.sh
 !build-images-arm64.sh
