@@ -194,7 +194,11 @@ app.add_middleware(
         "http://localhost:3000",  # Dashboard origin
         "http://127.0.0.1:3000",
         "http://localhost:3001",  # Allow alternative ports
-        "http://127.0.0.1:3001"
+        "http://127.0.0.1:3001",
+        "http://192.168.200.129:30003",
+        "http://192.168.200.129:30001",
+        "http://localhost:30003",
+        "http://localhost:30001"
     ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods
