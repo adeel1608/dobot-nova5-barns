@@ -610,6 +610,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
+    'pickup_hot_water_down': (0, 100, 30, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────
@@ -617,7 +618,7 @@ GRAB_PAPER_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
         'approach':     ( 222.0,        -5,          0,          0,          0,         0),
-        'grip_width':   145,
+        'grip_width':   150,
         'retreat':      (-350,        0,          0,          0,          0,         0),
     },
     '9oz': {
@@ -699,6 +700,11 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_2':     (-107.618809,-50.837104,-133.238999,4.322921,-107.550365,0.027873),  # Stage 2 pickup position
         'pickup_3':     (-127.135882,-52.028920,-115.863508,-11.823941,-127.069217,0.139543),  # Stage 3 pickup position
         'pickup_4':     (-139.614437,-57.667847,-93.968886,-28.016244,-139.555665,0.242845),  # Stage 4 pickup position
+        #Pickup positions for hot water
+        'pickup_hot_water_1':     (163.559, -53.065, -148.063, 22.257, -16.378, -1.093),  # Stage 1 pickup position
+        'pickup_hot_water_2':     (169.904, -49.016, -130.157, 0.890, -10.024, -1.687),  # Stage 2 pickup position
+        'pickup_hot_water_3':     (172.801, -52.255, -108.986, -16.442, -7.133, -2.289),  # Stage 3 pickup position
+        'pickup_hot_water_4':     (174.428, -60.166, -83.684, -33.228, -5.521, -2.896),  # Stage 4 pickup position
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station

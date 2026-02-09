@@ -33,6 +33,10 @@ class ValidationServiceApp:
         # Service state
         self.is_running = False
         
+        # Track active alerts to prevent duplicate notifications
+        # Key: "category_subtype", Value: "low" or "empty"
+        self._active_alerts = {}
+        
         # Setup logging
         logging.basicConfig(
             level=logging.INFO,
@@ -933,24 +937,52 @@ class ValidationServiceApp:
             log("ERROR", f"Error sending summary events: {e}", service="validation")
 
     async def check_and_send_alerts(self, category: str, category_status: dict):
-        """Check inventory status and send alerts if needed"""
+        """Check inventory status and send alerts if needed.
+        
+        Uses deduplication to prevent sending the same alert multiple times.
+        Alerts are only sent when:
+        - Status changes from normal to low/empty (new alert)
+        - Status changes from low to empty (severity increased)
+        Resolutions are only sent when:
+        - Status changes from low/empty to normal (alert resolved)
+        """
         try:
             # Get the inventory details for this category
             inventory_details = category_status.get("details", {}).get(category, {})
-            log("DEBUG", f"inside check_and_send_alerts: inventory_details: {json.dumps( inventory_details, indent=2)}", service="validation")
+            log("DEBUG", f"inside check_and_send_alerts: inventory_details: {json.dumps(inventory_details, indent=2)}", service="validation")
             
             # Loop through each subtype in the category
             for subtype, item_data in inventory_details.items():
                 status = item_data.get("status")  # This is "high", "medium", "low", or "empty"
-                amount = item_data.get("amount", 0)
-                percentage = item_data.get("percentage", 0)
+                alert_key = f"{category}_{subtype}"
                 
-                # Send alert based on status
-                if status == "empty" or status == "low":
-                    await self.send_alert_to_oms(status, category, subtype)
+                # Get previous alert status for this ingredient
+                previous_status = self._active_alerts.get(alert_key)
                 
-                elif status == "high" or status == "medium":
-                    await self.send_resolution_to_oms(status, category, subtype)
+                # Check if we need to send an alert (status is low or empty)
+                if status in ("empty", "low"):
+                    # Only send if this is a NEW alert or severity INCREASED
+                    if previous_status is None:
+                        # New alert - ingredient just went low/empty
+                        await self.send_alert_to_oms(status, category, subtype)
+                        self._active_alerts[alert_key] = status
+                        log("INFO", f"New low stock alert for {alert_key}: {status}", service="validation")
+                    elif previous_status == "low" and status == "empty":
+                        # Severity increased from low to empty
+                        await self.send_alert_to_oms(status, category, subtype)
+                        self._active_alerts[alert_key] = status
+                        log("INFO", f"Alert severity increased for {alert_key}: low -> empty", service="validation")
+                    else:
+                        # Alert already sent, status unchanged - skip
+                        log("DEBUG", f"Skipping duplicate alert for {alert_key}: {status} (already sent)", service="validation")
+                
+                # Check if we need to send a resolution (status is high or medium)
+                elif status in ("high", "medium"):
+                    # Only send resolution if there was an active alert
+                    if previous_status is not None:
+                        await self.send_resolution_to_oms(status, category, subtype)
+                        del self._active_alerts[alert_key]
+                        log("INFO", f"Alert resolved for {alert_key}: {previous_status} -> {status}", service="validation")
                 
         except Exception as e:
             log("ERROR", f"Error checking status for alerts: {e}", service="validation")

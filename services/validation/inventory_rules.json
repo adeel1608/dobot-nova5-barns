@@ -22,7 +22,7 @@
     "cups": {
         "subtypes": {
             "cup_H7": {
-                "max_capacity": 40,
+                "max_capacity": 25,
                 "warning_threshold": 50,
                 "critical_threshold": 25
             },
@@ -32,7 +32,7 @@
                 "critical_threshold": 25
             },
             "cup_H12": {
-                "max_capacity": 10,
+                "max_capacity": 25,
                 "warning_threshold": 40,
                 "critical_threshold": 20
             },
@@ -47,7 +47,7 @@
                 "critical_threshold": 25
             },
             "cup_C12": {
-                "max_capacity": 50,
+                "max_capacity": 100,
                 "warning_threshold": 30,
                 "critical_threshold": 15
             },

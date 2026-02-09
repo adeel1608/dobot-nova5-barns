@@ -5,7 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { TEMPERATURE_OPTIONS, DEFAULT_TEMPERATURE, INGREDIENT_DENSITIES, MAX_MILK_SUBSTITUTION_PERCENT, CUP_VOLUMES, ESPRESSO_SHOT_WEIGHTS } from '../../../constants/cupCapacityConfig';
+import { TEMPERATURE_OPTIONS, DEFAULT_TEMPERATURE, INGREDIENT_DENSITIES, MAX_MILK_SUBSTITUTION_PERCENT, CUP_VOLUMES, ESPRESSO_SHOT_WEIGHTS, isIcedCup } from '../../../constants/cupCapacityConfig';
 import { 
   calculateAdjustedMilk, 
   getCupSizeCode, 
@@ -196,7 +196,19 @@ export default function ItemCustomization({
       ing => ing.category === 'milk'
     );
     
-    const baseMilkAmount = milkIngredient ? (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1) : 0;
+    // Calculate milk volume - convert from grams to ml if needed
+    let baseMilkAmount = 0;
+    if (milkIngredient) {
+      const milkWeight = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+      const milkBaseUnits = (milkIngredient.base_units || '').toLowerCase();
+      
+      if (milkBaseUnits === 'ml') {
+        baseMilkAmount = milkWeight;
+      } else {
+        // Convert grams to ml using milk density
+        baseMilkAmount = milkWeight / INGREDIENT_DENSITIES.milk;
+      }
+    }
     
     // Get cup size
     const cupIngredient = item.selectedMenuItem.default_ingredients?.find(
@@ -204,32 +216,51 @@ export default function ItemCustomization({
     );
     const cupSize = cupIngredient?.type || 'H9';
     
-    // Calculate total recipe volume (excluding ice and espresso initially - we'll add them separately)
+    // Calculate total recipe volume (excluding non-volume categories)
+    // Categories to skip: 
+    // - milk: handled separately in capacity calculation
+    // - espresso: handled separately (added based on shot type)
+    // - ice: handled separately (added from iceAmount state)
+    // - cups: not a consumable volume
+    // - position: not a consumable volume
+    // - temperature: not a consumable volume (it's a setting, not an ingredient)
+    const skipCategories = ['milk', 'espresso', 'ice', 'cups', 'position', 'temperature'];
+    
     let recipeVolume = 0;
     for (const ing of (item.selectedMenuItem.default_ingredients || [])) {
       const amount = ing.unit_amount || 0;
       const quantity = ing.quantity || 1;
-      const baseUnits = ing.base_units || '';
-      const category = ing.category || '';
+      const baseUnits = (ing.base_units || '').toLowerCase();
+      const category = (ing.category || '').toLowerCase();
       
-      // Skip ice, espresso - handled separately
-      if (category.toLowerCase() === 'ice' || category.toLowerCase() === 'espresso') {
+      // Skip non-volume categories
+      if (skipCategories.includes(category)) {
         continue;
       }
       
       if (baseUnits === 'ml') {
+        // Already in milliliters
         recipeVolume += amount * quantity;
-      } else if (baseUnits === 'grams' || baseUnits === 'g') {
+      } else {
+        // Default: treat as grams and convert to volume using density
+        // This handles 'grams', 'g', 'pumps', undefined, etc.
         const density = INGREDIENT_DENSITIES[category] || 1.0;
         recipeVolume += (amount * quantity) / density;
       }
     }
     
-    // Calculate espresso volume using current selection
-    const espressoTypeKey = (currentEspressoType || 'double_shot').toLowerCase().replace(/\s+/g, '_');
-    const shotWeight = ESPRESSO_SHOT_WEIGHTS[espressoTypeKey] || ESPRESSO_SHOT_WEIGHTS.double_shot;
-    const espressoVolume = shotWeight / INGREDIENT_DENSITIES.espresso;
-    recipeVolume += espressoVolume;
+    // Calculate espresso volume only if drink has espresso
+    const hasEspresso = item.selectedMenuItem.default_ingredients?.some(
+      ing => ing.category === 'espresso'
+    );
+    
+    let espressoVolume = 0;
+    if (hasEspresso) {
+      const espressoTypeKey = (currentEspressoType || 'double_shot').toLowerCase().replace(/\s+/g, '_');
+      const shotWeight = ESPRESSO_SHOT_WEIGHTS[espressoTypeKey] || ESPRESSO_SHOT_WEIGHTS.double_shot;
+      espressoVolume = shotWeight / INGREDIENT_DENSITIES.espresso;
+      recipeVolume += espressoVolume;
+    }
     
     // Add ice volume to recipe (convert grams to ml using density)
     if (iceAmount > 0) {
@@ -252,6 +283,8 @@ export default function ItemCustomization({
     
     // Calculate adjusted milk or just capacity for non-milk drinks
     let result;
+    const cupVolume = CUP_VOLUMES[cupSize] || 266;
+    
     if (baseMilkAmount > 0) {
       result = calculateAdjustedMilk(
         cupSize,
@@ -260,23 +293,49 @@ export default function ItemCustomization({
         addons,
         recipeVolume
       );
+      
+      // Calculate actual free space for milk drinks:
+      // cupVolume - adjustedMilk - foam - espresso - ice - recipeIngredients - addons
+      // Note: recipeVolume already includes espresso and ice from calculations above
+      const actualUsedVolume = result.adjustedMilkAmount + result.foamReductionAmount + recipeVolume + (result.totalAddonVolume || 0);
+      result.actualFreeSpace = cupVolume - actualUsedVolume;
     } else {
-      // For non-milk drinks, calculate capacity differently
-      const cupVolume = CUP_VOLUMES[cupSize] || 266;
-      const freeSpace = cupVolume - recipeVolume;
+      // For non-milk drinks, calculate capacity including addons
+      
+      // Calculate total addon volume
+      let totalAddonVolume = 0;
+      const addonDetails = [];
+      
+      for (const addon of addons) {
+        const density = INGREDIENT_DENSITIES[addon.category] || 1.0;
+        const volume = addon.weight / density;
+        totalAddonVolume += volume;
+        addonDetails.push({
+          category: addon.category,
+          quantity: addon.quantity,
+          weight: addon.weight,
+          volume: volume,
+        });
+      }
+      
+      // Free space = cup capacity - default recipe - addons
+      const freeSpace = cupVolume - recipeVolume - totalAddonVolume;
+      
       result = {
         baseMilkAmount: 0,
         foamReducedMilk: 0,
         foamReductionAmount: 0,
         foamReductionPercent: 0,
         freeSpaceRemaining: freeSpace,
+        actualFreeSpace: freeSpace,  // For non-milk drinks, these are the same
         milkSubstitutionAmount: 0,
         milkSubstitutionPercent: 0,
         adjustedMilkAmount: 0,
         canAddMore: freeSpace > 0,
         remainingSubstitutionCapacity: 0,
         remainingSubstitutionPercent: 0,
-        addonDetails: [],
+        addonDetails: addonDetails,
+        totalAddonVolume: totalAddonVolume,
         temperature: selectedTemperature,
       };
     }
@@ -284,7 +343,8 @@ export default function ItemCustomization({
     setCapacityInfo(result);
     
     // Update cart item with capacity exceeded status
-    const isCapacityExceeded = result.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || result.freeSpaceRemaining < 0;
+    // Use actualFreeSpace for the visual/physical capacity check
+    const isCapacityExceeded = result.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || result.actualFreeSpace < 0;
     if (item.capacityExceeded !== isCapacityExceeded) {
       updateCartItem(itemId, { capacityExceeded: isCapacityExceeded });
     }
@@ -307,7 +367,10 @@ export default function ItemCustomization({
     
     if (hasAddons) {
       // Calculate what the capacity would be with the new temperature
-      const baseMilkAmount = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+      const milkWeight = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+      const milkBaseUnits = (milkIngredient.base_units || '').toLowerCase();
+      const baseMilkAmount = milkBaseUnits === 'ml' ? milkWeight : milkWeight / INGREDIENT_DENSITIES.milk;
+      
       const cupIngredient = item.selectedMenuItem.default_ingredients?.find(
         ing => ing.category === 'cups'
       );
@@ -558,7 +621,10 @@ export default function ItemCustomization({
     const hasAddons = (item.item_ingredients || []).some(mod => mod.isAddon);
     if (!hasAddons) return false;
     
-    const baseMilkAmount = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+    const milkWeight = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+    const milkBaseUnits = (milkIngredient.base_units || '').toLowerCase();
+    const baseMilkAmount = milkBaseUnits === 'ml' ? milkWeight : milkWeight / INGREDIENT_DENSITIES.milk;
+    
     const cupIngredient = item.selectedMenuItem.default_ingredients?.find(
       ing => ing.category === 'cups'
     );
@@ -612,6 +678,9 @@ export default function ItemCustomization({
               const cupSize = cupIngredient?.type || 'H9';
               const cupVolume = CUP_VOLUMES[cupSize] || 266;
               
+              // Check if this is an iced drink (cold cup = no foam)
+              const isIced = isIcedCup(cupSize);
+              
               // Calculate espresso volume using current selection (from component state)
               let espressoVolume = 0;
               const defaultEspresso = item.selectedMenuItem.default_ingredients?.find(ing => ing.category === 'espresso');
@@ -624,19 +693,22 @@ export default function ItemCustomization({
               // Get default recipe ingredients (sauces, syrups, water, etc.)
               const defaultIngredientsByCategory = {};
               item.selectedMenuItem.default_ingredients?.forEach(ing => {
-                const category = ing.category;
-                // Skip milk, espresso, cups, foam, position, and ICE (ice is in grams, not volume)
-                if (['milk', 'espresso', 'cups', 'position', 'ice'].includes(category)) return;
+                const category = (ing.category || '').toLowerCase();
+                // Skip non-volume ingredients: milk (handled separately), espresso (handled separately),
+                // cups, position, ice (shown separately), temperature (not a volume)
+                if (['milk', 'espresso', 'cups', 'position', 'ice', 'temperature'].includes(category)) return;
                 
                 const qty = ing.quantity || 1;
                 const amount = ing.unit_amount || 0;
-                const baseUnits = ing.base_units || '';
+                const baseUnits = (ing.base_units || '').toLowerCase();
                 
                 let volume = 0;
                 if (baseUnits === 'ml') {
+                  // Already in milliliters
                   volume = qty * amount;
-                } else if (baseUnits === 'grams' || baseUnits === 'g') {
-                  // Convert weight to volume using density
+                } else {
+                  // Default: treat as grams and convert to volume using density
+                  // This handles 'grams', 'g', 'pumps', undefined, etc.
                   const density = INGREDIENT_DENSITIES[category] || 1.0;
                   volume = (qty * amount) / density;
                 }
@@ -659,15 +731,16 @@ export default function ItemCustomization({
                 addonsByCategory[category] += addon.volume;
               });
               
-              const milkPercent = (capacityInfo.adjustedMilkAmount / cupVolume) * 100;
-              const foamPercent = (capacityInfo.foamReductionAmount / cupVolume) * 100;
+              const milkVolume = capacityInfo.adjustedMilkAmount || 0;
+              const foamVolume = capacityInfo.foamReductionAmount || 0;
+              
+              const milkPercent = (milkVolume / cupVolume) * 100;
+              const foamPercent = (foamVolume / cupVolume) * 100;
               const espressoPercent = (espressoVolume / cupVolume) * 100;
               
               // Calculate ice volume (convert grams to ml)
               const iceVolume = iceAmount > 0 ? iceAmount / INGREDIENT_DENSITIES.ice : 0;
               const icePercent = (iceVolume / cupVolume) * 100;
-              
-              const freeSpacePercent = (capacityInfo.freeSpaceRemaining / cupVolume) * 100;
               
               // Combine default ingredients and add-ons by category
               const combinedIngredients = {};
@@ -703,6 +776,15 @@ export default function ItemCustomization({
                 addonVolume: volumes.addon,
                 totalVolume: volumes.total
               }));
+              
+              // Calculate total volume of other ingredients (syrups, sauces, water, etc.)
+              const otherIngredientsVolume = ingredientPercentages.reduce((sum, ing) => sum + ing.totalVolume, 0);
+              
+              // Calculate ACTUAL free space: cup volume minus all ingredients
+              // This is the true remaining space in the cup
+              const totalUsedVolume = milkVolume + foamVolume + espressoVolume + iceVolume + otherIngredientsVolume;
+              const actualFreeSpace = Math.max(0, cupVolume - totalUsedVolume);
+              const freeSpacePercent = (actualFreeSpace / cupVolume) * 100;
               
               return (
                 <>
@@ -758,7 +840,7 @@ export default function ItemCustomization({
                       <div 
                         className="capacity-segment free-space"
                         style={{ width: `${freeSpacePercent}%` }}
-                        title={`Free space: ${capacityInfo.freeSpaceRemaining.toFixed(0)}ml`}
+                        title={`Free space: ${actualFreeSpace.toFixed(0)}ml`}
                       />
                     )}
                   </div>
@@ -799,21 +881,21 @@ export default function ItemCustomization({
                           </span>
                         </div>
                       ))}
-                      {freeSpacePercent > 0 && (
+                      {actualFreeSpace > 0 && (
                         <div className="legend-item">
                           <span className="legend-color free-space"></span>
-                          <span className="legend-label">Free: {capacityInfo.freeSpaceRemaining.toFixed(0)}ml</span>
+                          <span className="legend-label">Free: {actualFreeSpace.toFixed(0)}ml</span>
                         </div>
                       )}
                     </div>
                   )}
                   
                   {/* Warning if at capacity or exceeds */}
-                  {(capacityInfo.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || capacityInfo.freeSpaceRemaining < 0) && (
+                  {(capacityInfo.milkSubstitutionPercent > MAX_MILK_SUBSTITUTION_PERCENT || actualFreeSpace < 0) && (
                     <div className="capacity-warning capacity-critical">
-                      {capacityInfo.freeSpaceRemaining < 0 ? (
+                      {actualFreeSpace < 0 ? (
                         <>
-                          Critical: Default recipe exceeds cup capacity by {Math.abs(capacityInfo.freeSpaceRemaining).toFixed(0)}ml! 
+                          Critical: Default recipe exceeds cup capacity by {Math.abs(actualFreeSpace).toFixed(0)}ml! 
                           Select a larger cup size or reduce ingredients.
                         </>
                       ) : (
@@ -824,7 +906,7 @@ export default function ItemCustomization({
                       )}
                     </div>
                   )}
-                  {!capacityInfo.canAddMore && capacityInfo.milkSubstitutionPercent <= MAX_MILK_SUBSTITUTION_PERCENT && capacityInfo.freeSpaceRemaining >= 0 && (
+                  {!capacityInfo.canAddMore && capacityInfo.milkSubstitutionPercent <= MAX_MILK_SUBSTITUTION_PERCENT && actualFreeSpace >= 0 && (
                     <div className="capacity-warning">
                       Maximum capacity reached (30% limit)
                     </div>
@@ -836,8 +918,10 @@ export default function ItemCustomization({
         </div>
       )}
       
-      {/* Temperature Selection (Compact) */}
-      {item.selectedMenuItem && item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'milk') && (
+      {/* Temperature Selection (Compact) - Only for hot drinks with milk */}
+      {item.selectedMenuItem && 
+       item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'milk') && 
+       !isIcedCup(item.selectedMenuItem.default_ingredients?.find(ing => ing.category === 'cups')?.type) && (
         <div className="ingredient-category replaceable">
           <label className="category-label">Temperature</label>
           <div className="replaceable-options">

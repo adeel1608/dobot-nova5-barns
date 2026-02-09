@@ -26,6 +26,15 @@
       }
     ]
   },
+  "Dispense Syrup": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_syrup",
+        "params": {}
+      }
+    ]
+  },
   "Dispense Slush": {
     "steps": [
       {
@@ -114,17 +123,17 @@
   "Make Espresso": {
       "steps": [
       {
-          "type": "automation",
-          "function": "grinding_machine",
-          "params": {
-          "shots_number": 2
-          }
-      },
-      {
           "type": "robot",
           "function": "unmount",
           "params": {
           "port": "port_3"
+          }
+      },
+      {
+          "type": "automation",
+          "function": "grinding_machine",
+          "params": {
+          "shots_number": 2
           }
       },
       {
@@ -183,17 +192,17 @@
   "Make Espresso Only": {
     "steps": [
     {
-        "type": "automation",
-        "function": "grinding_machine",
-        "params": {
-        "shots_number": 2
-        }
-    },
-    {
         "type": "robot",
         "function": "unmount",
         "params": {
         "port": "port_3"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine",
+        "params": {
+        "shots_number": 2
         }
     },
     {
@@ -382,6 +391,14 @@
         }
       },
       {
+          "type": "automation",
+          "function": "coffee_machine_purge",
+          "params": {
+          "coffee_t": 2,
+          "slot_number": 3
+          }
+      },
+      {
         "type": "robot",
         "function": "clean_portafilter",
         "params": {
@@ -391,6 +408,13 @@
       {
         "type": "robot",
         "function": "mount",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "return_cleaned_espresso_pitcher",
         "params": {
           "port": "port_2"
         }
@@ -555,6 +579,31 @@
         "params": {
           "stage": "1"
         }
+      }
+    ]
+  },
+  "Place Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "milk_cup_detection_absent",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup_milk",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_paper_cup_milk",
+        "params": {}
       }
     ]
   },

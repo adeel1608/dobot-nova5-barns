@@ -17,7 +17,7 @@ export const CUP_VOLUMES = {
 // Ingredient densities (g/ml) - milk is baseline at ~1.03
 export const INGREDIENT_DENSITIES = {
   milk: 1.03,        // Baseline for milk
-  syrups: 1.32,      // Heavier than milk (sugar content)
+  syrups: 1.12,      // Heavier than milk (sugar content)
   sauce: 1.35,       // Sauces are denser
   espresso: 1.02,    // Similar to water
   ice: 0.92,         // Ice floats (less dense)
@@ -65,13 +65,20 @@ export const DEFAULT_TEMPERATURE = 'standard';
 export const DEFAULT_SYRUP_WEIGHT_PER_PUMP = 10; // grams per pump
 export const DEFAULT_SAUCE_WEIGHT_PER_PUMP = 10; // grams per pump
 
+// Helper to check if a cup is for cold/iced drinks (no foam)
+export const isIcedCup = (cupSize) => {
+  if (!cupSize) return false;
+  // Cold cups start with 'C', hot cups start with 'H'
+  return cupSize.toString().toUpperCase().startsWith('C');
+};
+
 // Espresso shot weights (in grams)
 export const ESPRESSO_SHOT_WEIGHTS = {
-  single_shot: 18,    // Single shot = 18g
-  double_shot: 36,    // Double shot = 36g
-  tripple_shot: 54,   // Triple shot = 54g
-  single: 18,         // Alias
-  double: 36,         // Alias
-  triple: 54,         // Alias
-  tripple: 54,        // Typo alias (common in DBs)
+  single_shot: 30,    // Single shot = 18g
+  double_shot: 60,    // Double shot = 36g
+  tripple_shot: 90,   // Triple shot = 54g
+  single: 30,         // Alias
+  double: 60,         // Alias
+  triple: 90,         // Alias
+  tripple: 90,        // Typo alias (common in DBs)
 };

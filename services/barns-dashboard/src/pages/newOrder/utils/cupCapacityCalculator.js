@@ -14,15 +14,23 @@ import {
   DEFAULT_SYRUP_WEIGHT_PER_PUMP,
   DEFAULT_SAUCE_WEIGHT_PER_PUMP,
   ESPRESSO_SHOT_WEIGHTS,
+  isIcedCup,
 } from '../../../constants/cupCapacityConfig';
 
 /**
  * Phase 1: Apply foam reduction based on temperature
+ * Iced drinks (cold cups) have no foam - milk is served cold without steaming
  * @param {number} baseMilkAmount - Original milk amount in ml
  * @param {string} temperature - Temperature setting (kids, standard, extra_hot)
+ * @param {boolean} isIced - Whether this is an iced drink (no foam)
  * @returns {number} Milk amount after foam reduction
  */
-export function applyFoamReduction(baseMilkAmount, temperature = 'standard') {
+export function applyFoamReduction(baseMilkAmount, temperature = 'standard', isIced = false) {
+  // Iced drinks have no foam - milk is poured cold, not steamed
+  if (isIced) {
+    return baseMilkAmount;
+  }
+  
   const foamPercent = TEMPERATURE_FOAM_PERCENTAGES[temperature] || TEMPERATURE_FOAM_PERCENTAGES.standard;
   const reduction = baseMilkAmount * (foamPercent / 100);
   return baseMilkAmount - reduction;
@@ -135,10 +143,13 @@ export function calculateAdjustedMilk(
   addons = [],
   recipeVolume = 0
 ) {
-  // Phase 1: Apply foam reduction
-  const foamReducedMilk = applyFoamReduction(baseMilkAmount, temperature);
+  // Check if this is an iced drink (cold cup = no foam)
+  const isIced = isIcedCup(cupSize);
+  
+  // Phase 1: Apply foam reduction (skip for iced drinks)
+  const foamReducedMilk = applyFoamReduction(baseMilkAmount, temperature, isIced);
   const foamReductionAmount = baseMilkAmount - foamReducedMilk;
-  const foamReductionPercent = (foamReductionAmount / baseMilkAmount) * 100;
+  const foamReductionPercent = baseMilkAmount > 0 ? (foamReductionAmount / baseMilkAmount) * 100 : 0;
   
   // Phase 2 & 3: Calculate addon impact
   let freeSpaceRemaining = calculateFreeSpace(cupSize, recipeVolume);
@@ -179,6 +190,9 @@ export function calculateAdjustedMilk(
     foamReducedMilk
   );
   
+  // Calculate total addon volume for actual free space calculation
+  const totalAddonVolume = addonDetails.reduce((sum, addon) => sum + addon.volume, 0);
+  
   return {
     // Phase 1 results
     baseMilkAmount,
@@ -201,6 +215,7 @@ export function calculateAdjustedMilk(
     
     // Details
     addonDetails,
+    totalAddonVolume,
     temperature,
   };
 }
@@ -223,33 +238,43 @@ export function getCupSizeCode(size, cupType = 'hot') {
  * @returns {number} Total volume in ml
  */
 export function calculateRecipeVolume(ingredients) {
+  // Categories to skip (non-volume items):
+  // - milk: handled separately in capacity calculation
+  // - ice: handled separately (added from iceAmount state)
+  // - cups: not a consumable volume
+  // - position: not a consumable volume
+  // - temperature: not a consumable volume (it's a setting, not an ingredient)
+  // Note: espresso IS included here as it contributes to recipe volume
+  const skipCategories = ['milk', 'ice', 'cups', 'position', 'temperature'];
+  
   let total = 0;
   for (const ing of ingredients) {
     const amount = ing.unit_amount || 0;
     const quantity = ing.quantity || 1;
-    const baseUnits = ing.base_units || '';
-    const category = ing.category || '';
+    const baseUnits = (ing.base_units || '').toLowerCase();
+    const category = (ing.category || '').toLowerCase();
     const type = (ing.type || '').toLowerCase().replace(/\s+/g, '_');
     
-    // Skip ice - it's measured in grams and doesn't affect liquid volume
-    if (category.toLowerCase() === 'ice') {
+    // Skip non-volume categories
+    if (skipCategories.includes(category)) {
       continue;
     }
     
-    // Only count liquid volumes (ml)
-    if (baseUnits === 'ml') {
-      total += amount * quantity;
-    }
     // Espresso shots - use actual weights converted to volume
-    else if (baseUnits === 'shots' || category.toLowerCase() === 'espresso') {
+    if (baseUnits === 'shots' || category === 'espresso') {
       // Get espresso weight based on type (single, double, triple)
       const shotWeight = ESPRESSO_SHOT_WEIGHTS[type] || ESPRESSO_SHOT_WEIGHTS.double_shot;
       // Convert weight to volume using espresso density
       const espressoVolume = (shotWeight * quantity) / INGREDIENT_DENSITIES.espresso;
       total += espressoVolume;
     }
-    // Weight-based ingredients (grams) - convert to volume
-    else if (baseUnits === 'grams' || baseUnits === 'g') {
+    // Volumes in ml - use directly
+    else if (baseUnits === 'ml') {
+      total += amount * quantity;
+    }
+    // Default: treat as grams and convert to volume using density
+    // This handles 'grams', 'g', 'pumps', undefined, etc.
+    else {
       const density = INGREDIENT_DENSITIES[category] || 1.0;
       const volume = (amount * quantity) / density;
       total += volume;

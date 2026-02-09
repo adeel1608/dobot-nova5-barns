@@ -501,6 +501,18 @@ class SchedulerService:
                 core.order_stopped_logged = False  # Reset flag so it can log again if stopped again
                 core.current_status["status"] = "in_progress"
                 
+                # Reset validation status for cups that failed validation
+                # This allows them to be re-validated after ingredients are refilled
+                failed_validation_cups = []
+                for cup_id_val in list(core.cup_validation_status.keys()):
+                    if core.cup_validation_status[cup_id_val] == "failed":
+                        core.cup_validation_status[cup_id_val] = "pending"
+                        failed_validation_cups.append(cup_id_val)
+                        log("INFO", f"Reset validation status for cup {cup_id_val} to pending for re-validation", service="scheduler")
+                
+                if failed_validation_cups:
+                    log("INFO", f"Reset {len(failed_validation_cups)} cups for re-validation: {failed_validation_cups}", service="scheduler")
+                
                 # Convert any paused tasks back to pending so they can be retried
                 paused_tasks = [t for t in core.tasks if t.get("status") == "paused"]
                 if paused_tasks:
@@ -513,7 +525,23 @@ class SchedulerService:
                         task_cup_id = task_item.get("cup_id", "unknown") if isinstance(task_item, dict) else "unknown"
                         log("DEBUG", f"Converted task {task_function} (cup: {task_cup_id}) from paused to pending", service="scheduler")
                 
-                log("INFO", f"Order {order_id} resumed - workers will continue processing", service="scheduler")
+                # Convert cancelled tasks back to pending so they can be retried
+                # This is especially important for cups that failed validation
+                cancelled_tasks = [t for t in core.tasks if t.get("status") == "cancelled"]
+                if cancelled_tasks:
+                    log("INFO", f"Converting {len(cancelled_tasks)} cancelled tasks back to pending for retry", service="scheduler")
+                    for task in cancelled_tasks:
+                        task["status"] = "pending"
+                        task_cup = task.get("cup", "unknown")
+                        task_action = task.get("action", "unknown")
+                        log("DEBUG", f"Converted task {task_action} (cup: {task_cup}) from cancelled to pending", service="scheduler")
+                        
+                        # Reset cup completion status if it was failed due to validation
+                        if task_cup in failed_validation_cups and core.cup_completion_status.get(task_cup) == "failed":
+                            core.cup_completion_status[task_cup] = "pending"
+                            log("INFO", f"Reset cup completion status for {task_cup} from failed to pending", service="scheduler")
+                
+                log("INFO", f"Order {order_id} resumed - workers will continue processing with re-validation", service="scheduler")
             
             # Notify routine service to resume processing tasks for this order
             try:
