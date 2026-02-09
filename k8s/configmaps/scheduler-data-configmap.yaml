@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scheduler-data
+  namespace: barns
+data:
+  # Add your recipes.json content here
+  # This ConfigMap should be created from the data directory:
+  # kubectl create configmap scheduler-data --from-file=../../../data/ -n barns --dry-run=client -o yaml > scheduler-data-configmap.yaml
