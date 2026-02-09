@@ -117,8 +117,6 @@ def unmount(**params) -> bool:
     
     if not ok(run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])):
         return False
-
-    run_skill("moveEE",0,-1,-2.5,0,0,0)
     
     run_skill("sync")
     
