@@ -412,6 +412,100 @@ def check_aruco_status(**params) -> bool:
     check_saved_data()
     return True
 
+def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0):
+    """
+    Convert joint values to cartesian, apply offsets, and convert back to joints.
+    
+    Args:
+        j1-j6: Joint values in degrees
+        x, y, z: Position offsets in mm (default: 0.0)
+        rx, ry, rz: Rotation offsets in degrees (default: 0.0)
+    
+    Returns:
+        Result from inverse_solution with the offset cartesian pose
+    """
+    print(f"Input joints: [{j1}, {j2}, {j3}, {j4}, {j5}, {j6}]")
+    
+    # Get current cartesian position from joint values
+    pos_result = run_skill("positive_solution", j1, j2, j3, j4, j5, j6)
+    
+    if not pos_result or not hasattr(pos_result, 'pose'):
+        print("Failed to get positive solution")
+        return None
+    
+    # Parse pose string: "{x,y,z,rx,ry,rz,...}"
+    try:
+        pose_values = [float(v) for v in pos_result.pose.strip("{}").split(",")[:6]]
+        current_x, current_y, current_z, current_rx, current_ry, current_rz = pose_values
+    except (ValueError, IndexError) as e:
+        print(f"Failed to parse pose string: {e}")
+        return None
+    
+    print(f"Current cartesian: x={current_x:.3f}, y={current_y:.3f}, z={current_z:.3f}, rx={current_rx:.3f}, ry={current_ry:.3f}, rz={current_rz:.3f}")
+    
+    # Apply offsets
+    new_x = current_x + x
+    new_y = current_y + y
+    new_z = current_z + z
+    new_rx = current_rx + rx
+    new_ry = current_ry + ry
+    new_rz = current_rz + rz
+    
+    print(f"Offsets applied: x={x}, y={y}, z={z}, rx={rx}, ry={ry}, rz={rz}")
+    print(f"New cartesian: x={new_x:.3f}, y={new_y:.3f}, z={new_z:.3f}, rx={new_rx:.3f}, ry={new_ry:.3f}, rz={new_rz:.3f}")
+    
+    # Convert back to joint values
+    inv_result = run_skill("inverse_solution", new_x, new_y, new_z, new_rx, new_ry, new_rz)
+    
+    if inv_result and hasattr(inv_result, 'angle'):
+        # Parse angle string: "{j1,j2,j3,j4,j5,j6,...}"
+        try:
+            angle_values = [float(v) for v in inv_result.angle.strip("{}").split(",")[:6]]
+            res_j1, res_j2, res_j3, res_j4, res_j5, res_j6 = angle_values
+            print(f"Resulting joints: [{res_j1:.3f}, {res_j2:.3f}, {res_j3:.3f}, {res_j4:.3f}, {res_j5:.3f}, {res_j6:.3f}]")
+        except (ValueError, IndexError) as e:
+            print(f"Failed to parse angle string: {e}")
+            return None
+    else:
+        print("Failed to get inverse solution")
+        return None
+    
+    return inv_result
+
+def solution_interactive():
+    """
+    Interactive wrapper for solution function that prompts for input.
+    """
+    print("\n=== Joint to Cartesian Offset Solution ===")
+    print("Enter joint values (j1-j6) and optional cartesian offsets (x,y,z,rx,ry,rz)")
+    print("Press Enter to use default value of 0.0 for any parameter\n")
+    
+    try:
+        j1 = float(input("j1 (degrees): ") or 0.0)
+        j2 = float(input("j2 (degrees): ") or 0.0)
+        j3 = float(input("j3 (degrees): ") or 0.0)
+        j4 = float(input("j4 (degrees): ") or 0.0)
+        j5 = float(input("j5 (degrees): ") or 0.0)
+        j6 = float(input("j6 (degrees): ") or 0.0)
+        
+        print("\nCartesian offsets (optional - press Enter for 0.0):")
+        x = float(input("x offset (mm): ") or 0.0)
+        y = float(input("y offset (mm): ") or 0.0)
+        z = float(input("z offset (mm): ") or 0.0)
+        rx = float(input("rx offset (degrees): ") or 0.0)
+        ry = float(input("ry offset (degrees): ") or 0.0)
+        rz = float(input("rz offset (degrees): ") or 0.0)
+        
+        print("\n" + "="*50)
+        return solution(j1, j2, j3, j4, j5, j6, x, y, z, rx, ry, rz)
+        
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+        return None
+    except KeyboardInterrupt:
+        print("\nCancelled")
+        return None
+    
 """
 paper_cups.py
 
@@ -576,7 +670,7 @@ def place_paper_cup(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
         return False
     
-    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
+    if not ok(run_skill("set_gripper_position", 25, 0, 255)):
         return False
     
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])):
@@ -710,7 +804,7 @@ def place_paper_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3'])):
         return False
-    if not ok(run_skill("set_gripper_position", 125, 100)):
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
         return False
     return True
 
@@ -783,6 +877,141 @@ def pick_paper_cup_milk(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position1'])):
         return False
+    return True
+
+def pick_cup_for_hot_water(**params) -> bool:
+    """
+    Pick up a paper cup from a specific stage for hot water.
+    """
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+    
+    cups_dict = _extract_cups_dict(params)
+    if not cups_dict:
+        cups_dict = {"cup_H12": 1.0}
+    
+    size_mapped = _normalize_paper_cup_size(cups_dict)
+    
+    valid_stages = ('1', '2', '3', '4')
+    valid_sizes = ('7oz', '9oz', '12oz')
+    
+    if stage not in valid_stages or size_mapped not in valid_sizes:
+        return False
+    
+    stage_positions = {
+        "1": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_1'],
+        "2": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_2'],
+        "3": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_3'],
+        "4": PAPER_CUPS_STATION_PARAMS['staging']['pickup_hot_water_4']
+    }
+    
+    gripper_positions = PAPER_CUP_GRIPPER_POSITIONS
+    
+    if not home(position="south_west"):
+        return False
+    if stage in ("3", "4"):
+        if not home(position="south"):
+            return False
+    
+    if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
+        return False
+    
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_hot_water_down'])):
+        return False
+    if size_mapped == '12oz':
+        if not ok(run_skill("set_gripper_position", 255,100,255)):
+            return False
+    else:
+        if not ok(run_skill("set_gripper_position", 255,120,255)):
+            return False
+    
+    run_skill("set_speed_factor", 50)
+    
+    run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
+    
+    if not home(position="west"):
+        return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "hot_water")):
+        return False
+    
+    if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
+        return False
+    
+    # run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
+    
+    return True
+
+def return_cup_with_hot_water(**params) -> bool:
+    """
+    Complete hot water dispensing sequence and return to holding position.
+    """
+    def ok(r):
+        return r not in (False, None)
+    
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+    
+    cups_dict = _extract_cups_dict(params)
+    if not cups_dict:
+        cups_dict = {"cup_H12": 1.0}
+    
+    size_mapped = _normalize_paper_cup_size(cups_dict)
+    
+    valid_stages = ('1', '2', '3', '4')
+    valid_sizes = ('7oz', '9oz', '12oz')
+    
+    if stage not in valid_stages or size_mapped not in valid_sizes:
+        return False
+    
+    stage_params_map = {
+        "1": PLACE_PAPER_CUP_PARAMS['stage_1'],
+        "2": PLACE_PAPER_CUP_PARAMS['stage_2'],
+        "3": PLACE_PAPER_CUP_PARAMS['stage_3'],
+        "4": PLACE_PAPER_CUP_PARAMS['stage_4'],
+    }
+    
+    stage_params = stage_params_map.get(stage, {})
+    
+    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
+        return False
+
+    if stage in ("1"):
+        if not run_skill("gotoJ_deg", 112.5,30,-130,-90,-90,0):
+            return False
+    if stage in ("2","3", "4"):
+        if not home(position="south_west"):
+            return False
+    if stage in ("3", "4"):
+        if not home(position="south"):
+            return False
+    
+    if 'pose' not in stage_params:
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
+        return False
+    
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
+        return False
+    
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])):
+        return False
+
+    if not ok(run_skill("set_speed_factor", 100)):
+        return False
+    
+    if 'stage_home' in stage_params:
+        if not ok(run_skill("gotoJ_deg", *stage_params['stage_home'])):
+            return False
+    
+    if 'twist_back' in stage_params:
+        if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_back_machine'])):
+            return False
+    
     return True
 
 """
@@ -1646,7 +1875,7 @@ def mount_frother(**params) -> bool:
         return False
     
     milk_data = params.get('milk', {})
-    volume_ml = next(iter(milk_data.values()), 0) if milk_data else 200
+    volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
     z_adjustment = MILK_VOLUME_Z_ADJUSTMENT_FACTOR * volume_ml
     run_skill("moveEE_movJ", 0, 20, -z_adjustment, 0, 0, 0)
     
@@ -1825,9 +2054,9 @@ def _normalize_plastic_cup_size(cups_dict: Any) -> str:
         cup_h12 → '12oz'
         cup_c16 → '16oz'
     """
-    if not cups_dict:
-        from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
-        return DEFAULT_PLASTIC_CUP_SIZE
+    # if not cups_dict:
+    #     from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+    #     return DEFAULT_PLASTIC_CUP_SIZE
     
     # Extract the cup code (case-insensitive)
     if isinstance(cups_dict, dict):
@@ -1865,8 +2094,8 @@ def _normalize_plastic_cup_size(cups_dict: Any) -> str:
         return result
     
     # Final fallback
-    from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
-    return DEFAULT_PLASTIC_CUP_SIZE
+    # from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+    # return DEFAULT_PLASTIC_CUP_SIZE
 
 def dispense_plastic_cup(**params) -> bool:
     """
@@ -1933,10 +2162,13 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                time.sleep(2)
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.1)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
@@ -2018,7 +2250,10 @@ def go_home_with_ice(**params) -> bool:
     """
     def ok(r):
         return r not in (False, None)
-    
+
+    if not ok(run_skill("moveEE_movJ", 0,0,5,0,0,0)):
+        return False
+
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, 145)):
         return False
 
@@ -2290,7 +2525,7 @@ def pick_plastic_cup_milk(**params) -> bool:
         return False
     
     return True
-   
+    
 """
 slush.py
 
@@ -2469,14 +2704,14 @@ RECIPES
 '''
 def espresso(**params):
     """
-    Complete espresso preparation sequence using port_2.
+    Complete espresso preparation sequence using port_3.
     
     Workflow:
-    1. Unmount portafilter from port_2
+    3. Unmount portafilter from port_3
     2. Grind and tamp coffee
-    3. Mount portafilter back to port_2
-    4. Prepare paper cup at stage_1
-    5. Pour espresso from port_2
+    3. Mount portafilter back to port_3
+    4. Prepare paper cup at stage_3
+    5. Pour espresso from port_3
     6. Return pitcher
     
     
@@ -2486,28 +2721,28 @@ def espresso(**params):
     print("☕ Starting espresso preparation sequence...")
     
     try:
-        # Step 1: Unmount portafilter from port_2
-        print("🔧 Unmounting portafilter from port_2...")
-        if not unmount(port="port_1"):
-            print("[ERROR] Failed to unmount portafilter from port_2")
+        # Step 3: Unmount portafilter from port_3
+        print("🔧 Unmounting portafilter from port_3...")
+        if not unmount(port="port_3"):
+            print("[ERROR] Failed to unmount portafilter from port_3")
             return False
         
         # Step 2: Grind coffee
         print("⚙️ Grinding coffee...")
-        if not grinder():
+        if not grinder(portafilter_tool="single_portafilter"):
             print("[ERROR] Failed to grind coffee")
             return False
         
         # Step 3: Tamp coffee
         print("🫸 Tamping coffee...")
-        if not tamper():
+        if not tamper(portafilter_tool="single_portafilter"):
             print("[ERROR] Failed to tamp coffee")
             return False
         
-        # Step 4: Mount portafilter back to port_2
-        print("🔧 Mounting portafilter to port_2...")
-        if not mount(port="port_1"):
-            print("[ERROR] Failed to mount portafilter to port_2")
+        # Step 4: Mount portafilter back to port_3
+        print("🔧 Mounting portafilter to port_3...")
+        if not mount(port="port_3"):
+            print("[ERROR] Failed to mount portafilter to port_3")
             return False
         
         # Step 5: Grab paper cup
@@ -2516,41 +2751,41 @@ def espresso(**params):
             print("[ERROR] Failed to grab paper cup")
             return False
         
-        # Step 6: Place cup at stage_1
-        print("📍 Placing cup at stage_1...")
-        if not place_paper_cup(position={'cup_position': 1}):
+        # Step 6: Place cup at stage_3
+        print("📍 Placing cup at stage_3...")
+        if not place_paper_cup(position={'cup_position': 3}):
             print("[ERROR] Failed to place paper cup")
             return False
         
-        # Step 7: Pick espresso pitcher for port_2
-        print("🥛 Picking espresso pitcher for port_2...")
-        if not pick_espresso_pitcher(port="port_1"):
+        # Step 7: Pick espresso pitcher for port_3
+        print("🥛 Picking espresso pitcher for port_3...")
+        if not pick_espresso_pitcher(port="port_3"):
             print("[ERROR] Failed to pick espresso pitcher")
             return False
         
-        # Step 8: Pour espresso at stage_1
-        print("☕ Pouring espresso at stage_1...")
-        if not pour_espresso_pitcher(position={'cup_position': 1}):
+        # Step 8: Pour espresso at stage_3
+        print("☕ Pouring espresso at stage_3...")
+        if not pour_espresso_pitcher_cup_station(position={'cup_position': 3}):
             print("[ERROR] Failed to pour espresso")
             return False
         
         # Step 9: Return espresso pitcher
-        print("🔄 Returning espresso pitcher for port_2...")
-        if not return_espresso_pitcher(port="port_1"):
+        print("🔄 Returning espresso pitcher for port_3...")
+        if not return_espresso_pitcher(port="port_3"):
             print("[ERROR] Failed to return espresso pitcher")
             return False
         
-        unmount(port="port_1")
+        unmount(port="port_3")
         
-        # Step 10: Clean portafilter
+        # Step 30: Clean portafilter
         print("🧹 Cleaning portafilter...")
-        if not clean_portafilter(port="port_1"):
+        if not clean_portafilter(port="port_3"):
             print("[ERROR] Failed to clean portafilter")
             return False
         
-        # Step 11: Mount portafilter
+        # Step 33: Mount portafilter
         print("🔧 Mounting portafilter...")
-        if not mount(port="port_1"):
+        if not mount(port="port_3"):
             print("[ERROR] Failed to mount portafilter")
             return False
         
@@ -2588,13 +2823,13 @@ def americano(**params):
         
         # Step 2: Grind coffee
         print("⚙️ Grinding coffee...")
-        if not grinder():
+        if not grinder(portafilter_tool="double_portafilter"):
             print("[ERROR] Failed to grind coffee")
             return False
         
         # Step 3: Tamp coffee
         print("🫸 Tamping coffee...")
-        if not tamper():
+        if not tamper(portafilter_tool="double_portafilter"):
             print("[ERROR] Failed to tamp coffee")
             return False
         
@@ -2636,7 +2871,7 @@ def americano(**params):
         
         # Step 10: Pour espresso at stage_1
         print("☕ Pouring americano at stage_1...")
-        if not pour_espresso_pitcher(position={'cup_position': 1}):
+        if not pour_espresso_pitcher_cup_station(position={'cup_position': 1}):
             print("[ERROR] Failed to pour americano")
             return False
         
@@ -2660,9 +2895,9 @@ def multi_espresso(**params):
         for position in positions:
             if not unmount(port="port_1"):
                 return False
-            if not grinder():
+            if not grinder(portafilter_tool="double_portafilter"):
                 return False
-            if not tamper():
+            if not tamper(portafilter_tool="double_portafilter"):
                 return False
             if not mount(port="port_1"):
                 return False
@@ -2672,7 +2907,7 @@ def multi_espresso(**params):
                 return False
             if not pick_espresso_pitcher(port="port_1"):
                 return False
-            if not pour_espresso_pitcher(position={'cup_position': position}):
+            if not pour_espresso_pitcher_cup_station(position={'cup_position': position}):
                 return False
             if not return_espresso_pitcher(port="port_1"):
                 return False
@@ -2880,32 +3115,32 @@ def slushie(**params):
 train.py
 """
 def espresso_training(**params):
-    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    # for i in range(5):
-    #     time.sleep(1.0)
-    #     run_skill("move_to", "three_group_espresso", 0.26)
-    # run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
-    # input()
-    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    # run_skill("gotoJ_deg", -29.882000,-17.719395,-139.409073,-21.613743,-116.902481,0)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
-    # input()
-    # run_skill("gotoJ_deg", -12.167317,-26.299896,-124.334404,-26.950060,-94.739532,0.353135)#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
-    # input()
-    # run_skill("gotoJ_deg", -29.882000,-17.719395,-139.409073,-21.613743,-116.902481,0)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.26)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("gotoJ_deg", -28.755102,-16.240370,-145.875793,-15.083625,-114.523071,0.660176)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("gotoJ_deg", -16.564388,-27.443169,-121.383263,-29.049856,-103.556274,-0.997243)#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("gotoJ_deg", -28.755102,-16.240370,-145.875793,-15.083625,-114.523071,0.660176)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
     # # input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
+    # input()
+    # run_skill("gotoJ_deg", 24.911945,-21.074497,-135.128052,-22.276201,-61.762913,0)#run_skill("mount_machine", "three_group_espresso", "portafilter_2", True)
+    # input()
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
-    # # input()
-    # # run_skill("gotoJ_deg", 24.911945,-21.074497,-135.128052,-22.276201,-61.762913,0)#run_skill("mount_machine", "three_group_espresso", "portafilter_2", True)
-    # # input()
-    # # run_skill("gotoJ_deg", *ESPRESSO_HOME)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
-    # # input()
-    # run_skill("gotoJ_deg", 73.193321,-6.765492,-126.959679,-42.988068,-11.680984,-1.857552)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
     # input()
-    # run_skill("gotoJ_deg", 58.557522,-29.333736,-114.691101,-39.288784,-26.054262,4.417356)#run_skill("mount_machine", "three_group_espresso", "portafilter_3", True)
-    # input()
-    # run_skill("gotoJ_deg", 73.193321,-6.765492,-126.959679,-42.988068,-11.680984,-1.857552)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
-    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    # # run_skill("gotoJ_deg",32.103580,-28.542721,-151.581696,-2.586381,-58.585411,0)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
+    run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    input()
+    run_skill("gotoJ_deg", 57.893150,-29.455135,-118.186241,-29.553265,-27.351288,-1.391830)#run_skill("mount_machine", "three_group_espresso", "portafilter_3", True)
+    input()
+    run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    # run_skill("gotoJ_deg",32.103580,-28.542721,-151.581696,-2.586381,-58.585411,0)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
     # # input()
     # # run_skill("gotoJ_deg",16.182545,-45.977921,-119.918640,-12.260736,-73.420769,0)#run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
     # # input()
@@ -2923,27 +3158,27 @@ def espresso_training(**params):
     # run_skill("gotoJ_deg",72.861008,-37.369293,-141.719101,8.783054,-15.383393,0)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3", True)
     # run_skill("gotoJ_deg",32.103580,-28.542721,-151.581696,-2.586381,-58.585411,0)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
-    run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
-    for i in range(5):
-        time.sleep(1.0)
-        run_skill("move_to", "espresso_grinder", 0.26)
-    run_skill("get_machine_position", "espresso_grinder")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
-    input()
-    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
-    run_skill("gotoJ_deg",-45.427513,-58.889004,-102.710777,-19.257256,-101.516602,0.0)#approach the grinder#run_skill("approach_machine", "espresso_grinder", "grinder", True)
-    input()
-    run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
-    input()
-    run_skill("gotoJ_deg",-44.728165,-67.766884,-72.699600,-43.691830,-102.070465,0.0)#touch the button#run_skill("approach_machine", "espresso_grinder", "tamper", True)
-    input()
-    run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
-    input()
-    run_skill("gotoJ_deg", -43.257011,-71.458015,-81.109985,-25.820198,-97.854370,0.0) #in the tamper#run_skill("mount_machine", "espresso_grinder", "tamper", True)
-    input()
-    run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
-    run_skill("gotoJ_deg",-45.427513,-58.889004,-102.710777,-19.257256,-101.516602,0.0)#approach the grinder#run_skill("approach_machine", "espresso_grinder", "grinder", True)
-    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    # run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    # run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+    # for i in range(5):
+    #     time.sleep(1.0)
+    #     run_skill("move_to", "espresso_grinder", 0.26)
+    # run_skill("get_machine_position", "espresso_grinder")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    # input()
+    # run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    # run_skill("gotoJ_deg",-45.427513,-58.889004,-102.710777,-19.257256,-101.516602,0.0)#approach the grinder#run_skill("approach_machine", "espresso_grinder", "grinder", True)
+    # input()
+    # run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
+    # input()
+    # run_skill("gotoJ_deg",-44.728165,-67.766884,-72.699600,-43.691830,-102.070465,0.0)#touch the button#run_skill("approach_machine", "espresso_grinder", "tamper", True)
+    # input()
+    # run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
+    # input()
+    # run_skill("gotoJ_deg", -43.257011,-71.458015,-81.109985,-25.820198,-97.854370,0.0) #in the tamper#run_skill("mount_machine", "espresso_grinder", "tamper", True)
+    # input()
+    # run_skill("gotoJ_deg", -43.257053,-67.649300,-83.081116,-27.657471,-97.851700,0.0) #above the tamper#run_skill("mount_machine", "espresso_grinder", "grinder", True)
+    # run_skill("gotoJ_deg",-45.427513,-58.889004,-102.710777,-19.257256,-101.516602,0.0)#approach the grinder#run_skill("approach_machine", "espresso_grinder", "grinder", True)
+    # run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
     # run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
     # for i in range(5):
     #     time.sleep(1.0)
@@ -2979,48 +3214,100 @@ def milk_training(**params):
     run_skill("gotoJ_deg", -47.823650,-85.286758,-16.991077,-70.719292,-92.739357,16.378487)#run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
 
 def test(**params):
-    for i in range(5):
-        run_skill("sync")
-        get_frother_position()
-        run_skill("sync")
-        run_skill("set_gripper_position", 255, 255, 255)
-        run_skill("sync")
-        mount_frother()
-        run_skill("sync")
-        run_skill("approach_machine", "left_steam_wand", "deep_froth")
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['swirling']['intermediate1'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['swirling']['swirl_pos'])
-        run_skill("sync")
-        run_skill("set_gripper_position", 255, 0, 255)
+    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 1})
+    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 2})
+    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 3})
+    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 4})
+    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 1})
+    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 1})
+    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 2})
+    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 2})
+    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 3})
+    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 3})
+    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 4})
+    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 4})
+
 
 def test_arm1(**params):
-    start_time = time.perf_counter()
-    for i in range(69):
-        run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
-        for i in range(1):
-            run_skill("gotoJ_deg", 210.743909,27.533575,-145.620954,39.206884,-92.263737,14.811911) #P109
-            run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
-            run_skill("gotoJ_deg", 164.649656,15.710394,-137.946233,38.069673,-92.976630,10.570545) #P110
-            run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
-        for i in range(1):
-            run_skill("gotoJ_deg", 202.423675,31.972815,-130.894621,27.789850,-128.921782,10.127392) #P111
-            run_skill("gotoJ_deg", 163.461313,31.625278,-130.333863,28.158369,-70.999501,10.265249) #P112
-        run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
-        run_skill("gotoJ_deg", 180.000000,14.953760,-117.783821,-76.976467,-88.599347,0.053953) #P1
-    run_skill("sync")
-    end_time = time.perf_counter()
-    print(f"Total execution time: {end_time - start_time:.3f} seconds")
-        # run_skill("gotoJ_deg", 181.706474,-15.556648,-147.169896,72.921334,-90.016973,-1.835663)
-        # run_skill("set_gripper_position", 255, 255, 255)
-        # run_skill("moveEE", 0, 0, 500, 0, 0, 0) 
-        # run_skill("set_gripper_position", 255, 0, 255) 
+    run_skill("gotoJ_deg", 112.5, 30, -130, -90,  -90,  0)
 
 def test_arm2(**params) -> bool:
-    run_skill("set_gripper_position", 255, 0, 255)
+    try:
+        # Cup 1 - Stage 1
+        if not dispense_plastic_cup(cup_size="12oz"):
+            return False
+        if not go_to_ice(cup_size="12oz"):
+            return False
+        if not go_home_with_ice():
+            return False
+        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C12': 1.0}):
+            return False
+        
+        # Cup 2 - Stage 2
+        if not dispense_plastic_cup(cup_size="12oz"):
+            return False
+        if not go_to_ice(cup_size="12oz"):
+            return False
+        if not go_home_with_ice():
+            return False
+        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C12': 1.0}):
+            return False
+        
+        # Cup 3 - Stage 3
+        if not dispense_plastic_cup(cup_size="12oz"):
+            return False
+        if not go_to_ice(cup_size="12oz"):
+            return False
+        if not go_home_with_ice():
+            return False
+        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C12': 1.0}):
+            return False
+        
+        # Cup 4 - Stage 4
+        if not dispense_plastic_cup(cup_size="12oz"):
+            return False
+        if not go_to_ice(cup_size="12oz"):
+            return False
+        if not go_home_with_ice():
+            return False
+        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+            return False
+        if not place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C12': 1.0}):
+            return False
+        
+        print("✅ test_arm2 completed successfully!")
+        return True
+        
+    except Exception as e:
+        print(f"[ERROR] test_arm2 failed with exception: {e}")
+        return False
+
 
 def hello(**params):
     start_time = time.perf_counter()
-    for i in range(69):
+    for i in range(1):
         run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
         for i in range(1):
             run_skill("gotoJ_deg", 210.743909,27.533575,-145.620954,39.206884,-92.263737,14.811911) #P109
@@ -3136,10 +3423,22 @@ SEQUENCES = {
     "pick_plastic_cup_sauces_9oz": lambda: pick_plastic_cup_sauces(cups={'cup_C9': 1.0}),
     "pick_plastic_cup_sauces_12oz": lambda: pick_plastic_cup_sauces(cups={'cup_C12': 1.0}),
     "pick_plastic_cup_sauces_16oz": lambda: pick_plastic_cup_sauces(cups={'cup_C16': 1.0}),
-    "place_plastic_cup_station_stage_1": lambda: place_plastic_cup_station(position={'cup_position': 1}),
-    "place_plastic_cup_station_stage_2": lambda: place_plastic_cup_station(position={'cup_position': 2}),
-    "place_plastic_cup_station_stage_3": lambda: place_plastic_cup_station(position={'cup_position': 3}),
-    "place_plastic_cup_station_stage_4": lambda: place_plastic_cup_station(position={'cup_position': 4}),
+    "place_plastic_cup_station_stage_1_7oz": lambda: place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C7': 1.0}),
+    "place_plastic_cup_station_stage_1_9oz": lambda: place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C9': 1.0}),
+    "place_plastic_cup_station_stage_1_12oz": lambda: place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C12': 1.0}),
+    "place_plastic_cup_station_stage_1_16oz": lambda: place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C16': 1.0}),
+    "place_plastic_cup_station_stage_2_7oz": lambda: place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C7': 1.0}),
+    "place_plastic_cup_station_stage_2_9oz": lambda: place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C9': 1.0}),
+    "place_plastic_cup_station_stage_2_12oz": lambda: place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C12': 1.0}),
+    "place_plastic_cup_station_stage_2_16oz": lambda: place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C16': 1.0}),
+    "place_plastic_cup_station_stage_3_7oz": lambda: place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C7': 1.0}),
+    "place_plastic_cup_station_stage_3_9oz": lambda: place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C9': 1.0}),
+    "place_plastic_cup_station_stage_3_12oz": lambda: place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C12': 1.0}),
+    "place_plastic_cup_station_stage_3_16oz": lambda: place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C16': 1.0}),
+    "place_plastic_cup_station_stage_4_7oz": lambda: place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C7': 1.0}),
+    "place_plastic_cup_station_stage_4_9oz": lambda: place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C9': 1.0}),
+    "place_plastic_cup_station_stage_4_12oz": lambda: place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C12': 1.0}),
+    "place_plastic_cup_station_stage_4_16oz": lambda: place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C16': 1.0}),
     # Pick from station (for ice) – provide all stage x size combinations - updated with cups dict format
     "pick_plastic_cup_station_stage_1_7oz": lambda: pick_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C7': 1.0}),
     "pick_plastic_cup_station_stage_1_9oz": lambda: pick_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C9': 1.0}),
@@ -3229,6 +3528,22 @@ SEQUENCES = {
     "mount_p3": lambda: mount(port="port_3"),
     "get_hot_water": lambda: get_hot_water(),
     "with_hot_water": lambda: with_hot_water(),
+    "pick_cup_hot_water_stage_1_7oz": lambda: pick_cup_for_hot_water(position={'cup_position': 1}, cups_dict={"cup_H7": 1.0}),
+    "pick_cup_hot_water_stage_1_9oz": lambda: pick_cup_for_hot_water(position={'cup_position': 1}, cups_dict={"cup_H9": 1.0}),
+    "pick_cup_hot_water_stage_1_12oz": lambda: pick_cup_for_hot_water(position={'cup_position': 1}, cups_dict={"cup_H12": 1.0}),
+    "pick_cup_hot_water_stage_2_7oz": lambda: pick_cup_for_hot_water(position={'cup_position': 2}, cups_dict={"cup_H7": 1.0}),
+    "pick_cup_hot_water_stage_2_9oz": lambda: pick_cup_for_hot_water(position={'cup_position': 2}, cups_dict={"cup_H9": 1.0}),
+    "pick_cup_hot_water_stage_2_12oz": lambda: pick_cup_for_hot_water(position={'cup_position': 2}, cups_dict={"cup_H12": 1.0}),
+    "pick_cup_hot_water_stage_3_7oz": lambda: pick_cup_for_hot_water(position={'cup_position': 3}, cups_dict={"cup_H7": 1.0}),
+    "pick_cup_hot_water_stage_3_9oz": lambda: pick_cup_for_hot_water(position={'cup_position': 3}, cups_dict={"cup_H9": 1.0}),
+    "pick_cup_hot_water_stage_3_12oz": lambda: pick_cup_for_hot_water(position={'cup_position': 3}, cups_dict={"cup_H12": 1.0}),
+    "pick_cup_hot_water_stage_4_7oz": lambda: pick_cup_for_hot_water(position={'cup_position': 4}, cups_dict={"cup_H7": 1.0}),
+    "pick_cup_hot_water_stage_4_9oz": lambda: pick_cup_for_hot_water(position={'cup_position': 4}, cups_dict={"cup_H9": 1.0}),
+    "pick_cup_hot_water_stage_4_12oz": lambda: pick_cup_for_hot_water(position={'cup_position': 4}, cups_dict={"cup_H12": 1.0}),
+    "return_cup_hot_water_stage_1": lambda: return_cup_with_hot_water(position={'cup_position': 1}),
+    "return_cup_hot_water_stage_2": lambda: return_cup_with_hot_water(position={'cup_position': 2}),
+    "return_cup_hot_water_stage_3": lambda: return_cup_with_hot_water(position={'cup_position': 3}),
+    "return_cup_hot_water_stage_4": lambda: return_cup_with_hot_water(position={'cup_position': 4}),
     
     # ═══════════════════════════════════════════════════════════════
     # 🥛 MILK FROTHING OPERATIONS
@@ -3330,35 +3645,77 @@ def _main():
     
     print("🔧  Pick-and-Place Interactive Menu")
     print(f"📌 Currently using: {USE_VERSION.upper()} ({robot_motion_class.__name__})")
-    print("Type the name to run a sequence, or 'q' to quit.\n")
+    print("Type sequence name to run, 'list' to show all, 'q' to quit.")
+    print("For solution: solution(j1,j2,j3,j4,j5,j6,x,y,z,rx,ry,rz)\n")
 
     try:
         while True:
-            # 1) show the current list
-            print("Available sequences:")
-            for name in SEQUENCES:
-                print(f"  • {name}")
+            # Prompt the user
+            choice = input("Sequence? ").strip()
 
-            # 2) prompt the user
-            choice = input("\nWhich sequence? (q to exit) ").strip().lower()
-
-            if choice in ("q", "quit", "exit"):
+            if choice.lower() in ("q", "quit", "exit"):
                 print("Bye!")
                 break
 
-            if choice not in SEQUENCES:
-                print(f"❌  '{choice}' is not a valid sequence. Try again.\n")
+            if choice.lower() in ("list", "help", "ls", "l"):
+                print("\nAvailable sequences:")
+                for name in SEQUENCES:
+                    print(f"  • {name}")
+                print()
                 continue
 
-            # 3) run the chosen sequence *once*
-            try:
-                SEQUENCES[choice]()        # ← call the function
-            except KeyboardInterrupt:
-                print("\n⏹️  Interrupted. Returning to menu.\n")
-            except Exception as e:
-                print(f"\n❌  Error running sequence: {e}\n")
+            # Check if it's a function call with parameters (e.g., solution(...))
+            if "(" in choice and choice.endswith(")"):
+                func_name = choice[:choice.index("(")].strip().lower()
+                params_str = choice[choice.index("(")+1:-1].strip()
+                
+                # Special handling for solution function
+                if func_name == "solution":
+                    try:
+                        # Parse comma-separated parameters
+                        params = [float(p.strip()) for p in params_str.split(",") if p.strip()]
+                        
+                        # Ensure we have between 6 and 12 parameters
+                        if len(params) < 6:
+                            print(f"❌  Not enough parameters. Need at least 6 joint values (j1-j6).\n")
+                            continue
+                        elif len(params) > 12:
+                            print(f"❌  Too many parameters. Max 12 (j1-j6, x,y,z,rx,ry,rz).\n")
+                            continue
+                        
+                        # Pad with zeros if less than 12 parameters
+                        while len(params) < 12:
+                            params.append(0.0)
+                        
+                        # Call solution function directly
+                        result = solution(*params)
+                        print()
+                        
+                    except ValueError as e:
+                        print(f"❌  Invalid parameters: {e}\n")
+                        continue
+                    except Exception as e:
+                        print(f"❌  Error running solution: {e}\n")
+                        continue
+                else:
+                    print(f"❌  Function call syntax only supported for 'solution'.\n")
+                    continue
             else:
-                print("\n✅  Finished. Back to menu.\n")
+                # Normal sequence lookup
+                choice_lower = choice.lower()
+                if choice_lower not in SEQUENCES:
+                    print(f"❌  '{choice}' not found. Type 'list' to see all sequences.\n")
+                    continue
+
+                # Run the chosen sequence
+                try:
+                    SEQUENCES[choice_lower]()
+                except KeyboardInterrupt:
+                    print("\n⏹️  Interrupted. Returning to menu.\n")
+                except Exception as e:
+                    print(f"\n❌  Error running sequence: {e}\n")
+                else:
+                    print("\n✅  Finished. Back to menu.\n")
     
     except KeyboardInterrupt:
         print("\n🛑 Interrupted by user")

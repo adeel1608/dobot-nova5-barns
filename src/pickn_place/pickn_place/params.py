@@ -569,7 +569,7 @@ PLASTIC_CUPS_PARAMS = {
         # Cup dispenser coordinates for grabbing plastic cups
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
         '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
-        '12oz_coords':  (117.584348,-38.509737,-144.016102,2.779971,-62.300929,-0.175795),  # 12oz cup dispenser position
+        '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
         '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
     },
     'ice_positions': {
@@ -610,6 +610,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
+    'pickup_hot_water_down': (0, 100, 30, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────
@@ -699,6 +700,11 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_2':     (-107.618809,-50.837104,-133.238999,4.322921,-107.550365,0.027873),  # Stage 2 pickup position
         'pickup_3':     (-127.135882,-52.028920,-115.863508,-11.823941,-127.069217,0.139543),  # Stage 3 pickup position
         'pickup_4':     (-139.614437,-57.667847,-93.968886,-28.016244,-139.555665,0.242845),  # Stage 4 pickup position
+        #Pickup positions for hot water
+        'pickup_hot_water_1':     (163.559, -53.065, -148.063, 22.257, -16.378, -1.093),  # Stage 1 pickup position
+        'pickup_hot_water_2':     (169.904, -49.016, -130.157, 0.890, -10.024, -1.687),  # Stage 2 pickup position
+        'pickup_hot_water_3':     (172.801, -52.255, -108.986, -16.442, -7.133, -2.289),  # Stage 3 pickup position
+        'pickup_hot_water_4':     (174.428, -60.166, -83.684, -33.228, -5.521, -2.896),  # Stage 4 pickup position
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
