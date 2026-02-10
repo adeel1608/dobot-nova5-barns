@@ -121,9 +121,10 @@ RUN if [ ! -d "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2" ]; then \
     git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
     fi
 
-# Copy OrbbecSDK libraries to system location
+# Install OrbbecSDK libraries with proper symlinks and ldconfig registration
 RUN echo "Setting up OrbbecSDK libraries..." && \
     ARCH=$(uname -m) && \
+    echo "Detected architecture: $ARCH" && \
     if [ "$ARCH" = "x86_64" ]; then \
         SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/x64"; \
     elif [ "$ARCH" = "aarch64" ]; then \
@@ -131,15 +132,30 @@ RUN echo "Setting up OrbbecSDK libraries..." && \
     else \
         SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/arm32"; \
     fi && \
+    echo "SDK_LIB_DIR=$SDK_LIB_DIR" && \
     if [ -d "$SDK_LIB_DIR" ]; then \
-        echo "Copying SDK libraries from $SDK_LIB_DIR to /usr/local/lib..." && \
-        cp -v "$SDK_LIB_DIR"/*.so* /usr/local/lib/ 2>/dev/null || true && \
+        echo "Found SDK directory, listing contents:" && \
+        ls -lh "$SDK_LIB_DIR" && \
+        echo "Copying SDK libraries to /usr/local/lib..." && \
+        cp -v "$SDK_LIB_DIR"/*.so* /usr/local/lib/ && \
+        echo "Creating symlinks..." && \
+        cd /usr/local/lib && \
+        ls -lh libOrbbecSDK* libdepthengine* && \
+        ln -sf libOrbbecSDK.so.1.10.27 libOrbbecSDK.so && \
+        ln -sf libOrbbecSDK.so.1.10.27 libOrbbecSDK.so.1 && \
+        ln -sf libdepthengine.so.2.0 libdepthengine.so && \
+        echo "Verifying symlinks:" && \
+        ls -lh libOrbbecSDK.so* libdepthengine.so* && \
+        echo "Registering /usr/local/lib with ldconfig..." && \
+        echo "/usr/local/lib" > /etc/ld.so.conf.d/orbbec.conf && \
         ldconfig && \
-        echo "SDK libraries installed successfully"; \
+        echo "SDK libraries setup complete" && \
+        ldconfig -p | grep -i orbbec || echo "Warning: checking ldconfig cache"; \
     else \
-        echo "WARNING: SDK lib directory not found at $SDK_LIB_DIR"; \
-    fi && \
-    ls -lh /usr/local/lib/libOrbbec* 2>/dev/null || echo "WARNING: No OrbbecSDK libraries found"
+        echo "ERROR: SDK lib directory not found at $SDK_LIB_DIR" && \
+        ls -lh "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/" && \
+        exit 1; \
+    fi
 
 # Build workspace
 WORKDIR ${WORKSPACE_DIR}
@@ -153,9 +169,14 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     --event-handlers console_direct+ || true && \
     echo "=== Core packages build complete ===" && \
     echo "=== Building orbbec_camera package ===" && \
+    export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH} && \
+    export LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH} && \
     colcon build --symlink-install \
     --packages-select orbbec_camera \
-    --cmake-args -DCMAKE_BUILD_TYPE=Release \
+    --cmake-args \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_LIBRARY_PATH=/usr/local/lib \
+    -DCMAKE_PREFIX_PATH="/usr/local/lib" \
     --event-handlers console_direct+ || \
     (echo "ERROR: Failed to build orbbec_camera package" && \
      echo "Please check the build logs above for details" && \
