@@ -141,7 +141,7 @@ restart_camera_and_perception() {
     
     # Restart perception and track PID
     log "Restarting ArUco perception..."
-    ros2 run pickn_place aruco_perception __log_level:=fatal &
+    ros2 run pickn_place aruco_perception __log_level:=info &
     local NEW_PERCEPTION_PID=$!
     log "Perception restarted with PID: $NEW_PERCEPTION_PID"
     
@@ -673,7 +673,7 @@ start_robot() {
 
         # Launch perception nodes
         log "=== Launching perception nodes ==="
-        ros2 run pickn_place aruco_perception __log_level:=fatal &
+        ros2 run pickn_place aruco_perception __log_level:=info &
         POSE_GEN_PID=$!
         PIDS+=($POSE_GEN_PID)
         
