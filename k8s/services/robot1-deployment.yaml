@@ -27,11 +27,11 @@ spec:
       hostPID: true
       hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-cluster-critical
       containers:
       - name: robot1
         image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
         imagePullPolicy: Always
-        priorityClassName: system-cluster-critical
         securityContext:
           privileged: true
           capabilities:
