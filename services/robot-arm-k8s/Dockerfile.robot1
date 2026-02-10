@@ -138,6 +138,19 @@ RUN chmod +x /tmp/install-robot-dependencies.sh && \
 # Create python symlink
 RUN ln -sf /usr/bin/python3 /usr/bin/python
 
+# Build ROS workspace to pre-compile all packages
+RUN cd ${WORKSPACE_DIR} && \
+    set +u && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    set -u && \
+    rosdep install --from-paths src --ignore-src -y --rosdistro ${ROS_DISTRO} || echo "Some rosdep dependencies may have failed" && \
+    colcon build --symlink-install \
+        --cmake-args -DCMAKE_BUILD_TYPE=Release \
+        --continue-on-error \
+        --parallel-workers 2 \
+        --event-handlers console_direct+ && \
+    echo "Workspace build complete"
+
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
     cd ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts && \
