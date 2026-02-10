@@ -174,55 +174,35 @@ RUN cd ${WORKSPACE_DIR} && \
     rosdep install --from-paths src --ignore-src -y --rosdistro ${ROS_DISTRO}" || \
     echo "Some rosdep dependencies may have failed, continuing..."
 
-# Build ROS workspace in stages
-# Stage 1: Build OrbbecSDK message and description packages first
+# Build entire ROS workspace with proper environment
 RUN cd ${WORKSPACE_DIR} && \
-    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
-    echo '=== Building OrbbecSDK message packages ===' && \
-    colcon build --symlink-install \
-        --packages-select orbbec_camera_msgs orbbec_description \
-        --cmake-args -DCMAKE_BUILD_TYPE=Release \
-        --parallel-workers 2 \
-        --event-handlers console_direct+ \
-        --continue-on-error" && \
-    echo "=== OrbbecSDK message packages build complete ==="
-
-# Stage 2: Build core robot packages (excluding orbbec_camera node)
-RUN cd ${WORKSPACE_DIR} && \
-    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
-    source install/setup.bash && \
-    echo '=== Building core robot packages ===' && \
-    colcon build --symlink-install \
-        --packages-ignore orbbec_camera \
-        --cmake-args -DCMAKE_BUILD_TYPE=Release \
-        --parallel-workers 2 \
-        --event-handlers console_direct+ \
-        --continue-on-error" && \
-    echo "=== Core packages build complete ===" || echo "Some packages failed but continuing..."
-
-# Stage 3: Build orbbec_camera package with proper environment
-RUN cd ${WORKSPACE_DIR} && \
-    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
-    source install/setup.bash && \
-    echo '=== Building orbbec_camera package ===' && \
+    bash -c "set +u && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    set -u && \
     export LD_LIBRARY_PATH=/usr/local/lib:\${LD_LIBRARY_PATH:-} && \
     export LIBRARY_PATH=/usr/local/lib:\${LIBRARY_PATH:-} && \
-    ldconfig -p | grep -i orbbec || echo 'OrbbecSDK libraries check' && \
+    echo '=== Building entire workspace ===' && \
     colcon build --symlink-install \
-        --packages-select orbbec_camera \
         --cmake-args \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_LIBRARY_PATH=/usr/local/lib \
             -DCMAKE_PREFIX_PATH=/usr/local \
+        --parallel-workers 2 \
+        --continue-on-error \
         --event-handlers console_direct+" && \
-    echo "=== orbbec_camera build complete ===" && \
-    ls -la install/orbbec_camera/lib/orbbec_camera/ || echo "Checking orbbec_camera installation..." || \
-    (echo 'WARNING: orbbec_camera build may have failed' && \
-     if [ -f 'log/latest_build/orbbec_camera/stderr.log' ]; then \
-         echo 'Last 100 lines of stderr:' && \
-         tail -100 'log/latest_build/orbbec_camera/stderr.log'; \
-     fi && \
-     echo 'Continuing anyway - camera may be built at runtime')
+    echo "=== Workspace build complete ===" && \
+    echo "Checking if orbbec_camera was built..." && \
+    if [ -d "install/orbbec_camera" ]; then \
+        echo "✅ orbbec_camera package built successfully"; \
+        ls -la install/orbbec_camera/lib/ || true; \
+    else \
+        echo "⚠️  WARNING: orbbec_camera package not found, checking logs..."; \
+        if [ -f "log/latest_build/orbbec_camera/stderr.log" ]; then \
+            echo "=== orbbec_camera stderr (last 100 lines) ==="; \
+            tail -100 "log/latest_build/orbbec_camera/stderr.log"; \
+        fi; \
+        echo "Build will continue but camera may not work"; \
+    fi
 
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
