@@ -9,7 +9,7 @@ set -euo pipefail
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
-DOCKER_HOST_IP=${DOCKER_HOST_IP:-$(hostname -I | awk '{print $1}')}
+DOCKER_HOST_IP=${DOCKER_HOST_IP:-192.168.200.129}
 ROBOT_ID=1
 DOBOT_TYPE=${DOBOT_TYPE:-nova5}
 IP_ADDRESS=${IP_ADDRESS:-192.168.200.249}
