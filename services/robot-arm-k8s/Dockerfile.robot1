@@ -89,6 +89,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libudev-dev \
     libeigen3-dev \
     libopencv-dev \
+    liblive555-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
@@ -157,6 +158,10 @@ RUN echo "Setting up OrbbecSDK libraries..." && \
         exit 1; \
     fi
 
+# Set library paths persistently for SDK libraries
+ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
+ENV LIBRARY_PATH="/usr/local/lib:${LIBRARY_PATH}"
+
 # Build workspace
 WORKDIR ${WORKSPACE_DIR}
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
@@ -169,14 +174,14 @@ RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     --event-handlers console_direct+ || true && \
     echo "=== Core packages build complete ===" && \
     echo "=== Building orbbec_camera package ===" && \
-    export LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH} && \
-    export LIBRARY_PATH=/usr/local/lib:${LIBRARY_PATH} && \
+    export LDFLAGS="-L/usr/local/lib -Wl,--as-needed -lusb-1.0 -llive555" && \
     colcon build --symlink-install \
     --packages-select orbbec_camera \
     --cmake-args \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_LIBRARY_PATH=/usr/local/lib \
     -DCMAKE_PREFIX_PATH="/usr/local/lib" \
+    -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/lib -Wl,--as-needed -lusb-1.0 -llive555" \
     --event-handlers console_direct+ || \
     (echo "ERROR: Failed to build orbbec_camera package" && \
      echo "Please check the build logs above for details" && \
@@ -222,7 +227,6 @@ ENV DEVICE_ID=1
 ENV DEVICE_NUM=1
 ENV ORBBEC_CONNECTION_DELAY=3000
 ENV USBFS_MEMORY_MB=128
-ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
 
 # RabbitMQ connection (will be overridden by K8s)
 ENV RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
