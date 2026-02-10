@@ -70,8 +70,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-backward-ros \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OrbbecSDK dependencies
+# Install OrbbecSDK dependencies and additional build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
     libgflags-dev \
     nlohmann-json3-dev \
     libdw-dev \
@@ -84,6 +85,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsm6 \
     libxrender1 \
     libxext6 \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    libeigen3-dev \
+    libopencv-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages
@@ -116,39 +121,45 @@ RUN if [ ! -d "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2" ]; then \
     git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
     fi
 
-# Install OrbbecSDK library (required by orbbec_camera package)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    libusb-1.0-0-dev \
-    libudev-dev \
-    && rm -rf /var/lib/apt/lists/* && \
-    cd ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera && \
-    if [ -f "scripts/install.sh" ]; then \
-        echo "Running OrbbecSDK install script..." && \
-        bash scripts/install.sh || true; \
+# Copy OrbbecSDK libraries to system location
+RUN echo "Setting up OrbbecSDK libraries..." && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/x64"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/arm64"; \
+    else \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/arm32"; \
     fi && \
-    echo "Searching for OrbbecSDK libraries..." && \
-    find ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2 -name "libOrbbecSDK.so*" -exec cp -v {} /usr/local/lib/ \; && \
-    find ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2 -path "*/SDK/lib/*" -name "*.so*" -exec cp -v {} /usr/local/lib/ \; && \
-    ldconfig && \
-    echo "OrbbecSDK library installation complete" && \
-    ls -la /usr/local/lib/libOrbbecSDK* || echo "WARNING: libOrbbecSDK.so not found, camera may not build"
+    if [ -d "$SDK_LIB_DIR" ]; then \
+        echo "Copying SDK libraries from $SDK_LIB_DIR to /usr/local/lib..." && \
+        cp -v "$SDK_LIB_DIR"/*.so* /usr/local/lib/ 2>/dev/null || true && \
+        ldconfig && \
+        echo "SDK libraries installed successfully"; \
+    else \
+        echo "WARNING: SDK lib directory not found at $SDK_LIB_DIR"; \
+    fi && \
+    ls -lh /usr/local/lib/libOrbbec* 2>/dev/null || echo "WARNING: No OrbbecSDK libraries found"
 
 # Build workspace
 WORKDIR ${WORKSPACE_DIR}
 RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
     rosdep install --from-paths src --ignore-src -y -q --rosdistro ${ROS_DISTRO} || true && \
+    echo "=== Building core packages ===" && \
     colcon build --symlink-install \
+    --packages-ignore orbbec_camera \
     --cmake-args -DCMAKE_BUILD_TYPE=Release \
-    --continue-on-error \
     --parallel-workers 2 \
+    --event-handlers console_direct+ || true && \
+    echo "=== Core packages build complete ===" && \
+    echo "=== Building orbbec_camera package ===" && \
+    colcon build --symlink-install \
+    --packages-select orbbec_camera \
+    --cmake-args -DCMAKE_BUILD_TYPE=Release \
     --event-handlers console_direct+ || \
-    (echo "=== Build completed with some errors ===" && \
-     if [ ! -f "install/setup.bash" ]; then \
-         echo "ERROR: Critical build failure - install/setup.bash not found" && exit 1; \
-     else \
-         echo "WARNING: Some packages failed but continuing (check logs above)" && exit 0; \
-     fi)
+    (echo "ERROR: Failed to build orbbec_camera package" && \
+     echo "Please check the build logs above for details" && \
+     exit 1)
 
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
@@ -176,6 +187,7 @@ export MOVEIT_DISABLE_GUI=1\n\
 export RVIZ_DISABLE=1\n\
 export AMENT_TRACE_SETUP_FILES=0\n\
 export AMENT_PYTHON_EXECUTABLE=python3\n\
+export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"\n\
 ' > ${WORKSPACE_DIR}/setup_robot_env.sh && chmod +x ${WORKSPACE_DIR}/setup_robot_env.sh
 
 # Environment variables for Robot 2
@@ -189,6 +201,7 @@ ENV DEVICE_ID=2
 ENV DEVICE_NUM=2
 ENV ORBBEC_CONNECTION_DELAY=3000
 ENV USBFS_MEMORY_MB=128
+ENV LD_LIBRARY_PATH=/usr/local/lib:${LD_LIBRARY_PATH}
 
 # RabbitMQ connection (will be overridden by K8s)
 ENV RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
