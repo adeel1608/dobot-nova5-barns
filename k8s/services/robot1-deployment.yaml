@@ -31,6 +31,7 @@ spec:
       - name: robot1
         image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
         imagePullPolicy: Always
+        priorityClassName: system-cluster-critical
         securityContext:
           privileged: true
           capabilities:
@@ -50,7 +51,7 @@ spec:
         - name: ROS_DOMAIN_ID
           value: "0"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000YW"
+          value: "CP9JA53000CR" #CP1Z842000YW
         - name: CAM_NAME
           value: "cam0"
         - name: DEVICE_ID
@@ -74,10 +75,10 @@ spec:
           mountPath: /run/udev
         resources:
           requests:
-            memory: "2Gi"
+            memory: "4Gi"
             cpu: "1000m"
           limits:
-            memory: "4Gi"
+            memory: "6Gi"
             cpu: "2000m"
         startupProbe:
           exec:
