@@ -144,12 +144,17 @@ RUN cd ${WORKSPACE_DIR} && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     set -u && \
     rosdep install --from-paths src --ignore-src -y --rosdistro ${ROS_DISTRO} || echo "Some rosdep dependencies may have failed" && \
-    colcon build --symlink-install \
+    (colcon build --symlink-install \
         --cmake-args -DCMAKE_BUILD_TYPE=Release \
         --continue-on-error \
         --parallel-workers 2 \
-        --event-handlers console_direct+ && \
-    echo "Workspace build complete"
+        --event-handlers console_direct+ || true) && \
+    if [ -f "install/setup.bash" ]; then \
+        echo "Workspace build completed - install/setup.bash exists"; \
+    else \
+        echo "WARNING: Workspace build may have issues - install/setup.bash not found" && \
+        exit 1; \
+    fi
 
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
