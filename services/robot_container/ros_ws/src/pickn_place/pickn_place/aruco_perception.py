@@ -273,17 +273,22 @@ class ArucoPerceptionNode(Node):
                 ], dtype=np.float32)
                 cam_pts = []
                 valid = True
+                # Map color coords to depth coords when resolutions differ (e.g. K8s: color 1280x720, depth 848x480)
+                scale_u = self.depth_width / float(self.image_width) if self.image_width else 1.0
+                scale_v = self.depth_height / float(self.image_height) if self.image_height else 1.0
                 for (uf, vf) in corners[i][0]:
                     u, v = int(round(uf)), int(round(vf))
-                    if not (0 <= u < self.depth_width and 0 <= v < self.depth_height):
+                    u_d = int(round(uf * scale_u))
+                    v_d = int(round(vf * scale_v))
+                    if not (0 <= u_d < self.depth_width and 0 <= v_d < self.depth_height):
                         valid = False; break
-                    d = float(self.latest_depth_image[v, u]) / 1000.0
+                    d = float(self.latest_depth_image[v_d, u_d]) / 1000.0
                     if d <= 0:
                         valid = False; break
                     fx, fy = self.depth_camera_matrix[0,0], self.depth_camera_matrix[1,1]
                     cx, cy = self.depth_camera_matrix[0,2], self.depth_camera_matrix[1,2]
-                    X = (u - cx) * d / fx
-                    Y = (v - cy) * d / fy
+                    X = (u_d - cx) * d / fx
+                    Y = (v_d - cy) * d / fy
                     cam_pts.append([X, Y, d])
                 if not valid or len(cam_pts) < 4:
                     continue
