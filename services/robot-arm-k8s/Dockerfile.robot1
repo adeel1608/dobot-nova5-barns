@@ -70,41 +70,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-backward-ros \
     && rm -rf /var/lib/apt/lists/*
 
-# Install OrbbecSDK dependencies and additional build tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    cmake \
-    libgflags-dev \
-    nlohmann-json3-dev \
-    libdw-dev \
-    libomp-dev \
-    freeglut3-dev \
-    libgoogle-glog-dev \
-    libgtk-3-0 \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
-    libusb-1.0-0-dev \
-    libudev-dev \
-    libeigen3-dev \
-    libopencv-dev \
-    liblive555-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python packages
-RUN python3 -m pip install --no-cache-dir --upgrade pip && \
-    python3 -m pip install --no-cache-dir \
-    opencv-contrib-python==4.10.0.84 \
-    numpy==1.23.5 \
-    scipy==1.11.4 \
-    transformations==2025.1.1 \
-    aio-pika==9.4.3 \
-    pika==1.3.2
-
-# Create python symlink
-RUN ln -sf /usr/bin/python3 /usr/bin/python
-
 # Initialize rosdep
 RUN rosdep init && rosdep update
 
@@ -158,34 +123,20 @@ RUN echo "Setting up OrbbecSDK libraries..." && \
         exit 1; \
     fi
 
-# Set library paths persistently for SDK libraries
-ENV LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"
-ENV LIBRARY_PATH="/usr/local/lib:${LIBRARY_PATH}"
+# Copy and run installation script for dependencies and Python packages
+COPY install-robot-dependencies.sh /tmp/install-robot-dependencies.sh
+RUN chmod +x /tmp/install-robot-dependencies.sh && \
+    sed -i 's/check_root()/# check_root disabled for Docker/g' /tmp/install-robot-dependencies.sh && \
+    sed -i 's/check_ubuntu()/# check_ubuntu disabled for Docker/g' /tmp/install-robot-dependencies.sh && \
+    sed -i 's/build_workspace()/# build_workspace disabled - done separately/g' /tmp/install-robot-dependencies.sh && \
+    sed -i 's/create_workspace()/# create_workspace disabled - done separately/g' /tmp/install-robot-dependencies.sh && \
+    sed -i 's/create_environment_script()/# create_environment_script disabled - done separately/g' /tmp/install-robot-dependencies.sh && \
+    sed -i 's/install_udev_rules()/# install_udev_rules disabled - done separately/g' /tmp/install-robot-dependencies.sh && \
+    bash /tmp/install-robot-dependencies.sh install 2>&1 | tee /tmp/install.log && \
+    rm /tmp/install-robot-dependencies.sh
 
-# Build workspace
-WORKDIR ${WORKSPACE_DIR}
-RUN . /opt/ros/${ROS_DISTRO}/setup.sh && \
-    rosdep install --from-paths src --ignore-src -y -q --rosdistro ${ROS_DISTRO} || true && \
-    echo "=== Building core packages ===" && \
-    colcon build --symlink-install \
-    --packages-ignore orbbec_camera \
-    --cmake-args -DCMAKE_BUILD_TYPE=Release \
-    --parallel-workers 2 \
-    --event-handlers console_direct+ || true && \
-    echo "=== Core packages build complete ===" && \
-    echo "=== Building orbbec_camera package ===" && \
-    export LDFLAGS="-L/usr/local/lib -Wl,--as-needed -lusb-1.0 -llive555" && \
-    colcon build --symlink-install \
-    --packages-select orbbec_camera \
-    --cmake-args \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_LIBRARY_PATH=/usr/local/lib \
-    -DCMAKE_PREFIX_PATH="/usr/local/lib" \
-    -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/lib -Wl,--as-needed -lusb-1.0 -llive555" \
-    --event-handlers console_direct+ || \
-    (echo "ERROR: Failed to build orbbec_camera package" && \
-     echo "Please check the build logs above for details" && \
-     exit 1)
+# Create python symlink
+RUN ln -sf /usr/bin/python3 /usr/bin/python
 
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
@@ -203,7 +154,7 @@ set +u\n\
 source /opt/ros/${ROS_DISTRO}/setup.bash\n\
 source ${WORKSPACE_DIR}/install/setup.bash\n\
 set -u\n\
-export PYTHONPATH="${WORKSPACE_DIR}/src:${WORKSPACE_DIR}/../../:${PYTHONPATH}"\n\
+export PYTHONPATH="${WORKSPACE_DIR}/src:${WORKSPACE_DIR}/../../:${PYTHONPATH:-}"\n\
 export DISPLAY=${DISPLAY:-:99}\n\
 export QT_QPA_PLATFORM=offscreen\n\
 export ROS_LOG_LEVEL=WARN\n\
@@ -213,7 +164,7 @@ export MOVEIT_DISABLE_GUI=1\n\
 export RVIZ_DISABLE=1\n\
 export AMENT_TRACE_SETUP_FILES=0\n\
 export AMENT_PYTHON_EXECUTABLE=python3\n\
-export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH}"\n\
+export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"\n\
 ' > ${WORKSPACE_DIR}/setup_robot_env.sh && chmod +x ${WORKSPACE_DIR}/setup_robot_env.sh
 
 # Environment variables for Robot 1
