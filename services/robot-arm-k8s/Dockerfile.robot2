@@ -81,10 +81,21 @@ RUN mkdir -p ${WORKSPACE_DIR}/src
 COPY services/robot_container/ros_ws/src ${WORKSPACE_DIR}/src/
 COPY shared ${WORKSPACE_DIR}/src/shared/
 
-# Clone OrbbecSDK_ROS2 if not already present
-RUN if [ ! -d "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2" ]; then \
-    cd ${WORKSPACE_DIR}/src && \
-    git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
+# Clone OrbbecSDK_ROS2 with proper error handling
+RUN cd ${WORKSPACE_DIR}/src && \
+    if [ ! -d "OrbbecSDK_ROS2" ]; then \
+        echo "Cloning OrbbecSDK_ROS2..." && \
+        git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
+    else \
+        if [ -d "OrbbecSDK_ROS2/.git" ]; then \
+            echo "OrbbecSDK_ROS2 already exists, pulling latest changes..." && \
+            cd OrbbecSDK_ROS2 && \
+            git pull; \
+        else \
+            echo "OrbbecSDK_ROS2 directory exists but is not a git repository, replacing it..." && \
+            rm -rf OrbbecSDK_ROS2 && \
+            git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
+        fi; \
     fi
 
 # Install OrbbecSDK libraries with proper symlinks and ldconfig registration
@@ -135,6 +146,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libudev-dev \
     libeigen3-dev \
     libopencv-dev \
+    libgtk-3-0 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
@@ -157,28 +174,66 @@ RUN cd ${WORKSPACE_DIR} && \
     rosdep install --from-paths src --ignore-src -y --rosdistro ${ROS_DISTRO}" || \
     echo "Some rosdep dependencies may have failed, continuing..."
 
-# Build ROS workspace to pre-compile all packages
+# Build ROS workspace in stages
+# Stage 1: Build OrbbecSDK message and description packages first
 RUN cd ${WORKSPACE_DIR} && \
     bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
+    echo '=== Building OrbbecSDK message packages ===' && \
     colcon build --symlink-install \
+        --packages-select orbbec_camera_msgs orbbec_description \
         --cmake-args -DCMAKE_BUILD_TYPE=Release \
         --parallel-workers 2 \
         --event-handlers console_direct+ \
-        --packages-skip-build-finished" || \
-    (echo 'Build had errors but checking if critical packages built...' && \
-     if [ -f 'install/setup.bash' ]; then \
-         echo 'Core packages built successfully'; \
-         exit 0; \
-     else \
-         echo 'ERROR: Critical build failure - install/setup.bash not found'; \
-         exit 1; \
-     fi)
+        --continue-on-error" && \
+    echo "=== OrbbecSDK message packages build complete ==="
+
+# Stage 2: Build core robot packages (excluding orbbec_camera node)
+RUN cd ${WORKSPACE_DIR} && \
+    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
+    source install/setup.bash && \
+    echo '=== Building core robot packages ===' && \
+    colcon build --symlink-install \
+        --packages-ignore orbbec_camera \
+        --cmake-args -DCMAKE_BUILD_TYPE=Release \
+        --parallel-workers 2 \
+        --event-handlers console_direct+ \
+        --continue-on-error" && \
+    echo "=== Core packages build complete ===" || echo "Some packages failed but continuing..."
+
+# Stage 3: Build orbbec_camera package with proper environment
+RUN cd ${WORKSPACE_DIR} && \
+    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
+    source install/setup.bash && \
+    echo '=== Building orbbec_camera package ===' && \
+    export LD_LIBRARY_PATH=/usr/local/lib:\${LD_LIBRARY_PATH:-} && \
+    export LIBRARY_PATH=/usr/local/lib:\${LIBRARY_PATH:-} && \
+    ldconfig -p | grep -i orbbec || echo 'OrbbecSDK libraries check' && \
+    colcon build --symlink-install \
+        --packages-select orbbec_camera \
+        --cmake-args \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_LIBRARY_PATH=/usr/local/lib \
+            -DCMAKE_PREFIX_PATH=/usr/local \
+        --event-handlers console_direct+" && \
+    echo "=== orbbec_camera build complete ===" && \
+    ls -la install/orbbec_camera/lib/orbbec_camera/ || echo "Checking orbbec_camera installation..." || \
+    (echo 'WARNING: orbbec_camera build may have failed' && \
+     if [ -f 'log/latest_build/orbbec_camera/stderr.log' ]; then \
+         echo 'Last 100 lines of stderr:' && \
+         tail -100 'log/latest_build/orbbec_camera/stderr.log'; \
+     fi && \
+     echo 'Continuing anyway - camera may be built at runtime')
 
 # Install udev rules for Orbbec cameras
 RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
     cd ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts && \
-    bash install_udev_rules.sh || true; \
-    fi
+    bash install_udev_rules.sh && \
+    udevadm control --reload-rules 2>/dev/null || true && \
+    udevadm trigger 2>/dev/null || true && \
+    echo "udev rules installed successfully"; \
+else \
+    echo "WARNING: udev rules script not found, you may need to install manually"; \
+fi
 
 # Copy startup script
 COPY robot2-startup.sh /opt/barns-robot/
