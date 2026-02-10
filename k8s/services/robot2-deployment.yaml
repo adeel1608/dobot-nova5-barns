@@ -68,6 +68,8 @@ spec:
           value: "3000"
         - name: USBFS_MEMORY_MB
           value: "128"
+        - name: DOCKER_HOST_IP
+          value: "rabbitmq.barns.svc.cluster.local"
         - name: RABBITMQ_URL
           value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
         volumeMounts:
