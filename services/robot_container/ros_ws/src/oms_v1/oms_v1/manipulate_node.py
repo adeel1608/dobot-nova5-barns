@@ -189,7 +189,7 @@ class robot_perception(Node):
         self,
         target_frame: str,
         *,
-        max_wait: float = 10.0,
+        max_wait: float = 25.0,
         trans_thresh: float = 0.001,
         rot_thresh: float = 2.5,
         num_samples: int = 10,
@@ -1005,7 +1005,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=180.0,      #ignore orientation
                 num_samples=6,
@@ -2085,7 +2085,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=2.0,        #2 deg error
                 num_samples=3,
@@ -2322,7 +2322,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
                 num_samples=9,
