@@ -18,6 +18,9 @@ spec:
       labels:
         app: robot1
         component: robotics
+      annotations:
+        cpu-load-balancing.crio.io: "disable"
+        cpu-quota.crio.io: "disable"
     spec:
       imagePullSecrets:
       - name: gcr-json-key
@@ -66,6 +69,16 @@ spec:
           value: "rabbitmq.barns.svc.cluster.local"
         - name: RABBITMQ_URL
           value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
+        - name: TF_BUFFER_CACHE_TIME
+          value: "30.0"
+        - name: TF_LOOKUP_TIMEOUT
+          value: "20.0"
+        - name: TF_SAMPLE_TIMEOUT
+          value: "15.0"
+        - name: PERCEPTION_TF_TIMEOUT
+          value: "20.0"
+        - name: ROS_LOCALHOST_ONLY
+          value: "0"
         volumeMounts:
         - name: dev
           mountPath: /dev
@@ -76,10 +89,10 @@ spec:
         resources:
           requests:
             memory: "4Gi"
-            cpu: "1000m"
+            cpu: "2000m"
           limits:
             memory: "6Gi"
-            cpu: "2000m"
+            cpu: "4000m"
         startupProbe:
           exec:
             command:
