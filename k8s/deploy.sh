@@ -37,6 +37,18 @@ fi
 
 print_status "kubectl found"
 
+# Step 1: Create Namespace
+echo ""
+echo "Step 1: Creating namespace..."
+kubectl apply -f namespace.yaml
+print_status "Namespace created"
+
+
+# 1. Create a key for the service account
+gcloud iam service-accounts keys create gcr-key.json \
+  --iam-account=barns-gcr-reader@qss-development-project.iam.gserviceaccount.com
+
+
 # Create the image pull secret
 kubectl create secret docker-registry gcr-json-key \
   --docker-server=me-central2-docker.pkg.dev \
@@ -47,11 +59,6 @@ kubectl create secret docker-registry gcr-json-key \
   --dry-run=client -o yaml | kubectl apply -f -
 
 
-# Step 1: Create Namespace
-echo ""
-echo "Step 1: Creating namespace..."
-kubectl apply -f namespace.yaml
-print_status "Namespace created"
 
 # Step 2: Create Secrets
 echo ""
