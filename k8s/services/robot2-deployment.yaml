@@ -57,7 +57,7 @@ spec:
         - name: ROS_DOMAIN_ID
           value: "1"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000F6"
+          value: "CP9JA5300042"
         - name: CAM_NAME
           value: "cam1"
         - name: DEVICE_ID
