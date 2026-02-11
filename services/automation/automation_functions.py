@@ -42,17 +42,21 @@ def connect_mqtt_with_fallback(client, preferred_host="rabbitmq", preferred_port
     ]
     
     for broker, port, label in brokers:
-        connected = {"status": False}
+        connected = {"status": False, "rc": None}
+        original_on_connect = client.on_connect
         
-        def on_connect_check(client, userdata, flags, rc):
-            if rc == 0:
-                connected["status"] = True
+        def on_connect_wrapper(client, userdata, flags, rc):
+            connected["status"] = (rc == 0)
+            connected["rc"] = rc
+            # CRITICAL: Call original on_connect to handle subscriptions
+            if rc == 0 and original_on_connect:
+                original_on_connect(client, userdata, flags, rc)
         
         try:
             log("INFO", f"Attempting {label} MQTT broker ({broker}:{port})", service="automation")
             
-            original_on_connect = client.on_connect
-            client.on_connect = on_connect_check
+            # Use wrapper that calls both check and original callback
+            client.on_connect = on_connect_wrapper
             
             client.connect(broker, port, 60)
             client.loop_start()
@@ -62,11 +66,11 @@ def connect_mqtt_with_fallback(client, preferred_host="rabbitmq", preferred_port
                 time.sleep(0.1)
             
             if connected["status"]:
-                client.on_connect = original_on_connect
                 log("INFO", f"Connected to {label} broker: {broker}:{port}", service="automation")
+                # Keep the wrapper in place so subscriptions work
                 return True, broker, port
             else:
-                log("WARNING", f"Connection timeout for {label} broker", service="automation")
+                log("WARNING", f"Connection timeout for {label} broker (rc={connected['rc']})", service="automation")
                 client.loop_stop()
                 client.on_connect = original_on_connect
                 
