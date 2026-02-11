@@ -54,7 +54,7 @@ spec:
         - name: API_BRIDGE_URL
           value: "http://api-bridge:8000"
         - name: VITE_INFLUX_URL
-          value: "http://192.168.200.129:30086/api/v2"
+          value: "http://localhost:30086/api/v2"
         - name: VITE_INFLUX_TOKEN
           valueFrom:
             secretKeyRef:

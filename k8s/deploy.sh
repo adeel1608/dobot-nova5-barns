@@ -69,6 +69,15 @@ print_status "Secrets created"
 # Step 3: Create ConfigMaps
 echo ""
 echo "Step 3: Creating ConfigMaps..."
+# Generate ConfigMaps from actual data files
+kubectl create configmap routine-tasks-config \
+  --from-file=tasks.json=../config/tasks.json \
+  -n barns --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create configmap scheduler-data \
+  --from-file=../data/ \
+  -n barns --dry-run=client -o yaml | kubectl apply -f -
+  
 kubectl apply -f configmaps/
 print_status "ConfigMaps created"
 
