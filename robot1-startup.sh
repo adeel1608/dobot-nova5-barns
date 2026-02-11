@@ -119,7 +119,7 @@ restart_camera_and_perception() {
     
     # Restart camera and track PID
     log "Restarting Orbbec camera..."
-    ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+    ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
     local NEW_CAMERA_PID=$!
     log "Camera restarted with PID: $NEW_CAMERA_PID"
     
@@ -560,7 +560,7 @@ start_robot() {
 
         # Launch Orbbec camera
         log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
         CAMERA_PID=$!
         PIDS+=($CAMERA_PID)
 
