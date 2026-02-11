@@ -33,10 +33,12 @@ spec:
       labels:
         app: dashboard
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: dashboard
-        image: barns-dashboard:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-dashboard:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 80
           name: http
@@ -48,11 +50,11 @@ spec:
               name: rabbitmq-secret
               key: url
         - name: VIDEO_STREAM_URL
-          value: "http://video-stream-service:8000"
+          value: "http://localhost:30001"
         - name: API_BRIDGE_URL
           value: "http://api-bridge:8000"
         - name: VITE_INFLUX_URL
-          value: "http://influxdb:8086/api/v2"
+          value: "http://localhost:30086/api/v2"
         - name: VITE_INFLUX_TOKEN
           valueFrom:
             secretKeyRef:

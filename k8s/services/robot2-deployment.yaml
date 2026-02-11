@@ -1,4 +1,4 @@
-apiVersion: apps/v1
+﻿apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: robot2
@@ -19,16 +19,25 @@ spec:
         app: robot2
         component: robotics
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       nodeSelector:
-        kubernetes.io/hostname: ubuntu
+        kubernetes.io/hostname: qss-scarlet
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
       hostNetwork: true
       hostPID: true
       hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: robot2
-        image: barns-robot2:latest
-        imagePullPolicy: Never
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot2:latest
+        imagePullPolicy: Always
         securityContext:
           privileged: true
           capabilities:
@@ -38,7 +47,7 @@ spec:
               - NET_ADMIN
         env:
         - name: WORKSPACE_DIR
-          value: "/opt/ros_ws"
+          value: "/opt/barns-robot/ros_ws"
         - name: ROBOT_ID
           value: "2"
         - name: DOBOT_TYPE
@@ -48,7 +57,7 @@ spec:
         - name: ROS_DOMAIN_ID
           value: "1"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000F6"
+          value: "CP9JA5300042"
         - name: CAM_NAME
           value: "cam1"
         - name: DEVICE_ID
@@ -59,6 +68,8 @@ spec:
           value: "3000"
         - name: USBFS_MEMORY_MB
           value: "128"
+        - name: DOCKER_HOST_IP
+          value: "rabbitmq.barns.svc.cluster.local"
         - name: RABBITMQ_URL
           value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
         volumeMounts:
@@ -119,10 +130,4 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
-      tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
+

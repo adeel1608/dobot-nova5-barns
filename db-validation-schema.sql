@@ -76,9 +76,9 @@ INSERT INTO public.inventory (id, ingredient_type, subtype, current_amount, last
 (17, 'syrups', 'peached_iced_syrup', 1000.00, '2025-07-08 12:43:57.259803'),
 (18, 'syrups', 'passion_fruit_iced_syrup', 1000.00, '2025-07-08 12:43:57.373636'),
 (19, 'syrups', 'ice_tea_syrup', 1000.00, '2025-07-08 12:43:57.463725'),
-(20, 'syrups', 'white_chocolate_sauce', 1000.00, '2025-07-08 12:43:57.564843'),
-(21, 'syrups', 'caramel_sauce', 1000.00, '2025-07-08 12:43:57.661456'),
-(22, 'syrups', 'condense_milk_sauce', 200.00, '2025-07-08 12:43:57.734225'),
+(20, 'sauce', 'white_chocolate_sauce', 1000.00, '2025-07-08 12:43:57.564843'),
+(21, 'sauce', 'caramel_sauce', 1000.00, '2025-07-08 12:43:57.661456'),
+(22, 'sauce', 'condense_milk_sauce', 200.00, '2025-07-08 12:43:57.734225'),
 (23, 'premixes', 'mocha_frappe', 3000.00, '2025-07-08 12:43:57.858503'),
 (24, 'premixes', 'chocolate_frappe', 3000.00, '2025-07-08 12:43:57.997022'),
 (25, 'premixes', 'half_and_half', 2000.00, '2025-07-08 12:43:58.164684');

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
+import { useTranslation } from '../../../store/translationsStore';
 
-// Dedicated, memo-friendly stream component. Hoisted outside of the parent to avoid
-// remounts caused by parent re-renders (which were spamming new HTTP stream requests).
 function CameraStreamComponent({
   cameraId,
   camera,
@@ -14,6 +13,7 @@ function CameraStreamComponent({
   onStreamReady,
   onFullscreen,
   addLog,
+  t,
 }) {
   const [imageError, setImageError] = useState(false);
   const [imgKey, setImgKey] = useState(null); // Do not start connection until we set this once
@@ -25,7 +25,9 @@ function CameraStreamComponent({
   const hasInitializedRef = useRef(false); // Track if initial connection was made
   const reconnectCooldownMs = 10000; // Minimum 10 seconds between reconnections
   const isOffline = camera.status === 'offline' || isError || imageError;
-  const streamUrl = `http://localhost:8001/stream/${cameraId}?k=${imgKey}`;
+  const streamUrl = `http://localhost:30001/stream/${cameraId}?k=${imgKey}`;
+  const displayName = (cameraId === 'ceiling' && t) ? t('ceilingCameraName') : camera.name;
+  const displayType = (cameraId === 'ceiling' && t) ? t('rtspStream') : camera.type;
 
   // Cleanup on unmount
   useEffect(() => {
@@ -118,9 +120,11 @@ function CameraStreamComponent({
         <div className="w-full h-full relative bg-gray-900">
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-3"></div>
-            <p className="text-sm font-semibold">{camera.name}</p>
+            <p className="text-sm font-semibold">{displayName}</p>
             <p className="text-xs text-gray-400">
-              Reconnecting... {cameraCooldown.remaining_seconds > 0 && `(${cameraCooldown.remaining_seconds}s)`}
+              {cameraCooldown.remaining_seconds > 0
+                ? (t ? t('reconnectingSeconds').replace('{seconds}', cameraCooldown.remaining_seconds) : `Reconnecting... (${cameraCooldown.remaining_seconds}s)`)
+                : (t ? t('reconnecting') : 'Reconnecting...')}
             </p>
           </div>
         </div>
@@ -137,8 +141,8 @@ function CameraStreamComponent({
             <svg className="w-14 h-14 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            <p className="text-sm font-semibold">{camera.name}</p>
-            <p className="text-xs text-gray-400">Stream paused (saving resources)</p>
+            <p className="text-sm font-semibold">{displayName}</p>
+            <p className="text-xs text-gray-400">{t ? t('streamPaused') : 'Stream paused (saving resources)'}</p>
           </div>
         </div>
       </div>
@@ -150,7 +154,7 @@ function CameraStreamComponent({
     return (
       <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden relative group hover:shadow-lg transition-all duration-300 w-full h-full">
         <div className="w-full h-full relative bg-gray-900 flex items-center justify-center">
-          <div className="animate-pulse text-gray-300 text-xs">Starting stream...</div>
+          <div className="animate-pulse text-gray-300 text-xs">{t ? t('startingStream') : 'Starting stream...'}</div>
         </div>
       </div>
     );
@@ -165,14 +169,14 @@ function CameraStreamComponent({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-            <p className="text-sm font-semibold">{camera.name}</p>
-            <p className="text-xs text-gray-300">Stream Unavailable</p>
+            <p className="text-sm font-semibold">{displayName}</p>
+            <p className="text-xs text-gray-300">{t ? t('streamUnavailable') : 'Stream Unavailable'}</p>
           </div>
         ) : (
           <img
             key={imgKey}
             src={streamUrl}
-            alt={`${camera.name} feed`}
+            alt={`${displayName} feed`}
             className="w-full h-full object-cover"
             onError={(e) => {
               // Prevent error loops - only handle first error
@@ -196,13 +200,13 @@ function CameraStreamComponent({
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 opacity-90">
           <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
             <div className="bg-black/70 px-3 py-2 rounded-lg">
-              <p className="text-white text-sm">{camera.name}</p>
-              <p className="text-gray-300 text-xs">{camera.type}</p>
+              <p className="text-white text-sm">{displayName}</p>
+              <p className="text-gray-300 text-xs">{displayType}</p>
             </div>
             <div className="flex items-center space-x-2">
               <div className={`w-2.5 h-2.5 rounded-full ${isOffline ? 'bg-red-500' : 'bg-green-500'} animate-pulse`} />
               <span className={`text-xs px-2 py-0.5 rounded-md ${isOffline ? 'bg-red-500' : 'bg-green-500'} text-white`}>
-                {isOffline ? 'Offline' : 'Live'}
+                {isOffline ? (t ? t('offline') : 'Offline') : (t ? t('live') : 'Live')}
               </span>
             </div>
           </div>
@@ -211,7 +215,7 @@ function CameraStreamComponent({
               onClick={() => !isOffline && onFullscreen(cameraId, camera)}
               disabled={isOffline}
               className="bg-black/70 text-white p-2 rounded-md hover:bg-black/90 disabled:opacity-50 transition-all group-hover:opacity-100 opacity-0 duration-300"
-              title="Fullscreen"
+              title={t ? t('fullscreen') : 'Fullscreen'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
@@ -227,6 +231,7 @@ function CameraStreamComponent({
 const CameraStream = React.memo(CameraStreamComponent);
 
 export default function UnifiedCameraPanel() {
+  const { t } = useTranslation('cameras');
   const { addLog } = useStore();
   const [cameras, setCameras] = useState({});
   const [selectedView, setSelectedView] = useState('all');
@@ -254,7 +259,7 @@ export default function UnifiedCameraPanel() {
   // Check cooldown status for all cameras (memoized to prevent infinite loops)
   const checkCooldownStatus = React.useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8001/stream/cooldown/all');
+      const response = await fetch('http://localhost:30001/stream/cooldown/all');
       if (response.ok) {
         const data = await response.json();
         const cooldowns = data.cooldowns || {};
@@ -312,7 +317,7 @@ export default function UnifiedCameraPanel() {
       
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:8001/cameras');
+        const response = await fetch('http://localhost:30001/cameras');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         setCameras(data.cameras);
@@ -384,7 +389,7 @@ export default function UnifiedCameraPanel() {
     
     try {
       hasStoppedStreams.current = true;
-      const response = await fetch('http://localhost:8001/stream/stop-all', {
+      const response = await fetch('http://localhost:30001/stream/stop-all', {
         method: 'POST',
       });
       if (response.ok) {
@@ -678,7 +683,7 @@ export default function UnifiedCameraPanel() {
 
   if (loading) {
     return (
-      <div className="p-12 text-center text-gray-500">Loading camera feeds...</div>
+      <div className="p-12 text-center text-gray-500">{t('loadingCameraFeeds')}</div>
     );
   }
 
@@ -691,10 +696,10 @@ export default function UnifiedCameraPanel() {
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
         <div className="p-4 bg-gray-900 border-b border-gray-800 flex justify-between items-center">
           <div>
-            <h2 className="text-lg font-bold text-white">{fullscreenCamera.name}</h2>
-            <p className="text-sm text-gray-400">{fullscreenCamera.type}</p>
+            <h2 className="text-lg font-bold text-white">{fullscreenCamera.id === 'ceiling' ? t('ceilingCameraName') : fullscreenCamera.name}</h2>
+            <p className="text-sm text-gray-400">{fullscreenCamera.id === 'ceiling' ? t('rtspStream') : fullscreenCamera.type}</p>
           </div>
-          <button onClick={exitFullscreen} className="text-white hover:text-gray-300 p-2 rounded-lg hover:bg-gray-800">
+          <button onClick={exitFullscreen} className="text-white hover:text-gray-300 p-2 rounded-lg hover:bg-gray-800" title={t('close')}>
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -716,6 +721,7 @@ export default function UnifiedCameraPanel() {
                 onStreamReady={handleStreamReady}
                 onFullscreen={handleFullscreen}
                 addLog={addLog}
+                t={t}
               />
             </div>
           )}
@@ -728,10 +734,10 @@ export default function UnifiedCameraPanel() {
     <div className="bg-white rounded-xl shadow border border-gray-200">
       <div className="p-4 flex justify-between items-center border-b border-gray-200">
         <div className="flex items-center space-x-3">
-          <h2 className="text-lg font-semibold text-gray-800">Live Camera Feeds</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{t('liveCameraFeeds')}</h2>
           {totalIssues > 0 && (
             <span className="px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs font-medium">
-              {totalIssues} Offline
+              {t('countOffline').replace('{count}', totalIssues)}
             </span>
           )}
         </div>
@@ -740,9 +746,9 @@ export default function UnifiedCameraPanel() {
           onChange={(e) => setSelectedView(e.target.value)}
           className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
         >
-          <option value="all">All Cameras</option>
+          <option value="all">{t('allCameras')}</option>
           {cameraEntries.map(([id, camera]) => (
-            <option key={id} value={id}>{camera.name}</option>
+            <option key={id} value={id}>{id === 'ceiling' ? t('ceilingCameraName') : camera.name}</option>
           ))}
         </select>
       </div>
@@ -750,7 +756,7 @@ export default function UnifiedCameraPanel() {
       {/* Grid with 2 columns and 2 rows filling the height */}
       <div className="p-4 h-[calc(100vh-160px)] ">
         {visibleCameras.length === 0 ? (
-          <p className="text-center text-gray-500 py-8">No camera feeds available.</p>
+          <p className="text-center text-gray-500 py-8">{t('noCameraFeeds')}</p>
         ) : (
           <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full w-full">
             {visibleCameras.slice(0, 4).map(([id, camera]) => {
@@ -775,6 +781,7 @@ export default function UnifiedCameraPanel() {
                     onStreamReady={handleStreamReady}
                     onFullscreen={handleFullscreen}
                     addLog={addLog}
+                    t={t}
                   />
                 </div>
               );

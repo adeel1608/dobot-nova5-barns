@@ -46,6 +46,9 @@ k8s-deployment/
 │   ├── common.sh           # Shared functions
 │   ├── setup-master.sh     # Master node setup
 │   ├── setup-worker.sh     # Worker node setup
+│   ├── fix-containerd.sh   # Fix storage symlinks
+│   ├── update-network.sh   # Update network/IP
+│   ├── verify-setup.sh     # Verify configuration
 │   ├── build-images.sh     # Build Docker images
 │   ├── deploy-k8s.sh       # Deploy to K8s
 │   ├── fix-database.sh     # Initialize database
@@ -141,25 +144,28 @@ Back on master node:
 This deployment package is designed to handle network changes gracefully:
 
 1. **Dynamic IP Detection**: Scripts automatically detect node IPs
-2. **Configuration Updates**: Network settings can be updated without reinstall
-3. **Service Reconfiguration**: Services adapt to new network topology
+2. **Automatic Symlinks**: Storage properly linked to SSD
+3. **Configuration Updates**: Network settings can be updated without reinstall
+4. **Service Reconfiguration**: Services adapt to new network topology
 
 ### Handling Network Changes
 
 If your network changes (different subnet, IP addresses):
 
 ```bash
-# 1. Update configuration
-nano config/cluster-config.yaml
-
-# 2. Update network settings
+# Quick update (cluster already running):
 ./scripts/update-network.sh
 
-# 3. Restart pods
-kubectl rollout restart deployment -n barns
+# Verify everything is correct:
+./scripts/verify-setup.sh
+
+# If containerd/storage issues:
+./scripts/fix-containerd.sh
 ```
 
 **No need to reinstall Kubernetes!**
+
+See [NETWORK_CHANGE_GUIDE.md](../NETWORK_CHANGE_GUIDE.md) for detailed instructions.
 
 ## 🔄 Multi-Branch Deployment
 
@@ -238,8 +244,17 @@ See [TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) for common issues and solution
 ### Quick Diagnostics
 
 ```bash
-# Run validation
+# Verify setup configuration
+./scripts/verify-setup.sh
+
+# Run full validation
 ./scripts/validate.sh
+
+# Fix containerd/storage issues
+./scripts/fix-containerd.sh
+
+# Update network after IP change
+./scripts/update-network.sh
 
 # Check pod status
 kubectl get pods -n barns
@@ -253,10 +268,12 @@ kubectl logs <pod-name> -n barns
 
 ## 📚 Documentation
 
+- [QUICK_REFERENCE.md](../QUICK_REFERENCE.md) - Quick command reference
+- [NETWORK_FIX_SUMMARY.md](../NETWORK_FIX_SUMMARY.md) - Recent network fixes explained
+- [NETWORK_CHANGE_GUIDE.md](../NETWORK_CHANGE_GUIDE.md) - Handling network changes
 - [QUICKSTART.md](QUICKSTART.md) - Quick start guide
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - Common issues
-- [docs/NETWORKING.md](docs/NETWORKING.md) - Network configuration
-- [docs/MAINTENANCE.md](docs/MAINTENANCE.md) - Maintenance procedures
+- [TROUBLESHOOTING.md](TROUBLESHOOTING.md) - Common issues
+- [INDEX.md](INDEX.md) - Documentation index
 
 ## 🔐 Security Notes
 

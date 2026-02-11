@@ -20,9 +20,9 @@ SPEED_FAST = 100         # Fast movements
 # ── Gripper Positions ──
 GRIPPER_OPEN = 0         # Fully open gripper
 GRIPPER_RELEASE_GENTLE = 10  # Gentle release for placing cups
-GRIPPER_RELEASE = 50     # Standard release position
+GRIPPER_RELEASE = 25     # Standard release position
 GRIPPER_HOLD_LOOSE = 75  # Loose hold for station placement
-GRIPPER_RELEASE_PITCHER = 75  # Release position for espresso pitcher
+GRIPPER_RELEASE_PITCHER = 25  # Release position for espresso pitcher
 GRIPPER_LIGHT = 100      # Light grip
 GRIPPER_PITCHER_1 = 105  # Gripper setting for espresso pitcher port 2 & 3
 GRIPPER_PITCHER_2 = 110  # Gripper setting for espresso pitcher port 1
@@ -427,7 +427,7 @@ MILK_FROTHER_GRIPPER_POSITIONS = {
 MILK_FROTHER_MOVEMENT_OFFSETS = {
     'lift_after_place': (0, 0, 150, 0, 0, 0),  # Lift before placing frother at milk station
     'lift_after_pick': (0, 0, 10, 0, 0, 0),    # Lift after picking frother from milk station
-    'cleaning_motion': (0, 5, -150, 0, 0, 0),  # Cleaning motion offset
+    'cleaning_motion': (-25, 5, -150, 0, 0, 0),  # Cleaning motion offset
     'final_approach': (-75, 0, 0, 0, 0, 0),      # Final approach for frother return
 }
 
@@ -454,7 +454,7 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 # Volume-based Z adjustment for frother
-MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.8  # Factor for calculating Z adjustment based on milk volume
+MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.7  # Factor for calculating Z adjustment based on milk volume
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
@@ -466,11 +466,11 @@ MILK_FROTHING_PARAMS = {
     },
     'milk_station': {
         'place_pre1':  (-6.988280,-50.951061,-132.741623,2.908280,-92.178726,8.730732),  # First pre-placement position at milk station
-        'place_pre2':  (-45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088),  # Second pre-placement position at milk station
-        'place_approach': (-28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609),  # Approach position for placing frother at milk station
-        'place_final': (-29.407280,-65.979000,-79.822693,-35.739279,-113.325463,8.738939),  # Final placement position at milk station
-        'pick_retreat1': (-28.193466,-66.401253,-75.648903,-39.474789,-112.114716,8.776609),  # First retreat position when picking from milk station
-        'pick_retreat2': (-45.965408,-56.520721,-110.069138,-15.280312,-129.854889,8.152088),  # Second retreat position when picking from milk station
+        'place_pre2':  (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second pre-placement position at milk station
+        'place_approach': (-40.325470,-71.810158,-65.020432,-39.404678,-117.536209,8.156257),  # Approach position for placing frother at milk station
+        'place_final': (-40.189131,-72.847691,-64.628552,-39.734056,-117.229183,10.369100),  # Final placement position at milk station
+        'pick_retreat1': (-40.325470,-71.810158,-65.020432,-39.404678,-117.536209,8.156257),  # First retreat position when picking from milk station
+        'pick_retreat2': (-58.038989,-65.359436,-78.628995,-38.342787,-141.938121,7.532277),  # Second retreat position when picking from milk station
     },
     'mounting': {
         'prep':        (-4.127179, -41.282722, -129.513504, -21.285969, -62.760456, 7.227837),  # Preparation position for mounting frother
@@ -569,12 +569,12 @@ PLASTIC_CUPS_PARAMS = {
         # Cup dispenser coordinates for grabbing plastic cups
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
         '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
-        '12oz_coords':  (117.584348,-38.509737,-144.016102,2.779971,-62.300929,-0.175795),  # 12oz cup dispenser position
+        '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
         '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
-        'position2':    (42.109539,-70.156235,-73.393562,-35.314400,-43.783558,0.039427),  # Second ice position (dispense)
+        'position2':    (46.241082,-71.126117,-82.426418,-26.093993,-43.687633,-0.302819),  # Second ice position (dispense)
     },
     'staging': {
         # Staging positions for placing plastic cups
@@ -589,12 +589,12 @@ PLASTIC_CUPS_PARAMS = {
         'pickup_4':     (-137.939929,-58.575150,-91.108139,-30.090046,-137.854252,0.129489),  # Stage 4 pickup position
     },
     'sauces_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
-        'position2':    (-39.044410,-75.192160,-67.703715,-36.903937,-128.984159,0.077578),  # Second position at sauces station (place/pick)
+        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
+        'position2':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
-        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at milk station
-        'position2':    (-26.408912,-67.528130,-92.959014,-19.331118,-116.330836,0.016240),  # Second position at milk station (place/pick)
+        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position2':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Second position at milk station (place/pick)
     },
 }
 
@@ -610,6 +610,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
+    'pickup_hot_water_down': (0, 100, 30, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────
@@ -617,7 +618,7 @@ GRAB_PAPER_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
         'approach':     ( 222.0,        -5,          0,          0,          0,         0),
-        'grip_width':   145,
+        'grip_width':   150,
         'retreat':      (-350,        0,          0,          0,          0,         0),
     },
     '9oz': {
@@ -699,24 +700,27 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_2':     (-107.618809,-50.837104,-133.238999,4.322921,-107.550365,0.027873),  # Stage 2 pickup position
         'pickup_3':     (-127.135882,-52.028920,-115.863508,-11.823941,-127.069217,0.139543),  # Stage 3 pickup position
         'pickup_4':     (-139.614437,-57.667847,-93.968886,-28.016244,-139.555665,0.242845),  # Stage 4 pickup position
-    },
-    'sauces_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at sauces station
-        'position2':    (-38.389633,-75.079689,-66.372528,-35.134846,-127.236320,-0.949134),  # Second position at sauces station
-        'position3':    (-38.535265,-75.195807,-68.904147,-32.482125,-127.380625,-0.940635),  # Third position at sauces station (place/pick)
+        #Pickup positions for hot water
+        'pickup_hot_water_1':     (163.559, -53.065, -148.063, 22.257, -16.378, -1.093),  # Stage 1 pickup position
+        'pickup_hot_water_2':     (169.904, -49.016, -130.157, 0.890, -10.024, -1.687),  # Stage 2 pickup position
+        'pickup_hot_water_3':     (172.801, -52.255, -108.986, -16.442, -7.133, -2.289),  # Stage 3 pickup position
+        'pickup_hot_water_4':     (174.428, -60.166, -83.684, -33.228, -5.521, -2.896),  # Stage 4 pickup position
     },
     'milk_station': {
-        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at milk station
-        'position2':    (-25.013091,-67.535421,-89.029513,-21.410146,-115.827363,-2.388913),  # Second position at milk station
-        'position3':    (-25.013315,-68.191483,-88.700539,-21.083347,-115.828384,-2.389561),  # Third position at milk station (place/pick)
+        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
+        'position3':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Third position at milk station (place/pick)
+    },
+    'sauces_station': {
+        'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
+        'position2':    (-27.222216,-64.822159,-96.371883,-18.623413,-117.140324,0.020276),  # Second position at sauces station
+        'position3':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Third position at sauces station (place/pick)
     },
 }
 
 # ─── CLEANING PARAMETERS ──────────────────────────────────────────────────────────
 CLEANING_PARAMS = {
     'hard_brush_adjust': (-102.563631,-4.349989,-116.815596,-58.573670,-102.493498,-149.923394),  # Adjustment position for hard brush cleaning
-    'cleaning_motion_1': (0, 0, 0, 0, 0, 0),  # First cleaning motion offset
-    'cleaning_motion_2': (0, 0, 0.0, 0, 0, 0),  # Second cleaning motion offset
     'retreat_hard': (0, 0, 100, 0, 0, 0),  # Retreat offset after hard brush
     'retreat_soft': (0, 0, 150, 0, 0, 0),  # Retreat offset after soft brush
 }

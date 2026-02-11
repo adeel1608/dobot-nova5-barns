@@ -5,11 +5,13 @@
 
 import React, { useEffect, useState } from "react";
 import { useInventoryStore } from "../../store/inventoryStore";
-import { INVENTORY_CATEGORIES } from "../../utils/inventoryData";
+import { useTranslation } from "../../store/translationsStore";
+import { SERVICE_OFFLINE_MESSAGE } from "../../utils/errorHandler";
 import CategoryInventoryCard from "./components/CategoryInventoryCard";
 import "./styles.css";
-// import socket from '../../utils/socketConfigure'; // Removed old Socket.IO - using WebSocket now
+
 const InventoryPage = () => {
+  const { t } = useTranslation('inventory');
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
 
@@ -93,7 +95,7 @@ const InventoryPage = () => {
   const categoryDetails = FullStockSummary || {};
   const totalFullStock = Object.values(categoryDetails).reduce((sum, count) => sum + count, 0);
   const tabs = [
-    { id: 'all', name: 'All Categories', count: totalFullStock },
+    { id: 'all', name: t('allCategories'), count: totalFullStock },
     ...Object.entries(categoryDetails).map(([key, count]) => ({
       id: key,
       name: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
@@ -173,10 +175,10 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium barns-green-text truncate">
-                      Inventory
+                      {t('title')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl barns-green-text font-medium text-[#233746]">
-                       Management
+                      {t('management')}
                     </p>
                   </div>
                 </div>
@@ -202,7 +204,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-blue-600 truncate">
-                      Total Items
+                      {t('totalItems')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900 barns-dark-text">
                       {stocklevel.total}
@@ -231,7 +233,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-green-600 truncate">
-                      High Stock
+                      {t('highStock')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.high}
@@ -261,7 +263,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
-                      Medium Stock
+                      {t('mediumStock')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.medium}
@@ -290,7 +292,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-orange-600 truncate">
-                      Low Stock
+                      {t('lowStock')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.low}
@@ -325,7 +327,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
-                      Empty Stock
+                      {t('emptyStock')}
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-black-900">
                       {stocklevel.empty}
@@ -356,7 +358,7 @@ const InventoryPage = () => {
                   <div className="flex-1 ">
                     <div className="flex justify-between w-full ">
                       <h3 className="text-sm font-medium  text-red-800">
-                        Low Stock Alert
+                        {t('lowStockAlert')}
                       </h3>
                     
                       {hasLowInventory() && (
@@ -364,7 +366,6 @@ const InventoryPage = () => {
                           onClick={handleRefillAllLow}
                           disabled={isLoading}
                           className="px-3 sm:px-4 py-1 bg-red-600 text-white text-sm font-small rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap order-2 sm:order-1"
-                          
                         >
                           {isLoading ? (
                             <div className="flex items-center justify-center">
@@ -387,22 +388,22 @@ const InventoryPage = () => {
                                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                 ></path>
                               </svg>
-                              <span className="hidden sm:inline  text-sm">Refilling...</span>
+                              <span className="hidden sm:inline  text-sm">{t('refilling')}</span>
                               <span className="sm:hidden">...</span>
                             </div>
                           ) : (
                             <>
                               <span className="hidden sm:inline text-sm">
-                                Refill All Low Items
+                                {t('refillAll')}
                               </span>
-                              <span className="sm:hidden">Refill Low Items</span>
+                              <span className="sm:hidden">{t('refillLowItems')}</span>
                             </>
                           )}
                         </button>
                       )}
                     </div>
                     <div className="mt-1 sm:mt-2 text-sm text-red-700 ">
-                      <p>{lowItems.length} items are running low:</p>
+                      <p>{lowItems.length} {t('itemsRunningLow')}</p>
                       <div
                         className=" max-w-full overflow-x-auto custom-scrollbar "
                         style={{ width: "85rem" }}
@@ -421,10 +422,10 @@ const InventoryPage = () => {
                           {lowItems.length >
                             (window.innerWidth > 640 ? 5 : 3) && (
                             <li>
-                              ...and{" "}
+                              ...{t('andMoreItems')}{" "}
                               {lowItems.length -
                                 (window.innerWidth > 640 ? 5 : 3)}{" "}
-                              more items
+                              {t('moreItems')}
                             </li>
                           )}
                         </ul>
@@ -507,7 +508,7 @@ const InventoryPage = () => {
         {errors.inventory && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="text-red-800">
-              <strong>Error:</strong> {errors.inventory}
+              <strong>{t('error')}:</strong> {errors.inventory === SERVICE_OFFLINE_MESSAGE ? t('serviceOfflineUnreachable') : errors.inventory}
             </div>
           </div>
         )}
@@ -570,7 +571,7 @@ const InventoryPage = () => {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 ></path>
               </svg>
-              <span className="text-gray-900">Processing...</span>
+              <span className="text-gray-900">{t('processing')}</span>
             </div>
           </div>
         </div>

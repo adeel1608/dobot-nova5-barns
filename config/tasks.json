@@ -26,6 +26,15 @@
       }
     ]
   },
+  "Dispense Syrup": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "dispense_syrup",
+        "params": {}
+      }
+    ]
+  },
   "Dispense Slush": {
     "steps": [
       {
@@ -250,7 +259,14 @@
       },
       {
         "type": "robot",
-        "function": "get_hot_water",
+        "function": "return_espresso_pitcher",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_cup_for_hot_water",
         "params": {}
       },
       {
@@ -260,22 +276,8 @@
       },
       {
         "type": "robot",
-        "function": "with_hot_water",
+        "function": "return_cup_with_hot_water",
         "params": {}
-      },
-      {
-        "type": "robot",
-        "function": "pour_espresso_pitcher_cup_station",
-        "params": {
-          "stage": "stage_1"
-        }
-      },
-      {
-        "type": "robot",
-        "function": "return_espresso_pitcher",
-        "params": {
-          "port": "port_2"
-        }
       }
     ]
   },
@@ -383,7 +385,7 @@
       },
       {
           "type": "automation",
-          "function": "coffee_machine",
+          "function": "coffee_machine_purge",
           "params": {
           "coffee_t": 2,
           "slot_number": 3
@@ -570,6 +572,31 @@
         "params": {
           "stage": "1"
         }
+      }
+    ]
+  },
+  "Place Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "validation",
+        "function": "milk_cup_detection_absent",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "place_paper_cup_milk",
+        "params": {
+          "stage": "1"
+        }
+      }
+    ]
+  },
+  "Pick Paper Cup Milk": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "pick_paper_cup_milk",
+        "params": {}
       }
     ]
   },

@@ -189,7 +189,7 @@ class robot_perception(Node):
         self,
         target_frame: str,
         *,
-        max_wait: float = 10.0,
+        max_wait: float = 25.0,
         trans_thresh: float = 0.001,
         rot_thresh: float = 2.5,
         num_samples: int = 10,
@@ -311,6 +311,8 @@ from dobot_msgs_v3.srv import (
     RelMovJ,
     Tool,
     SetTool,
+    InverseSolution,
+    PositiveSolution,
 )
 
 class robot_motion(Node):
@@ -338,7 +340,8 @@ class robot_motion(Node):
         self.tool_cli         = self.create_client(Tool,                '/dobot_bringup_v3/srv/Tool')
         self.set_tool_cli     = self.create_client(SetTool,             '/dobot_bringup_v3/srv/SetTool')
         self.servo_cli        = self.create_client(Trigger,             'get_servo_status')
-
+        self.inverse_solution_cli = self.create_client(InverseSolution, '/dobot_bringup_v3/srv/InverseSolution')
+        self.positive_solution_cli = self.create_client(PositiveSolution, '/dobot_bringup_v3/srv/PositiveSolution')
         # ── 2) wait once for every service (5 s each) ──────────────────────
         timeout = 5.0
         service_map = {
@@ -361,7 +364,8 @@ class robot_motion(Node):
             "Tool":                self.tool_cli,
             "SetTool":             self.set_tool_cli,
             "GetServoStatus":      self.servo_cli,
-
+            "InverseSolution":     self.inverse_solution_cli,
+            "PositiveSolution":    self.positive_solution_cli,
         }
 
         missing = [name for name, cli in service_map.items()
@@ -702,6 +706,7 @@ class robot_motion(Node):
         • Disable drag-mode (StopDrag).
         Retries driver-error responses up to `max_attempts`, but aborts on
         transport time-outs.  Returns **True** on full success.
+        Ensures robot is NOT in drag mode before starting by calling StopDrag first.
         """
 
         import time, rclpy
@@ -723,6 +728,13 @@ class robot_motion(Node):
             return getattr(fut.result(), "res", 1)   # driver result code
 
         # ----------------------------------------------------------------------#
+        # 0)  StopDrag first (ensure NOT in drag mode) -------------------------#
+        res = _try_srv(self.stop_drag_cli, "StopDrag")
+        if res == 0:
+            log.info("StopDrag OK (cleared any existing drag mode)")
+        elif res is not None:
+            log.info(f"StopDrag returned {res} (robot likely not in drag mode, continuing)")
+        
         # 1)  StartDrag  --------------------------------------------------------#
         for attempt in range(1, max_attempts + 1):
             res = _try_srv(self.start_drag_cli, "StartDrag")
@@ -754,6 +766,22 @@ class robot_motion(Node):
 
         log.error("StopDrag: exceeded max_attempts")
         return False
+
+    def inverse_solution(self, x: float, y: float, z: float, rx: float, ry: float, rz: float, user: int = 0, tool: int = 0) -> bool:
+        """
+        Calculate the inverse solution for the given pose.
+        """
+        fut = self.inverse_solution_cli.call_async(InverseSolution.Request(x=x, y=y, z=z, rx=rx, ry=ry, rz=rz, user=user, tool=tool))
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        return fut.result()
+
+    def positive_solution(self, j1: float, j2: float, j3: float, j4: float, j5: float, j6: float) -> bool:
+        """
+        Calculate the positive solution for the given joint angles.
+        """
+        fut = self.positive_solution_cli.call_async(PositiveSolution.Request(j1=j1, j2=j2, j3=j3, j4=j4, j5=j5, j6=j6))
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        return fut.result()
     
     def sync(self, raise_on_failure: bool = False, max_retries: int = 20) -> bool:
         """
@@ -977,7 +1005,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=180.0,      #ignore orientation
                 num_samples=6,
@@ -2057,7 +2085,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=2.0,        #2 deg error
                 num_samples=3,
@@ -2294,7 +2322,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
                 num_samples=9,

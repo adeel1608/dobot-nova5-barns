@@ -9,7 +9,7 @@ set -euo pipefail
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
-DOCKER_HOST_IP=${DOCKER_HOST_IP:-$(hostname -I | awk '{print $1}')}
+DOCKER_HOST_IP=${DOCKER_HOST_IP:-192.168.200.129}
 ROBOT_ID=1
 DOBOT_TYPE=${DOBOT_TYPE:-nova5}
 IP_ADDRESS=${IP_ADDRESS:-192.168.200.249}
@@ -119,7 +119,7 @@ restart_camera_and_perception() {
     
     # Restart camera and track PID
     log "Restarting Orbbec camera..."
-    ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+    ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
     local NEW_CAMERA_PID=$!
     log "Camera restarted with PID: $NEW_CAMERA_PID"
     
@@ -141,7 +141,7 @@ restart_camera_and_perception() {
     
     # Restart perception and track PID
     log "Restarting ArUco perception..."
-    ros2 run pickn_place aruco_perception __log_level:=fatal &
+    ros2 run pickn_place aruco_perception __log_level:=info &
     local NEW_PERCEPTION_PID=$!
     log "Perception restarted with PID: $NEW_PERCEPTION_PID"
     
@@ -560,7 +560,7 @@ start_robot() {
 
         # Launch Orbbec camera
         log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
         CAMERA_PID=$!
         PIDS+=($CAMERA_PID)
 
@@ -612,23 +612,23 @@ start_robot() {
         
         # Determine appropriate position
         j1_val=
-        if   awk "BEGIN {exit !($a1 >= -22.49 && $a1 <=  22.49)}"; then j1_val=0.0
-        elif awk "BEGIN {exit !($a1 >=  22.51 && $a1 <=  67.49)}"; then j1_val=45.0
-        elif awk "BEGIN {exit !($a1 >=  67.51 && $a1 <= 112.49)}"; then j1_val=90.0
-        elif awk "BEGIN {exit !($a1 >= 112.51 && $a1 <= 157.49)}"; then j1_val=135.0
-        elif awk "BEGIN {exit !($a1 >= 157.51 && $a1 <= 202.49)}"; then j1_val=180.0
-        elif awk "BEGIN {exit !($a1 >= 202.51 && $a1 <= 247.49)}"; then j1_val=-135.0
-        elif awk "BEGIN {exit !($a1 >= 247.51 && $a1 <= 292.49)}"; then j1_val=-90.0
-        elif awk "BEGIN {exit !($a1 >= 292.51 && $a1 <= 337.49)}"; then j1_val=-45.0
-        elif awk "BEGIN {exit !($a1 >= 337.51 && $a1 <= 360.00)}"; then j1_val=0.0
-        elif awk "BEGIN {exit !($a1 <= -22.51 && $a1 >= -67.49)}"; then j1_val=-45.0
-        elif awk "BEGIN {exit !($a1 <= -67.51 && $a1 >= -112.49)}"; then j1_val=-90.0
-        elif awk "BEGIN {exit !($a1 <= -112.51 && $a1 >= -157.49)}"; then j1_val=-135.0
-        elif awk "BEGIN {exit !($a1 <= -157.51 && $a1 >= -202.49)}"; then j1_val=-180.0
-        elif awk "BEGIN {exit !($a1 <= -202.51 && $a1 >= -247.49)}"; then j1_val=135.0
-        elif awk "BEGIN {exit !($a1 <= -247.51 && $a1 >= -292.49)}"; then j1_val=90.0
-        elif awk "BEGIN {exit !($a1 <= -292.51 && $a1 >= -337.49)}"; then j1_val=45.0
-        elif awk "BEGIN {exit !($a1 <= -337.51 && $a1 >= -360.00)}"; then j1_val=0.0
+        if   awk -v val="$a1" "BEGIN {exit !(val >= -22.49 && val <=  22.49)}"; then j1_val=0.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >=  22.51 && val <=  67.49)}"; then j1_val=45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >=  67.51 && val <= 112.49)}"; then j1_val=90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 112.51 && val <= 157.49)}"; then j1_val=135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 157.51 && val <= 202.49)}"; then j1_val=180.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 202.51 && val <= 247.49)}"; then j1_val=-135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 247.51 && val <= 292.49)}"; then j1_val=-90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 292.51 && val <= 337.49)}"; then j1_val=-45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val >= 337.51 && val <= 360.00)}"; then j1_val=0.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -22.51 && val >= -67.49)}"; then j1_val=-45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -67.51 && val >= -112.49)}"; then j1_val=-90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -112.51 && val >= -157.49)}"; then j1_val=-135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -157.51 && val >= -202.49)}"; then j1_val=-180.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -202.51 && val >= -247.49)}"; then j1_val=135.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -247.51 && val >= -292.49)}"; then j1_val=90.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -292.51 && val >= -337.49)}"; then j1_val=45.0
+        elif awk -v val="$a1" "BEGIN {exit !(val <= -337.51 && val >= -360.00)}"; then j1_val=0.0
         fi
         
         if [[ -n "$j1_val" ]]; then
@@ -673,7 +673,7 @@ start_robot() {
 
         # Launch perception nodes
         log "=== Launching perception nodes ==="
-        ros2 run pickn_place aruco_perception __log_level:=fatal &
+        ros2 run pickn_place aruco_perception __log_level:=info &
         POSE_GEN_PID=$!
         PIDS+=($POSE_GEN_PID)
         

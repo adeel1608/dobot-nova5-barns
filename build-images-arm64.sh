@@ -1,13 +1,15 @@
 #!/bin/bash
 
-# BARNS Docker Image Build Script for ARM64
-# This script builds all BARNS service images for ARM64 architecture
-# Run from the BARNS root directory
+# BARNS Docker Image Build Script (multi-arch: amd64 + arm64)
+# - Without REGISTRY_PATH: builds for current host (auto-detected amd64 or arm64), loads locally.
+# - With REGISTRY_PATH: builds for both linux/amd64 and linux/arm64 and pushes to registry.
+#   Example: export REGISTRY_PATH=me-central2-docker.pkg.dev/qss-development-project/barns
+# Run from the BARNS root directory.
 
 set -e  # Exit on error
 
 echo "========================================="
-echo "BARNS ARM64 Image Build Script"
+echo "BARNS Image Build Script"
 echo "========================================="
 echo ""
 
@@ -45,7 +47,7 @@ if docker buildx version &> /dev/null; then
     print_status "docker buildx found"
     
     # Create buildx builder if it doesn't exist
-    BUILDER_NAME="barns-arm64-builder"
+    BUILDER_NAME="barns-builder"
     if ! docker buildx ls | grep -q "$BUILDER_NAME"; then
         echo "Creating buildx builder: $BUILDER_NAME"
         docker buildx create --name "$BUILDER_NAME" --use 2>/dev/null || {
@@ -88,14 +90,45 @@ if [ -f /etc/nv_tegra_release ] 2>/dev/null; then
     echo ""
 fi
 
+# Platform: auto-detect host so images run on current machine; multi-arch when pushing to registry
+HOST_ARCH=$(uname -m)
+case "$HOST_ARCH" in
+    x86_64)  BUILD_PLATFORM="linux/amd64" ;;
+    aarch64|arm64) BUILD_PLATFORM="linux/arm64" ;;
+    *)       BUILD_PLATFORM="linux/amd64" ; print_warning "Unknown arch $HOST_ARCH, defaulting to linux/amd64" ;;
+esac
+
+MULTI_ARCH=false
+if [ -n "${REGISTRY_PATH:-}" ] && [ "$USE_BUILDX" = true ]; then
+    MULTI_ARCH=true
+    BUILD_PLATFORM_OPT="--platform linux/amd64,linux/arm64"
+    PUSH_OPT="--push"
+    print_status "Multi-arch build (amd64 + arm64) will push to registry: $REGISTRY_PATH"
+else
+    BUILD_PLATFORM_OPT="--platform $BUILD_PLATFORM"
+    if [ "$USE_BUILDX" = true ]; then
+        PUSH_OPT="--load"
+    else
+        PUSH_OPT=""
+    fi
+    print_status "Building for current host: $BUILD_PLATFORM"
+fi
+
+tag_for_image() {
+    if [ "$MULTI_ARCH" = true ]; then
+        echo "${REGISTRY_PATH}/${1}:latest"
+    else
+        echo "${1}:latest"
+    fi
+}
+
 # Determine build command
 if [ "$USE_BUILDX" = true ] && docker buildx version &> /dev/null; then
-    BUILD_CMD="docker buildx build --platform linux/arm64 --load"
+    BUILD_CMD="docker buildx build"
     print_status "Using docker buildx for builds"
 else
     BUILD_CMD="docker build"
-    print_warning "Using regular docker build (will build for native ARM64 architecture)"
-    print_warning "Note: If you're on ARM64, this will work. If not, install buildx."
+    print_warning "Using regular docker build (native architecture only)"
 fi
 
 # Ensure we're in the root directory
@@ -108,13 +141,17 @@ print_status "Build context verified"
 
 # Build all images
 echo ""
-echo "Building images for linux/arm64..."
+if [ "$MULTI_ARCH" = true ]; then
+    echo "Building images for linux/amd64 + linux/arm64 (push to registry)..."
+else
+    echo "Building images for $BUILD_PLATFORM (local load)..."
+fi
 echo ""
 
 # API Bridge
 echo "Building api-bridge..."
-$BUILD_CMD \
-  -t barns-api-bridge:latest \
+IMAGE_TAG=$(tag_for_image "barns-api-bridge")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/api-bridge/Dockerfile \
   .
 if [ $? -eq 0 ]; then
@@ -127,8 +164,8 @@ fi
 # Validation Service
 echo ""
 echo "Building validation-service..."
-$BUILD_CMD \
-  -t barns-validation:latest \
+IMAGE_TAG=$(tag_for_image "barns-validation")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/validation/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -141,8 +178,8 @@ fi
 # Automation Service
 echo ""
 echo "Building automation-service..."
-$BUILD_CMD \
-  -t barns-automation:latest \
+IMAGE_TAG=$(tag_for_image "barns-automation")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/automation/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -155,8 +192,8 @@ fi
 # Routine Service
 echo ""
 echo "Building routine-service..."
-$BUILD_CMD \
-  -t barns-routine:latest \
+IMAGE_TAG=$(tag_for_image "barns-routine")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/routine/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -169,8 +206,8 @@ fi
 # Robot Arm Service
 echo ""
 echo "Building robot-arm-service..."
-$BUILD_CMD \
-  -t barns-robot-arm:latest \
+IMAGE_TAG=$(tag_for_image "barns-robot-arm")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/robot_arm/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -183,8 +220,8 @@ fi
 # Scheduler Service
 echo ""
 echo "Building scheduler-service..."
-$BUILD_CMD \
-  -t barns-scheduler:latest \
+IMAGE_TAG=$(tag_for_image "barns-scheduler")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/scheduler/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -197,8 +234,8 @@ fi
 # OMS Service
 echo ""
 echo "Building oms-service..."
-$BUILD_CMD \
-  -t barns-oms:latest \
+IMAGE_TAG=$(tag_for_image "barns-oms")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/oms/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -211,8 +248,8 @@ fi
 # Video Stream Service
 echo ""
 echo "Building video-stream-service..."
-$BUILD_CMD \
-  -t barns-video-stream:latest \
+IMAGE_TAG=$(tag_for_image "barns-video-stream")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/video-stream/Dockerfile \
   .
 if [ $? -eq 0 ]; then
@@ -225,8 +262,8 @@ fi
 # Dashboard
 echo ""
 echo "Building dashboard..."
-$BUILD_CMD \
-  -t barns-dashboard:latest \
+IMAGE_TAG=$(tag_for_image "barns-dashboard")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/barns-dashboard/Dockerfile.rabbitmq \
   .
 if [ $? -eq 0 ]; then
@@ -239,12 +276,49 @@ fi
 # Robot1 Service
 echo ""
 echo "Building robot1-service..."
-$BUILD_CMD \
-  -t barns-robot1:latest \
+IMAGE_TAG=$(tag_for_image "barns-robot1")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/robot/Dockerfile.robot1 \
   .
 if [ $? -eq 0 ]; then
     print_status "robot1-service built successfully"
+    if [ "$MULTI_ARCH" != true ]; then
+    # #region agent log
+    LOG_FILE="d:\\D-Drive\\BARNS\\.cursor\\debug.log"
+    TIMESTAMP=$(date +%s%3N)
+    echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:robot1-build\",\"message\":\"Robot1 image built successfully\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":$(docker images barns-robot1:latest --format '{{.ID}}' | wc -l)},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
+    # #endregion
+    
+    # Check if image exists in Docker
+    if docker images barns-robot1:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "barns-robot1:latest"; then
+        DOCKER_IMAGE_ID=$(docker images barns-robot1:latest --format "{{.ID}}")
+        
+        # #region agent log
+        TIMESTAMP=$(date +%s%3N)
+        echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:docker-verify\",\"message\":\"Image verified in Docker\",\"data\":{\"image\":\"barns-robot1:latest\",\"id\":\"${DOCKER_IMAGE_ID}\"},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
+        # #endregion
+        
+        # Check if containerd import is needed
+        if command -v ctr &> /dev/null; then
+            if ! ctr -n k8s.io images ls 2>/dev/null | grep -q "barns-robot1:latest"; then
+                print_warning "Image built in Docker but not found in containerd"
+                print_warning "Kubernetes uses containerd, so you need to import the image:"
+                echo "  docker save barns-robot1:latest | sudo ctr -n k8s.io images import -"
+                
+                # #region agent log
+                TIMESTAMP=$(date +%s%3N)
+                echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image not in containerd - import needed\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":true,\"containerdExists\":false},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
+                # #endregion
+            else
+                # #region agent log
+                TIMESTAMP=$(date +%s%3N)
+                CONTAINERD_REF=$(ctr -n k8s.io images ls 2>/dev/null | grep "barns-robot1:latest" | awk '{print $1}' | head -1)
+                echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image found in containerd\",\"data\":{\"image\":\"barns-robot1:latest\",\"containerdRef\":\"${CONTAINERD_REF}\",\"containerdExists\":true},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
+                # #endregion
+            fi
+        fi
+    fi
+    fi
 else
     print_error "robot1-service build failed"
     exit 1
@@ -253,8 +327,8 @@ fi
 # Robot2 Service
 echo ""
 echo "Building robot2-service..."
-$BUILD_CMD \
-  -t barns-robot2:latest \
+IMAGE_TAG=$(tag_for_image "barns-robot2")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/robot_container/docker/dev.Dockerfile \
   services/robot_container
 if [ $? -eq 0 ]; then
@@ -264,19 +338,62 @@ else
     exit 1
 fi
 
+
+# Import to containerd only when images were built locally (single-arch)
+if [ "$MULTI_ARCH" != true ]; then
+    cat > import-to-containerd.sh << 'EOF'
+#!/bin/bash
+set -e
+GREEN='\033[0;32m'
+NC='\033[0m'
+print_status() { echo -e "${GREEN}[✓]${NC} $1"; }
+
+IMAGES=(
+    "barns-api-bridge:latest"
+    "barns-validation:latest"
+    "barns-automation:latest"
+    "barns-routine:latest"
+    "barns-robot-arm:latest"
+    "barns-scheduler:latest"
+    "barns-oms:latest"
+    "barns-video-stream:latest"
+    "barns-dashboard:latest"
+    "barns-robot1:latest"
+    "barns-robot2:latest"
+)
+
+for IMAGE in "${IMAGES[@]}"; do
+    if docker images "$IMAGE" --format "{{.Repository}}:{{.Tag}}" | grep -q "$IMAGE"; then
+        echo "Importing $IMAGE..."
+        docker save "$IMAGE" | sudo ctr -n k8s.io images import - --all-platforms
+        echo "✓ $IMAGE imported"
+    fi
+done
+EOF
+    chmod +x import-to-containerd.sh
+    sudo ./import-to-containerd.sh
+    sudo ctr -n k8s.io images ls | grep barns || true
+fi
+
 echo ""
 echo "========================================="
 echo "Build Summary"
 echo "========================================="
 echo ""
-print_status "All images built successfully for ARM64!"
-echo ""
-echo "Built images:"
-docker images | grep "barns-" | grep "latest"
-echo ""
-print_warning "Note: Images are built locally. If using a registry, tag and push them:"
-echo "  docker tag barns-api-bridge:latest <registry>/barns-api-bridge:latest"
-echo "  docker push <registry>/barns-api-bridge:latest"
+if [ "$MULTI_ARCH" = true ]; then
+    print_status "All images built and pushed for linux/amd64 + linux/arm64!"
+    echo ""
+    echo "Images are in registry: $REGISTRY_PATH"
+else
+    print_status "All images built successfully for $BUILD_PLATFORM!"
+    echo ""
+    echo "Built images:"
+    docker images | grep "barns-" | grep "latest" || true
+    echo ""
+    print_warning "To build for both amd64 and arm64 and push to registry, set REGISTRY_PATH:"
+    echo "  export REGISTRY_PATH=me-central2-docker.pkg.dev/qss-development-project/barns"
+    echo "  ./build-images-arm64.sh"
+fi
 echo ""
 print_warning "After building, restart your Kubernetes pods to use the new images:"
 echo "  kubectl rollout restart deployment/api-bridge -n barns"

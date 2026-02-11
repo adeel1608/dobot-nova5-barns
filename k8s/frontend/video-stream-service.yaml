@@ -33,10 +33,12 @@ spec:
       labels:
         app: video-stream-service
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       containers:
       - name: video-stream-service
-        image: barns-video-stream:latest
-        imagePullPolicy: IfNotPresent
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-video-stream:latest
+        imagePullPolicy: Always
         ports:
         - containerPort: 8000
           name: http

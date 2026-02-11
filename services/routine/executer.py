@@ -876,6 +876,12 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
     validation_failed_stopped = False  # Flag to track if we stopped due to validation failure
     order_stopped = False  # Flag to track if order was stopped during execution
     
+    # Check if scheduler has already validated this cup's ingredients
+    # If so, we can skip the validate_ingredients step in this task
+    scheduler_validated = task.get("item", {}).get("scheduler_validated", False)
+    if scheduler_validated:
+        log("INFO", f"[SCHEDULER VALIDATED] Cup {cup_id} was validated by scheduler - will skip validate_ingredients step", service="routine")
+    
     # Extract order_id from cup_id for stop checking
     order_id = extract_order_id_from_cup_id(cup_id)
     if not order_id:
@@ -939,6 +945,19 @@ async def process_task(arm_id: int, task, configs: dict, rabbitmq_client: Rabbit
             params = dict(ingredients)
             
             log("INFO", f"Executing step: {func_name} ({step_type}) for cup {cup_id}", service="routine")
+            
+            # SCHEDULER VALIDATION OPTIMIZATION:
+            # If scheduler has already validated this cup's ingredients, skip the validate_ingredients step
+            # This prevents duplicate validation and eliminates the delay caused by Arm 2 waiting for Arm 1
+            if func_name == "validate_ingredients" and step_type == "validation" and scheduler_validated:
+                log("INFO", f"[SCHEDULER VALIDATED] Skipping validate_ingredients step for cup {cup_id} - already validated by scheduler", service="routine")
+                # Save progress for this skipped step
+                await set_task_progress(cup_id, function, step_index)
+                # Publish step completed event
+                await publish_event("routine.step_completed", 
+                            {"arm": arm_id, "cup": cup_id,
+                            "step": func_name, "skipped_reason": "scheduler_validated"}, rabbitmq_client)
+                continue  # Skip to next step
             
             # Debug logging for mount/unmount to check ALL parameters BEFORE any processing
             if func_name in ["mount", "unmount"]:

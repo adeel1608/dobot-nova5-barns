@@ -6,6 +6,7 @@ from rclpy.node import Node
 from dobot_msgs_v3.srv import *
 from .dobot_api import *
 import os
+import time
 
 class adderServer(Node):
     def __init__(self, name):
@@ -115,6 +116,8 @@ class adderServer(Node):
             
             if not self.connection_lost:
                 self.get_logger().info("Reconnection successful!")
+                # Give the socket a moment to stabilize before returning
+                time.sleep(0.5)
                 self.reconnect_attempts = 0
                 return True
             else:
@@ -188,12 +191,20 @@ class adderServer(Node):
         Also triggers reconnection on connection errors.
         """
         try:
+            # Check if response is empty or None
+            if not return_t or return_t.strip() == "":
+                self.get_logger().error("Unexpected response format: empty response")
+                if not self.connection_lost:
+                    self.connection_lost = True
+                    self.get_logger().warn("Empty response detected - connection may be unstable.")
+                return (False, -1)
+            
             # Check if this is an error message
             if return_t.startswith("Error"):
                 self.get_logger().error(f"Robot communication error: {return_t}")
                 
                 # Check if it's a connection error
-                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused"]
+                connection_errors = ["Connection reset", "Broken pipe", "timed out", "Connection refused", "No valid socket"]
                 is_connection_error = any(err in return_t for err in connection_errors)
                 
                 if is_connection_error and not self.connection_lost:
@@ -205,10 +216,14 @@ class adderServer(Node):
             # Try to parse the normal response format
             bracket_pos = return_t.find("{")
             if bracket_pos == -1:
-                self.get_logger().error(f"Unexpected response format: {return_t}")
+                self.get_logger().error(f"Unexpected response format (no bracket): '{return_t}'")
                 return (False, -1)
             
-            return_tt = return_t[:bracket_pos-1]
+            return_tt = return_t[:bracket_pos-1].strip()
+            if not return_tt:
+                self.get_logger().error(f"Unexpected response format (empty code): '{return_t}'")
+                return (False, -1)
+                
             response_code = int(return_tt)
             
             # Reset reconnection counter on successful command
@@ -384,37 +399,80 @@ class adderServer(Node):
     def GetGripperPosition(self, request, response):
         """
         Retrieves the gripper position from the high byte of Register 2002 and responds with the value.
+        Uses retry logic to handle intermittent communication issues.
         """
-        try:
-            # Read Register 2002 (1 register) using GetHoldRegs
-            return_t = self.dashboard.GetHoldRegs(
-                request.index, 2002, 1, "U16"
-            )
+        max_retries = 3
+        retry_delay = 0.05
+        
+        for attempt in range(max_retries):
+            try:
+                # Read Register 2002 (1 register) using GetHoldRegs
+                return_t = self.dashboard.GetHoldRegs(
+                    request.index, 2002, 1, "U16"
+                )
 
-            # Parse response
-            success, response_code = self.safe_parse_response(return_t)
-            if not success:
-                response.position = 0
+                # Parse response
+                success, response_code = self.safe_parse_response(return_t)
+                if not success:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    response.position = 0
+                    return response
+                
+                reg_values = return_t[return_t.find("{") + 1: return_t.find("}")].split(",")
+
+                # Check if the register value is empty or invalid
+                if not reg_values or not reg_values[0] or reg_values[0].strip() == '':
+                    if attempt < max_retries - 1:
+                        self.get_logger().warn(
+                            f"GetGripperPosition: Empty register value on attempt {attempt + 1}/{max_retries}, retrying..."
+                        )
+                        time.sleep(retry_delay)
+                        continue
+                    else:
+                        self.get_logger().error(
+                            "GetGripperPosition: Failed to read valid register value after all retries"
+                        )
+                        response.position = 0
+                        return response
+
+                # Debugging log for raw register values
+                self.get_logger().info(f"GetGripperPosition: Raw register value from 2002: {reg_values}")
+
+                # Decode the high byte of Register 2002 for the gripper position
+                reg_2002 = int(reg_values[0])
+                position = (reg_2002 >> 8) & 0xFF
+
+                # Log the decoded position
+                self.get_logger().info(f"Decoded gripper position (high byte of 2002): {position}")
+
+                # Populate response
+                response.position = position
                 return response
-            
-            reg_values = return_t[return_t.find("{") + 1: return_t.find("}")].split(",")
-
-            # Debugging log for raw register values
-            self.get_logger().info(f"GetGripperPosition: Raw register value from 2002: {reg_values}")
-
-            # Decode the high byte of Register 2002 for the gripper position
-            reg_2002 = int(reg_values[0])  # Full 16-bit value from Register 2002
-            position = (reg_2002 >> 8) & 0xFF  # Extract the high byte (most significant byte)
-
-            # Log the decoded position
-            self.get_logger().info(f"Decoded gripper position (high byte of 2002): {position}")
-
-            # Populate response
-            response.position = position
-        except Exception as e:
-            # Handle any exceptions and populate error response
-            response.position = 0
-            self.get_logger().error(f"Error in GetGripperPosition: {e}")
+                
+            except ValueError as e:
+                if attempt < max_retries - 1:
+                    self.get_logger().warn(
+                        f"GetGripperPosition: ValueError on attempt {attempt + 1}/{max_retries}: {e}, retrying..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    response.position = 0
+                    self.get_logger().error(f"GetGripperPosition: ValueError after all retries: {e}")
+                    
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.get_logger().warn(
+                        f"GetGripperPosition: Exception on attempt {attempt + 1}/{max_retries}: {e}, retrying..."
+                    )
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    response.position = 0
+                    self.get_logger().error(f"GetGripperPosition: Exception after all retries: {e}")
+        
         return response
 
     def SetGripperPosition(self, request, response):

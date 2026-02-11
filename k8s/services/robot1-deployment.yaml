@@ -18,24 +18,23 @@ spec:
       labels:
         app: robot1
         component: robotics
+      annotations:
+        cpu-load-balancing.crio.io: "disable"
+        cpu-quota.crio.io: "disable"
     spec:
+      imagePullSecrets:
+      - name: gcr-json-key
       nodeSelector:
-        kubernetes.io/hostname: qss-jetson
-      tolerations:
-      - key: node-role.kubernetes.io/master
-        operator: Exists
-        effect: NoSchedule
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
+        kubernetes.io/hostname: barns-nuc15crsu7
       hostNetwork: true
       hostPID: true
       hostIPC: true
       dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-cluster-critical
       containers:
       - name: robot1
-        image: barns-robot1:latest
-        imagePullPolicy: Never
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
+        imagePullPolicy: Always
         securityContext:
           privileged: true
           capabilities:
@@ -45,7 +44,7 @@ spec:
               - NET_ADMIN
         env:
         - name: WORKSPACE_DIR
-          value: "/opt/ros_ws"
+          value: "/opt/barns-robot/ros_ws"
         - name: ROBOT_ID
           value: "1"
         - name: DOBOT_TYPE
@@ -55,7 +54,7 @@ spec:
         - name: ROS_DOMAIN_ID
           value: "0"
         - name: CAMERA_SERIAL_NUMBER
-          value: "CP1Z842000YW"
+          value: "CP9JA53000CR" #CP1Z842000YW
         - name: CAM_NAME
           value: "cam0"
         - name: DEVICE_ID
@@ -66,8 +65,20 @@ spec:
           value: "3000"
         - name: USBFS_MEMORY_MB
           value: "128"
+        - name: DOCKER_HOST_IP
+          value: "rabbitmq.barns.svc.cluster.local"
         - name: RABBITMQ_URL
           value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
+        - name: TF_BUFFER_CACHE_TIME
+          value: "30.0"
+        - name: TF_LOOKUP_TIMEOUT
+          value: "20.0"
+        - name: TF_SAMPLE_TIMEOUT
+          value: "15.0"
+        - name: PERCEPTION_TF_TIMEOUT
+          value: "20.0"
+        - name: ROS_LOCALHOST_ONLY
+          value: "0"
         volumeMounts:
         - name: dev
           mountPath: /dev
@@ -77,11 +88,11 @@ spec:
           mountPath: /run/udev
         resources:
           requests:
-            memory: "2Gi"
-            cpu: "1000m"
-          limits:
             memory: "4Gi"
             cpu: "2000m"
+          limits:
+            memory: "6Gi"
+            cpu: "4000m"
         startupProbe:
           exec:
             command:
@@ -126,4 +137,10 @@ spec:
           path: /run/udev
           type: DirectoryOrCreate
       restartPolicy: Always
-
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule

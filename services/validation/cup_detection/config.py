@@ -82,28 +82,27 @@ DEBUG_FOLDER = "debug_frames"
 # --- Per-dispenser ROI & cup positions (edited by roi_selector.py) ---
 # Milk dispenser configuration
 MILK_ROI_POLYGON = np.array([
-    [564, 197],
-    [597, 120],
-    [672, 136],
-    [647, 222]
-], dtype=np.int32)
-
-MILK_CUP_POSITIONS = [
-    (626, 173)
-]
-
-# Sauce dispenser configuration  
-SAUCE_ROI_POLYGON = np.array([
     [640, 230],
     [665, 133],
     [746, 149],
     [720, 254]
 ], dtype=np.int32)
 
-SAUCE_CUP_POSITIONS = [
+MILK_CUP_POSITIONS = [
     (684, 185)
 ]
 
+# Sauce dispenser configuration  
+SAUCE_ROI_POLYGON = np.array([
+    [564, 197],
+    [597, 120],
+    [672, 136],
+    [647, 222]
+], dtype=np.int32)
+
+SAUCE_CUP_POSITIONS = [
+    (626, 173)
+]
 # --- Per-dispenser debug folders ---
 MILK_DEBUG_FOLDER = "debug_frames/milk"
 SAUCE_DEBUG_FOLDER = "debug_frames/sauce"

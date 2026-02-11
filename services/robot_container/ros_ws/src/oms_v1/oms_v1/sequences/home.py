@@ -19,478 +19,284 @@ from oms_v1.manipulate_node import run_skill
 def home(**params) -> bool:
     """
     Move robot to a predefined home position.
-    
-    This function moves the robot to one of several predefined home positions
-    based on the position parameter. These home positions are safe, known
-    configurations for different operational contexts.
-    
-    Args:
-        position (str): Name of the home position to move to (must exist in HOME_ANGLES), defaults to 'north'
-        
-    Returns:
-        bool: True if robot moved to home position successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during movement
-        
-    Example:
-        success = home(position='espresso_home')
-        if success:
-            print("Robot moved to home position successfully")
     """
-    try:
-        # Extract and validate position parameter
-        position = params.get("position", "north")  # Default to north
-        if not position:
-            print("[ERROR] No position parameter provided")
-            print("[INFO] Please provide position parameter from available home positions")
-            return False
-            
-        angles = HOME_ANGLES.get(str(position))
-        
-        if not angles:
-            print(f"[ERROR] Unknown home position: {position!r}")
-            print(f"[INFO] Available positions: {list(HOME_ANGLES.keys())}")
-            return False
-        
-        print(f"🏠 Moving robot to home position: {position}")
-        
-        # Execute movement to home position
-        result = run_skill("gotoJ_deg", *angles)
-        if result is False:
-            print(f"[ERROR] Failed to move robot to home position: {position}")
-            return False
-        
-        print(f"✅ Robot successfully moved to home position: {position}")
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during home movement: {e}")
+    def ok(r):
+        return r not in (False, None)
+    
+    position = params.get("position", "north")
+    if not position:
         return False
+    
+    angles = HOME_ANGLES.get(str(position))
+    if not angles:
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *angles)):
+        return False
+    
+    return True
 
 def return_back_to_home() -> bool:
     """
     Return the robot to a safe home position based on current angle.
-    
-    This function reads the current J1 angle and determines the nearest
-    cardinal position (0°, ±45°, ±90°, ±135°, ±180°), then moves to
-    a safe home pose at that J1 angle with predefined J2-J6 values.
-    
-    Returns:
-        bool: True if movement successful, False otherwise
-        
-    Raises:
-        Exception: If error occurs during angle reading or movement
     """
-    try:
-        print("\n" + "="*60)
-        print("🏠 RETURNING TO HOME POSITION")
-        print("="*60)
-        
-        # Step 1: Try to release tension normally
-        print("🔓 Releasing tension and exiting drag mode...")
-        release_result = run_skill("release_tension")
-        if release_result is False:
-            print("[WARNING] Release tension failed - attempting toggle drag mode as fallback...")
-            toggle_result = run_skill("toggle_drag_mode")
-            if toggle_result is False:
-                print("[ERROR] Failed to lock servos - robot may not respond to commands")
-                print("[INFO] Please manually check robot state and retry")
-                return False
-            print("   ✅ Servos locked via toggle drag mode")
-        else:
-            print("   ✅ Tension released successfully")
-        
-        # Step 4: Set speed and gripper for safe operation
-        run_skill("set_speed_factor", SPEED_FAST)
-        run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
-        angles = run_skill("current_angles")
-        
-        if not angles or len(angles) < 6:
-            print(f"[ERROR] Failed to get current angles or invalid data: {angles}")
+    def ok(r):
+        return r not in (False, None)
+    
+    release_result = run_skill("release_tension")
+    if not ok(release_result):
+        if not ok(run_skill("toggle_drag_mode")):
             return False
-        
-        # Extract J1 angle (first joint)
-        a1 = float(angles[0])
-        print(f"   Current J1 angle: {a1:.2f}°")
-        
-        # Determine appropriate J1 target position based on current angle
-        j1_val = None
-        
-        # Positive angles and 0
-        if -22.49 <= a1 <= 22.49:
-            j1_val = 0.0
-        elif 22.51 <= a1 <= 67.49:
-            j1_val = 45.0
-        elif 67.51 <= a1 <= 112.49:
-            j1_val = 90.0
-        elif 112.51 <= a1 <= 157.49:
-            j1_val = 135.0
-        elif 157.51 <= a1 <= 202.49:
-            j1_val = 180.0
-        elif 202.51 <= a1 <= 247.49:
-            j1_val = -135.0
-        elif 247.51 <= a1 <= 292.49:
-            j1_val = -90.0
-        elif 292.51 <= a1 <= 337.49:
-            j1_val = -45.0
-        elif 337.51 <= a1 <= 360.0:
-            j1_val = 0.0
-        # Negative angles
-        elif -67.49 <= a1 <= -22.51:
-            j1_val = -45.0
-        elif -112.49 <= a1 <= -67.51:
-            j1_val = -90.0
-        elif -157.49 <= a1 <= -112.51:
-            j1_val = -135.0
-        elif -202.49 <= a1 <= -157.51:
-            j1_val = -180.0
-        elif -247.49 <= a1 <= -202.51:
-            j1_val = 135.0
-        elif -292.49 <= a1 <= -247.51:
-            j1_val = 90.0
-        elif -337.49 <= a1 <= -292.51:
-            j1_val = 45.0
-        elif -360.0 <= a1 <= -337.51:
-            j1_val = 0.0
-        
-        if j1_val is None:
-            print(f"[ERROR] Could not determine home position for J1 angle: {a1:.2f}°")
-            return False
-        
-        # Move to home position using calibration parameters
-        home_j2_j6 = HOME_CALIBRATION_PARAMS['return_home_position']
-        print(f"🎯 Moving to home position: J1={j1_val}°, J2={home_j2_j6[0]}°, J3={home_j2_j6[1]}°, J4={home_j2_j6[2]}°, J5={home_j2_j6[3]}°, J6={home_j2_j6[4]}°")        
-        result = run_skill("gotoJ_deg", j1_val, *home_j2_j6)
-        
-        if result is False:
-            print("[ERROR] Failed to move to home position")
-            return False
-        
-        print("="*60)
-        print("✅ SUCCESSFULLY RETURNED TO HOME POSITION")
-        print("="*60)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during return to home: {e}")
-        import traceback
-        traceback.print_exc()
+    
+    run_skill("set_speed_factor", SPEED_FAST)
+    run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+    angles = run_skill("current_angles")
+    
+    if not ok(angles) or len(angles) < 6:
         return False
+    
+    a1 = float(angles[0])
+    j1_val = None
+    
+    if -22.49 <= a1 <= 22.49:
+        j1_val = 0.0
+    elif 22.51 <= a1 <= 67.49:
+        j1_val = 45.0
+    elif 67.51 <= a1 <= 112.49:
+        j1_val = 90.0
+    elif 112.51 <= a1 <= 157.49:
+        j1_val = 135.0
+    elif 157.51 <= a1 <= 202.49:
+        j1_val = 180.0
+    elif 202.51 <= a1 <= 247.49:
+        j1_val = -135.0
+    elif 247.51 <= a1 <= 292.49:
+        j1_val = -90.0
+    elif 292.51 <= a1 <= 337.49:
+        j1_val = -45.0
+    elif 337.51 <= a1 <= 360.0:
+        j1_val = 0.0
+    elif -67.49 <= a1 <= -22.51:
+        j1_val = -45.0
+    elif -112.49 <= a1 <= -67.51:
+        j1_val = -90.0
+    elif -157.49 <= a1 <= -112.51:
+        j1_val = -135.0
+    elif -202.49 <= a1 <= -157.51:
+        j1_val = -180.0
+    elif -247.49 <= a1 <= -202.51:
+        j1_val = 135.0
+    elif -292.49 <= a1 <= -247.51:
+        j1_val = 90.0
+    elif -337.49 <= a1 <= -292.51:
+        j1_val = 45.0
+    elif -360.0 <= a1 <= -337.51:
+        j1_val = 0.0
+    
+    if j1_val is None:
+        return False
+    
+    home_j2_j6 = HOME_CALIBRATION_PARAMS['return_home_position']
+    if not ok(run_skill("gotoJ_deg", j1_val, *home_j2_j6)):
+        return False
+    
+    return True
 
 def get_machine_position(**params) -> bool:
     """
     Calibrate and record machine positions for all coffee equipment.
-    
-    This function performs a comprehensive machine position calibration sequence:
-    1. Moves to espresso home position
-    2. Approaches and records portafilter cleaner position
-    3. Approaches and records espresso grinder position  
-    4. Approaches and records three-group espresso machine position
-    5. Saves all position data for future reference
-    
-    This calibration should be performed when starting from a known home position
-    and when machine positions may have changed.
-    
-    Args:
-        **params: Additional parameters (currently unused but reserved for future expansion)
-    
-    Returns:
-        bool: True if all machine positions calibrated successfully, False otherwise
-        
-    Raises:
-        Exception: If unexpected error occurs during calibration process
-        
-    Example:
-        success = get_machine_position()
-        if success:
-            print("All machine positions calibrated successfully")
     """
-    try:
-        print("🎯 Starting comprehensive machine position calibration...")
-        
-        # Set optimal speed for calibration accuracy
-        print("⚙️ Setting speed factor for precise movements...")
-        run_skill("set_speed_factor", SPEED_FAST)
-        
-        # Step 1: Move to espresso home position
-        print("🏠 Step 1/8: Moving to espresso home position...")
-        home_result = return_back_to_home()
-        if home_result is False:
-            print("[ERROR] Failed to move to espresso home position")
-            return False
-        print("   ✅ Successfully moved to espresso home")
-        
-        # Step 2: Position for portafilter cleaner calibration
-        print("📍 Step 2/8: Positioning for portafilter cleaner calibration...")
-        cleaner_prep_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])
-        if cleaner_prep_result is False:
-            print("[ERROR] Failed to position for cleaner calibration")
-            return False
-        print("   ✅ Successfully positioned for cleaner calibration")
-        
-        # Step 3: Perform multiple approaches to portafilter cleaner for accuracy
-        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-        print(f"🧹 Step 3/8: Calibrating portafilter cleaner position ({cycles} approaches)...")
-        for i in range(cycles):
-            print(f"   📍 Approach {i+1}/{cycles}...")
-            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
-            
-            approach_result = run_skill("move_to", "portafilter_cleaner", 0.26)
-            if approach_result is False:
-                print(f"[ERROR] Failed cleaner approach {i+1}/5")
-                return False
-        print("   ✅ All cleaner approaches completed successfully")
-        
-        run_skill("sync")
-
-        # Record portafilter cleaner position
-        print("💾 Step 4/8: Recording portafilter cleaner position...")
-        print("   🔍 Waiting for ArUco marker ID 23 (portafilter_cleaner) to be detected...")
-        cleaner_record_result = run_skill("get_machine_position", "portafilter_cleaner")
-        if cleaner_record_result is False or cleaner_record_result is None:
-            print("[ERROR] Failed to record portafilter cleaner position")
-            print("   ❌ ArUco marker 23 may not be visible to camera")
-            print("   💡 Tip: Ensure marker 23 is clearly visible and try again")
-            return False
-        print("   ✅ Portafilter cleaner position successfully recorded!")
-        
-        # Step 5: Position for espresso grinder calibration
-        print("📍 Step 5/8: Positioning for espresso grinder calibration...")
-        grinder_prep1_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])
-        if grinder_prep1_result is False:
-            print("[ERROR] Failed to position for grinder calibration (step 1)")
-            return False
-        
-        grinder_prep2_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])
-        if grinder_prep2_result is False:
-            print("[ERROR] Failed to position for grinder calibration (step 2)")
-            return False
-        print("   ✅ Successfully positioned for grinder calibration")
-        
-        # Step 6: Perform multiple approaches to espresso grinder for accuracy
-        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-        print(f"☕ Step 6/8: Calibrating espresso grinder position ({cycles} approaches)...")
-        for i in range(cycles):
-            print(f"   📍 Approach {i+1}/{cycles}...")
-            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
-            
-            grinder_approach_result = run_skill("move_to", "espresso_grinder", 0.26)
-            if grinder_approach_result is False:
-                print(f"[ERROR] Failed grinder approach {i+1}/5")
-                return False
-        print("   ✅ All grinder approaches completed successfully")
-        
-        run_skill("sync")
-
-        # Record espresso grinder position
-        print("💾 Recording espresso grinder position...")
-        print("   🔍 Waiting for ArUco marker ID 31 (espresso_grinder) to be detected...")
-        grinder_record_result = run_skill("get_machine_position", "espresso_grinder")
-        if grinder_record_result is False or grinder_record_result is None:
-            print("[ERROR] Failed to record espresso grinder position")
-            print("   ❌ ArUco marker 31 may not be visible to camera")
-            print("   💡 Tip: Ensure marker 31 is clearly visible and try again")
-            return False
-        print("   ✅ Espresso grinder position successfully recorded!")
-        
-        # Step 7: Position for three-group espresso machine calibration
-        print("📍 Step 7/8: Positioning for three-group espresso machine calibration...")
-        espresso_prep1_result = run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])
-        if espresso_prep1_result is False:
-            print("[ERROR] Failed to position for espresso machine calibration (step 1)")
-            return False
-        
-        espresso_prep2_result = run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)
-        if espresso_prep2_result is False:
-            print("[ERROR] Failed to position for espresso machine calibration (step 2)")
-            return False
-        print("   ✅ Successfully positioned for espresso machine calibration")
-        
-        # Perform multiple approaches to three-group espresso machine for accuracy
-        cycles = 15  # Special case: more cycles for three-group espresso
-        print(f"☕ Calibrating three-group espresso machine position ({cycles} approaches)...")
-        for i in range(cycles):
-            print(f"   📍 Approach {i+1}/{cycles}...")
-            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])  # Allow settling time between approaches
-            
-            espresso_approach_result = run_skill("move_to", "three_group_espresso", 0.26)
-            if espresso_approach_result is False:
-                print(f"[ERROR] Failed espresso machine approach {i+1}/5")
-                return False
-        print("   ✅ All espresso machine approaches completed successfully")
-        
-        run_skill("sync")
-        
-        # Record three-group espresso machine position
-        print("💾 Recording three-group espresso machine position...")
-        print("   🔍 Waiting for ArUco marker ID 41 (three_group_espresso) to be detected...")
-        espresso_record_result = run_skill("get_machine_position", "three_group_espresso")
-        if espresso_record_result is False or espresso_record_result is None:
-            print("[ERROR] Failed to record three-group espresso machine position")
-            print("   ❌ ArUco marker 41 may not be visible to camera")
-            print("   💡 Tip: Ensure marker 41 is clearly visible and try again")
-            return False
-        print("   ✅ Three-group espresso machine position successfully recorded!")
-        
-        # Step 8: Return to espresso home position
-        print("🏠 Step 8/8: Returning to espresso home position...")
-        final_home_result = run_skill("gotoJ_deg", *ESPRESSO_HOME)
-        if final_home_result is False:
-            print("[ERROR] Failed to return to espresso home position")
-            return False
-        print("   ✅ Successfully returned to espresso home")
-        
-        # Verify and display saved data
-        print("📋 Verifying saved machine position data...")
-        saved_machines = check_saved_data()
-        
-        # Final success summary
-        print("\n" + "="*60)
-        print("✅ MACHINE POSITION CALIBRATION COMPLETED SUCCESSFULLY!")
-        print("="*60)
-        print("   ✓ Portafilter cleaner position recorded")
-        print("   ✓ Espresso grinder position recorded") 
-        print("   ✓ Three-group espresso machine position recorded")
-        print(f"   📊 Total machines calibrated: {len(saved_machines)}")
-        print("="*60)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Unexpected error during machine position calibration: {e}")
-        print("[INFO] Calibration process terminated due to error")
+    def ok(r):
+        return r not in (False, None)
+    
+    run_skill("set_speed_factor", SPEED_FAST)
+    
+    if not return_back_to_home():
         return False
+    
+    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])):
+        return False
+    
+    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+    for i in range(cycles):
+        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+        if not ok(run_skill("move_to", "portafilter_cleaner", 0.26)):
+            return False
+    
+    run_skill("sync")
+    
+    cleaner_record_result = run_skill("get_machine_position", "portafilter_cleaner")
+    if not ok(cleaner_record_result):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])):
+        return False
+    
+    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+    for i in range(cycles):
+        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+        if not ok(run_skill("move_to", "espresso_grinder", 0.26)):
+            return False
+    
+    run_skill("sync")
+    
+    grinder_record_result = run_skill("get_machine_position", "espresso_grinder")
+    if not ok(grinder_record_result):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])):
+        return False
+    
+    if not ok(run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)):
+        return False
+    
+    cycles = 15
+    for i in range(cycles):
+        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+        if not ok(run_skill("move_to", "three_group_espresso", 0.26)):
+            return False
+    
+    run_skill("sync")
+    
+    espresso_record_result = run_skill("get_machine_position", "three_group_espresso")
+    if not ok(espresso_record_result):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+    
+    check_saved_data()
+    
+    return True
 
 def check_saved_data() -> Dict[str, Any]:
     """
     Check and display currently saved machine position data.
-    
-    This function reads the machine_pose_data_memory.yaml file and reports
-    what machine positions have been successfully calibrated and saved.
-    
-    Returns:
-        Dict[str, Any]: Dictionary of saved machine positions with their data,
-                       or empty dict if no data found
-        
-    Raises:
-        Exception: If error occurs while reading saved data file
     """
     import os
     import yaml
     from ament_index_python.packages import get_package_share_directory
     
     try:
-        # Locate the machine position data file
         pkg_share = get_package_share_directory("pickn_place")
         mem_path = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
         
-        # Check if data file exists
         if not os.path.exists(mem_path):
-            print(f"   ❌ No machine position data file found at: {mem_path}")
-            print("   💡 Run calibration first to create position data")
             return {}
         
-        # Read and parse the YAML data
         with open(mem_path, "r") as f:
             data = yaml.safe_load(f) or {}
         
         machines = data.get("machines", {})
-        
-        # Report findings
-        if not machines:
-            print("   ❌ No machine positions saved yet")
-            print("   💡 Run get_machine_position() to calibrate and save positions")
-            return {}
-        
-        print(f"   📊 Found {len(machines)} saved machine positions:")
-        for machine_name, position_data in machines.items():
-            timestamp = position_data.get("Time", "Unknown")
-            translation = position_data.get("translation", {})
-            x = translation.get("x", 0)
-            y = translation.get("y", 0) 
-            z = translation.get("z", 0)
-            print(f"      ✓ {machine_name}: ({x:.3f}, {y:.3f}, {z:.3f}) saved at {timestamp}")
-        
         return machines
         
     except Exception as e:
-        print(f"   ⚠️  Error reading saved data: {e}")
-        print("   💡 Check file permissions and YAML format")
         return {}
 
 def check_aruco_status(**params) -> bool:
     """
     Check current ArUco marker detection status and help diagnose calibration issues.
-    
-    This function provides information about which markers should be detected
-    for machine position calibration and offers troubleshooting tips.
+    """
+    check_saved_data()
+    return True
+
+def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0):
+    """
+    Convert joint values to cartesian, apply offsets, and convert back to joints.
     
     Args:
-        **params: Additional parameters (currently unused but reserved for future expansion)
+        j1-j6: Joint values in degrees
+        x, y, z: Position offsets in mm (default: 0.0)
+        rx, ry, rz: Rotation offsets in degrees (default: 0.0)
     
     Returns:
-        bool: True if status check completed successfully, False if error occurred
-        
-    Example:
-        success = check_aruco_status()
-        if success:
-            print("ArUco status check completed")
+        Result from inverse_solution with the offset cartesian pose
     """
+    print(f"Input joints: [{j1}, {j2}, {j3}, {j4}, {j5}, {j6}]")
+    
+    # Get current cartesian position from joint values
+    pos_result = run_skill("positive_solution", j1, j2, j3, j4, j5, j6)
+    
+    if not pos_result or not hasattr(pos_result, 'pose'):
+        print("Failed to get positive solution")
+        return None
+    
+    # Parse pose string: "{x,y,z,rx,ry,rz,...}"
     try:
-        print("🔍 ArUco Marker Detection Status Check")
-        print("=" * 50)
-        
-        # Define required markers for machine calibration
-        required_markers = {
-            23: "portafilter_cleaner",
-            31: "espresso_grinder", 
-            41: "three_group_espresso"
-        }
-        
-        # Display required markers information
-        print("📋 Required ArUco markers for machine position calibration:")
-        for marker_id, machine_name in required_markers.items():
-            print(f"   • Marker ID {marker_id} → {machine_name}")
-        
-        # Provide troubleshooting guidance
-        print("\n💡 Troubleshooting tips for marker detection:")
-        troubleshooting_tips = [
-            "Ensure markers are clearly visible to the camera",
-            "Check that markers are not obstructed or damaged",
-            "Verify camera is properly positioned and focused",
-            "Make sure lighting conditions are adequate",
-            "Try repositioning the robot for better camera angles",
-            "Confirm markers are printed at correct size and quality"
-        ]
-        
-        for i, tip in enumerate(troubleshooting_tips, 1):
-            print(f"   {i}. {tip}")
-        
-        # Provide monitoring guidance
-        print("\n📊 To monitor real-time detection, watch the robot logs for:")
-        print("   • 'Detected N marker(s): [ID1, ID2, ...]' - successful detection")
-        print("   • 'No ArUco markers detected' - markers not visible")
-        print("   • Check camera feed if available for visual confirmation")
-        
-        # Display current saved data status
-        print("\n📁 Current saved data status:")
-        saved_data = check_saved_data()
-        
-        # Provide next steps based on current state
-        print("\n🎯 Recommended next steps:")
-        if not saved_data:
-            print("   → Run get_machine_position() to perform initial calibration")
-        else:
-            print("   → Calibration data exists - system ready for operation")
-            print("   → Re-run get_machine_position() if positions have changed")
-        
-        print("=" * 50)
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Error during ArUco status check: {e}")
-        return False
+        pose_values = [float(v) for v in pos_result.pose.strip("{}").split(",")[:6]]
+        current_x, current_y, current_z, current_rx, current_ry, current_rz = pose_values
+    except (ValueError, IndexError) as e:
+        print(f"Failed to parse pose string: {e}")
+        return None
+    
+    print(f"Current cartesian: x={current_x:.3f}, y={current_y:.3f}, z={current_z:.3f}, rx={current_rx:.3f}, ry={current_ry:.3f}, rz={current_rz:.3f}")
+    
+    # Apply offsets
+    new_x = current_x + x
+    new_y = current_y + y
+    new_z = current_z + z
+    new_rx = current_rx + rx
+    new_ry = current_ry + ry
+    new_rz = current_rz + rz
+    
+    print(f"Offsets applied: x={x}, y={y}, z={z}, rx={rx}, ry={ry}, rz={rz}")
+    print(f"New cartesian: x={new_x:.3f}, y={new_y:.3f}, z={new_z:.3f}, rx={new_rx:.3f}, ry={new_ry:.3f}, rz={new_rz:.3f}")
+    
+    # Convert back to joint values
+    inv_result = run_skill("inverse_solution", new_x, new_y, new_z, new_rx, new_ry, new_rz)
+    
+    if inv_result and hasattr(inv_result, 'angle'):
+        # Parse angle string: "{j1,j2,j3,j4,j5,j6,...}"
+        try:
+            angle_values = [float(v) for v in inv_result.angle.strip("{}").split(",")[:6]]
+            res_j1, res_j2, res_j3, res_j4, res_j5, res_j6 = angle_values
+            print(f"Resulting joints: [{res_j1:.3f}, {res_j2:.3f}, {res_j3:.3f}, {res_j4:.3f}, {res_j5:.3f}, {res_j6:.3f}]")
+        except (ValueError, IndexError) as e:
+            print(f"Failed to parse angle string: {e}")
+            return None
+    else:
+        print("Failed to get inverse solution")
+        return None
+    
+    return inv_result
 
+def solution_interactive():
+    """
+    Interactive wrapper for solution function that prompts for input.
+    """
+    print("\n=== Joint to Cartesian Offset Solution ===")
+    print("Enter joint values (j1-j6) and optional cartesian offsets (x,y,z,rx,ry,rz)")
+    print("Press Enter to use default value of 0.0 for any parameter\n")
+    
+    try:
+        j1 = float(input("j1 (degrees): ") or 0.0)
+        j2 = float(input("j2 (degrees): ") or 0.0)
+        j3 = float(input("j3 (degrees): ") or 0.0)
+        j4 = float(input("j4 (degrees): ") or 0.0)
+        j5 = float(input("j5 (degrees): ") or 0.0)
+        j6 = float(input("j6 (degrees): ") or 0.0)
+        
+        print("\nCartesian offsets (optional - press Enter for 0.0):")
+        x = float(input("x offset (mm): ") or 0.0)
+        y = float(input("y offset (mm): ") or 0.0)
+        z = float(input("z offset (mm): ") or 0.0)
+        rx = float(input("rx offset (degrees): ") or 0.0)
+        ry = float(input("ry offset (degrees): ") or 0.0)
+        rz = float(input("rz offset (degrees): ") or 0.0)
+        
+        print("\n" + "="*50)
+        return solution(j1, j2, j3, j4, j5, j6, x, y, z, rx, ry, rz)
+        
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+        return None
+    except KeyboardInterrupt:
+        print("\nCancelled")
+        return None
+    
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'home': home,

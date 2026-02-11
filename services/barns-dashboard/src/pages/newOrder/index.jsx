@@ -5,12 +5,14 @@
 
 import React, { useState, useEffect } from 'react';
 import useStore from '../../store';
+import { useTranslation } from '../../store/translationsStore';
 import MenuGrid from './components/MenuGrid';
 import OrderCart from './components/OrderCart';
 import Swal from 'sweetalert2';
 import './styles.css';
 
 export default function NewOrderPage() {
+  const { t } = useTranslation('newOrder');
   const {
     menuItems = [],
     ingredientsByCategory = {},
@@ -238,8 +240,8 @@ export default function NewOrderPage() {
   const handleSubmitOrder = async () => {
     if (cartItems.length === 0) {
       Swal.fire({
-        title: 'Empty Cart',
-        text: 'Please add items to your cart before processing the order.',
+        title: t('cartEmpty'),
+        text: t('pleaseAddItems'),
         icon: 'warning',
         timer: 3000,
         timerProgressBar: true,
@@ -292,8 +294,8 @@ export default function NewOrderPage() {
         window.location.hash = '#/dashboard';
       } else {
         Swal.fire({
-          title: 'Failed!',
-          text: 'Failed to process order!',
+          title: t('failed'),
+          text: t('failedToProcess'),
           icon: 'error',
           timer: 3000,
           timerProgressBar: true,
@@ -303,8 +305,8 @@ export default function NewOrderPage() {
     } catch (error) {
       console.error('Error processing order:', error);
       Swal.fire({
-        title: 'Error!',
-        text: 'An unexpected error occurred.',
+        title: t('failed'),
+        text: t('unexpectedError'),
         icon: 'error',
         timer: 3000,
         timerProgressBar: true,
@@ -319,12 +321,12 @@ export default function NewOrderPage() {
   const handleCancel = () => {
     if (cartItems.length > 0) {
       Swal.fire({
-        title: 'Discard Order?',
-        text: 'Your cart has items. Are you sure you want to cancel?',
+        title: t('discardOrder'),
+        text: t('cartHasItems'),
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'Yes, discard',
-        cancelButtonText: 'No, keep editing'
+        confirmButtonText: t('yesDiscard'),
+        cancelButtonText: t('noKeepEditing')
       }).then((result) => {
         if (result.isConfirmed) {
           setCartItems([]);

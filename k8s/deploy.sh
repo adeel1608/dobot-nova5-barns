@@ -43,6 +43,23 @@ echo "Step 1: Creating namespace..."
 kubectl apply -f namespace.yaml
 print_status "Namespace created"
 
+
+# 1. Create a key for the service account
+gcloud iam service-accounts keys create gcr-key.json \
+  --iam-account=barns-gcr-reader@qss-development-project.iam.gserviceaccount.com
+
+
+# Create the image pull secret
+kubectl create secret docker-registry gcr-json-key \
+  --docker-server=me-central2-docker.pkg.dev \
+  --docker-username=_json_key \
+  --docker-password="$(gcloud auth print-access-token)" \
+  --docker-email=qssairobotics@gcpqss.com \
+  -n barns \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+
+
 # Step 2: Create Secrets
 echo ""
 echo "Step 2: Creating secrets..."
@@ -52,6 +69,15 @@ print_status "Secrets created"
 # Step 3: Create ConfigMaps
 echo ""
 echo "Step 3: Creating ConfigMaps..."
+# Generate ConfigMaps from actual data files
+kubectl create configmap routine-tasks-config \
+  --from-file=tasks.json=../config/tasks.json \
+  -n barns --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create configmap scheduler-data \
+  --from-file=../data/ \
+  -n barns --dry-run=client -o yaml | kubectl apply -f -
+  
 kubectl apply -f configmaps/
 print_status "ConfigMaps created"
 

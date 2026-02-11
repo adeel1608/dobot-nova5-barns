@@ -20,8 +20,19 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
     </tr>
   </thead>
   <tbody>
+      <tr>
+      <td style="text-align: center; font-weight: bold;">Gemini 435Le</td>
+      <td>Gemini 435Le</td>
+      <td>not supported</td>
+      <td>recommended for new designs</td>
+    </tr>
     <tr>
       <td rowspan="8" style="text-align: center; font-weight: bold;">Gemini 330</td>
+      <td>Gemini 335Le</td>
+      <td>not supported</td>
+      <td>recommended for new designs</td>
+    </tr>
+    <tr>
       <td>Gemini 335</td>
       <td>full maintenance</td>
       <td>recommended for new designs</td>
@@ -57,12 +68,7 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
       <td>recommended for new designs</td>
     </tr>
     <tr>
-      <td>Gemini 335Le</td>
-      <td>not supported</td>
-      <td>recommended for new designs</td>
-    </tr>
-    <tr>
-      <td rowspan="3" style="text-align: center; font-weight: bold;">Gemini 2</td>
+      <td rowspan="5" style="text-align: center; font-weight: bold;">Gemini 2</td>
       <td>Gemini 2</td>
       <td>full maintenance</td>
       <td>recommended for new designs</td>
@@ -76,6 +82,16 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
       <td>Gemini 2 XL</td>
       <td>recommended for new designs</td>
       <td>to be supported</td>
+    </tr>
+    <tr>
+      <td>Gemini 215</td>
+      <td>not supported</td>
+      <td>recommended for new designs</td>
+    </tr>
+    <tr>
+      <td>Gemini 210</td>
+      <td>not supported</td>
+      <td>recommended for new designs</td>
     </tr>
     <tr>
       <td rowspan="3" style="text-align: center; font-weight: bold;">Femto</td>
@@ -111,9 +127,9 @@ Here is the device support list of main branch (v1.x) and v2-main branch (v2.x):
     </tr>
     <tr>
       <td style="text-align: center; font-weight: bold;">Astra Mini</td>
-      <td>Astra Mini Pro</td>
+      <td>Astra Mini (S) Pro</td>
       <td>full maintenance</td>
-      <td>not supported</td>
+      <td>recommended for new designs</td>
     </tr>
   </tbody>
 </table>
@@ -745,29 +761,31 @@ bash .make_deb.sh
 
 The following devices are supported by the OrbbecSDK ROS2 Wrapper.
 
-| Product          | **Minimal Firmware Version** | launch file                 |
-| ---------------- | ---------------------------------- | --------------------------- |
-| Gemini 330       | 1.2.20                             | gemini_330_series.launch.py |
-| Gemini 330L      | 1.2.20                             | gemini_330_series.launch.py |
-| Gemini 335       | 1.2.20                             | gemini_330_series.launch.py |
-| Gemini 335L      | 1.2.20                             | gemini_330_series.launch.py |
-| Gemini 336L      | 1.2.20                             | gemini_330_series.launch.py |
-| Femto Bolt       | 1.0.6                              | femto_bolt.launch.py        |
-| Femto Mega       | 1.1.7                              | femto_mega.launch.py        |
-| Gemini 2 XL      | Obox: V1.2.5 VL:1.4.54             | gemini2XL.launch.py         |
-| Astra 2          | 2.8.20                             | astra2.launch.py            |
-| Gemini 2 L       | 1.4.32                             | gemini2L.launch.py          |
-| Gemini 2         | 1.4.60                             | gemini2.launch.py           |
-| Astra+           | 1.0.19                             | astra_adv.launch.py         |
-| Femto            | 1.6.7                              | femto.launch.py             |
-| DaBai            | 2436                               | dabai.launch.py             |
-| DaBai DCW        | 2460                               | dabai_dcw.launch.py         |
-| DaBai DW         | 2606                               | dabai_dw.launch.py          |
-| Astra Mini Pro   | 1007                               | astra.launch.py             |
-| Gemini E         | 3460                               | gemini_e.launch.py          |
-| Gemini E Lite    | 3606                               | gemini_e_lite.launch.py     |
-| Gemini           | 3018                               | gemini.launch.py            |
-| Astra Mini S Pro | 1005                               | astra.launch.py             |
+| Product          | launch file                 |
+| ---------------- | --------------------------- |
+| Gemini 330       | gemini_330_series.launch.py |
+| Gemini 330L      | gemini_330_series.launch.py |
+| Gemini 335       | gemini_330_series.launch.py |
+| Gemini 335L      | gemini_330_series.launch.py |
+| Gemini 336L      | gemini_330_series.launch.py |
+| Femto Bolt       | femto_bolt.launch.py        |
+| Femto Mega       | femto_mega.launch.py        |
+| Femto Mega I     | femto_mega.launch.py        |
+| Gemini 2 XL      | gemini2XL.launch.py         |
+| Astra 2          | astra2.launch.py            |
+| Gemini 2 L       | gemini2L.launch.py          |
+| Gemini 2         | gemini2.launch.py           |
+| Astra+           | astra_adv.launch.py         |
+| Femto            | femto.launch.py             |
+| DaBai            | dabai.launch.py             |
+| DaBai DCW        | dabai_dcw.launch.py         |
+| DaBai DW         | dabai_dw.launch.py          |
+| Astra Mini Pro   | astra.launch.py             |
+| Gemini E         | gemini_e.launch.py          |
+| Gemini E Lite    | gemini_e_lite.launch.py     |
+| Gemini           | gemini.launch.py            |
+| Astra Mini S Pro | astra.launch.py             |
+| Astra Pro Plus   | astra_pro_plus.launch.py    |
 
 > [!IMPORTANT]
 >
