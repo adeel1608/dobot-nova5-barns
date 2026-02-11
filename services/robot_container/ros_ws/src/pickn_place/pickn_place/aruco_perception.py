@@ -350,7 +350,7 @@ class ArucoPerceptionNode(Node):
                 cv2.drawFrameAxes(frame, self.camera_matrix, self.dist_coeffs, rvec, tvec, axlen)
                 cv2.drawFrameAxes(depth_vis, self.camera_matrix, self.dist_coeffs, rvec, tvec, axlen)
                 c = pts2d.mean(axis=0).astype(int)
-                dv = self.latest_depth_image[c[1], c[0]]  # color coords, no bounds check
+                dv = self.latest_depth_image[c[1], c[0]]
                 label = f"{self.marker_name_mapping.get(mid, mid)} {dv:.1f}mm"
                 cv2.putText(frame, label, (c[0],c[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
                 cv2.putText(depth_vis, label, (c[0],c[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
