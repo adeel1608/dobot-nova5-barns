@@ -1353,29 +1353,34 @@ async def grinding_machine(params: dict):
     # Connect to RabbitMQ MQTT broker using service name in Docker network
     mqtt_host = params.get("mqtt_host", "rabbitmq")
     mqtt_port = params.get("mqtt_port", 1883)
+    log("INFO", f"[GRINDER] Attempting MQTT connection to {mqtt_host}:{mqtt_port}", service="automation")
     success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
     if not success:
-        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        log("ERROR", "[GRINDER] Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
             "message": "Failed to connect to MQTT broker"
         }
     
+    log("INFO", f"[GRINDER] Connected to MQTT broker at {connected_host}:{connected_port}", service="automation")
+    
     # Give a moment for subscription to be processed
     time.sleep(0.5)
     
+    log("INFO", f"[GRINDER] Publishing message: {payload}", service="automation")
     client.publish("automation_grinding", payload, qos=1)
 
     timeout = params.get("timeout", 120)
     start_time = time.time()
+    log("INFO", f"[GRINDER] Waiting for response (timeout={timeout}s)", service="automation")
 
     while response["data"] is None and (time.time() - start_time) < timeout:
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
-        log("ERROR", "Timeout: No response from grinder", service="automation")
+        log("ERROR", f"[GRINDER] Timeout: No response from grinder after {timeout}s", service="automation")
         return {
             "success": False,
             "error": "Timeout: No response from grinder",
