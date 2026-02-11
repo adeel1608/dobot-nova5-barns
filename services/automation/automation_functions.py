@@ -13,6 +13,73 @@ import paho.mqtt.client as mqtt
 import json
 import numpy as np
 
+# MQTT Broker Fallback Configuration
+MQTT_BROKER_PRIMARY = "rabbitmq"  # Docker/K8s service name
+MQTT_PORT_PRIMARY = 1883
+MQTT_BROKER_FALLBACK = "192.168.200.109"  # External Kubernetes NodePort
+MQTT_PORT_FALLBACK = 30673
+
+def connect_mqtt_with_fallback(client, preferred_host="rabbitmq", preferred_port=1883, timeout=10):
+    """
+    Connect to MQTT broker with automatic fallback support.
+    
+    Tries in order:
+    1. Preferred host/port (usually 'rabbitmq' for Docker, or custom from params)
+    2. Fallback to Kubernetes external broker if preferred fails
+    
+    Args:
+        client: MQTT client instance
+        preferred_host: First broker to try
+        preferred_port: Port for first broker
+        timeout: Connection timeout per broker
+    
+    Returns:
+        tuple: (success: bool, connected_host: str, connected_port: int)
+    """
+    brokers = [
+        (preferred_host, preferred_port, "preferred"),
+        (MQTT_BROKER_FALLBACK, MQTT_PORT_FALLBACK, "fallback")
+    ]
+    
+    for broker, port, label in brokers:
+        connected = {"status": False}
+        
+        def on_connect_check(client, userdata, flags, rc):
+            if rc == 0:
+                connected["status"] = True
+        
+        try:
+            log("INFO", f"Attempting {label} MQTT broker ({broker}:{port})", service="automation")
+            
+            original_on_connect = client.on_connect
+            client.on_connect = on_connect_check
+            
+            client.connect(broker, port, 60)
+            client.loop_start()
+            
+            start = time.time()
+            while not connected["status"] and (time.time() - start) < timeout:
+                time.sleep(0.1)
+            
+            if connected["status"]:
+                client.on_connect = original_on_connect
+                log("INFO", f"Connected to {label} broker: {broker}:{port}", service="automation")
+                return True, broker, port
+            else:
+                log("WARNING", f"Connection timeout for {label} broker", service="automation")
+                client.loop_stop()
+                client.on_connect = original_on_connect
+                
+        except Exception as e:
+            log("WARNING", f"Failed to connect to {label} broker: {e}", service="automation")
+            try:
+                client.loop_stop()
+            except:
+                pass
+    
+    log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+    return False, None, None
+
 async def dispense_hot_water(params: dict):
     """Dispense hot water using MQTT communication."""
 
@@ -57,20 +124,13 @@ async def dispense_hot_water(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -180,19 +240,12 @@ async def dispense_sauce(params: dict):
         client.on_connect = on_connect
         client.on_message = on_message
         
-        # Connect to external MQTT broker for sauce dispensing (same as milk)
-        client.connect(mqtt_host, 1883, 60)
+        # Connect with fallback support
+        mqtt_port = params.get("mqtt_port", 1883)
+        success_conn, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
         
-        client.loop_start()
-        
-        # Wait for connection and subscription to be established
-        connection_timeout = 10
-        connection_start = time.time()
-        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-            time.sleep(0.1)
-        
-        if not client.is_connected():
-            log("ERROR", "Failed to connect to MQTT broker", service="automation")
+        if not success_conn:
+            log("ERROR", "Failed to connect to any MQTT broker", service="automation")
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -364,19 +417,12 @@ async def dispense_syrup(params: dict):
         client.on_connect = on_connect
         client.on_message = on_message
         
-        # Connect to external MQTT broker
-        client.connect(mqtt_host, 1883, 60)
+        # Connect with fallback support
+        mqtt_port = params.get("mqtt_port", 1883)
+        success_conn, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
         
-        client.loop_start()
-        
-        # Wait for connection and subscription to be established
-        connection_timeout = 10
-        connection_start = time.time()
-        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-            time.sleep(0.1)
-        
-        if not client.is_connected():
-            log("ERROR", "Failed to connect to MQTT broker", service="automation")
+        if not success_conn:
+            log("ERROR", "Failed to connect to any MQTT broker", service="automation")
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -635,27 +681,20 @@ async def dispense_ice(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "[DISPENSE-ICE] Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "[DISPENSE-ICE] Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
             "message": "Failed to connect to MQTT broker"
         }
     
-    log("INFO", f"[DISPENSE-ICE] Connected to MQTT broker successfully", service="automation")
+    log("INFO", f"[DISPENSE-ICE] Connected to MQTT broker successfully at {connected_host}:{connected_port}", service="automation")
     
     # Give a moment for subscription to be processed
     time.sleep(0.5)
@@ -765,19 +804,12 @@ async def dispense_milk(params: dict):
         client.on_connect = on_connect
         client.on_message = on_message
         
-        # Connect to external MQTT broker for dispensing
-        client.connect(mqtt_host, 1883, 60)
+        # Connect with fallback support
+        mqtt_port = params.get("mqtt_port", 1883)
+        success_conn, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
         
-        client.loop_start()
-        
-        # Wait for connection and subscription to be established
-        connection_timeout = 10
-        connection_start = time.time()
-        while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-            time.sleep(0.1)
-        
-        if not client.is_connected():
-            log("ERROR", "Failed to connect to MQTT broker", service="automation")
+        if not success_conn:
+            log("ERROR", "Failed to connect to any MQTT broker", service="automation")
             all_results.append({
                 "pump_number": pump_number,
                 "amount": amount,
@@ -920,19 +952,12 @@ async def slush_machine(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1029,19 +1054,12 @@ async def coffee_machine(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1140,19 +1158,12 @@ async def coffee_machine_wait(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1248,19 +1259,12 @@ async def coffee_machine_purge(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1347,19 +1351,12 @@ async def grinding_machine(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1453,19 +1450,13 @@ async def tampering_machine(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
 
+    # Connect with fallback support
     mqtt_host = params.get("mqtt_host", "rabbitmq")
-    client.connect(mqtt_host, 1883, 60)
-
-    client.loop_start()
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1571,20 +1562,13 @@ async def froth_milk(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Connect to external MQTT broker for frother (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
-    client.connect(mqtt_host, 1883, 60)
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1659,20 +1643,13 @@ async def initialize_frother(params: dict):
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Connect to external MQTT broker for frother (your Arduino setup)
-    mqtt_host = params.get("mqtt_host", "192.168.200.254")  # Use external MQTT broker
-    client.connect(mqtt_host, 1883, 60)
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "192.168.200.254")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1746,19 +1723,12 @@ async def clean_frother(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
@@ -1838,19 +1808,12 @@ async def rinser_machine(params: dict):
     client.on_message = on_message
     
     # Connect to RabbitMQ MQTT broker using service name in Docker network
-    mqtt_host = params.get("mqtt_host", "rabbitmq")  # Use 'rabbitmq' service name
-    client.connect(mqtt_host, 1883, 60)
+    mqtt_host = params.get("mqtt_host", "rabbitmq")
+    mqtt_port = params.get("mqtt_port", 1883)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
     
-    client.loop_start()
-    
-    # Wait for connection and subscription to be established
-    connection_timeout = 10
-    connection_start = time.time()
-    while not client.is_connected() and (time.time() - connection_start) < connection_timeout:
-        time.sleep(0.1)
-    
-    if not client.is_connected():
-        log("ERROR", "Failed to connect to MQTT broker", service="automation")
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
             "success": False,
             "error": "Failed to connect to MQTT broker",
