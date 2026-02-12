@@ -120,7 +120,7 @@ def get_machine_position(**params) -> bool:
     cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
     for i in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "portafilter_cleaner", 0.26)):
+        if not ok(run_skill("move_to", "portafilter_cleaner", 0.21)):
             return False
     
     run_skill("sync")
