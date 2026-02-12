@@ -434,7 +434,7 @@ def pick_cup_for_hot_water(**params) -> bool:
         if not ok(run_skill("set_gripper_position", 255,140,255)):
             return False
     
-    run_skill("set_speed_factor", 50)
+    run_skill("set_speed_factor", 75)
     
     run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
     
