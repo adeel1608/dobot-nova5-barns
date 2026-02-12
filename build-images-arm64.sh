@@ -233,8 +233,7 @@ fi
 
 # OMS Service
 echo ""
-echo "Building oms-service..."
-IMAGE_TAG=$(tag_for_image "barns-oms")
+echo "Building oms-service..."o "  kubectl rollout restart deployment/robot2 -n barns"s")
 $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/oms/Dockerfile.rabbitmq \
   .
