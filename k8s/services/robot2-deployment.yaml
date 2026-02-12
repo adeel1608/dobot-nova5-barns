@@ -65,7 +65,7 @@ spec:
         - name: DEVICE_NUM
           value: "2"
         - name: ORBBEC_CONNECTION_DELAY
-          value: "3000"
+          value: "1000"
         - name: USBFS_MEMORY_MB
           value: "128"
         - name: DOCKER_HOST_IP
@@ -79,13 +79,6 @@ spec:
           mountPath: /sys
         - name: run-udev
           mountPath: /run/udev
-        resources:
-          requests:
-            memory: "2Gi"
-            cpu: "1000m"
-          limits:
-            memory: "4Gi"
-            cpu: "2000m"
         startupProbe:
           exec:
             command:
