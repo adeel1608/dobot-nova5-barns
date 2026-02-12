@@ -133,7 +133,7 @@ def dispense_plastic_cup(**params) -> bool:
     
     config = CUP_CONFIG[cup_size]
     attempt_count = 0
-    while attempt_count < 5:
+    while attempt_count < 15:
             if cup_size == "16oz":
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
@@ -196,7 +196,7 @@ def dispense_plastic_cup(**params) -> bool:
             if cup_detected:
                 break
             attempt_count += 1
-            if attempt_count == 3:
+            if attempt_count == 15:
                 return False
     
     _set_cup_dispensed()

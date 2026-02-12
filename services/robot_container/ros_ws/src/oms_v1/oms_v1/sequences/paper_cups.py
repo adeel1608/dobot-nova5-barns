@@ -144,7 +144,7 @@ def grab_paper_cup(**params) -> bool:
         attempt_count += 1
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
             return False
-        if attempt_count == 3:
+        if attempt_count == 15:
             return False
     
     return True
@@ -482,6 +482,9 @@ def return_cup_with_hot_water(**params) -> bool:
     
     stage_params = stage_params_map.get(stage, {})
     
+    if not ok(run_skill("set_speed_factor",25))
+        return False
+
     if not ok(run_skill("moveEE", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
         return False
 
