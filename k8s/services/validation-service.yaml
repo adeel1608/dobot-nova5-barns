@@ -94,11 +94,11 @@ spec:
             command:
             - python
             - -c
-            - "import socket; socket.create_connection(('localhost', 5672), timeout=5)"
+            - "import socket; socket.create_connection(('rabbitmq.barns.svc.cluster.local', 5672), timeout=5)"
           initialDelaySeconds: 600
           periodSeconds: 30
           timeoutSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 5
       volumes:
       - name: debug-frames-coffee
         hostPath:
