@@ -19,63 +19,46 @@ MQTT_PORT_PRIMARY = 1883
 MQTT_BROKER_FALLBACK = "192.168.200.109"  # External Kubernetes NodePort
 MQTT_PORT_FALLBACK = 30673
 
-def connect_mqtt_with_fallback(client, preferred_host="rabbitmq", preferred_port=1883, timeout=10):
+def connect_mqtt_with_fallback(client, preferred_host="rabbitmq", preferred_port=1883, timeout=5):
     """
-    Connect to MQTT broker with automatic fallback support.
-    
-    Tries in order:
-    1. Preferred host/port (usually 'rabbitmq' for Docker, or custom from params)
-    2. Fallback to Kubernetes external broker if preferred fails
+    Simple MQTT connection with fallback. NO callback wrappers to avoid recursion.
+    The client's on_connect callback will fire normally.
     
     Args:
-        client: MQTT client instance
-        preferred_host: First broker to try
+        client: MQTT client with on_connect already set
+        preferred_host: First broker
         preferred_port: Port for first broker
         timeout: Connection timeout per broker
     
     Returns:
-        tuple: (success: bool, connected_host: str, connected_port: int)
+        (success: bool, host: str, port: int)
     """
     brokers = [
         (preferred_host, preferred_port, "preferred"),
-        (MQTT_BROKER_FALLBACK, MQTT_PORT_FALLBACK, "fallback")
+        ("192.168.200.109", 30673, "fallback")
     ]
     
     for broker, port, label in brokers:
-        connected = {"status": False, "rc": None}
-        original_on_connect = client.on_connect
-        
-        def on_connect_wrapper(client, userdata, flags, rc):
-            connected["status"] = (rc == 0)
-            connected["rc"] = rc
-            # CRITICAL: Call original on_connect to handle subscriptions
-            if rc == 0 and original_on_connect:
-                original_on_connect(client, userdata, flags, rc)
-        
         try:
             log("INFO", f"Attempting {label} MQTT broker ({broker}:{port})", service="automation")
-            
-            # Use wrapper that calls both check and original callback
-            client.on_connect = on_connect_wrapper
             
             client.connect(broker, port, 60)
             client.loop_start()
             
+            # Wait for connection
             start = time.time()
-            while not connected["status"] and (time.time() - start) < timeout:
+            while (time.time() - start) < timeout:
+                if client.is_connected():
+                    log("INFO", f"Connected to {label} broker: {broker}:{port}", service="automation")
+                    time.sleep(0.3)  # Let on_connect subscription complete
+                    return True, broker, port
                 time.sleep(0.1)
             
-            if connected["status"]:
-                log("INFO", f"Connected to {label} broker: {broker}:{port}", service="automation")
-                # Keep the wrapper in place so subscriptions work
-                return True, broker, port
-            else:
-                log("WARNING", f"Connection timeout for {label} broker (rc={connected['rc']})", service="automation")
-                client.loop_stop()
-                client.on_connect = original_on_connect
+            log("WARNING", f"Timeout for {label} broker", service="automation")
+            client.loop_stop()
                 
         except Exception as e:
-            log("WARNING", f"Failed to connect to {label} broker: {e}", service="automation")
+            log("WARNING", f"Failed {label} broker: {e}", service="automation")
             try:
                 client.loop_stop()
             except:
