@@ -148,32 +148,32 @@ else
 fi
 echo ""
 
-# # API Bridge
-# echo "Building api-bridge..."
-# IMAGE_TAG=$(tag_for_image "barns-api-bridge")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/api-bridge/Dockerfile \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "api-bridge built successfully"
-# else
-#     print_error "api-bridge build failed"
-#     exit 1
-# fi
+# API Bridge
+echo "Building api-bridge..."
+IMAGE_TAG=$(tag_for_image "barns-api-bridge")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/api-bridge/Dockerfile \
+  .
+if [ $? -eq 0 ]; then
+    print_status "api-bridge built successfully"
+else
+    print_error "api-bridge build failed"
+    exit 1
+fi
 
-# # Validation Service
-# echo ""
-# echo "Building validation-service..."
-# IMAGE_TAG=$(tag_for_image "barns-validation")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/validation/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "validation-service built successfully"
-# else
-#     print_error "validation-service build failed"
-#     exit 1
-# fi
+# Validation Service
+echo ""
+echo "Building validation-service..."
+IMAGE_TAG=$(tag_for_image "barns-validation")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/validation/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "validation-service built successfully"
+else
+    print_error "validation-service build failed"
+    exit 1
+fi
 
 # Automation Service
 echo ""
@@ -189,154 +189,90 @@ else
     exit 1
 fi
 
-# # Routine Service
-# echo ""
-# echo "Building routine-service..."
-# IMAGE_TAG=$(tag_for_image "barns-routine")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/routine/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "routine-service built successfully"
-# else
-#     print_error "routine-service build failed"
-#     exit 1
-# fi
+# Routine Service
+echo ""
+echo "Building routine-service..."
+IMAGE_TAG=$(tag_for_image "barns-routine")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/routine/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "routine-service built successfully"
+else
+    print_error "routine-service build failed"
+    exit 1
+fi
 
-# # Robot Arm Service
-# echo ""
-# echo "Building robot-arm-service..."
-# IMAGE_TAG=$(tag_for_image "barns-robot-arm")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/robot_arm/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "robot-arm-service built successfully"
-# else
-#     print_error "robot-arm-service build failed"
-#     exit 1
-# fi
+# Robot Arm Service
+echo ""
+echo "Building robot-arm-service..."
+IMAGE_TAG=$(tag_for_image "barns-robot-arm")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/robot_arm/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "robot-arm-service built successfully"
+else
+    print_error "robot-arm-service build failed"
+    exit 1
+fi
 
-# # Scheduler Service
-# echo ""
-# echo "Building scheduler-service..."
-# IMAGE_TAG=$(tag_for_image "barns-scheduler")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/scheduler/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "scheduler-service built successfully"
-# else
-#     print_error "scheduler-service build failed"
-#     exit 1
-# fi
+# Scheduler Service
+echo ""
+echo "Building scheduler-service..."
+IMAGE_TAG=$(tag_for_image "barns-scheduler")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/scheduler/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "scheduler-service built successfully"
+else
+    print_error "scheduler-service build failed"
+    exit 1
+fi
 
-# # OMS Service
-# echo ""
-# echo "Building oms-service..."
-# IMAGE_TAG=$(tag_for_image "barns-oms")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/oms/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "oms-service built successfully"
-# else
-#     print_error "oms-service build failed"
-#     exit 1
-# fi
+# OMS Service
+echo ""
+echo "Building oms-service..."
+IMAGE_TAG=$(tag_for_image "barns-oms")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/oms/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "oms-service built successfully"
+else
+    print_error "oms-service build failed"
+    exit 1
+fi
 
-# # Video Stream Service
-# echo ""
-# echo "Building video-stream-service..."
-# IMAGE_TAG=$(tag_for_image "barns-video-stream")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/video-stream/Dockerfile \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "video-stream-service built successfully"
-# else
-#     print_error "video-stream-service build failed"
-#     exit 1
-# fi
+# Video Stream Service
+echo ""
+echo "Building video-stream-service..."
+IMAGE_TAG=$(tag_for_image "barns-video-stream")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/video-stream/Dockerfile \
+  .
+if [ $? -eq 0 ]; then
+    print_status "video-stream-service built successfully"
+else
+    print_error "video-stream-service build failed"
+    exit 1
+fi
 
-# # Dashboard
-# echo ""
-# echo "Building dashboard..."
-# IMAGE_TAG=$(tag_for_image "barns-dashboard")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/barns-dashboard/Dockerfile.rabbitmq \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "dashboard built successfully"
-# else
-#     print_error "dashboard build failed"
-#     exit 1
-# fi
+# Dashboard
+echo ""
+echo "Building dashboard..."
+IMAGE_TAG=$(tag_for_image "barns-dashboard")
+$BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
+  -f services/barns-dashboard/Dockerfile.rabbitmq \
+  .
+if [ $? -eq 0 ]; then
+    print_status "dashboard built successfully"
+else
+    print_error "dashboard build failed"
+    exit 1
+fi
 
-# # Robot1 Service
-# echo ""
-# echo "Building robot1-service..."
-# IMAGE_TAG=$(tag_for_image "barns-robot1")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/robot/Dockerfile.robot1 \
-#   .
-# if [ $? -eq 0 ]; then
-#     print_status "robot1-service built successfully"
-#     if [ "$MULTI_ARCH" != true ]; then
-#     # #region agent log
-#     LOG_FILE="d:\\D-Drive\\BARNS\\.cursor\\debug.log"
-#     TIMESTAMP=$(date +%s%3N)
-#     echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:robot1-build\",\"message\":\"Robot1 image built successfully\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":$(docker images barns-robot1:latest --format '{{.ID}}' | wc -l)},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
-#     # #endregion
-    
-#     # Check if image exists in Docker
-#     if docker images barns-robot1:latest --format "{{.Repository}}:{{.Tag}}" | grep -q "barns-robot1:latest"; then
-#         DOCKER_IMAGE_ID=$(docker images barns-robot1:latest --format "{{.ID}}")
-        
-#         # #region agent log
-#         TIMESTAMP=$(date +%s%3N)
-#         echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:docker-verify\",\"message\":\"Image verified in Docker\",\"data\":{\"image\":\"barns-robot1:latest\",\"id\":\"${DOCKER_IMAGE_ID}\"},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"A\"}" >> "$LOG_FILE" 2>/dev/null || true
-#         # #endregion
-        
-#         # Check if containerd import is needed
-#         if command -v ctr &> /dev/null; then
-#             if ! ctr -n k8s.io images ls 2>/dev/null | grep -q "barns-robot1:latest"; then
-#                 print_warning "Image built in Docker but not found in containerd"
-#                 print_warning "Kubernetes uses containerd, so you need to import the image:"
-#                 echo "  docker save barns-robot1:latest | sudo ctr -n k8s.io images import -"
-                
-#                 # #region agent log
-#                 TIMESTAMP=$(date +%s%3N)
-#                 echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image not in containerd - import needed\",\"data\":{\"image\":\"barns-robot1:latest\",\"dockerExists\":true,\"containerdExists\":false},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
-#                 # #endregion
-#             else
-#                 # #region agent log
-#                 TIMESTAMP=$(date +%s%3N)
-#                 CONTAINERD_REF=$(ctr -n k8s.io images ls 2>/dev/null | grep "barns-robot1:latest" | awk '{print $1}' | head -1)
-#                 echo "{\"id\":\"log_${TIMESTAMP}_${RANDOM}\",\"timestamp\":${TIMESTAMP},\"location\":\"build-images-arm64.sh:containerd-check\",\"message\":\"Image found in containerd\",\"data\":{\"image\":\"barns-robot1:latest\",\"containerdRef\":\"${CONTAINERD_REF}\",\"containerdExists\":true},\"sessionId\":\"debug-session\",\"runId\":\"run1\",\"hypothesisId\":\"C\"}" >> "$LOG_FILE" 2>/dev/null || true
-#                 # #endregion
-#             fi
-#         fi
-#     fi
-#     fi
-# else
-#     print_error "robot1-service build failed"
-#     exit 1
-# fi
-
-# # Robot2 Service
-# echo ""
-# echo "Building robot2-service..."
-# IMAGE_TAG=$(tag_for_image "barns-robot2")
-# $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
-#   -f services/robot_container/docker/dev.Dockerfile \
-#   services/robot_container
-# if [ $? -eq 0 ]; then
-#     print_status "robot2-service built successfully"
-# else
-#     print_error "robot2-service build failed"
-#     exit 1
-# fi
 
 
 # Import to containerd only when images were built locally (single-arch)
@@ -349,17 +285,15 @@ NC='\033[0m'
 print_status() { echo -e "${GREEN}[✓]${NC} $1"; }
 
 IMAGES=(
-    # "barns-api-bridge:latest"
-    # "barns-validation:latest"
+    "barns-api-bridge:latest"
+    "barns-validation:latest"
     "barns-automation:latest"
-    # "barns-routine:latest"
-    # "barns-robot-arm:latest"
-    # "barns-scheduler:latest"
-    # "barns-oms:latest"
-    # "barns-video-stream:latest"
-    # "barns-dashboard:latest"
-    # "barns-robot1:latest"
-    # "barns-robot2:latest"
+    "barns-routine:latest"
+    "barns-robot-arm:latest"
+    "barns-scheduler:latest"
+    "barns-oms:latest"
+    "barns-video-stream:latest"
+    "barns-dashboard:latest"
 )
 
 for IMAGE in "${IMAGES[@]}"; do
