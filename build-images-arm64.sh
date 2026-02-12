@@ -124,11 +124,11 @@ tag_for_image() {
 
 # Determine build command
 if [ "$USE_BUILDX" = true ] && docker buildx version &> /dev/null; then
-    BUILD_CMD="docker buildx build"
-    print_status "Using docker buildx for builds"
+    BUILD_CMD="docker buildx build --no-cache"
+    print_status "Using docker buildx for builds (no cache)"
 else
-    BUILD_CMD="docker build"
-    print_warning "Using regular docker build (native architecture only)"
+    BUILD_CMD="docker build --no-cache"
+    print_warning "Using regular docker build (native architecture only, no cache)"
 fi
 
 # Ensure we're in the root directory
@@ -233,7 +233,8 @@ fi
 
 # OMS Service
 echo ""
-echo "Building oms-service..."o "  kubectl rollout restart deployment/robot2 -n barns"s")
+echo "Building oms-service..."
+IMAGE_TAG=$(tag_for_image "barns-oms")
 $BUILD_CMD $BUILD_PLATFORM_OPT -t "$IMAGE_TAG" $PUSH_OPT \
   -f services/oms/Dockerfile.rabbitmq \
   .
@@ -294,32 +295,7 @@ IMAGES=(
     "barns-video-stream:latest"
     "barns-dashboard:latest"
 )
-
-for IMAGE in "${IMAGES[@]}"; do
-    if docker images "$IMAGE" --format "{{.Repository}}:{{.Tag}}" | grep -q "$IMAGE"; then
-        echo "Importing $IMAGE..."
-        docker save "$IMAGE" | sudo ctr -n k8s.io images import - --all-platforms
-        echo "✓ $IMAGE imported"
-    fi
-done
-EOF
-    chmod +x import-to-containerd.sh
-    sudo ./import-to-containerd.sh
-    sudo ctr -n k8s.io images ls | grep barns || true
-fi
-
-echo ""
-echo "========================================="
-echo "Build Summary"
-echo "========================================="
-echo ""
-if [ "$MULTI_ARCH" = true ]; then
-    print_status "All images built and pushed for linux/amd64 + linux/arm64!"
-    echo ""
-    echo "Images are in registry: $REGISTRY_PATH"
-else
-    print_status "All images built successfully for $BUILD_PLATFORM!"
-    echo ""
+BUILD_CMD
     echo "Built images:"
     docker images | grep "barns-" | grep "latest" || true
     echo ""
@@ -339,7 +315,4 @@ echo "  kubectl rollout restart deployment/scheduler-service -n barns"
 echo "  kubectl rollout restart deployment/validation-service -n barns"
 echo "  kubectl rollout restart deployment/video-stream-service -n barns"
 echo ""
-echo "  kubectl rollout restart deployment/robot1 -n barns"
-echo "  kubectl rollout restart deployment/robot2 -n barns"
-echo ""
-
+echo "  kubectl roBUILD_CMD

@@ -81,22 +81,13 @@ RUN mkdir -p ${WORKSPACE_DIR}/src
 COPY services/robot_container/ros_ws/src ${WORKSPACE_DIR}/src/
 COPY shared ${WORKSPACE_DIR}/src/shared/
 
-# Clone OrbbecSDK_ROS2 with proper error handling
+# Clone OrbbecSDK_ROS2 v1.5.14 (last v1 release) for fast initialization (~95ms).
+# The local source tree copy is missing liblive555.so and libob_usb.so, so always
+# clone the complete official release. The v2 branch adds ~1300ms of extra overhead.
 RUN cd ${WORKSPACE_DIR}/src && \
-    if [ ! -d "OrbbecSDK_ROS2" ]; then \
-        echo "Cloning OrbbecSDK_ROS2..." && \
-        git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
-    else \
-        if [ -d "OrbbecSDK_ROS2/.git" ]; then \
-            echo "OrbbecSDK_ROS2 already exists, pulling latest changes..." && \
-            cd OrbbecSDK_ROS2 && \
-            git pull; \
-        else \
-            echo "OrbbecSDK_ROS2 directory exists but is not a git repository, replacing it..." && \
-            rm -rf OrbbecSDK_ROS2 && \
-            git clone https://github.com/orbbec/OrbbecSDK_ROS2.git; \
-        fi; \
-    fi
+    rm -rf OrbbecSDK_ROS2 && \
+    echo "Cloning OrbbecSDK_ROS2 v1.5.14..." && \
+    git clone --branch v1.5.14 --depth 1 https://github.com/orbbec/OrbbecSDK_ROS2.git
 
 # Install OrbbecSDK libraries with proper symlinks and ldconfig registration
 RUN echo "Setting up OrbbecSDK libraries..." && \
@@ -118,9 +109,15 @@ RUN echo "Setting up OrbbecSDK libraries..." && \
         echo "Creating symlinks..." && \
         cd /usr/local/lib && \
         ls -lh libOrbbecSDK* libdepthengine* && \
-        ln -sf libOrbbecSDK.so.1.10.27 libOrbbecSDK.so && \
-        ln -sf libOrbbecSDK.so.1.10.27 libOrbbecSDK.so.1 && \
-        ln -sf libdepthengine.so.2.0 libdepthengine.so && \
+        ORBBEC_LIB=$(ls libOrbbecSDK.so.*.* 2>/dev/null | head -1) && \
+        if [ -n "$ORBBEC_LIB" ]; then \
+            ln -sf "$ORBBEC_LIB" libOrbbecSDK.so; \
+            ln -sf "$ORBBEC_LIB" libOrbbecSDK.so.1; \
+        fi && \
+        DEPTH_LIB=$(ls libdepthengine.so.*.* 2>/dev/null | head -1) && \
+        if [ -n "$DEPTH_LIB" ]; then \
+            ln -sf "$DEPTH_LIB" libdepthengine.so; \
+        fi && \
         echo "Verifying symlinks:" && \
         ls -lh libOrbbecSDK.so* libdepthengine.so* && \
         echo "Registering /usr/local/lib with ldconfig..." && \

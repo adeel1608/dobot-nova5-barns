@@ -12,16 +12,16 @@ echo ""
 # Array of all images
 images=(
     "barns-robot1"
-    "barns-robot2"
-    "barns-routine"
-    "barns-scheduler"
-    "barns-validation"
-    "barns-oms"
-    "barns-automation"
-    "barns-robot-arm"
-    "barns-api-bridge"
-    "barns-dashboard"
-    "barns-video-stream"
+    # # "barns-robot2"
+    # "barns-routine"
+    # "barns-scheduler"
+    # "barns-validation"
+    # "barns-oms"
+    # "barns-automation"
+    # "barns-robot-arm"
+    # "barns-api-bridge"
+    # "barns-dashboard"
+    # "barns-video-stream"
 )
 
 # Tag and push each image
@@ -30,10 +30,10 @@ for image in "${images[@]}"; do
     
     if docker images | grep -q "^${image} "; then
         echo "  → Tagging ${image}:latest"
-        docker tag ${image}:latest ${REGISTRY_PATH}/${image}:latest
+        docker tag ${image}:latest1 ${REGISTRY_PATH}/${image}:latest1
         
         echo "  → Pushing to GCP..."
-        docker push ${REGISTRY_PATH}/${image}:latest
+        docker push ${REGISTRY_PATH}/${image}:latest1
         
         echo "  ✓ ${image} pushed successfully"
     else
