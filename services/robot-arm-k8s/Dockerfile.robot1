@@ -77,8 +77,22 @@ RUN rosdep init && rosdep update
 ENV WORKSPACE_DIR=/opt/barns-robot/ros_ws
 RUN mkdir -p ${WORKSPACE_DIR}/src
 
-# Copy workspace source files
-COPY services/robot_container/ros_ws/src ${WORKSPACE_DIR}/src/
+# Copy workspace source files (stable ROS packages only, oms_v1 is added after the
+# colcon build so that changes to it never invalidate the expensive build cache).
+# OrbbecSDK_ROS2 is cloned from git below, so skip the local copy.
+COPY services/robot_container/ros_ws/src/dobot_bringup_v3   ${WORKSPACE_DIR}/src/dobot_bringup_v3/
+COPY services/robot_container/ros_ws/src/dobot_moveit        ${WORKSPACE_DIR}/src/dobot_moveit/
+COPY services/robot_container/ros_ws/src/dobot_msgs_v3       ${WORKSPACE_DIR}/src/dobot_msgs_v3/
+COPY services/robot_container/ros_ws/src/dobot_rviz          ${WORKSPACE_DIR}/src/dobot_rviz/
+COPY services/robot_container/ros_ws/src/moveit2             ${WORKSPACE_DIR}/src/moveit2/
+COPY services/robot_container/ros_ws/src/moveit_msgs         ${WORKSPACE_DIR}/src/moveit_msgs/
+COPY services/robot_container/ros_ws/src/moveit_resources    ${WORKSPACE_DIR}/src/moveit_resources/
+COPY services/robot_container/ros_ws/src/nova5_moveit        ${WORKSPACE_DIR}/src/nova5_moveit/
+COPY services/robot_container/ros_ws/src/pickn_place         ${WORKSPACE_DIR}/src/pickn_place/
+COPY services/robot_container/ros_ws/src/pymoveit2           ${WORKSPACE_DIR}/src/pymoveit2/
+COPY services/robot_container/ros_ws/src/ros2_control        ${WORKSPACE_DIR}/src/ros2_control/
+COPY services/robot_container/ros_ws/src/ros2_controllers    ${WORKSPACE_DIR}/src/ros2_controllers/
+COPY services/robot_container/ros_ws/src/servo_action        ${WORKSPACE_DIR}/src/servo_action/
 COPY shared ${WORKSPACE_DIR}/src/shared/
 
 # Clone OrbbecSDK_ROS2 v1.5.14 (last v1 release) for fast initialization (~95ms).
@@ -211,6 +225,12 @@ RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_u
 else \
     echo "WARNING: udev rules script not found, you may need to install manually"; \
 fi
+
+# Copy oms_v1 AFTER the colcon build. oms_v1 is a pure-Python order management
+# service (launched via python -m oms_v1.app) and does not need colcon compilation.
+# Placing it in a late layer means edits to oms_v1 only re-copy the Python files
+# (~seconds) instead of triggering a full workspace rebuild (~15-30 min).
+COPY services/robot_container/ros_ws/src/oms_v1 ${WORKSPACE_DIR}/src/oms_v1/
 
 # Copy startup script
 COPY robot1-startup.sh /opt/barns-robot/

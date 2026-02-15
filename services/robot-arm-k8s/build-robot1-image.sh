@@ -35,6 +35,28 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 IMAGE_NAME=${IMAGE_NAME:-"barns-robot1"}
 IMAGE_TAG=${IMAGE_TAG:-"latest1"}
+NO_CACHE=false
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        --no-cache)
+            NO_CACHE=true
+            ;;
+        --help|-h)
+            echo "Usage: $(basename "$0") [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --no-cache   Force a full rebuild with no Docker layer cache"
+            echo "  --help, -h   Show this help message"
+            echo ""
+            echo "When only oms_v1 has changed, the default (cached) build will"
+            echo "skip the expensive ROS workspace compilation and only re-copy"
+            echo "the oms_v1 Python files (~seconds instead of ~15-30 min)."
+            exit 0
+            ;;
+    esac
+done
 
 log "Building Robot 1 Docker Image"
 log "Project Root: $PROJECT_ROOT"
@@ -69,17 +91,28 @@ if ! docker info &> /dev/null; then
 fi
 
 # Build the image
-log "Starting Docker build for Robot 1..."
-log "This may take 15-30 minutes depending on your system..."
+if [ "$NO_CACHE" = true ]; then
+    log "Starting Docker build for Robot 1 (NO CACHE - full rebuild)..."
+    log "This may take 15-30 minutes depending on your system..."
+else
+    log "Starting Docker build for Robot 1 (cached)..."
+    log "If only oms_v1 changed, the ROS workspace build will be cached (~seconds)."
+fi
 echo
 
 cd "${PROJECT_ROOT}"
 
-docker build \
-    -f "${SCRIPT_DIR}/Dockerfile.robot1" \
-    -t "${IMAGE_NAME}:${IMAGE_TAG}" \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    .
+DOCKER_BUILD_ARGS=(
+    -f "${SCRIPT_DIR}/Dockerfile.robot1"
+    -t "${IMAGE_NAME}:${IMAGE_TAG}"
+    --build-arg BUILDKIT_INLINE_CACHE=1
+)
+
+if [ "$NO_CACHE" = true ]; then
+    DOCKER_BUILD_ARGS+=(--no-cache)
+fi
+
+docker build "${DOCKER_BUILD_ARGS[@]}" .
 
 if [ $? -eq 0 ]; then
     echo
