@@ -1278,7 +1278,7 @@ async def coffee_machine_purge(params: dict):
     # timeout = params.get("timeout", 120)
     # start_time = time.time()
     # while response["data"] is None and (time.time() - start_time) < timeout:
-        await asyncio.sleep(0.1)
+    await asyncio.sleep(0.1)
 
     if response["data"] is None:
         log("ERROR", "Timeout: No response from dispenser", service="automation")
