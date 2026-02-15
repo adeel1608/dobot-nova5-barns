@@ -1050,15 +1050,22 @@ async def coffee_machine(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
 
-    # timeout = params.get("timeout", 120)
-    # start_time = time.time()
     return {
             "success": True,
             "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
             "details": "Processing coffee"
         }
-    while response["data"] is None and (time.time() - start_time) < timeout:
+    
+    # The following code is unreachable due to early return above
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    # while response["data"] is None and (time.time() - start_time) < timeout:
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
@@ -1255,15 +1262,22 @@ async def coffee_machine_purge(params: dict):
     time.sleep(0.5)
     
     client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
 
-    # timeout = params.get("timeout", 120)
-    # start_time = time.time()
     return {
             "success": True,
             "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
             "details": "Processing coffee"
         }
-    while response["data"] is None and (time.time() - start_time) < timeout:
+    
+    # The following code is unreachable due to early return above
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    # while response["data"] is None and (time.time() - start_time) < timeout:
         await asyncio.sleep(0.1)
 
     if response["data"] is None:
@@ -1725,12 +1739,20 @@ async def clean_frother(params: dict):
     
     # Now send the message to clean frother topic
     client.publish("automation_clean_frother", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
+    
     return {
             "success": True,
             "message": "Successfully cleaned frother",
             "details": "froth command sent"
         }
-    timeout = params.get("timeout", 120)  # Timeout for clean operation
+    
+    # The following code is unreachable due to early return above
+    # timeout = params.get("timeout", 120)  # Timeout for clean operation
     start_time = time.time()
 
     while response["data"] is None and (time.time() - start_time) < timeout:
