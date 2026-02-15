@@ -22,3 +22,4 @@
 !k8s-deployment/scripts/setup-worker.sh
 !/k8s
 !k8s/**
+!barns-deploy.sh

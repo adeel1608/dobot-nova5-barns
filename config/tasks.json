@@ -48,7 +48,16 @@
     "steps": [
       {
         "type": "automation",
-        "function": "coffee_machine",
+        "function": "coffee_machine_wait",
+        "params": {}
+      }
+    ]
+  },
+  "Purge Coffee Machine": {
+    "steps": [
+      {
+        "type": "automation",
+        "function": "coffee_machine_purge",
         "params": {}
       }
     ]
