@@ -34,7 +34,7 @@ warn() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 IMAGE_NAME=${IMAGE_NAME:-"barns-robot1"}
-IMAGE_TAG=${IMAGE_TAG:-"latest1"}
+IMAGE_TAG=${IMAGE_TAG:-"latest"}
 NO_CACHE=false
 
 # Parse arguments

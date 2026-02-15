@@ -33,7 +33,7 @@ spec:
       priorityClassName: system-cluster-critical
       containers:
       - name: robot1
-        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest1
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
         imagePullPolicy: Always
         securityContext:
           privileged: true
