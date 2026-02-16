@@ -320,14 +320,10 @@ class ArucoPerceptionNode(Node):
                     avg_t = np.mean(np.vstack(buf['positions']), axis=0)
                     avg_q = average_quaternions(np.vstack(buf['orientations']))
                     marker_name = self.marker_name_mapping.get(mid, f"ID_{mid}")
-                    
-                    # Calculate spread in buffer for diagnostics
-                    pos_spread = np.max(np.vstack(buf['positions']), axis=0) - np.min(np.vstack(buf['positions']), axis=0)
-                    
-                    self.get_logger().info(
-                        f"Publishing TF for '{marker_name}': "
-                        f"pos=[{avg_t[0]:.3f}, {avg_t[1]:.3f}, {avg_t[2]:.3f}], "
-                        f"spread=[{pos_spread[0]*1000:.2f}, {pos_spread[1]*1000:.2f}, {pos_spread[2]*1000:.2f}]mm"
+                    self.get_logger().debug(
+                        f"Buffer for marker '{marker_name}' is full. Averaging and broadcasting transform.\n"
+                        f"\t- Avg Position: [{avg_t[0]:.3f}, {avg_t[1]:.3f}, {avg_t[2]:.3f}]\n"
+                        f"\t- Avg Orientation: [{avg_q[0]:.3f}, {avg_q[1]:.3f}, {avg_q[2]:.3f}, {avg_q[3]:.3f}]"
                     )
                     tfm = TransformStamped()
                     tfm.header.stamp    = self.get_clock().now().to_msg()
