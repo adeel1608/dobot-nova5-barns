@@ -9,7 +9,7 @@ set -euo pipefail
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR=${WORKSPACE_DIR:-${SCRIPT_DIR}/services/robot_container/ros_ws}
-DOCKER_HOST_IP=${DOCKER_HOST_IP:-$(hostname -I | awk '{print $1}')}
+DOCKER_HOST_IP=${DOCKER_HOST_IP:-192.168.200.129}
 ROBOT_ID=1
 DOBOT_TYPE=${DOBOT_TYPE:-nova5}
 IP_ADDRESS=${IP_ADDRESS:-192.168.200.249}
@@ -119,7 +119,7 @@ restart_camera_and_perception() {
     
     # Restart camera and track PID
     log "Restarting Orbbec camera..."
-    ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+    ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
     local NEW_CAMERA_PID=$!
     log "Camera restarted with PID: $NEW_CAMERA_PID"
     
@@ -141,7 +141,7 @@ restart_camera_and_perception() {
     
     # Restart perception and track PID
     log "Restarting ArUco perception..."
-    ros2 run pickn_place aruco_perception __log_level:=fatal &
+    ros2 run pickn_place aruco_perception __log_level:=info &
     local NEW_PERCEPTION_PID=$!
     log "Perception restarted with PID: $NEW_PERCEPTION_PID"
     
@@ -560,7 +560,7 @@ start_robot() {
 
         # Launch Orbbec camera
         log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
         CAMERA_PID=$!
         PIDS+=($CAMERA_PID)
 
@@ -673,7 +673,7 @@ start_robot() {
 
         # Launch perception nodes
         log "=== Launching perception nodes ==="
-        ros2 run pickn_place aruco_perception __log_level:=fatal &
+        ros2 run pickn_place aruco_perception __log_level:=info &
         POSE_GEN_PID=$!
         PIDS+=($POSE_GEN_PID)
         

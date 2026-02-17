@@ -74,7 +74,7 @@ restart_camera_and_perception() {
     
     # Restart camera
     log "Restarting Orbbec camera..."
-    ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+    ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
     
     log "Waiting 5 seconds before restarting perception..."
     sleep 5
@@ -435,7 +435,7 @@ start_robot() {
 
         # Launch Orbbec camera
         log "=== Launching Orbbec camera ==="
-        ros2 launch orbbec_camera gemini_330_series.launch.py __log_level:=info &
+        ros2 launch orbbec_camera gemini_330_series.launch.py depth_registration:=true __log_level:=info &
         CAMERA_PID=$!
         PIDS+=($CAMERA_PID)
         

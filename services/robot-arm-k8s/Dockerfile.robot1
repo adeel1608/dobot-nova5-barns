@@ -1,0 +1,277 @@
+FROM ubuntu:22.04
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Set up locales
+RUN apt-get update && apt-get install -y locales && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# Install basic utilities and dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    curl \
+    ca-certificates \
+    git \
+    lsb-release \
+    wget \
+    gnupg2 \
+    sudo \
+    udev \
+    usbutils \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set ROS distribution
+ENV ROS_DISTRO=humble
+
+# Add ROS 2 repository
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+    http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+    > /etc/apt/sources.list.d/ros2.list
+
+# Install ROS 2 Humble
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-${ROS_DISTRO}-ros-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install build tools and Python dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-pip \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS 2 packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-${ROS_DISTRO}-ros2-control \
+    ros-${ROS_DISTRO}-ros2-controllers \
+    ros-${ROS_DISTRO}-moveit \
+    ros-${ROS_DISTRO}-image-transport \
+    ros-${ROS_DISTRO}-image-transport-plugins \
+    ros-${ROS_DISTRO}-compressed-image-transport \
+    ros-${ROS_DISTRO}-camera-info-manager \
+    ros-${ROS_DISTRO}-diagnostic-updater \
+    ros-${ROS_DISTRO}-diagnostic-msgs \
+    ros-${ROS_DISTRO}-statistics-msgs \
+    ros-${ROS_DISTRO}-tf-transformations \
+    ros-${ROS_DISTRO}-kinematics-interface-kdl \
+    ros-${ROS_DISTRO}-ros-testing \
+    ros-${ROS_DISTRO}-launch-testing \
+    ros-${ROS_DISTRO}-launch-testing-ament-cmake \
+    ros-${ROS_DISTRO}-image-publisher \
+    ros-${ROS_DISTRO}-backward-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep init && rosdep update
+
+# Set up workspace directory
+ENV WORKSPACE_DIR=/opt/barns-robot/ros_ws
+RUN mkdir -p ${WORKSPACE_DIR}/src
+
+# Copy workspace source files (stable ROS packages only, oms_v1 is added after the
+# colcon build so that changes to it never invalidate the expensive build cache).
+# OrbbecSDK_ROS2 is cloned from git below, so skip the local copy.
+COPY services/robot_container/ros_ws/src/dobot_bringup_v3   ${WORKSPACE_DIR}/src/dobot_bringup_v3/
+COPY services/robot_container/ros_ws/src/dobot_moveit        ${WORKSPACE_DIR}/src/dobot_moveit/
+COPY services/robot_container/ros_ws/src/dobot_msgs_v3       ${WORKSPACE_DIR}/src/dobot_msgs_v3/
+COPY services/robot_container/ros_ws/src/dobot_rviz          ${WORKSPACE_DIR}/src/dobot_rviz/
+COPY services/robot_container/ros_ws/src/moveit2             ${WORKSPACE_DIR}/src/moveit2/
+COPY services/robot_container/ros_ws/src/moveit_msgs         ${WORKSPACE_DIR}/src/moveit_msgs/
+COPY services/robot_container/ros_ws/src/moveit_resources    ${WORKSPACE_DIR}/src/moveit_resources/
+COPY services/robot_container/ros_ws/src/nova5_moveit        ${WORKSPACE_DIR}/src/nova5_moveit/
+COPY services/robot_container/ros_ws/src/pickn_place         ${WORKSPACE_DIR}/src/pickn_place/
+COPY services/robot_container/ros_ws/src/pymoveit2           ${WORKSPACE_DIR}/src/pymoveit2/
+COPY services/robot_container/ros_ws/src/ros2_control        ${WORKSPACE_DIR}/src/ros2_control/
+COPY services/robot_container/ros_ws/src/ros2_controllers    ${WORKSPACE_DIR}/src/ros2_controllers/
+COPY services/robot_container/ros_ws/src/servo_action        ${WORKSPACE_DIR}/src/servo_action/
+COPY shared ${WORKSPACE_DIR}/src/shared/
+
+# Clone OrbbecSDK_ROS2 v1.5.14 (last v1 release) for fast initialization (~95ms).
+# The local source tree copy is missing liblive555.so and libob_usb.so, so always
+# clone the complete official release. The v2 branch adds ~1300ms of extra overhead.
+RUN cd ${WORKSPACE_DIR}/src && \
+    rm -rf OrbbecSDK_ROS2 && \
+    echo "Cloning OrbbecSDK_ROS2 v1.5.14..." && \
+    git clone --branch v1.5.14 --depth 1 https://github.com/orbbec/OrbbecSDK_ROS2.git
+
+# Install OrbbecSDK libraries with proper symlinks and ldconfig registration
+RUN echo "Setting up OrbbecSDK libraries..." && \
+    ARCH=$(uname -m) && \
+    echo "Detected architecture: $ARCH" && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/x64"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/arm64"; \
+    else \
+        SDK_LIB_DIR="${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/arm32"; \
+    fi && \
+    echo "SDK_LIB_DIR=$SDK_LIB_DIR" && \
+    if [ -d "$SDK_LIB_DIR" ]; then \
+        echo "Found SDK directory, listing contents:" && \
+        ls -lh "$SDK_LIB_DIR" && \
+        echo "Copying SDK libraries to /usr/local/lib..." && \
+        cp -v "$SDK_LIB_DIR"/*.so* /usr/local/lib/ && \
+        echo "Creating symlinks..." && \
+        cd /usr/local/lib && \
+        ls -lh libOrbbecSDK* libdepthengine* && \
+        ORBBEC_LIB=$(ls libOrbbecSDK.so.*.* 2>/dev/null | head -1) && \
+        if [ -n "$ORBBEC_LIB" ]; then \
+            ln -sf "$ORBBEC_LIB" libOrbbecSDK.so; \
+            ln -sf "$ORBBEC_LIB" libOrbbecSDK.so.1; \
+        fi && \
+        DEPTH_LIB=$(ls libdepthengine.so.*.* 2>/dev/null | head -1) && \
+        if [ -n "$DEPTH_LIB" ]; then \
+            ln -sf "$DEPTH_LIB" libdepthengine.so; \
+        fi && \
+        echo "Verifying symlinks:" && \
+        ls -lh libOrbbecSDK.so* libdepthengine.so* && \
+        echo "Registering /usr/local/lib with ldconfig..." && \
+        echo "/usr/local/lib" > /etc/ld.so.conf.d/orbbec.conf && \
+        ldconfig && \
+        echo "SDK libraries setup complete" && \
+        ldconfig -p | grep -i orbbec || echo "Warning: checking ldconfig cache"; \
+    else \
+        echo "ERROR: SDK lib directory not found at $SDK_LIB_DIR" && \
+        ls -lh "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/SDK/lib/" && \
+        exit 1; \
+    fi
+
+# Install additional APT dependencies from install script
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgflags-dev \
+    nlohmann-json3-dev \
+    libdw-dev \
+    libomp-dev \
+    freeglut3-dev \
+    libgoogle-glog-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    libeigen3-dev \
+    libopencv-dev \
+    libgtk-3-0 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir \
+    opencv-contrib-python==4.10.0.84 \
+    numpy==1.23.5 \
+    scipy==1.11.4 \
+    transformations==2025.1.1 \
+    aio-pika==9.4.3 \
+    pika==1.3.2 \
+    pyorbbecsdk==1.3.2
+
+# Create python symlink
+RUN ln -sf /usr/bin/python3 /usr/bin/python
+
+# Install ROS dependencies using rosdep
+RUN cd ${WORKSPACE_DIR} && \
+    bash -c "set +u && source /opt/ros/${ROS_DISTRO}/setup.bash && set -u && \
+    rosdep install --from-paths src --ignore-src -y --rosdistro ${ROS_DISTRO}" || \
+    echo "Some rosdep dependencies may have failed, continuing..."
+
+# Build entire ROS workspace with proper environment
+RUN cd ${WORKSPACE_DIR} && \
+    bash -c "set +u && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    set -u && \
+    export LD_LIBRARY_PATH=/usr/local/lib:\${LD_LIBRARY_PATH:-} && \
+    export LIBRARY_PATH=/usr/local/lib:\${LIBRARY_PATH:-} && \
+    echo '=== Building entire workspace ===' && \
+    colcon build --symlink-install \
+        --cmake-args \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_LIBRARY_PATH=/usr/local/lib \
+            -DCMAKE_PREFIX_PATH=/usr/local \
+        --parallel-workers 2 \
+        --continue-on-error \
+        --event-handlers console_direct+" && \
+    echo "=== Workspace build complete ===" && \
+    echo "Checking if orbbec_camera was built..." && \
+    if [ -d "install/orbbec_camera" ]; then \
+        echo "✅ orbbec_camera package built successfully"; \
+        ls -la install/orbbec_camera/lib/ || true; \
+    else \
+        echo "⚠️  WARNING: orbbec_camera package not found, checking logs..."; \
+        if [ -f "log/latest_build/orbbec_camera/stderr.log" ]; then \
+            echo "=== orbbec_camera stderr (last 100 lines) ==="; \
+            tail -100 "log/latest_build/orbbec_camera/stderr.log"; \
+        fi; \
+        echo "Build will continue but camera may not work"; \
+    fi
+
+# Install udev rules for Orbbec cameras
+RUN if [ -f "${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts/install_udev_rules.sh" ]; then \
+    cd ${WORKSPACE_DIR}/src/OrbbecSDK_ROS2/orbbec_camera/scripts && \
+    bash install_udev_rules.sh && \
+    udevadm control --reload-rules 2>/dev/null || true && \
+    udevadm trigger 2>/dev/null || true && \
+    echo "udev rules installed successfully"; \
+else \
+    echo "WARNING: udev rules script not found, you may need to install manually"; \
+fi
+
+# Copy oms_v1 AFTER the colcon build. oms_v1 is a pure-Python order management
+# service (launched via python -m oms_v1.app) and does not need colcon compilation.
+# Placing it in a late layer means edits to oms_v1 only re-copy the Python files
+# (~seconds) instead of triggering a full workspace rebuild (~15-30 min).
+COPY services/robot_container/ros_ws/src/oms_v1 ${WORKSPACE_DIR}/src/oms_v1/
+
+# Copy startup script
+COPY robot1-startup.sh /opt/barns-robot/
+RUN chmod +x /opt/barns-robot/robot1-startup.sh
+
+# Create environment setup script
+RUN echo '#!/bin/bash\n\
+set +u\n\
+source /opt/ros/${ROS_DISTRO}/setup.bash\n\
+source ${WORKSPACE_DIR}/install/setup.bash\n\
+set -u\n\
+export PYTHONPATH="${WORKSPACE_DIR}/src:${WORKSPACE_DIR}/../../:${PYTHONPATH:-}"\n\
+export DISPLAY=${DISPLAY:-:99}\n\
+export QT_QPA_PLATFORM=offscreen\n\
+export ROS_LOG_LEVEL=WARN\n\
+export RCUTILS_LOGGING_SEVERITY_THRESHOLD=WARN\n\
+export ROS_DISABLE_LOANED_MESSAGES=1\n\
+export MOVEIT_DISABLE_GUI=1\n\
+export RVIZ_DISABLE=1\n\
+export AMENT_TRACE_SETUP_FILES=0\n\
+export AMENT_PYTHON_EXECUTABLE=python3\n\
+export LD_LIBRARY_PATH="/usr/local/lib:${LD_LIBRARY_PATH:-}"\n\
+' > ${WORKSPACE_DIR}/setup_robot_env.sh && chmod +x ${WORKSPACE_DIR}/setup_robot_env.sh
+
+# Environment variables for Robot 1
+ENV ROBOT_ID=1
+ENV ROS_DOMAIN_ID=0
+ENV DOBOT_TYPE=nova5
+ENV IP_ADDRESS=192.168.200.249
+ENV CAMERA_SERIAL_NUMBER=CP1Z842000YW
+ENV CAM_NAME=cam0
+ENV DEVICE_ID=1
+ENV DEVICE_NUM=1
+ENV ORBBEC_CONNECTION_DELAY=3000
+ENV USBFS_MEMORY_MB=128
+
+# RabbitMQ connection (will be overridden by K8s)
+ENV RABBITMQ_URL=amqp://admin:admin123@rabbitmq:5672/
+
+# Set working directory
+WORKDIR ${WORKSPACE_DIR}
+
+# Entrypoint
+CMD ["/bin/bash", "-c", "source ${WORKSPACE_DIR}/setup_robot_env.sh && /opt/barns-robot/robot1-startup.sh robot-only"]

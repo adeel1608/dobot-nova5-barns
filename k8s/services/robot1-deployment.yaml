@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robot1
+  namespace: barns
+  labels:
+    app: robot1
+    component: robotics
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: robot1
+  template:
+    metadata:
+      labels:
+        app: robot1
+        component: robotics
+      annotations:
+        cpu-load-balancing.crio.io: "disable"
+        cpu-quota.crio.io: "disable"
+    spec:
+      imagePullSecrets:
+      - name: gcr-json-key
+      nodeSelector:
+        kubernetes.io/hostname: barns-nuc15crsu7
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: system-cluster-critical
+      containers:
+      - name: robot1
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-robot1:latest
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - SYS_ADMIN
+              - SYS_RAWIO
+              - NET_ADMIN
+        env:
+        - name: WORKSPACE_DIR
+          value: "/opt/barns-robot/ros_ws"
+        - name: ROBOT_ID
+          value: "1"
+        - name: DOBOT_TYPE
+          value: "nova5"
+        - name: IP_ADDRESS
+          value: "192.168.200.249"
+        - name: ROS_DOMAIN_ID
+          value: "0"
+        - name: CAMERA_SERIAL_NUMBER
+          value: "CP9JA53000CR" #CP1Z842000YW
+        - name: CAM_NAME
+          value: "cam0"
+        - name: DEVICE_ID
+          value: "1"
+        - name: DEVICE_NUM
+          value: "1"
+        - name: ORBBEC_CONNECTION_DELAY
+          value: "1000"
+        - name: USBFS_MEMORY_MB
+          value: "128"
+        - name: DOCKER_HOST_IP
+          value: "rabbitmq.barns.svc.cluster.local"
+        - name: RABBITMQ_URL
+          value: "amqp://admin:admin123@rabbitmq.barns.svc.cluster.local:5672/"
+        - name: TF_BUFFER_CACHE_TIME
+          value: "30.0"
+        - name: TF_LOOKUP_TIMEOUT
+          value: "20.0"
+        - name: TF_SAMPLE_TIMEOUT
+          value: "15.0"
+        - name: PERCEPTION_TF_TIMEOUT
+          value: "20.0"
+        - name: ROS_LOCALHOST_ONLY
+          value: "0"
+        volumeMounts:
+        - name: dev
+          mountPath: /dev
+        - name: sys
+          mountPath: /sys
+        - name: run-udev
+          mountPath: /run/udev
+        startupProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot1-startup.sh"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot1-startup.sh"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - "pgrep -f robot1-startup.sh && ros2 topic list | grep -q '/camera' || exit 0"
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+      volumes:
+      - name: dev
+        hostPath:
+          path: /dev
+          type: Directory
+      - name: sys
+        hostPath:
+          path: /sys
+          type: Directory
+      - name: run-udev
+        hostPath:
+          path: /run/udev
+          type: DirectoryOrCreate
+      restartPolicy: Always
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule

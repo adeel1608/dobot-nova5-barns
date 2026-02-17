@@ -7,7 +7,6 @@
     }
   ],
   "Espresso": [
-
     {
       "action": "Make Espresso",
       "assigned_arm": "Arm1",
@@ -733,20 +732,14 @@
   ],
   "Test": [
     {
-      "action": "Dispense Milk",
+      "action": "Dispense Coffee",
       "assigned_arm": "Arm2",
       "depends_on": []
     },
     {
-      "action": "Dispense Syrup",
+      "action": "Purge Coffee Machine",
       "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Milk"]
-    },
-    {
-      "action": "Dispense Sauce",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Syrup"]
+      "depends_on": ["Dispense Coffee"]
     }
-
   ]
 }

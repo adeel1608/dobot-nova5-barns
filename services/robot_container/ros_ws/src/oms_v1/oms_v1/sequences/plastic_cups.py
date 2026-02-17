@@ -133,7 +133,7 @@ def dispense_plastic_cup(**params) -> bool:
     
     config = CUP_CONFIG[cup_size]
     attempt_count = 0
-    while attempt_count < 5:
+    while attempt_count < 15:
             if cup_size == "16oz":
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
@@ -141,7 +141,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255,130,255)
                 run_skill("set_DO", 1, 1)
-                time.sleep(1.1)
+                time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
                 run_skill("moveEE", 0, 0, -150, 0, 0, 0)
                 run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
@@ -155,7 +155,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255,130,255)
                 run_skill("set_DO", 1, 1)
-                time.sleep(1.1)
+                time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
                 run_skill("moveEE", 0, 0, -150, 0, 0, 0)
                 run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
@@ -169,7 +169,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255,130,255)
                 run_skill("set_DO", 1, 1)
-                time.sleep(1.1)
+                time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
                 run_skill("moveEE", 0, 0, -150, 0, 0, 0)
                 run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
@@ -183,7 +183,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
                 run_skill("set_gripper_position", 255,130,255)
                 run_skill("set_DO", 1, 1)
-                time.sleep(1.1)
+                time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
                 run_skill("moveEE", 0, 0, -150, 0, 0, 0)
                 run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
@@ -196,7 +196,7 @@ def dispense_plastic_cup(**params) -> bool:
             if cup_detected:
                 break
             attempt_count += 1
-            if attempt_count == 3:
+            if attempt_count == 15:
                 return False
     
     _set_cup_dispensed()

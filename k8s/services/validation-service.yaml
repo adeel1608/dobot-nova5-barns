@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: validation-service
+  namespace: barns
+  labels:
+    app: validation-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: validation-service
+  template:
+    metadata:
+      labels:
+        app: validation-service
+    spec:
+      imagePullSecrets:
+      - name: gcr-json-key
+      nodeSelector:
+        kubernetes.io/hostname: barns-nuc15crsu7
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: validation-service
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-validation:latest
+        imagePullPolicy: Always
+        env:
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: username
+        - name: RABBITMQ_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: password
+        - name: RABBITMQ_URL
+          value: "amqp://$(RABBITMQ_USER):$(RABBITMQ_PASS)@rabbitmq:5672/"
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: validation-db
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: validation-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: validation-password
+        - name: DETECTION_INTERVAL_SECONDS
+          value: "600"
+        - name: ENABLE_PERIODIC_DETECTION
+          value: "true"
+        - name: DETECTION_TIMEOUT_SECONDS
+          value: "30"
+        - name: MAX_DETECTION_WORKERS
+          value: "3"
+        - name: PYTHONPATH
+          value: "/app"
+        - name: DEBUG
+          value: "false"
+        - name: TELEGRAF_HOST
+          value: "localhost"
+        - name: TELEGRAF_PORT
+          value: "8094"
+        volumeMounts:
+        - name: debug-frames-coffee
+          mountPath: /app/services/validation/coffee_detection/debug_frames_coffee
+        - name: debug-frames-cup
+          mountPath: /app/services/validation/cup_detection/debug_frames_cup
+        - name: cup-models
+          mountPath: /app/services/validation/cup_detection/models
+        - name: model-cache
+          mountPath: /root/.cache
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import socket; socket.create_connection(('rabbitmq.barns.svc.cluster.local', 5672), timeout=5)"
+          initialDelaySeconds: 600
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+      volumes:
+      - name: debug-frames-coffee
+        hostPath:
+          path: /mnt/ssd/barns-data/debug_frames_coffee
+          type: DirectoryOrCreate
+      - name: debug-frames-cup
+        hostPath:
+          path: /mnt/ssd/barns-data/debug_frames_cup
+          type: DirectoryOrCreate
+      - name: cup-models
+        hostPath:
+          path: /mnt/ssd/barns-data/cup_models
+          type: DirectoryOrCreate
+      - name: model-cache
+        hostPath:
+          path: /mnt/ssd/barns-data/model_cache
+          type: DirectoryOrCreate
+
+
+
+
+

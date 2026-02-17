@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: oms-service
+  namespace: barns
+  labels:
+    app: oms-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: oms-service
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oms-service-external
+  namespace: barns
+  labels:
+    app: oms-service
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      nodePort: 30002
+      protocol: TCP
+  selector:
+    app: oms-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oms-service
+  namespace: barns
+  labels:
+    app: oms-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oms-service
+  template:
+    metadata:
+      labels:
+        app: oms-service
+    spec:
+      imagePullSecrets:
+      - name: gcr-json-key
+      containers:
+      - name: oms-service
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-oms:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        env:
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: url
+        - name: REDIS_HOST
+          value: "redis"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: POSTGRES_HOST
+          value: "postgres"
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: oms-db
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: oms-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: oms-password
+        - name: PYTHONPATH
+          value: "/app"
+        - name: DEBUG
+          value: "false"
+        - name: TELEGRAF_HOST
+          value: "telegraf"
+        - name: TELEGRAF_PORT
+          value: "8094"
+
+
+
+
+
+

@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: barns
+  labels:
+    app: dashboard
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30003
+      protocol: TCP
+  selector:
+    app: dashboard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: barns
+  labels:
+    app: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      imagePullSecrets:
+      - name: gcr-json-key
+      containers:
+      - name: dashboard
+        image: me-central2-docker.pkg.dev/qss-development-project/barns/barns-dashboard:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        env:
+        - name: RABBITMQ_URL
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secret
+              key: url
+        - name: VIDEO_STREAM_URL
+          value: "http://localhost:30001"
+        - name: API_BRIDGE_URL
+          value: "http://api-bridge:8000"
+        - name: VITE_INFLUX_URL
+          value: "http://localhost:30086/api/v2"
+        - name: VITE_INFLUX_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: admin-token
+        - name: VITE_INFLUX_ORG
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: org
+        - name: VITE_INFLUX_BUCKET
+          valueFrom:
+            secretKeyRef:
+              name: influxdb-secret
+              key: bucket
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 40
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+
+
+
+
+

@@ -189,7 +189,7 @@ class robot_perception(Node):
         self,
         target_frame: str,
         *,
-        max_wait: float = 10.0,
+        max_wait: float = 25.0,
         trans_thresh: float = 0.001,
         rot_thresh: float = 2.5,
         num_samples: int = 10,
@@ -274,20 +274,25 @@ class robot_perception(Node):
                 return average_pose(samples)
 
             # Unstable: clear buffer and retry
-            log.info("[acqTF] unstable window → reset buffer")
+            log.warn(
+                f"[acqTF] unstable window → reset buffer "
+                f"(dT={dT:.4f}m > {trans_thresh:.4f}m OR dR={dR:.2f}° > {rot_thresh:.2f}°)"
+            )
             samples.clear()
             time.sleep(SAMPLE_DELAY)
 
         # Timeout
         if last_dT is not None:
             log.error(
-                f"acquire_target_transform: timeout after {max_wait:.1f}s; "
-                f"last dT={last_dT:.4f} m, dR={last_dR:.2f}° "
-                f"(required ≤{trans_thresh:.4f} m / {rot_thresh:.2f}°)"
+                f"acquire_target_transform({target_frame}): TIMEOUT after {max_wait:.1f}s; "
+                f"last dT={last_dT:.4f} m (required ≤{trans_thresh:.4f}), "
+                f"dR={last_dR:.2f}° (required ≤{rot_thresh:.2f}°), "
+                f"collected {len(samples)}/{num_samples} samples"
             )
         else:
             log.error(
-                f"acquire_target_transform: no valid TF samples within {max_wait:.1f}s"
+                f"acquire_target_transform({target_frame}): no valid TF samples within {max_wait:.1f}s. "
+                f"Marker may not be visible or TF not being published."
             )
         return None
 
@@ -1005,7 +1010,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=180.0,      #ignore orientation
                 num_samples=6,
@@ -2085,7 +2090,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.002,    #2 mm accuracy
                 rot_thresh=2.0,        #2 deg error
                 num_samples=3,
@@ -2322,7 +2327,7 @@ class robot_motion(Node):
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
-                max_wait=10.0,
+                max_wait=25.0,
                 trans_thresh=0.0005,    #1 mm accuracy
                 rot_thresh=1,        #1.5 deg error
                 num_samples=9,
@@ -2334,7 +2339,11 @@ class robot_motion(Node):
             perception.destroy_node()
 
         if pose is None:
-            log.error("grab_tool: no stable TF")
+            log.error(
+                f"grab_tool: no stable TF for '{target_tf}' - "
+                f"Required: pos ±{0.0005*1000:.2f}mm, rot ±1.0°, {9} samples. "
+                f"Consider relaxing tolerances if marker is detected but unstable."
+            )
             return False
 
         obj_pos, obj_quat = np.array(pose[:3]), pose[3:]

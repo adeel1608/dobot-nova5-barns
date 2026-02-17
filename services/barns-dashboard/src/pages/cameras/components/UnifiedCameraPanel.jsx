@@ -25,7 +25,7 @@ function CameraStreamComponent({
   const hasInitializedRef = useRef(false); // Track if initial connection was made
   const reconnectCooldownMs = 10000; // Minimum 10 seconds between reconnections
   const isOffline = camera.status === 'offline' || isError || imageError;
-  const streamUrl = `http://localhost:8001/stream/${cameraId}?k=${imgKey}`;
+  const streamUrl = `http://localhost:30001/stream/${cameraId}?k=${imgKey}`;
   const displayName = (cameraId === 'ceiling' && t) ? t('ceilingCameraName') : camera.name;
   const displayType = (cameraId === 'ceiling' && t) ? t('rtspStream') : camera.type;
 
@@ -259,7 +259,7 @@ export default function UnifiedCameraPanel() {
   // Check cooldown status for all cameras (memoized to prevent infinite loops)
   const checkCooldownStatus = React.useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8001/stream/cooldown/all');
+      const response = await fetch('http://localhost:30001/stream/cooldown/all');
       if (response.ok) {
         const data = await response.json();
         const cooldowns = data.cooldowns || {};
@@ -317,7 +317,7 @@ export default function UnifiedCameraPanel() {
       
       try {
         setLoading(true);
-        const response = await fetch('http://localhost:8001/cameras');
+        const response = await fetch('http://localhost:30001/cameras');
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         setCameras(data.cameras);
@@ -389,7 +389,7 @@ export default function UnifiedCameraPanel() {
     
     try {
       hasStoppedStreams.current = true;
-      const response = await fetch('http://localhost:8001/stream/stop-all', {
+      const response = await fetch('http://localhost:30001/stream/stop-all', {
         method: 'POST',
       });
       if (response.ok) {

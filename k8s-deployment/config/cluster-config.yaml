@@ -1,0 +1,182 @@
+# BARNS Kubernetes Cluster Configuration
+# Edit this file to match your environment
+
+cluster:
+  name: barns-cluster
+  namespace: barns
+  domain: cluster.local
+
+# Master Node Configuration
+master:
+  hostname: k8s-master
+  # IP will be auto-detected, or specify manually
+  ip: auto
+  architecture: arm64
+  ssh_user: plus
+  ssh_key: ~/.ssh/id_rsa
+
+# Worker Node Configuration  
+worker:
+  hostname: barns-nuc15crsu7
+  # IP will be auto-detected, or specify manually
+  ip: auto
+  architecture: amd64
+  ssh_user: barns
+  ssh_key: ~/.ssh/id_rsa
+
+# Network Configuration
+network:
+  # Pod network CIDR (should not conflict with your local network)
+  pod_cidr: 10.244.0.0/16
+  # Service network CIDR
+  service_cidr: 10.96.0.0/12
+  # CNI plugin (flannel, calico, weave)
+  cni: flannel
+  # Auto-detect node IPs (true/false)
+  auto_detect_ips: true
+
+# Storage Configuration
+storage:
+  base_path: /mnt/ssd/barns-data
+  postgres:
+    size: 10Gi
+    path: /mnt/ssd/barns-data/postgres
+  rabbitmq:
+    size: 5Gi
+    path: /mnt/ssd/barns-data/rabbitmq
+  influxdb:
+    size: 10Gi
+    path: /mnt/ssd/barns-data/influxdb
+  redis:
+    size: 2Gi
+    path: /mnt/ssd/barns-data/redis
+  config:
+    path: /mnt/ssd/barns-config
+
+# Database Credentials
+database:
+  postgres:
+    # OMS Database
+    oms:
+      database: barns_oms
+      user: barns_user
+      password: barns_pass
+    # Validation Database
+    validation:
+      database: barns_validation
+      user: validation_user
+      password: validation_pass
+    # Super user (for initialization)
+    admin:
+      user: postgres
+      password: postgres_admin_pass
+
+# RabbitMQ Configuration
+rabbitmq:
+  user: guest
+  password: guest
+  vhost: /
+
+# Redis Configuration
+redis:
+  password: ""  # Empty for no password
+
+# InfluxDB Configuration
+influxdb:
+  admin_user: admin
+  admin_password: admin_password
+  org: barns
+  bucket: barns_metrics
+
+# Camera Configuration
+camera:
+  ceiling:
+    ip: 192.168.200.41
+    port: 8554
+    stream_path: ceiling
+    protocol: rtsp
+
+# Service Configuration
+services:
+  # Image pull policy: Always, IfNotPresent, Never
+  image_pull_policy: IfNotPresent
+  
+  # NodePort ranges
+  nodeports:
+    dashboard: 30003
+    api_bridge: 30000
+    video_stream: 30001
+    oms: 30002
+    rabbitmq_mgmt: 30672
+    influxdb: 30086
+
+  # Resource limits (optional, comment out to disable)
+  resources:
+    validation:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+    automation:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Build Configuration
+build:
+  # Docker registry (leave empty for local)
+  registry: ""
+  # Image tag
+  tag: latest
+  # Build with no cache
+  no_cache: true
+  # Services to build
+  services:
+    - api-bridge
+    - validation
+    - automation
+    - routine
+    - robot-arm
+    - scheduler
+    - oms
+    - video-stream
+    - dashboard
+
+# Deployment Options
+deployment:
+  # Wait for pods to be ready
+  wait_for_ready: true
+  # Timeout in seconds
+  timeout: 300
+  # Recreate pods on deployment
+  recreate: false
+  # Enable monitoring
+  monitoring: true
+
+# Maintenance
+maintenance:
+  # Auto-restart failed pods
+  auto_restart: true
+  # Backup schedule (cron format)
+  backup_schedule: "0 2 * * *"
+  # Retention days
+  backup_retention: 7
+  # Log retention
+  log_retention: 30
+
+# Feature Flags
+features:
+  # Enable database auto-fix on startup
+  auto_fix_database: true
+  # Enable network reconfiguration
+  network_reconfiguration: true
+  # Enable metrics collection
+  metrics: true
+  # Enable log aggregation
+  log_aggregation: false
+

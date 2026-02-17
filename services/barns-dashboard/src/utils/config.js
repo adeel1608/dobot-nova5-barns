@@ -13,7 +13,7 @@ export const API_CONFIG = {
   // ---- Development ----
   API_BASE: process.env.NODE_ENV === 'development' ? 'http://localhost:8000/api' : '/api',
   WEBSOCKET_BASE: process.env.NODE_ENV === 'development' ? 'ws://localhost:8000/ws' : '/ws',
-  VIDEO_STREAM: 'http://localhost:8001' // Video stream direct connection
+  VIDEO_STREAM: (window.env && window.env.VIDEO_STREAM_URL) || 'http://localhost:30001'
 };
 
 // WebSocket Configuration
@@ -29,17 +29,17 @@ export const UI_CONFIG = {
   HEALTH_CHECK_INTERVAL: 120000, // 2 minutes
   ORDER_REFRESH_INTERVAL: 30000,  // 30 seconds
   ALERT_REFRESH_INTERVAL: 60000,  // 1 minute
-  
+
   // Timeouts
   API_TIMEOUT: 5000, // 5 seconds for faster failure
-  
+
   // Pagination
   MAX_LOGS: 1000,
   ORDERS_PER_PAGE: 10,
-  
+
   // Notifications
   NOTIFICATION_DURATION: 5000,
-  
+
   // Drag and drop
   DRAG_THRESHOLD: 5
 };
@@ -65,7 +65,7 @@ export const THEME_CONFIG = {
 export const ENV_CONFIG = {
   isDevelopment: process.env.NODE_ENV === 'development',
   isProduction: process.env.NODE_ENV === 'production',
-  
+
   // Feature flags
   FEATURES: {
     ENABLE_DEBUG_LOGS: process.env.NODE_ENV === 'development',
