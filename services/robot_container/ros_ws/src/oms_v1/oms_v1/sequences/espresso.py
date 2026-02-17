@@ -446,14 +446,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral1'])):
             return False
     elif stage == 'stage_2':
@@ -461,14 +465,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral2'])):
             return False
     elif stage == 'stage_3':
@@ -476,14 +484,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral3'])):
             return False
     else:  # stage_4
@@ -491,14 +503,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        run_skill("moveEE_movJ",0,0,15,0,0,0)
-        run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral4'])):
             return False
     
