@@ -839,6 +839,8 @@ def parse_ingredient_string(ingredient: str) -> Tuple[Optional[str], Optional[st
         return "syrups", None
     elif ingredient_lower in ["premix", "premixes"]:
         return "premixes", None
+    elif ingredient_lower in ["sauce", "sauces"]:
+        return "sauce", None
     
     # Handle compound names with underscores
     parts = ingredient.split("_")
@@ -868,14 +870,21 @@ def parse_ingredient_string(ingredient: str) -> Tuple[Optional[str], Optional[st
             return None, None
     
     # Syrups: Map frontend names to database subtypes
-    if ingredient_lower.endswith("_syrup") or ingredient_lower.endswith("_sauce"):
-        # Map frontend name to database subtype name
+    if ingredient_lower.endswith("_syrup"):
         db_subtype = FRONTEND_TO_DB_SUBTYPE.get(ingredient_lower)
         if db_subtype:
             return "syrups", db_subtype
         else:
-            # Ingredient doesn't exist in database - log warning and return None to skip
             log("WARNING", f"Ingredient '{ingredient}' (syrup) not found in database, skipping refill", service="api_bridge")
+            return None, None
+
+    # Sauces: separate category from syrups in the database
+    if ingredient_lower.endswith("_sauce"):
+        db_subtype = FRONTEND_TO_DB_SUBTYPE.get(ingredient_lower)
+        if db_subtype:
+            return "sauce", db_subtype
+        else:
+            log("WARNING", f"Ingredient '{ingredient}' (sauce) not found in database, skipping refill", service="api_bridge")
             return None, None
     
     # Premixes: Map frontend names to database subtypes
