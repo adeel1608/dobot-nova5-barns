@@ -431,7 +431,7 @@ def pick_cup_for_hot_water(**params) -> bool:
         if not ok(run_skill("set_gripper_position", 255,120,255)):
             return False
     else:
-        if not ok(run_skill("set_gripper_position", 255,140,255)):
+        if not ok(run_skill("set_gripper_position", 255,100,255)):
             return False
     
     run_skill("set_speed_factor", 75)
