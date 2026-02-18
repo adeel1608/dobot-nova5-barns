@@ -24,8 +24,8 @@ GRIPPER_RELEASE = 25     # Standard release position
 GRIPPER_HOLD_LOOSE = 75  # Loose hold for station placement
 GRIPPER_RELEASE_PITCHER = 25  # Release position for espresso pitcher
 GRIPPER_LIGHT = 100      # Light grip
-GRIPPER_PITCHER_1 = 105  # Gripper setting for espresso pitcher port 2 & 3
-GRIPPER_PITCHER_2 = 110  # Gripper setting for espresso pitcher port 1
+GRIPPER_PITCHER_1 = 115  # Gripper setting for espresso pitcher port 2 & 3
+GRIPPER_PITCHER_2 = 115  # Gripper setting for espresso pitcher port 1
 GRIPPER_MEDIUM = 150     # Medium grip
 GRIPPER_FROTHER_PICKUP = 169  # Initial frother pickup position
 GRIPPER_FROTHER_RELEASE = 165  # Frother release position
@@ -328,9 +328,9 @@ ESPRESSO_SPEEDS = {
 }
 
 ESPRESSO_PITCHER_GRIPPER = {
-    'port_1': GRIPPER_PITCHER_2,    # Gripper setting for port 1 pitcher (110)
-    'port_2': GRIPPER_PITCHER_1,    # Gripper setting for port 2 pitcher (105)
-    'port_3': GRIPPER_PITCHER_1,    # Gripper setting for port 3 pitcher (105)
+    'port_1': GRIPPER_PITCHER_2,    # Gripper setting for port 1 pitcher (115)
+    'port_2': GRIPPER_PITCHER_1,    # Gripper setting for port 2 pitcher (115)
+    'port_3': GRIPPER_PITCHER_1,    # Gripper setting for port 3 pitcher (115)
     'release': GRIPPER_RELEASE_PITCHER,  # Release setting (75)
 }
 
@@ -578,7 +578,7 @@ PLASTIC_CUPS_PARAMS = {
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
         '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
         '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
-        '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
+        '16oz_coords':  (140.980, -20.832, -129.160, -29.678, -38.898, -0.267),  # 16oz cup dispenser position
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
@@ -638,7 +638,7 @@ GRAB_PAPER_CUP_PARAMS = {
     '7oz': {
         'twist_back':   ( -65.440372, -10.652569,   4.188843,   6.867561,   0.095261,  29.626037),
         'approach':     ( 250,         -10,           0.0,          0,          0,         0),
-        'grip_width':   160,
+        'grip_width':   163,
         'retreat':      (-290,         0,           0,          0,          0,         0),
     },
 }
