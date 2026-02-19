@@ -167,7 +167,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_gripper_position", 255,140,255)
                 run_skill("set_DO", 3, 1)
                 time.sleep(1.5)
                 run_skill("set_DO", 3, 0)
@@ -237,10 +237,24 @@ def go_home_with_ice(**params) -> bool:
     def ok(r):
         return r not in (False, None)
 
-    if not ok(run_skill("moveEE_movJ", 0,0,5,0,0,0)):
+    cups_dict = _extract_cups_dict(params)
+    cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
+    if not cup_size or not validate_cup_size(cup_size):
         return False
 
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, 145)):
+    if not ok(run_skill("moveEE_movJ", -2.5,0,5,0,0,0)):
+        return False
+    
+    if cup_size == "7oz":
+        gripper_position = 140
+    elif cup_size == "9oz":
+        gripper_position = 145
+    elif cup_size == "12oz":
+        gripper_position = 140
+    elif cup_size == "16oz":
+        gripper_position = 130
+    
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
 
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
@@ -425,10 +439,10 @@ def pick_plastic_cup_sauces(**params) -> bool:
     _check_and_clear_cup_dispensed()
     
     gripper_positions = {
-        "7oz": 145,
-        "9oz": 145,
-        "12oz": 150,
-        "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
     }
     
     run_skill("set_speed_factor", SPEED_NORMAL)
@@ -494,10 +508,10 @@ def pick_plastic_cup_milk(**params) -> bool:
     _check_and_clear_cup_dispensed()
     
     gripper_positions = {
-        "7oz": 145,
-        "9oz": 145,
-        "12oz": 150,
-        "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
     }
     
     run_skill("set_speed_factor", SPEED_NORMAL)
