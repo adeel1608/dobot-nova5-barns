@@ -186,7 +186,6 @@ def mount_frother(**params) -> bool:
 
     return True
 
-
 def unmount_and_swirl_milk(**params) -> bool:
     """
     Swirl frothed milk in a circular motion for latte art preparation.
@@ -320,9 +319,11 @@ def return_frother(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *grab_angles)):
         return False
     run_skill("sync")
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['release'])):
+    run_skill("moveEE",0,0,5,0,0,0)
+    time.sleep(1.0)
+    if not ok(run_skill("set_gripper_position", 100, 165, 255)):
         return False
-    if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach'])):
+    if not ok(run_skill("moveEE", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach'])):
         return False
     if not ok(run_skill("gotoJ_deg", *approach_angles)):
         return False
