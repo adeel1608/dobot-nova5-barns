@@ -732,6 +732,26 @@
   ],
   "Test": [
     {
+      "action": "Dispense Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    },
+    {"action": "Froth Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Dispense Milk Pitcher"]
+    },
+    {
+      "action": "Pour Frothed Milk",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Froth Milk"]
+    },
+    {"action": "Clean Milk Pitcher",
+      "assigned_arm": "Arm2",
+      "depends_on": ["Pour Frothed Milk"]
+    }
+  ],
+  "Test Slush": [
+    {
       "action": "Dispense Slush",
       "assigned_arm": "Arm2",
       "depends_on": []
