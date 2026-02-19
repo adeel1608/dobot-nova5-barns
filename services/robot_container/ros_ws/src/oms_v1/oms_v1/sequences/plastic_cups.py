@@ -153,7 +153,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_gripper_position", 255,135,255)
                 run_skill("set_DO", 1, 1)
                 time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
@@ -415,6 +415,7 @@ def place_plastic_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2'])):
         return False
+    run_skill("moveEE",-5,0,0,0,0,0)
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
         return False
     return True

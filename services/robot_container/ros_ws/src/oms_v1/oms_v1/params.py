@@ -462,7 +462,7 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 # Volume-based Z adjustment for frother
-MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.7  # Factor for calculating Z adjustment based on milk volume
+MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.5  # Factor for calculating Z adjustment based on milk volume
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
