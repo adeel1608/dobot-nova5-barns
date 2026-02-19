@@ -507,10 +507,10 @@ async def dispense_syrup(params: dict):
             "details": all_results
         }
 
-# Ice dispenser calibration data: input sent -> actual output received
+# Calibration data: input sent -> actual output received
 ICE_CALIBRATION_DATA = {
-    'input': [10, 20, 30, 40, 50, 60, 70, 75, 80, 176.8],
-    'output': [30, 37.1, 47.5, 58, 65.1, 66.6, 70, 97.6, 98.7, 184.3]
+    'input':  [10,  20,  30,  40,  50,  60,  70,  75,  80,   84,  120,  176.8, 180],
+    'output': [30, 37.1, 47.5, 58, 65.1, 66.6, 70, 97.6, 98.7, 116,  154,  184.3, 221]
 }
 
 def calculate_ice_input(desired_output):
