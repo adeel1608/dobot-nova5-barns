@@ -319,7 +319,7 @@ def return_frother(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *grab_angles)):
         return False
     run_skill("sync")
-    run_skill("moveEE",0,0,5,0,0,0)
+    run_skill("moveEE",0,0,2.5,0,0,0)
     time.sleep(1.0)
     if not ok(run_skill("set_gripper_position", 100, 165, 255)):
         return False
