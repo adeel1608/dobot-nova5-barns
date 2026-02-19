@@ -732,14 +732,9 @@
   ],
   "Test": [
     {
-      "action": "Dispense Coffee",
+      "action": "Dispense Slush",
       "assigned_arm": "Arm2",
       "depends_on": []
-    },
-    {
-      "action": "Purge Coffee Machine",
-      "assigned_arm": "Arm2",
-      "depends_on": ["Dispense Coffee"]
     }
   ]
 }
