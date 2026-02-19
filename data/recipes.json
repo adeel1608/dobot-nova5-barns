@@ -749,5 +749,12 @@
       "assigned_arm": "Arm2",
       "depends_on": ["Pour Frothed Milk"]
     }
+  ],
+  "Test Slush": [
+    {
+      "action": "Dispense Slush",
+      "assigned_arm": "Arm2",
+      "depends_on": []
+    }
   ]
 }
