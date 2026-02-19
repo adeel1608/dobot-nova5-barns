@@ -18,7 +18,7 @@
 !services/robot-arm-k8s/dockerfile.robot2
 !/services/robot-arm-k8s/Dockerfile.robot1
 !services/robot-arm-k8s/build-robot1-image.sh
-!services/robot-arm-k8s/build-robot2-image.sh
+!services/**
 !k8s-deployment/scripts/setup-worker.sh
 !/k8s
 !k8s/**

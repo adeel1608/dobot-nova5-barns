@@ -1,0 +1,8 @@
+1. Changing water and milk doesnt update the level bar
+2. When I punch order I get odd volumes for water and milk:
+
+2.1 scenario 1. water was set to 100 and oms recived following json:
+{'order': {'cups': [{'type': 'Americano', 'size': 'cup_H12', 'addons': [], 'ingredients': {'water': {1: 10000.0}, 'cups': {'cup_H12': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_double': 2.0}, 'position': {'cup_position': 1.0}}}]}} <class 'dict'>
+
+2.2 scenario 2. milk was set to 100 and oms received following json:
+{'order': {'cups': [{'type': 'Cappuccino', 'size': 'cup_H12', 'addons': [], 'ingredients': {'milk': {20: 0.0}, 'cups': {'cup_H12': 1.0}, 'temperature': {'regular_temperature': 73.0}, 'espresso': {'espresso_shot_double': 2.0}, 'position': {'cup_position': 1.0}}}]}} <class 'dict'>

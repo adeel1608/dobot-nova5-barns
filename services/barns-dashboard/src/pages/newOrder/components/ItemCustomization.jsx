@@ -27,8 +27,8 @@ export default function ItemCustomization({
   ingredientsByCategory,
   updateCartItem
 }) {
-  // Categories to hide completely (including temperature and ice - handled separately)
-  const hiddenCategories = ['premixes', 'sachets', 'cups', 'position', 'temperature', 'ice'];
+  // Categories to hide completely (including temperature, ice, milk, water - handled separately)
+  const hiddenCategories = ['premixes', 'sachets', 'cups', 'position', 'temperature', 'ice', 'water'];
   
   // Categories that can only have one selection (replaceable)
   const replaceableCategories = ['espresso', 'milk'];
@@ -41,19 +41,32 @@ export default function ItemCustomization({
   
   // Ice amount state (in grams)
   const [iceAmount, setIceAmount] = useState(() => {
-    // Get default ice amount from menu item
     const iceIngredient = item.selectedMenuItem?.default_ingredients?.find(
       ing => ing.category === 'ice'
     );
     if (!iceIngredient) return 0;
-    
-    // Calculate default amount
     const calculatedAmount = (iceIngredient.unit_amount || 0) * (iceIngredient.quantity || 1);
-    
-    // Cap at reasonable maximum (300g for largest cup)
-    const reasonableAmount = Math.min(calculatedAmount, 300);
-    
-    return reasonableAmount;
+    return Math.min(calculatedAmount, 300);
+  });
+  
+  // Milk amount state (in grams)
+  const [milkAmount, setMilkAmount] = useState(() => {
+    const milkIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'milk'
+    );
+    if (!milkIngredient) return 0;
+    const calculatedAmount = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+    return Math.min(calculatedAmount, 500);
+  });
+  
+  // Water amount state (in grams)
+  const [waterAmount, setWaterAmount] = useState(() => {
+    const waterIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'water'
+    );
+    if (!waterIngredient) return 0;
+    const calculatedAmount = (waterIngredient.unit_amount || 0) * (waterIngredient.quantity || 1);
+    return Math.min(calculatedAmount, 500);
   });
   
   // Update ice amount when item changes
@@ -65,11 +78,34 @@ export default function ItemCustomization({
       setIceAmount(0);
       return;
     }
-    
     const calculatedAmount = (iceIngredient.unit_amount || 0) * (iceIngredient.quantity || 1);
-    // Cap at reasonable maximum
-    const reasonableAmount = Math.min(calculatedAmount, 300);
-    setIceAmount(reasonableAmount);
+    setIceAmount(Math.min(calculatedAmount, 300));
+  }, [item.selectedMenuItem]);
+  
+  // Update milk amount when item changes
+  useEffect(() => {
+    const milkIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'milk'
+    );
+    if (!milkIngredient) {
+      setMilkAmount(0);
+      return;
+    }
+    const calculatedAmount = (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1);
+    setMilkAmount(Math.min(calculatedAmount, 500));
+  }, [item.selectedMenuItem]);
+  
+  // Update water amount when item changes
+  useEffect(() => {
+    const waterIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'water'
+    );
+    if (!waterIngredient) {
+      setWaterAmount(0);
+      return;
+    }
+    const calculatedAmount = (waterIngredient.unit_amount || 0) * (waterIngredient.quantity || 1);
+    setWaterAmount(Math.min(calculatedAmount, 500));
   }, [item.selectedMenuItem]);
   
   // Initialize default temperature in kitchen_notes when item is first added
@@ -146,6 +182,100 @@ export default function ItemCustomization({
       });
     } else {
       iceInitialized.current = true;
+    }
+  }, [item.selectedMenuItem, item.item_ingredients, itemId, updateCartItem]);
+  
+  // Initialize milk amount in item_ingredients when item is first added
+  const milkInitialized = React.useRef(false);
+  
+  useEffect(() => {
+    if (!item.selectedMenuItem) return;
+    if (milkInitialized.current) return;
+    
+    const milkIngredient = item.selectedMenuItem.default_ingredients?.find(
+      ing => ing.category === 'milk'
+    );
+    
+    if (!milkIngredient) {
+      milkInitialized.current = true;
+      return;
+    }
+    
+    const existingMilkMod = (item.item_ingredients || []).find(
+      mod => mod.isMilkAmountModification || (mod.category === 'milk' && mod.isAmountModification)
+    );
+    
+    if (!existingMilkMod) {
+      milkInitialized.current = true;
+      const defaultMilkAmount = Math.min(
+        (milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1),
+        500
+      );
+      
+      const milkModification = {
+        itemId: milkIngredient.ingredient_id,
+        initialItemId: milkIngredient.ingredient_id,
+        category: 'milk',
+        isModified: true,
+        isAddon: false,
+        isMilkAmountModification: true,
+        isAmountModification: true,
+        amountGrams: defaultMilkAmount,
+        qty: defaultMilkAmount,
+      };
+      
+      updateCartItem(itemId, {
+        item_ingredients: [...(item.item_ingredients || []), milkModification]
+      });
+    } else {
+      milkInitialized.current = true;
+    }
+  }, [item.selectedMenuItem, item.item_ingredients, itemId, updateCartItem]);
+  
+  // Initialize water amount in item_ingredients when item is first added
+  const waterInitialized = React.useRef(false);
+  
+  useEffect(() => {
+    if (!item.selectedMenuItem) return;
+    if (waterInitialized.current) return;
+    
+    const waterIngredient = item.selectedMenuItem.default_ingredients?.find(
+      ing => ing.category === 'water'
+    );
+    
+    if (!waterIngredient) {
+      waterInitialized.current = true;
+      return;
+    }
+    
+    const existingWaterMod = (item.item_ingredients || []).find(
+      mod => mod.isWaterAmountModification || (mod.category === 'water' && mod.isAmountModification)
+    );
+    
+    if (!existingWaterMod) {
+      waterInitialized.current = true;
+      const defaultWaterAmount = Math.min(
+        (waterIngredient.unit_amount || 0) * (waterIngredient.quantity || 1),
+        500
+      );
+      
+      const waterModification = {
+        itemId: waterIngredient.ingredient_id,
+        initialItemId: waterIngredient.ingredient_id,
+        category: 'water',
+        isModified: true,
+        isAddon: false,
+        isWaterAmountModification: true,
+        isAmountModification: true,
+        amountGrams: defaultWaterAmount,
+        qty: defaultWaterAmount,
+      };
+      
+      updateCartItem(itemId, {
+        item_ingredients: [...(item.item_ingredients || []), waterModification]
+      });
+    } else {
+      waterInitialized.current = true;
     }
   }, [item.selectedMenuItem, item.item_ingredients, itemId, updateCartItem]);
   
@@ -348,7 +478,7 @@ export default function ItemCustomization({
     if (item.capacityExceeded !== isCapacityExceeded) {
       updateCartItem(itemId, { capacityExceeded: isCapacityExceeded });
     }
-  }, [item, selectedTemperature, iceAmount, currentEspressoType, getIngredientDetailsById, itemId, updateCartItem]);
+  }, [item, selectedTemperature, iceAmount, milkAmount, waterAmount, currentEspressoType, getIngredientDetailsById, itemId, updateCartItem]);
   
   // Handle temperature selection with capacity validation
   const handleTemperatureChange = async (newTemperature) => {
@@ -528,6 +658,130 @@ export default function ItemCustomization({
       };
       updateCartItem(itemId, {
         item_ingredients: [...(item.item_ingredients || []), iceModification]
+      });
+    }
+  };
+
+  // Handle milk amount adjustment
+  const handleMilkAdjustment = (change) => {
+    const cupIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'cups'
+    );
+    const cupSize = cupIngredient?.type || 'H9';
+    const cupVolume = CUP_VOLUMES[cupSize] || 266;
+    
+    let newAmount = milkAmount + change;
+    if (newAmount < 0) newAmount = 0;
+    if (newAmount > 500) newAmount = 500;
+    
+    if (change > 0) {
+      let baseRecipeVolume = calculateRecipeVolume(item.selectedMenuItem.default_ingredients || []);
+      const newMilkVolume = newAmount / INGREDIENT_DENSITIES.milk;
+      const totalVolume = baseRecipeVolume + newMilkVolume;
+      
+      if (totalVolume > cupVolume) {
+        if (capacityInfo && capacityInfo.freeSpaceRemaining <= 0) {
+          alert('Cannot add more milk: Cup capacity exceeded!');
+          return;
+        }
+      }
+    }
+    
+    setMilkAmount(newAmount);
+    
+    const milkIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'milk'
+    );
+    if (!milkIngredient) return;
+    
+    const existingMilkModIndex = (item.item_ingredients || []).findIndex(
+      mod => mod.category === 'milk' && mod.isMilkAmountModification
+    );
+    
+    if (existingMilkModIndex >= 0) {
+      const updatedIngredients = [...(item.item_ingredients || [])];
+      updatedIngredients[existingMilkModIndex] = {
+        ...updatedIngredients[existingMilkModIndex],
+        amountGrams: newAmount,
+        qty: newAmount,
+      };
+      updateCartItem(itemId, { item_ingredients: updatedIngredients });
+    } else {
+      const milkModification = {
+        itemId: milkIngredient.ingredient_id,
+        initialItemId: milkIngredient.ingredient_id,
+        category: 'milk',
+        isModified: true,
+        isAddon: false,
+        isMilkAmountModification: true,
+        isAmountModification: true,
+        amountGrams: newAmount,
+        qty: newAmount,
+      };
+      updateCartItem(itemId, {
+        item_ingredients: [...(item.item_ingredients || []), milkModification]
+      });
+    }
+  };
+
+  // Handle water amount adjustment
+  const handleWaterAdjustment = (change) => {
+    const cupIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'cups'
+    );
+    const cupSize = cupIngredient?.type || 'H9';
+    const cupVolume = CUP_VOLUMES[cupSize] || 266;
+    
+    let newAmount = waterAmount + change;
+    if (newAmount < 0) newAmount = 0;
+    if (newAmount > 500) newAmount = 500;
+    
+    if (change > 0) {
+      let baseRecipeVolume = calculateRecipeVolume(item.selectedMenuItem.default_ingredients || []);
+      const newWaterVolume = newAmount / INGREDIENT_DENSITIES.water;
+      const totalVolume = baseRecipeVolume + newWaterVolume;
+      
+      if (totalVolume > cupVolume) {
+        if (capacityInfo && capacityInfo.freeSpaceRemaining <= 0) {
+          alert('Cannot add more water: Cup capacity exceeded!');
+          return;
+        }
+      }
+    }
+    
+    setWaterAmount(newAmount);
+    
+    const waterIngredient = item.selectedMenuItem?.default_ingredients?.find(
+      ing => ing.category === 'water'
+    );
+    if (!waterIngredient) return;
+    
+    const existingWaterModIndex = (item.item_ingredients || []).findIndex(
+      mod => mod.category === 'water' && mod.isWaterAmountModification
+    );
+    
+    if (existingWaterModIndex >= 0) {
+      const updatedIngredients = [...(item.item_ingredients || [])];
+      updatedIngredients[existingWaterModIndex] = {
+        ...updatedIngredients[existingWaterModIndex],
+        amountGrams: newAmount,
+        qty: newAmount,
+      };
+      updateCartItem(itemId, { item_ingredients: updatedIngredients });
+    } else {
+      const waterModification = {
+        itemId: waterIngredient.ingredient_id,
+        initialItemId: waterIngredient.ingredient_id,
+        category: 'water',
+        isModified: true,
+        isAddon: false,
+        isWaterAmountModification: true,
+        isAmountModification: true,
+        amountGrams: newAmount,
+        qty: newAmount,
+      };
+      updateCartItem(itemId, {
+        item_ingredients: [...(item.item_ingredients || []), waterModification]
       });
     }
   };
@@ -983,6 +1237,92 @@ export default function ItemCustomization({
           {capacityInfo && capacityInfo.freeSpaceRemaining < 0 && (
             <div className="ice-warning">
               Reduce ice to fit cup capacity
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Milk Amount Adjustment */}
+      {item.selectedMenuItem && item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'milk') && (
+        <div className="ingredient-category amount-adjustment milk-adjustment">
+          <label className="category-label">Milk</label>
+          <div className="amount-control">
+            <button
+              onClick={() => handleMilkAdjustment(-10)}
+              className="amount-btn minus"
+              disabled={milkAmount === 0}
+              title="Reduce milk by 10g"
+            >
+              −
+            </button>
+            <div className="amount-display">
+              <span className="amount-value">{milkAmount}g</span>
+              <span className="amount-level">
+                {(() => {
+                  if (milkAmount === 0) return 'No Milk';
+                  const milkIngredient = item.selectedMenuItem.default_ingredients.find(ing => ing.category === 'milk');
+                  const defaultAmount = milkIngredient ? Math.min((milkIngredient.unit_amount || 0) * (milkIngredient.quantity || 1), 500) : 100;
+                  if (milkAmount < defaultAmount * 0.7) return 'Light';
+                  if (milkAmount > defaultAmount * 1.3) return 'Extra';
+                  return 'Normal';
+                })()}
+              </span>
+            </div>
+            <button
+              onClick={() => handleMilkAdjustment(10)}
+              className="amount-btn plus"
+              disabled={milkAmount >= 500 || (capacityInfo && capacityInfo.freeSpaceRemaining <= 0)}
+              title={milkAmount >= 500 ? 'Maximum milk reached (500g)' : capacityInfo?.freeSpaceRemaining <= 0 ? 'Cup capacity exceeded' : 'Add milk by 10g'}
+            >
+              +
+            </button>
+          </div>
+          {capacityInfo && capacityInfo.freeSpaceRemaining < 0 && (
+            <div className="amount-warning">
+              Reduce milk to fit cup capacity
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Water Amount Adjustment */}
+      {item.selectedMenuItem && item.selectedMenuItem.default_ingredients?.some(ing => ing.category === 'water') && (
+        <div className="ingredient-category amount-adjustment water-adjustment">
+          <label className="category-label">Water</label>
+          <div className="amount-control">
+            <button
+              onClick={() => handleWaterAdjustment(-10)}
+              className="amount-btn minus"
+              disabled={waterAmount === 0}
+              title="Reduce water by 10g"
+            >
+              −
+            </button>
+            <div className="amount-display">
+              <span className="amount-value">{waterAmount}g</span>
+              <span className="amount-level">
+                {(() => {
+                  if (waterAmount === 0) return 'No Water';
+                  const waterIngredient = item.selectedMenuItem.default_ingredients.find(ing => ing.category === 'water');
+                  const defaultAmount = waterIngredient ? Math.min((waterIngredient.unit_amount || 0) * (waterIngredient.quantity || 1), 500) : 100;
+                  if (waterAmount < defaultAmount * 0.7) return 'Light';
+                  if (waterAmount > defaultAmount * 1.3) return 'Extra';
+                  return 'Normal';
+                })()}
+              </span>
+            </div>
+            <button
+              onClick={() => handleWaterAdjustment(10)}
+              className="amount-btn plus"
+              disabled={waterAmount >= 500 || (capacityInfo && capacityInfo.freeSpaceRemaining <= 0)}
+              title={waterAmount >= 500 ? 'Maximum water reached (500g)' : capacityInfo?.freeSpaceRemaining <= 0 ? 'Cup capacity exceeded' : 'Add water by 10g'}
+            >
+              +
+            </button>
+          </div>
+          {capacityInfo && capacityInfo.freeSpaceRemaining < 0 && (
+            <div className="amount-warning">
+              Reduce water to fit cup capacity
             </div>
           )}
         </div>

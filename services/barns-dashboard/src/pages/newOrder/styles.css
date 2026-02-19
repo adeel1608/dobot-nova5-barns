@@ -1138,6 +1138,109 @@
   text-align: center;
 }
 
+/* Generic amount adjustment controls (milk, water) - same pattern as ice */
+.ingredient-category.amount-adjustment {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--barns-gray-200);
+}
+
+.amount-control {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.amount-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  border: 2px solid var(--barns-primary);
+  background: white;
+  color: var(--barns-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.amount-btn:hover:not(:disabled) {
+  background: var(--barns-primary);
+  color: white;
+  transform: scale(1.05);
+}
+
+.amount-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  border-color: var(--barns-gray-300);
+  color: var(--barns-gray-400);
+}
+
+.amount-display {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: var(--barns-gray-50);
+  border: 2px solid var(--barns-gray-200);
+  border-radius: 8px;
+}
+
+.amount-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--barns-text);
+  line-height: 1;
+}
+
+.amount-level {
+  font-size: 0.75rem;
+  color: var(--barns-gray-600);
+  margin-top: 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.amount-warning {
+  margin-top: 0.375rem;
+  padding: 0.25rem 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  color: #dc2626;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Milk-specific accent */
+.milk-adjustment .amount-btn {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.milk-adjustment .amount-btn:hover:not(:disabled) {
+  background: #3b82f6;
+  color: white;
+}
+
+/* Water-specific accent */
+.water-adjustment .amount-btn {
+  border-color: #06b6d4;
+  color: #06b6d4;
+}
+
+.water-adjustment .amount-btn:hover:not(:disabled) {
+  background: #06b6d4;
+  color: white;
+}
+
 .ingredient-select-compact {
   width: 100%;
   padding: 0.5rem;
