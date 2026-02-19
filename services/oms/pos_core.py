@@ -743,11 +743,12 @@ def _create_ingredient_list(
             
             # ALWAYS apply milk adjustments from capacity calculation for milk ingredients
             if foam_reduced_milk > 0:
-                adjusted_milk = foam_reduced_milk - milk_substitution_amount
-                ingredient_obj.adjusted_amount = adjusted_milk
+                adjusted_milk = foam_reduced_milk - milk_substitution_amount  # in ml
+                ingredient_obj.adjusted_amount = adjusted_milk  # keep ml for capacity display
                 ingredient_obj.milk_reduction_percent = milk_substitution_percent
-                # Update total_amount to reflect adjustment
-                ingredient_obj.total_amount = adjusted_milk
+                # Convert ml → grams for dispatch (robot expects grams)
+                milk_density = INGREDIENT_DENSITIES.get("milk", 1.03)
+                ingredient_obj.total_amount = adjusted_milk * milk_density
 
         # Apply ice level to ice ingredients
         if category == "ice":
