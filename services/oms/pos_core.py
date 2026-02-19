@@ -417,11 +417,41 @@ def _apply_ingredient_modifications(
                     final_ingredients[i]["modified"] = True
                     final_ingredients[i]["ice_amount_grams"] = ice_amount_grams
                     break
-    
-    # Apply replacements (modifications where isAddon=False, isModified=True, but NOT ice)
+
+    # Handle milk amount modifications (user-set milk amount in grams)
     for mod in modifications:
-        # Skip ice modifications (handled above)
+        if mod.get("isMilkAmountModification") or (mod.get("category") == "milk" and mod.get("isAmountModification")):
+            initial_id = mod.get("initialItemId")
+            amount_grams = mod.get("amountGrams") or mod.get("qty", 0)
+
+            for i, ingredient in enumerate(final_ingredients):
+                if ingredient.get("ingredient_id") == initial_id or ingredient.get("category") == "milk":
+                    final_ingredients[i]["unit_amount"] = amount_grams
+                    final_ingredients[i]["quantity"] = 1      # quantity=1, unit_amount=grams
+                    final_ingredients[i]["base_units"] = "g"  # tag as grams so density division applies
+                    final_ingredients[i]["modified"] = True
+                    break
+
+    # Handle water amount modifications (user-set water amount in grams)
+    for mod in modifications:
+        if mod.get("isWaterAmountModification") or (mod.get("category") == "water" and mod.get("isAmountModification")):
+            initial_id = mod.get("initialItemId")
+            amount_grams = mod.get("amountGrams") or mod.get("qty", 0)
+
+            for i, ingredient in enumerate(final_ingredients):
+                if ingredient.get("ingredient_id") == initial_id or ingredient.get("category") == "water":
+                    final_ingredients[i]["unit_amount"] = amount_grams
+                    final_ingredients[i]["quantity"] = 1      # quantity=1, unit_amount=grams
+                    final_ingredients[i]["base_units"] = "g"  # tag as grams so density division applies
+                    final_ingredients[i]["modified"] = True
+                    break
+    
+    # Apply replacements (modifications where isAddon=False, isModified=True, but NOT ice/milk-amount/water-amount)
+    for mod in modifications:
+        # Skip ice, milk-amount, and water-amount modifications (handled above)
         if mod.get("isIceModification") or mod.get("category") == "ice":
+            continue
+        if mod.get("isMilkAmountModification") or mod.get("isWaterAmountModification") or mod.get("isAmountModification"):
             continue
             
         if not mod.get("isAddon", False) and mod.get("isModified"):
@@ -713,11 +743,12 @@ def _create_ingredient_list(
             
             # ALWAYS apply milk adjustments from capacity calculation for milk ingredients
             if foam_reduced_milk > 0:
-                adjusted_milk = foam_reduced_milk - milk_substitution_amount
-                ingredient_obj.adjusted_amount = adjusted_milk
+                adjusted_milk = foam_reduced_milk - milk_substitution_amount  # in ml
+                ingredient_obj.adjusted_amount = adjusted_milk  # keep ml for capacity display
                 ingredient_obj.milk_reduction_percent = milk_substitution_percent
-                # Update total_amount to reflect adjustment
-                ingredient_obj.total_amount = adjusted_milk
+                # Convert ml → grams for dispatch (robot expects grams)
+                milk_density = INGREDIENT_DENSITIES.get("milk", 1.03)
+                ingredient_obj.total_amount = adjusted_milk * milk_density
 
         # Apply ice level to ice ingredients
         if category == "ice":
