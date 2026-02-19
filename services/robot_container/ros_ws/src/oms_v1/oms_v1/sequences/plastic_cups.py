@@ -242,7 +242,7 @@ def go_home_with_ice(**params) -> bool:
     if not cup_size or not validate_cup_size(cup_size):
         return False
 
-    if not ok(run_skill("moveEE_movJ", -2.5,0,5,0,0,0)):
+    if not ok(run_skill("moveEE_movJ", -3,0,0,0,0,0)):
         return False
     
     if cup_size == "7oz":
