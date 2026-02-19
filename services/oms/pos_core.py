@@ -427,7 +427,8 @@ def _apply_ingredient_modifications(
             for i, ingredient in enumerate(final_ingredients):
                 if ingredient.get("ingredient_id") == initial_id or ingredient.get("category") == "milk":
                     final_ingredients[i]["unit_amount"] = amount_grams
-                    final_ingredients[i]["quantity"] = 1  # quantity is 1, unit_amount is grams
+                    final_ingredients[i]["quantity"] = 1      # quantity=1, unit_amount=grams
+                    final_ingredients[i]["base_units"] = "g"  # tag as grams so density division applies
                     final_ingredients[i]["modified"] = True
                     break
 
@@ -440,7 +441,8 @@ def _apply_ingredient_modifications(
             for i, ingredient in enumerate(final_ingredients):
                 if ingredient.get("ingredient_id") == initial_id or ingredient.get("category") == "water":
                     final_ingredients[i]["unit_amount"] = amount_grams
-                    final_ingredients[i]["quantity"] = 1  # quantity is 1, unit_amount is grams
+                    final_ingredients[i]["quantity"] = 1      # quantity=1, unit_amount=grams
+                    final_ingredients[i]["base_units"] = "g"  # tag as grams so density division applies
                     final_ingredients[i]["modified"] = True
                     break
     

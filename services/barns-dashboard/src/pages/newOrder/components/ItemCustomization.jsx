@@ -693,6 +693,13 @@ export default function ItemCustomization({
     );
     if (!milkIngredient) return;
 
+    // State (milkAmount) tracks the ingredient's native unit (ml if base_units='ml', else grams).
+    // The OMS / robot always expects grams, so convert if needed.
+    const milkBaseUnits = (milkIngredient.base_units || '').toLowerCase();
+    const milkAmountGrams = milkBaseUnits === 'ml'
+      ? newAmount * INGREDIENT_DENSITIES.milk   // ml → grams
+      : newAmount;                               // already grams
+
     const existingMilkModIndex = (item.item_ingredients || []).findIndex(
       mod => mod.category === 'milk' && mod.isMilkAmountModification
     );
@@ -701,8 +708,8 @@ export default function ItemCustomization({
       const updatedIngredients = [...(item.item_ingredients || [])];
       updatedIngredients[existingMilkModIndex] = {
         ...updatedIngredients[existingMilkModIndex],
-        amountGrams: newAmount,
-        qty: newAmount,
+        amountGrams: milkAmountGrams,
+        qty: milkAmountGrams,
       };
       updateCartItem(itemId, { item_ingredients: updatedIngredients });
     } else {
@@ -714,8 +721,8 @@ export default function ItemCustomization({
         isAddon: false,
         isMilkAmountModification: true,
         isAmountModification: true,
-        amountGrams: newAmount,
-        qty: newAmount,
+        amountGrams: milkAmountGrams,
+        qty: milkAmountGrams,
       };
       updateCartItem(itemId, {
         item_ingredients: [...(item.item_ingredients || []), milkModification]
@@ -755,6 +762,13 @@ export default function ItemCustomization({
     );
     if (!waterIngredient) return;
 
+    // State (waterAmount) tracks the ingredient's native unit (ml if base_units='ml', else grams).
+    // The OMS / robot always expects grams, so convert if needed.
+    const waterBaseUnits = (waterIngredient.base_units || '').toLowerCase();
+    const waterAmountGrams = waterBaseUnits === 'ml'
+      ? newAmount * (INGREDIENT_DENSITIES.water || 1.0)  // ml → grams (water density ≈ 1)
+      : newAmount;                                        // already grams
+
     const existingWaterModIndex = (item.item_ingredients || []).findIndex(
       mod => mod.category === 'water' && mod.isWaterAmountModification
     );
@@ -763,8 +777,8 @@ export default function ItemCustomization({
       const updatedIngredients = [...(item.item_ingredients || [])];
       updatedIngredients[existingWaterModIndex] = {
         ...updatedIngredients[existingWaterModIndex],
-        amountGrams: newAmount,
-        qty: newAmount,
+        amountGrams: waterAmountGrams,
+        qty: waterAmountGrams,
       };
       updateCartItem(itemId, { item_ingredients: updatedIngredients });
     } else {
@@ -776,8 +790,8 @@ export default function ItemCustomization({
         isAddon: false,
         isWaterAmountModification: true,
         isAmountModification: true,
-        amountGrams: newAmount,
-        qty: newAmount,
+        amountGrams: waterAmountGrams,
+        qty: waterAmountGrams,
       };
       updateCartItem(itemId, {
         item_ingredients: [...(item.item_ingredients || []), waterModification]
@@ -997,8 +1011,21 @@ export default function ItemCustomization({
                 addonsByCategory[category] += addon.volume;
               });
 
-              const milkVolume = capacityInfo.adjustedMilkAmount || 0;
-              const foamVolume = capacityInfo.foamReductionAmount || 0;
+              // Compute milk/foam directly from milkAmount state (same pattern as ice / iceAmount).
+              // This makes the bar update instantly on every slider click without waiting for
+              // the async useEffect that recalculates capacityInfo.
+              const milkIngForBar = item.selectedMenuItem.default_ingredients?.find(ing => ing.category === 'milk');
+              const milkBaseUnitsForBar = (milkIngForBar?.base_units || '').toLowerCase();
+              // milkAmount state is in the ingredient's native unit (ml if base_units='ml', else grams)
+              const milkRawVol = milkBaseUnitsForBar === 'ml'
+                ? milkAmount
+                : milkAmount / INGREDIENT_DENSITIES.milk;
+              // Foam reduction from selected temperature (0 for iced drinks)
+              const tempFoamPct = isIced
+                ? 0
+                : (TEMPERATURE_OPTIONS.find(t => t.id === selectedTemperature)?.foamPercent ?? 10);
+              const foamVolume = milkRawVol * (tempFoamPct / 100);
+              const milkVolume = milkRawVol - foamVolume; // liquid milk portion only
 
               const milkPercent = (milkVolume / cupVolume) * 100;
               const foamPercent = (foamVolume / cupVolume) * 100;
@@ -1060,7 +1087,7 @@ export default function ItemCustomization({
                       <div
                         className="capacity-segment milk"
                         style={{ width: `${milkPercent}%` }}
-                        title={`Milk: ${capacityInfo.adjustedMilkAmount.toFixed(0)}ml`}
+                        title={`Milk: ${milkVolume.toFixed(0)}ml`}
                       />
                     )}
 
@@ -1069,7 +1096,7 @@ export default function ItemCustomization({
                       <div
                         className="capacity-segment foam"
                         style={{ width: `${foamPercent}%` }}
-                        title={`Foam: ${capacityInfo.foamReductionAmount.toFixed(0)}ml`}
+                        title={`Foam: ${foamVolume.toFixed(0)}ml`}
                       />
                     )}
 
@@ -1116,12 +1143,12 @@ export default function ItemCustomization({
                     <div className="capacity-legend">
                       <div className="legend-item">
                         <span className="legend-color milk"></span>
-                        <span className="legend-label">Milk: {capacityInfo.adjustedMilkAmount.toFixed(0)}ml</span>
+                        <span className="legend-label">Milk: {milkVolume.toFixed(0)}ml</span>
                       </div>
                       {foamPercent > 0 && (
                         <div className="legend-item">
                           <span className="legend-color foam"></span>
-                          <span className="legend-label">Foam: {capacityInfo.foamReductionAmount.toFixed(0)}ml</span>
+                          <span className="legend-label">Foam: {foamVolume.toFixed(0)}ml</span>
                         </div>
                       )}
                       {espressoPercent > 0 && (
