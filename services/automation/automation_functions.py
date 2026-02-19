@@ -889,7 +889,8 @@ _PURGE_MOTORS_ORDER = sorted(_PURGE_SYRUP_MOTORS) + sorted(_PURGE_MILK_MOTORS)
 async def purge_milks_syrups(params: dict):
     """
     Run each syrup and milk motor one by one for a fixed duration (purge).
-    params: {"seconds": 5} (optional, default 5). Uses same MQTT topics as dispense_milk/dispense_syrup.
+    Uses automation_trigger (D_OP_TRIGGER) so motors run by time without scale; slave rejects target_g > 999.
+    params: {"seconds": 5} (optional, default 5).
     """
     seconds = float(params.get("seconds", 5.0))
     if seconds <= 0:
@@ -903,13 +904,13 @@ async def purge_milks_syrups(params: dict):
     username = params.get("username", "admin")
     password = params.get("password", "admin123")
     response_timeout = seconds + 25.0
+    topic = "automation_trigger"
+    rsp_topic = "automation_trigger/response"
 
     log("INFO", f"[PURGE-MILKS-SYRUPS] Starting purge: {len(_PURGE_MOTORS_ORDER)} motors, {seconds}s each", service="automation")
 
     all_results = []
     for i, pump_number in enumerate(_PURGE_MOTORS_ORDER):
-        topic = "automation_milk" if pump_number in _PURGE_MILK_MOTORS else "automation_syrup"
-        rsp_topic = "automation_milk/response" if pump_number in _PURGE_MILK_MOTORS else "automation_syrup/response"
         response = {"data": None}
 
         def on_connect(client, userdata, flags, rc, props=None):
@@ -922,16 +923,7 @@ async def purge_milks_syrups(params: dict):
             except json.JSONDecodeError:
                 pass
 
-        payload = json.dumps({
-            "pump_number": pump_number,
-            "amount": 9999.0,
-            "slow": 0,
-            "visc": 0,
-            "timeout": seconds,
-            "slow_pct": 0,
-            "viscous_pct": 0,
-            "timeout_s": seconds,
-        })
+        payload = json.dumps({"pump_number": pump_number, "seconds": seconds})
         client = mqtt.Client(protocol=mqtt.MQTTv311)
         client.username_pw_set(username, password)
         client.on_connect = on_connect

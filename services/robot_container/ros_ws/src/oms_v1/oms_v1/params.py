@@ -328,9 +328,9 @@ ESPRESSO_SPEEDS = {
 }
 
 ESPRESSO_PITCHER_GRIPPER = {
-    'port_1': GRIPPER_PITCHER_2,    # Gripper setting for port 1 pitcher (115)
-    'port_2': GRIPPER_PITCHER_1,    # Gripper setting for port 2 pitcher (115)
-    'port_3': GRIPPER_PITCHER_1,    # Gripper setting for port 3 pitcher (115)
+    'port_1': GRIPPER_PITCHER_2,    # Gripper setting for port 1 pitcher (110)
+    'port_2': GRIPPER_PITCHER_1,    # Gripper setting for port 2 pitcher (105)
+    'port_3': GRIPPER_PITCHER_1,    # Gripper setting for port 3 pitcher (105)
     'release': GRIPPER_RELEASE_PITCHER,  # Release setting (75)
 }
 
@@ -523,16 +523,16 @@ MILK_FROTHING_PARAMS = {
 # ─── SLUSH PARAMETERS ─────────────────────────────────────────────────────────────
 SLUSH_PARAMS = {
     'navigation': {
-        'intermediate': (106.212090, -43.618443, -136.693954, 1.223362, -23.919476, -0.124173),  # Intermediate position when navigating to slush area
+        'intermediate': (108.048808,-43.659720,-136.952660,1.308469,-21.840798,-0.671933),  # Intermediate position when navigating to slush area
         'slush_area':   (33.380177,-65.448544,-125.305906,18.179613,-139.723057,1.841451),  # Main slush dispensing area position
     },
-    'dispenser_1': {
-        'dispense':     (53.272518, -67.612831, -88.370926, -23.156694, -119.473190, -0.214796),  # Dispenser 1 dispensing position
+    'dispenser_2': {
+        'dispense':     (48.955675,-75.871127,-78.937630,-24.995098,-130.979792,0.074919),  # Dispenser 1 dispensing position
         'retreat':      (45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864),  # Retreat position from dispenser 1
     },
-    'dispenser_2': {
+    'dispenser_1': {
         'intermediate': (17.117330,-72.397126,-55.180654,-48.179137,-153.839501,1.256867),  # Intermediate position for dispenser 2
-        'dispense':     (39.080325,-80.227702,-48.030111,-51.277060,-130.866959,-0.148558),  # Dispenser 2 dispensing position
+        'dispense':     (37.399140,-96.148986,-22.368426,-61.228713,-142.586873,0.170621),  # Dispenser 2 dispensing position
         'retreat':      (22.607694,-78.770437,-48.740179,-48.922226,-148.368363,0.479901),  # Retreat position from dispenser 2
     },
 }
@@ -582,14 +582,14 @@ PLASTIC_CUPS_PARAMS = {
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
-        'position2':    (46.241082,-71.126117,-82.426418,-26.093993,-43.687633,-0.302819),  # Second ice position (dispense)
+        'position2':    (46.241162,-70.803957,-82.605716,-26.237127,-43.687160,-0.302443),  # Second ice position (dispense)
     },
     'staging': {
         # Staging positions for placing plastic cups
-        'place_1':      (-82.522181,-50.735762,-126.581344,-2.476677,-82.420135,-0.099928),  # Stage 1 placement position
-        'place_2':      (-102.678188,-51.825704,-116.952115,-11.037622,-102.578374,-0.025293),  # Stage 2 placement position
-        'place_3':      (-118.947162,-55.648503,-100.620319,-23.542009,-118.855164,0.038563),  # Stage 3 placement position
-        'place_4':      (-130.494242,-62.993442,-78.390283,-38.407176,-130.418147,0.093833),  # Stage 4 placement position
+        'place_1':      (-82.495347,-50.751238,-126.575974,-2.414609,-82.426553,-0.078193),  # Stage 1 placement position
+        'place_2':      (-103.053575,-51.655540,-118.074840,-10.022299,-102.986149,0.016289),  # Stage 2 placement position
+        'place_3':      (-119.620530,-54.959088,-103.132825,-21.640516,-119.557694,0.101475),  # Stage 3 placement position
+        'place_4':      (-131.763914,-61.608221,-82.272711,-35.811243,-131.710665,0.182086),  # Stage 4 placement position
         # Pickup positions for picking plastic cups (same as paper cups)
         'pickup_1':     (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),  # Stage 1 pickup position
         'pickup_2':     (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),  # Stage 2 pickup position
@@ -598,11 +598,11 @@ PLASTIC_CUPS_PARAMS = {
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Second position at sauces station (place/pick)
+        'position2':    (-27.222774,-66.047969,-95.799123,-17.971018,-117.142337,0.018850),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Second position at milk station (place/pick)
+        'position2':    (-39.590470,-73.316870,-70.346339,-36.135459,-129.527190,0.080320),  # Second position at milk station (place/pick)
     },
 }
 
@@ -717,7 +717,7 @@ PAPER_CUPS_STATION_PARAMS = {
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
         'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
-        'position3':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Third position at milk station (place/pick)
+        'position3':    (-38.663202,-74.192391,-67.777961,-37.829308,-128.602018,0.077164),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station

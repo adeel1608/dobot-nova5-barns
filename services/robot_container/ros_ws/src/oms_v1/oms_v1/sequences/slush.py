@@ -119,12 +119,16 @@ def get_slush(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
         return False
     
-    if dispenser == "1":
-        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
-    else:
-        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])):
-            return False
+    if dispenser == "2":
         dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
+        if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+            return False
+    else:
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['intermediate'])):
+            return False
+        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
+        if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+            return False
     
     if not ok(dispenser_result):
         return False
@@ -164,11 +168,23 @@ def place_slush(**params) -> bool:
         return False
     
     run_skill("set_speed_factor", SPEED_NORMAL)
+    gripper_positions = {
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
+    }
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, gripper_positions[cup_size])):
+        return False
     
-    if dispenser == "1":
-        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
-    else:
+    if dispenser == "2":
         retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
+    else:
+        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['intermediate'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
+            return False
     
     if not ok(retreat_result):
         return False
@@ -180,8 +196,7 @@ def place_slush(**params) -> bool:
     if not place_plastic_cup_station(position={'cup_position': int(stage)}, cups={cup_code: 1.0}):
         return False
     
-    return True
-      
+    return True 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_slush': get_slush,
