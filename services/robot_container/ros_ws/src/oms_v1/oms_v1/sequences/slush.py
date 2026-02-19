@@ -14,7 +14,8 @@ from oms_v1.sequences.home import home
 from oms_v1.sequences.plastic_cups import dispense_plastic_cup, place_plastic_cup_station
 from oms_v1.params import (
     SLUSH_PARAMS, SPEED_NORMAL, DEFAULT_PLASTIC_CUP_SIZE,
-    _extract_cup_position, _extract_cups_dict, _normalize_cup_size
+    _extract_cup_position, _extract_cups_dict, _normalize_cup_size, 
+    GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE
 )
 
 
