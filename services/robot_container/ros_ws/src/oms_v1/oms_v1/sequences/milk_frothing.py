@@ -14,9 +14,9 @@ from oms_v1.sequences.home import home, return_back_to_home
 from oms_v1.params import (
     MILK_FROTHING_PARAMS, MILK_FROTHER_SPEEDS, MILK_FROTHER_GRIPPER_POSITIONS,
     MILK_FROTHER_MOVEMENT_OFFSETS, MILK_POURING_OFFSETS, MILK_FROTHING_DELAYS,
-    MILK_SWIRL_CIRCLE_PARAMS, MILK_VOLUME_Z_ADJUSTMENT_FACTOR,
+    MILK_SWIRL_CIRCLE_PARAMS, MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE,
     GRIPPER_FULL, GRIPPER_OPEN, CALIBRATION_SETTLE_TIME,
-    _extract_cup_position
+    _extract_cup_position, _extract_cups_dict, _normalize_cup_size
 )
 
 # Global variables to store robot positions during milk frothing operations
@@ -140,33 +140,52 @@ def pick_frother_milk_station(**params) -> bool:
 def mount_frother(**params) -> bool:
     """
     Mount the milk frother to the steam wand for frothing preparation.
+    Applies a Z adjustment based on milk volume and cup size.
     """
     def ok(r):
         return r not in (False, None)
-    
+
     run_skill("sync")
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['mount'])
-    
+
     if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
         return False
-    
+
     if not ok(run_skill("mount_machine", "left_steam_wand", "deep_froth")):
         return False
-    
-    # run_skill("sync")
-    # run_skill("release_tension")
-    # run_skill("moveEE_movJ", 10,-10,-5,0,0,0)
-    # run_skill("moveEE_movJ", 0,0,5,0,0,0)
-    
-    milk_data = params.get('milk', {})
-    volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
-    z_adjustment = MILK_VOLUME_Z_ADJUSTMENT_FACTOR * volume_ml
+
+    # ── Determine cup size from params (same idea as paper_cups.py) ──
+    cups_dict = _extract_cups_dict(params)
+    # We accept either H or C codes in practice; try paper then plastic fallback.
+    cup_size = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
+    if not cup_size:
+        cup_size = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
+
+    if not cup_size:
+        cup_size = 'default'
+
+    # ── Get milk volume (ml) ──
+    milk_data = params.get('milk') or params.get('ingredients', {}).get('milk', {}) or {}
+    try:
+        volume_ml = float(next(iter(milk_data.values()), 0)) if isinstance(milk_data, dict) else float(milk_data or 0)
+    except (TypeError, ValueError):
+        volume_ml = 0.0
+
+    # ── Compute Z adjustment ──
+    factor = MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE.get(
+        cup_size,
+        MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE['default']
+    )
+    z_adjustment = factor * volume_ml
+
+    # Move down by z_adjustment (your existing behavior)
     run_skill("moveEE_movJ", 0, 20, -z_adjustment, 0, 0, 0)
-    
+
     if not ok(run_skill("sync")):
         return False
-    
+
     return True
+
 
 def unmount_and_swirl_milk(**params) -> bool:
     """

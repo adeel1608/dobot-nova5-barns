@@ -461,8 +461,11 @@ MILK_SWIRL_CIRCLE_PARAMS = {
     'options': ["tool=0"],  # Circle motion options
 }
 
-# Volume-based Z adjustment for frother
-MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.5  # Factor for calculating Z adjustment based on milk volume
+MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
+    '9oz':  0.1866666667 * 0.3,
+    '12oz': 0.1866666667 * 0.5,
+    'default': 0.1866666667 * 0.1,
+}
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
