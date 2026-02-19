@@ -879,6 +879,110 @@ async def dispense_milk(params: dict):
             "details": all_results
         }
 
+
+# Motor sets used for purge (must match dispenser firmware / can2_protocol)
+_PURGE_MILK_MOTORS = {8, 12, 15, 16, 17, 18, 19, 20}
+_PURGE_SYRUP_MOTORS = {1, 7, 9, 11, 13, 14, 23}
+_PURGE_MOTORS_ORDER = sorted(_PURGE_SYRUP_MOTORS) + sorted(_PURGE_MILK_MOTORS)
+
+
+async def purge_milks_syrups(params: dict):
+    """
+    Run each syrup and milk motor one by one for a fixed duration (purge).
+    params: {"seconds": 5} (optional, default 5). Uses same MQTT topics as dispense_milk/dispense_syrup.
+    """
+    seconds = float(params.get("seconds", 5.0))
+    if seconds <= 0:
+        return {
+            "success": False,
+            "error": "seconds must be positive",
+            "message": "Invalid parameters: seconds must be positive",
+        }
+    mqtt_host = params.get("mqtt_host", MQTT_BROKER_HOST)
+    mqtt_port = params.get("mqtt_port", 30673)
+    username = params.get("username", "admin")
+    password = params.get("password", "admin123")
+    response_timeout = seconds + 25.0
+
+    log("INFO", f"[PURGE-MILKS-SYRUPS] Starting purge: {len(_PURGE_MOTORS_ORDER)} motors, {seconds}s each", service="automation")
+
+    all_results = []
+    for i, pump_number in enumerate(_PURGE_MOTORS_ORDER):
+        topic = "automation_milk" if pump_number in _PURGE_MILK_MOTORS else "automation_syrup"
+        rsp_topic = "automation_milk/response" if pump_number in _PURGE_MILK_MOTORS else "automation_syrup/response"
+        response = {"data": None}
+
+        def on_connect(client, userdata, flags, rc, props=None):
+            client.subscribe(rsp_topic, qos=1)
+
+        def on_message(client, userdata, msg):
+            try:
+                payload = json.loads(msg.payload.decode())
+                response["data"] = payload
+            except json.JSONDecodeError:
+                pass
+
+        payload = json.dumps({
+            "pump_number": pump_number,
+            "amount": 9999.0,
+            "slow": 0,
+            "visc": 0,
+            "timeout": seconds,
+            "slow_pct": 0,
+            "viscous_pct": 0,
+            "timeout_s": seconds,
+        })
+        client = mqtt.Client(protocol=mqtt.MQTTv311)
+        client.username_pw_set(username, password)
+        client.on_connect = on_connect
+        client.on_message = on_message
+
+        success_conn, _, _ = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+        if not success_conn:
+            log("ERROR", f"[PURGE-MILKS-SYRUPS] MQTT connect failed for motor {pump_number}", service="automation")
+            all_results.append({"pump_number": pump_number, "success": False, "error": "MQTT connect failed"})
+            continue
+
+        time.sleep(0.5)
+        client.publish(topic, payload, qos=1)
+
+        response_start = time.time()
+        log("INFO", f"[PURGE-MILKS-SYRUPS] Motor {pump_number} ({i + 1}/{len(_PURGE_MOTORS_ORDER)}) running for {seconds}s...", service="automation")
+
+        while response["data"] is None:
+            if (time.time() - response_start) > response_timeout:
+                log("WARNING", f"[PURGE-MILKS-SYRUPS] Timeout for motor {pump_number}", service="automation")
+                client.loop_stop()
+                client.disconnect()
+                all_results.append({"pump_number": pump_number, "success": True, "timeout": True})
+                break
+            await asyncio.sleep(0.1)
+
+        if response["data"] is None:
+            continue
+
+        client.loop_stop()
+        client.disconnect()
+        mqtt_response = response["data"]
+        status = (mqtt_response.get("status") or "").lower()
+        ok = status == "success"
+        all_results.append({
+            "pump_number": pump_number,
+            "success": ok,
+            "details": mqtt_response,
+        })
+        if not ok:
+            log("WARNING", f"[PURGE-MILKS-SYRUPS] Motor {pump_number} status={status}", service="automation")
+
+    all_success = all(r.get("success", False) for r in all_results)
+    log("INFO", f"[PURGE-MILKS-SYRUPS] Done: {sum(1 for r in all_results if r.get('success'))}/{len(all_results)} motors ok", service="automation")
+    return {
+        "success": all_success,
+        "message": f"Purge completed: {len(all_results)} motors, {seconds}s each",
+        "details": all_results,
+    }
+
+
 async def slush_machine(params: dict):
     """Slush machine using MQTT communication."""
     
@@ -1962,6 +2066,7 @@ AUTOMATION_FUNCTIONS = {
     "dispense_syrup": dispense_syrup,
     "dispense_sauce": dispense_sauce,
     "dispense_milk": dispense_milk,
+    "purge_milks_syrups": purge_milks_syrups,
     # "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,
     "coffee_machine": coffee_machine,
