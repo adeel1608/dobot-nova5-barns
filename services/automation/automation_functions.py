@@ -977,35 +977,55 @@ async def purge_milks_syrups(params: dict):
 
 async def slush_machine(params: dict):
     """Slush machine using MQTT communication."""
-    
-    slush_type = params.get("slush_type", "slush_2")
-    
-    # Handle nested cups dictionary format
-    if "cups" in params and isinstance(params["cups"], dict):
+
+    # --- slush_type mapping (internal, no helper funcs) ---
+    slush_type = params.get("slush_type")
+    if not slush_type:
+        premixes = params.get("premixes", {}) or {}
+        if isinstance(premixes, dict) and premixes:
+            premix_name = (list(premixes.keys())[0] or "").lower()
+
+            # Required mapping:
+            # - mocha -> slush_1
+            # - chocolate/choco -> slush_2
+            if "mocha" in premix_name:
+                slush_type = "slush_1"
+            elif "chocolate" in premix_name or "choco" in premix_name:
+                slush_type = "slush_2"
+            else:
+                slush_type = "slush_1"  # default if unknown premix
+        else:
+            slush_type = "slush_2"  # keep your original default if nothing to infer from
+
+    # --- cup mapping (your original logic) ---
+    if "cups" in params and isinstance(params["cups"], dict) and params["cups"]:
         cups_dict = params["cups"]
         cup_type = list(cups_dict.keys())[0]
-        
-        # Map cup type to weight (in grams) and difference
-        cup_type_lower = cup_type.lower()
+
+        cup_type_lower = str(cup_type).lower()
         if "cup_c9" in cup_type_lower:
-            weight = 500 #500g
-            difference = 100 #100g margin
+            weight = 500  # 500g
+            difference = 100  # 100g margin
         elif "cup_c12" in cup_type_lower:
-            weight = 400 #400g
-            difference = 100 #100g margin
+            weight = 400  # 400g
+            difference = 100  # 100g margin
         elif "cup_c16" in cup_type_lower:
-            weight = 300 #300g
-            difference = 100 #100g margin
+            weight = 300  # 300g
+            difference = 100  # 100g margin
         else:
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to weight 150", service="automation")
-            weight = 150 #150g
-            difference = 100 #100g margin
+            weight = 150  # 150g
+            difference = 100  # 100g margin
     else:
-        # Fallback to flat parameter format
-        weight = params.get("weight", 150)
-        difference = params.get("difference", 100)
-    
-    log("DEBUG", f"Calling Slush machine with slush_type={slush_type}, weight={weight}, difference={difference}", service="automation")
+        weight = int(params.get("weight", 150))
+        difference = int(params.get("difference", 100))
+
+    log(
+        "DEBUG",
+        f"Calling Slush machine with slush_type={slush_type}, weight={weight}, difference={difference}",
+        service="automation",
+    )
+
     response = {"data": None}
 
     def on_connect(client, userdata, flags, rc, props=None):
@@ -1021,17 +1041,16 @@ async def slush_machine(params: dict):
     payload = json.dumps({"slush_type": slush_type, "weight": weight, "difference": difference})
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.username_pw_set(
-        params.get("username", "admin"), 
+        params.get("username", "admin"),
         params.get("password", "admin123")
     )
     client.on_connect = on_connect
     client.on_message = on_message
-    
-    # Connect to RabbitMQ MQTT broker using service name in Docker network
+
     mqtt_host = params.get("mqtt_host", "192.168.200.109")
     mqtt_port = params.get("mqtt_port", 30673)
     success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
-    
+
     if not success:
         log("ERROR", "Failed to connect to any MQTT broker", service="automation")
         return {
@@ -1039,10 +1058,10 @@ async def slush_machine(params: dict):
             "error": "Failed to connect to MQTT broker",
             "message": "Failed to connect to MQTT broker"
         }
-    
+
     # Give a moment for subscription to be processed
     time.sleep(0.5)
-    
+
     client.publish("automation_slush", payload, qos=1)
 
     timeout = params.get("timeout", 120)
@@ -1058,12 +1077,12 @@ async def slush_machine(params: dict):
             "error": "Timeout: No response from dispenser",
             "message": "Timeout: No response from dispenser"
         }
+
     client.loop_stop()
     client.disconnect()
 
     log("DEBUG", f"[Slush Machine] Final response: {json.dumps(response['data'], indent=2)}", service="automation")
-    
-    # Standardize the response format
+
     mqtt_response = response["data"]
     if mqtt_response.get("status") == "success":
         return {
@@ -1072,8 +1091,7 @@ async def slush_machine(params: dict):
             "details": mqtt_response
         }
     else:
-        # Use error field if present, otherwise use status field
-        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        error_msg = mqtt_response.get("error", mqtt_response.get("status", "Unknown error"))
         return {
             "success": False,
             "error": error_msg,
