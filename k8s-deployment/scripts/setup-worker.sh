@@ -547,6 +547,26 @@ systemctl show -p LimitNOFILE containerd | sed 's/^/  /' || true
 
 print_status "containerd NOFILE limit set to 65536 and services restarted"
 
+MODEL_URL="https://storage.googleapis.com/rfdetr/rf-detr-large.pth"
+TMP_PATH="/tmp/rf-detr-large.pth"
+DEST_DIR="/mnt/ssd/barns-data/cup_models/models"
+DEST_PATH="${DEST_DIR}/rf-detr-large.pth"
+
+echo "Creating destination directory if it doesn't exist..."
+mkdir -p "$DEST_DIR"
+
+echo "Downloading model..."
+if [ ! -f "$DEST_PATH" ]; then
+    wget -q --show-progress "$MODEL_URL" -O "$TMP_PATH"
+    echo "Copying model to destination..."
+    cp "$TMP_PATH" "$DEST_PATH"
+else
+    echo "Model already exists. Skipping download."
+fi
+
+echo "Done."
+
+
 # Completion
 print_header "Worker Node Setup Complete!"
 
