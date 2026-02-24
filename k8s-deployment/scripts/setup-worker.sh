@@ -191,10 +191,10 @@ if ! is_docker_installed; then
     # Add Docker repo
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-    
+
     apt-get update -qq
     apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin > /dev/null 2>&1
-    
+
     # Configure Docker daemon with SSD storage
     cat > /etc/docker/daemon.json <<EOF
 {
@@ -209,21 +209,21 @@ if ! is_docker_installed; then
     "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]
 }
 EOF
-    
+
     systemctl daemon-reload
     systemctl restart docker
     systemctl enable docker > /dev/null 2>&1
-    
+
     print_status "Docker installed and configured"
 else
     print_info "Docker already installed"
-    
+
     # Ensure DNS configuration
     if [ -f /etc/docker/daemon.json ]; then
         if ! grep -q '"dns"' /etc/docker/daemon.json; then
             print_warning "Updating Docker DNS configuration..."
             backup_file /etc/docker/daemon.json
-            
+
             # Check if jq is available, if not use Python
             if command -v jq &> /dev/null; then
                 jq '. + {"dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"]}' /etc/docker/daemon.json > /tmp/daemon.json
@@ -234,7 +234,7 @@ else
                 print_warning "Neither jq nor python3 available, using basic sed replacement"
                 sed 's/^{/{\n  "dns": ["8.8.8.8", "8.8.4.4", "1.1.1.1"],/' /etc/docker/daemon.json > /tmp/daemon.json
             fi
-            
+
             mv /tmp/daemon.json /etc/docker/daemon.json
             systemctl restart docker
             print_status "Docker DNS configured"
@@ -259,11 +259,11 @@ version = 2
 [plugins]
   [plugins."io.containerd.grpc.v1.cri"]
     sandbox_image = "registry.k8s.io/pause:3.9"
-    
+
     [plugins."io.containerd.grpc.v1.cri".containerd]
       snapshotter = "overlayfs"
       default_runtime_name = "runc"
-      
+
       [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
         [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
           runtime_type = "io.containerd.runc.v2"
@@ -290,7 +290,7 @@ print_header "Step 6: Installing Kubernetes Components"
 if ! is_k8s_installed; then
     # Create keyrings directory if it doesn't exist
     mkdir -p /etc/apt/keyrings
-    
+
     # Add Kubernetes repo
     print_info "Adding Kubernetes repository..."
     if curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg; then
@@ -301,11 +301,11 @@ if ! is_k8s_installed; then
         print_error "Check your internet connection"
         exit 1
     fi
-    
+
     apt-get update -qq
     apt-get install -y kubelet kubeadm kubectl > /dev/null 2>&1
     apt-mark hold kubelet kubeadm kubectl > /dev/null 2>&1
-    
+
     print_status "Kubernetes components installed"
 else
     print_info "Kubernetes already installed: $(get_k8s_version)"
@@ -362,60 +362,60 @@ print_header "Step 9: Checking for Join Command"
 
 if [ -f /tmp/k8s-join-command.sh ]; then
     print_info "Found join command at /tmp/k8s-join-command.sh"
-    
+
     if ask_yes_no "Join the cluster now?"; then
         print_info "Joining cluster..."
         bash /tmp/k8s-join-command.sh
         print_status "Joined cluster"
-        
+
         # CRITICAL: Force containerd to use SSD with bind mount
         print_info "Forcing containerd to use SSD storage via bind mount..."
-        
+
         # Stop services temporarily
         systemctl stop kubelet
         systemctl stop containerd
-        
+
         # Move any existing containerd data to SSD
         if [ -d "/var/lib/containerd" ] && [ "$(ls -A /var/lib/containerd 2>/dev/null)" ]; then
             print_info "Moving existing containerd data to SSD..."
             rsync -a /var/lib/containerd/ "$SSD_MOUNT/var/lib/containerd/"
             rm -rf /var/lib/containerd
         fi
-        
+
         # Create bind mount directory
         mkdir -p /var/lib/containerd
         mkdir -p "$SSD_MOUNT/var/lib/containerd"
-        
+
         # Create bind mount to FORCE containerd to use SSD
         mount --bind "$SSD_MOUNT/var/lib/containerd" /var/lib/containerd
-        
+
         # Make bind mount persistent across reboots
         if ! grep -q "$SSD_MOUNT/var/lib/containerd /var/lib/containerd" /etc/fstab; then
             echo "$SSD_MOUNT/var/lib/containerd /var/lib/containerd none bind 0 0" >> /etc/fstab
             print_status "Bind mount added to /etc/fstab"
         fi
-        
+
         print_status "Containerd forced to use SSD via bind mount"
-        
+
         # Restart services
         systemctl start containerd
         sleep 3
         systemctl start kubelet
         sleep 5
-        
+
         # CRITICAL: Configure kubelet to use SSD root directory
         print_info "Configuring kubelet to use SSD via config.yaml..."
-        
+
         # Wait a moment for kubeadm to create the config file
         sleep 3
-        
+
         # Modify kubelet config.yaml to set rootDirectory
         KUBELET_CONFIG="/var/lib/kubelet/config.yaml"
-        
+
         if [ -f "$KUBELET_CONFIG" ]; then
             # Backup the config
             cp "$KUBELET_CONFIG" "${KUBELET_CONFIG}.backup.$(date +%s)"
-            
+
             # Check if rootDirectory is already set
             if grep -q "^rootDirectory:" "$KUBELET_CONFIG"; then
                 print_info "Updating existing rootDirectory in config..."
@@ -424,9 +424,9 @@ if [ -f /tmp/k8s-join-command.sh ]; then
                 print_info "Adding rootDirectory to config..."
                 echo "rootDirectory: $SSD_MOUNT/var/lib/kubelet" >> "$KUBELET_CONFIG"
             fi
-            
+
             print_status "Updated kubelet config.yaml with SSD root directory"
-            
+
             # Restart kubelet to apply changes
             systemctl restart kubelet
             sleep 5
@@ -434,7 +434,7 @@ if [ -f /tmp/k8s-join-command.sh ]; then
         else
             print_warning "Kubelet config.yaml not found yet, will be configured on first start"
         fi
-        
+
         # Wait for node to be ready
         print_info "Waiting for node to be ready..."
         sleep 10
@@ -490,9 +490,9 @@ fi
 # Step 11: Verify SSD Configuration
 if is_node_in_cluster; then
     print_header "Step 11: Verifying SSD Configuration"
-    
+
     sleep 3
-    
+
     # Verify kubelet root directory in config
     KUBELET_CONFIG="/var/lib/kubelet/config.yaml"
     if [ -f "$KUBELET_CONFIG" ] && grep -q "rootDirectory: $SSD_MOUNT" "$KUBELET_CONFIG"; then
@@ -504,7 +504,7 @@ if is_node_in_cluster; then
             grep "rootDirectory" "$KUBELET_CONFIG" || echo "  Not set"
         fi
     fi
-    
+
     # Verify SSD kubelet directory exists and is being used
     if [ -d "$SSD_MOUNT/var/lib/kubelet" ]; then
         KUBELET_SIZE=$(du -sh "$SSD_MOUNT/var/lib/kubelet" 2>/dev/null | cut -f1)
@@ -512,19 +512,40 @@ if is_node_in_cluster; then
     else
         print_warning "SSD kubelet directory not yet created"
     fi
-    
+
     # Verify kubelet is using --node-ip
     if ps aux | grep -E '/usr/bin/kubelet' | grep -v grep | grep -q "node-ip=$NODE_IP"; then
         print_status "kubelet is using --node-ip=$NODE_IP"
     else
         print_warning "kubelet may not be using --node-ip flag"
     fi
-    
+
     # Show disk usage
     print_info "Disk usage:"
     df -h / | tail -1
     df -h $SSD_MOUNT | tail -1
 fi
+
+# Step 11.5: Increase containerd file descriptor limit (NOFILE)
+print_header "Step 11.5: Configuring containerd NOFILE limit"
+
+# Create systemd drop-in for containerd
+mkdir -p /etc/systemd/system/containerd.service.d
+
+cat > /etc/systemd/system/containerd.service.d/limits.conf <<'EOF'
+[Service]
+LimitNOFILE=65536
+EOF
+
+# Reload systemd and restart services to apply
+systemctl daemon-reload
+systemctl restart containerd || true
+systemctl restart kubelet || true
+
+print_info "Effective containerd LimitNOFILE:"
+systemctl show -p LimitNOFILE containerd | sed 's/^/  /' || true
+
+print_status "containerd NOFILE limit set to 65536 and services restarted"
 
 # Completion
 print_header "Worker Node Setup Complete!"
@@ -590,4 +611,3 @@ EOF
 fi
 
 log_message "INFO" "Worker node setup completed successfully"
-
