@@ -518,6 +518,12 @@ print_info "Disk usage:"
 df -h / | tail -1
 df -h $SSD_MOUNT | tail -1
 
+ufw status
+ufw allow 6443/tcp
+ufw allow from any to any
+ufw reload
+
+
 # Completion
 print_header "Master Node Setup Complete!"
 
