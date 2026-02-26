@@ -997,28 +997,35 @@ async def slush_machine(params: dict):
         else:
             slush_type = "slush_2"  # keep your original default if nothing to infer from
 
-    # --- cup mapping (your original logic) ---
-    if "cups" in params and isinstance(params["cups"], dict) and params["cups"]:
+    # Priority 1: use premix weight directly if provided
+    if "premixes" in params and isinstance(params["premixes"], dict) and params["premixes"]:
+        premix_weight = float(list(params["premixes"].values())[0])
+        weight = int(premix_weight)
+        difference = max(1, int(round(weight * 0.1)))  # 10% differential
+        log("INFO", f"Slush weight from premix: {weight}g, difference: {difference}g", service="automation")
+
+    # Priority 2: derive weight from cup size (legacy path, no premix provided)
+    elif "cups" in params and isinstance(params["cups"], dict) and params["cups"]:
         cups_dict = params["cups"]
         cup_type = list(cups_dict.keys())[0]
 
         cup_type_lower = str(cup_type).lower()
         if "cup_c9" in cup_type_lower:
-            weight = 500  # 500g
-            difference = 100  # 100g margin
+            weight = 100  # 500g
+            difference = 10  # 100g margin
         elif "cup_c12" in cup_type_lower:
-            weight = 400  # 400g
-            difference = 100  # 100g margin
+            weight = 150  # 400g
+            difference = 15  # 100g margin
         elif "cup_c16" in cup_type_lower:
-            weight = 300  # 300g
-            difference = 100  # 100g margin
+            weight = 200  # 300g
+            difference = 20  # 100g margin
         else:
             log("ERROR", f"Unknown cup type: {cups_dict}, defaulting to weight 150", service="automation")
             weight = 150  # 150g
-            difference = 100  # 100g margin
+            difference = 10  # 100g margin
     else:
         weight = int(params.get("weight", 150))
-        difference = int(params.get("difference", 100))
+        difference = int(params.get("difference", 10))
 
     log(
         "DEBUG",
