@@ -3,6 +3,7 @@ import { useInventoryStore } from '../../../store/inventoryStore';
 import { useTranslation } from '../../../store/translationsStore';
 import { CATEGORY_INFO } from '../../../utils/inventoryData';
 import useStore from '../../../store';
+import { useIsPosMode } from '../../../store/displayStore';
 // import socket from '../../../utils/socketConfigure'; // Removed old Socket.IO - using WebSocket now
 
 const IngredientsIndicator = () => {
@@ -12,34 +13,49 @@ const IngredientsIndicator = () => {
   } = useInventoryStore();
   const { t } = useTranslation('dashboard');
   const { navigateToTab } = useStore();
+  const isPosMode = useIsPosMode();
   // const [isSocketConnected, setSocketConnected] = useState(socket.connected); // Removed old Socket.IO
   const [isSocketConnected, setSocketConnected] = useState(false);
 
-  // SVG Icons for each category
+  // SVG Icons for each category — recognizable at small sizes
   const categoryIcons = {
     milk: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M6 3h12l2 4v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7l2-4zm0 2l-1 2v12h14V7l-1-2H6zm2 8h8v2H8v-2zm0 4h8v2H8v-2z"/>
+      /* Milk jug / carton */
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 6l2-4h8l2 4" />
+        <path d="M5 6h14v4l-1 10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 10V6Z" />
+        <path d="M8 14c2 2 6 2 8 0" />
       </svg>
     ),
     coffee_beans: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8.5 2c-1.7 0-3 1.3-3 3 0 1.1.6 2.1 1.5 2.6-.9.5-1.5 1.5-1.5 2.6 0 1.7 1.3 3 3 3s3-1.3 3-3c0-1.1-.6-2.1-1.5-2.6.9-.5 1.5-1.5 1.5-2.6 0-1.7-1.3-3-3-3zm7 0c-1.7 0-3 1.3-3 3 0 1.1.6 2.1 1.5 2.6-.9.5-1.5 1.5-1.5 2.6 0 1.7 1.3 3 3 3s3-1.3 3-3c0-1.1-.6-2.1-1.5-2.6.9-.5 1.5-1.5 1.5-2.6 0-1.7-1.3-3-3-3zm-7 11c-1.7 0-3 1.3-3 3 0 1.1.6 2.1 1.5 2.6-.9.5-1.5 1.5-1.5 2.6 0 .6.5 1 1 1h4c.6 0 1-.4 1-1 0-1.1-.6-2.1-1.5-2.6.9-.5 1.5-1.5 1.5-2.6 0-1.7-1.3-3-3-3zm7 0c-1.7 0-3 1.3-3 3 0 1.1.6 2.1 1.5 2.6-.9.5-1.5 1.5-1.5 2.6 0 .6.5 1 1 1h4c.6 0 1-.4 1-1 0-1.1-.6-2.1-1.5-2.6.9-.5 1.5-1.5 1.5-2.6 0-1.7-1.3-3-3-3z"/>
+      /* Coffee bean */
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 2C8 2 4 6 4 12s4 10 8 10 8-4 8-10S16 2 12 2Z" />
+        <path d="M12 2c-2 4-2 16 0 20" />
       </svg>
     ),
     syrup: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M8 2h8v3h-8V2m0 4h8v2l2 8H6l2-8V6m2 10h4v2h-4v-2m-1 3h6v4a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1v-4z"/>
+      /* Bottle */
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M10 2h4v3a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2Z" />
+        <path d="M8.5 7h7l1 3v10a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V10l1-3Z" />
+        <path d="M10 14h4" />
       </svg>
     ),
     cups: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18 5V3H6v2H3v6c0 2.2 1.8 4 4 4v3h10v-3c2.2 0 4-1.8 4-4V5h-3zM7 13c-1.1 0-2-.9-2-2V7h2v6zm10 5H7v-3h10v3zm2-7c0 1.1-.9 2-2 2V7h2v4z"/>
+      /* Paper cup — tapered body with a rim and sleeve line */
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M7 3h10l-1.5 18H8.5L7 3Z" />
+        <path d="M6.5 3h11" />
+        <path d="M8.2 10h7.6" />
       </svg>
     ),
     premixes: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M9 3h6l2 2v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V5l2-2zm0 2v14h6V5H9zm2 3h2v2h-2V8zm0 3h2v2h-2v-2zm0 3h2v2h-2v-2z"/>
+      /* Flask / beaker */
+      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3h6v5l4 9a2 2 0 0 1-1.8 2.9H6.8A2 2 0 0 1 5 17l4-9V3Z" />
+        <path d="M9 3h6" />
+        <path d="M7 15h10" />
       </svg>
     )
   };
@@ -156,9 +172,9 @@ const IngredientsIndicator = () => {
   const ingredients = sortedIngredients.slice(0, 6);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-5 border border-gray-200 flex flex-col max-h-full">
+    <div className={`bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col max-h-full ${isPosMode ? 'p-2' : 'p-5'}`}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 flex-shrink-0">
+      <div className={`flex items-center justify-between border-b border-gray-100 flex-shrink-0 ${isPosMode ? 'mb-2 pb-1.5' : 'mb-4 pb-3'}`}>
         <div className="flex items-center gap-2">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">{t('inventoryStatus')}</h2>
         </div>
@@ -172,7 +188,7 @@ const IngredientsIndicator = () => {
       </div>
 
       {/* Grid Layout for Inventory Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 overflow-y-auto flex-1">
+      <div className={`grid gap-2 overflow-y-auto flex-1 ${isPosMode ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
         {ingredients.map((ingredient) => {
           const { key, name, percentage: numeric, status: level, icon } = ingredient;
           const percentage = Math.max(0, Math.min(100, numeric));
@@ -191,34 +207,44 @@ const IngredientsIndicator = () => {
             return 'bg-green-500';
           };
 
-          return (
+          return isPosMode ? (
+            /* POS compact card: icon + progress bar only, name/% as tooltip */
+            <div
+              key={key}
+              className={`${getCardBg(level, numeric)} rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md border flex flex-col items-center gap-1.5`}
+              onClick={handleNavigate}
+              title={`${name}: ${percentage}%`}
+            >
+              <div className={`${level === 'low' || numeric < 20 ? 'text-red-500' : level === 'medium' || numeric < 60 ? 'text-yellow-500' : 'text-green-600'}`}>
+                {icon}
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(level, numeric)}`}
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            /* Default card: icon, name, percentage, progress bar */
             <div
               key={key}
               className={`${getCardBg(level, numeric)} rounded-lg p-3 cursor-pointer transition-all duration-200 hover:shadow-md border`}
               onClick={handleNavigate}
             >
-              {/* Icon and Title Row */}
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex-1">
-                  <h4 className="font-medium text-gray-700 text-xs">
-                    {name}
-                  </h4>
+                  <h4 className="font-medium text-gray-700 text-xs">{name}</h4>
                 </div>
               </div>
-
-              {/* Percentage Display */}
               <div className="mb-2">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-l font-semibold text-gray-800">{percentage}%</span>
-                </div>
+                <span className="text-l font-semibold text-gray-800">{percentage}%</span>
               </div>
-              
-              {/* Progress Bar */}
               <div className="relative w-full bg-gray-200 rounded-full h-2">
                 <div
                   className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(level, numeric)}`}
                   style={{ width: `${percentage}%` }}
-                ></div>
+                />
               </div>
             </div>
           );

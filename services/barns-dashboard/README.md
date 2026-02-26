@@ -1,466 +1,249 @@
-# BARNS Dashboard
+# BARNS Dashboard (React + Vite)
 
-## Brief Overview
+## Overview
 
-The BARNS Dashboard is a modern React web application providing real-time monitoring and control of the entire coffee brewing system with live order tracking, inventory management, camera feeds, system alerts, and comprehensive analytics.
+The BARNS Dashboard is a React (Vite) single-page application for monitoring and operating the BARNS coffee system: orders, inventory, alerts, cameras, logs, and operational controls.
 
-## Key Features
+## Tech stack (as implemented)
 
-- **Real-Time Order Tracking**: Live updates via WebSocket/Socket.IO
-- **Inventory Management**: Visual stock levels with refill controls
-- **Camera Feeds**: Live MJPEG streams from multiple cameras
-- **Order Queue Management**: Drag-and-drop queue reordering
-- **System Alerts**: Low inventory and system warnings
-- **Analytics Dashboard**: Order statistics and performance metrics
-- **Recipe Management**: View and manage drink recipes
-- **POS Integration**: Direct order entry interface
-- **Responsive Design**: Modern UI with Tailwind CSS
-- **State Management**: Redux for predictable state updates
+- **React**: UI (`react`, `react-dom`)
+- **Vite**: dev server + build (`vite`, `@vitejs/plugin-react`)
+- **State**: Zustand (`zustand`) + per-feature stores under `src/store/`
+- **HTTP**: Axios via a shared `APIClient` wrapper (`axios`, `src/api/base.js`)
+- **Realtime**: Native WebSocket client (`src/utils/websocket.js`)
+- **Charts**: Recharts (`recharts`)
+- **Drag & drop**: dnd-kit (`@dnd-kit/core`, `@dnd-kit/sortable`)
+- **Styling**: Tailwind + scoped CSS (`tailwindcss`, page `styles.css`)
 
-## Architecture
+## Runtime architecture
+
+- **Development**
+  - Vite dev server exposes the UI (default `5173`).
+  - API calls go to `http://localhost:8000/api` (configured in `src/utils/config.js`).
+  - WebSocket connects to `ws://localhost:8000/ws` (configured in `src/utils/config.js`).
+  - InfluxDB requests to `/api/v2/*` are proxied to `http://localhost:8086` (configured in `vite.config.js`).
+
+- **Production**
+  - UI is served by Nginx from static `dist/` assets (see `nginx.conf` + `entrypoint.sh`).
+  - The app expects relative API paths (`/api`, `/ws`) and relies on the reverse-proxy to route them.
+  - `entrypoint.sh` generates `/env-config.js` at container start and injects it into `index.html` to provide runtime configuration via `window.env`.
+
+## Project structure (React dashboard layout)
+
+This codebase uses a feature-first layout: each page is a module with its own components and styles, while cross-cutting concerns live in `api/`, `store/`, `utils/`, and `constants/`.
 
 ```
-┌──────────────────────────────────────────────────┐
-│          BARNS Dashboard (React)                 │
-│                                                  │
-│  ┌────────────────────────────────────┐         │
-│  │  Pages                             │         │
-│  │  - Dashboard (main view)           │         │
-│  │  - Orders                          │         │
-│  │  - Inventory                       │         │
-│  │  - Analytics                       │         │
-│  │  - Settings                        │         │
-│  └────────────┬───────────────────────┘         │
-│               │                                  │
-│               ↓                                  │
-│  ┌────────────────────────────────────┐         │
-│  │  API Client (api/)                 │         │
-│  │  - orders.js                       │         │
-│  │  - inventory.js                    │         │
-│  │  - system.js                       │         │
-│  └────────────┬───────────────────────┘         │
-│               │                                  │
-│               ↓                                  │
-│  ┌────────────────────────────────────┐         │
-│  │  WebSocket/Socket.IO               │         │
-│  │  - Real-time updates               │         │
-│  └────────────────────────────────────┘         │
-└───────────────┬──────────────────────────────────┘
-                │
-                ↓
-       ┌────────────────┐
-       │  API Bridge    │
-       │  Service       │
-       │  Port 8000     │
-       └────────────────┘
+services/barns-dashboard/
+  src/
+    api/                      # All HTTP clients for backend services
+      base.js                 # axios wrapper + standardized response shape
+      orders.js               # orders + queue + POS endpoints
+      inventory.js            # inventory endpoints
+      alerts.js               # alerts endpoints
+      logs.js                 # logs endpoints
+      cameras.js              # camera list + recording endpoints
+      system.js               # system status + stop/resume
+      recipes.js              # recipes endpoint
+      index.js                # exports
+
+    pages/                    # UI pages (tabs)
+      dashboard/              # main operational view (orders + system + alerts summary)
+      newOrder/               # POS-style order entry UI
+      inventory/              # inventory panels + refill controls
+      alerts/                 # alerts list + acknowledgement
+      cameras/                # live streams + recordings controls
+      settings/               # monitoring, logs, ingredient limits, translations
+
+    store/                    # Zustand stores (per feature) + websocket integration
+      dashboardStore.js
+      inventoryStore.js
+      alertsStore.js
+      camerasStore.js
+      logsStore.js
+      translationsStore.js
+      index.js                # combined facade + websocket wiring
+
+    utils/
+      config.js               # API/WS/video base URLs + UI timings
+      websocket.js            # reconnecting WebSocket manager
+      influxClient.js         # InfluxDB query helper (Flux -> CSV -> parsed)
+      errorHandler.js         # shared error extraction
+
+    constants/                # UI constants + translations
+    App.jsx                   # tab navigation + layout
+    main.jsx                  # React entry
 ```
-
-## Setup & Installation
-
-### Prerequisites
-
-- Node.js 16+
-- npm or yarn
-- API Bridge service running
-
-### Local Development
-
-```bash
-cd services/barns-dashboard
-
-# Install dependencies
-npm install
-
-# Set API endpoint
-echo "VITE_API_URL=http://localhost:8000" > .env
-
-# Start dev server
-npm run dev
-
-# Access at http://localhost:5173
-```
-
-### Production Build
-
-```bash
-# Build static files
-npm run build
-
-# Output in dist/
-ls -la dist/
-
-# Serve with nginx (handled by Docker)
-```
-
-### Docker Deployment (production build)
-
-```bash
-docker-compose up -d dashboard
-# Access at http://localhost:3000
-```
-
-### Run with Docker Dev (hot reload, easy to change code)
-
-Use this when you want to run the full stack and edit the dashboard with live reload.
-
-1. **Start Docker Desktop** (or ensure the Docker daemon is running).
-
-2. From the repo root (`BARNS/`), start the dev stack:
-
-   ```bash
-   docker compose -f docker-compose.dev.yml up -d
-   ```
-
-3. Open the dashboard at **http://localhost:3000**. The dashboard runs the Vite dev server inside a container; the app source is mounted from `services/barns-dashboard/`. Edit any file under `services/barns-dashboard/src/` (or related config) and save; the browser will hot-reload.
-
-4. To view logs (e.g. dashboard or api-bridge):
-
-   ```bash
-   docker compose -f docker-compose.dev.yml logs -f dashboard
-   ```
-
-5. To stop the stack:
-
-   ```bash
-   docker compose -f docker-compose.dev.yml down
-   ```
-
-Backend services (API bridge on 8000, video stream on 8001, InfluxDB on 8086, etc.) are started by the same compose file and are used by the dashboard.
 
 ## Configuration
 
-### Environment Variables
+### API / WebSocket / Video stream base URLs
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VITE_API_URL` | `http://api-bridge:8000` | API Bridge URL |
-| `VIDEO_STREAM_URL` | `http://video-stream-service:8000` | Video stream service URL |
+The primary runtime configuration is centralized in `src/utils/config.js`:
 
-### nginx Configuration
+- **HTTP API base**: `API_CONFIG.API_BASE`
+  - Development: `http://localhost:8000/api`
+  - Production: `/api` (relative; reverse-proxy must route this)
+- **WebSocket base**: `API_CONFIG.WEBSOCKET_BASE`
+  - Development: `ws://localhost:8000/ws`
+  - Production: `/ws` (relative; reverse-proxy/ingress must route this)
+- **Video stream base**: `API_CONFIG.VIDEO_STREAM`
+  - Resolved from `window.env.VIDEO_STREAM_URL` or falls back to `http://localhost:30001`
 
-Served via nginx in production (port 80 internal, 3000 external).
+### Runtime env injection (Nginx container)
 
-## Key Components
+`entrypoint.sh` writes `/env-config.js` as:
 
-### Pages
+- `window.env.VIDEO_STREAM_URL`
+- `window.env.API_BRIDGE_URL`
+- `window.env.VITE_INFLUX_URL`
+- `window.env.VITE_INFLUX_TOKEN`
+- `window.env.VITE_INFLUX_ORG`
+- `window.env.VITE_INFLUX_BUCKET`
 
-1. **Dashboard** (`src/pages/dashboard/`)
-   - Order queue visualization
-   - Live camera feeds
-   - System status overview
-   - Quick actions
+Notes:
+- The UI currently reads `VIDEO_STREAM_URL` (via `src/utils/config.js`) and InfluxDB values (via `src/utils/influxClient.js`).
+- `API_BRIDGE_URL` is generated but is not currently used by `src/utils/config.js` for the main REST base URL.
 
-2. **Orders** (`src/pages/orders/`)
-   - Order creation interface
-   - Order history
-   - Order details view
+## APIs: inbound and outbound
 
-3. **Inventory** (`src/pages/inventory/`)
-   - Stock level visualization
-   - Refill controls
-   - Category summaries
-   - Low stock alerts
+This section inventories all network interfaces the dashboard exposes (inbound) and all calls it makes (outbound), as implemented in this service.
 
-4. **Analytics** (`src/pages/analytics/`)
-   - Order statistics
-   - Performance metrics
-   - Trend visualizations
+### Inbound (into the dashboard service)
 
-5. **Settings** (`src/pages/settings/`)
-   - Monitoring, System Logs, Ingredient Settings
-   - **Translations**: Add and edit per-page language translations. Users can add languages, add translation keys per page, and set text for each key per language. Data is stored in localStorage. To use translations in a page, import `useTranslation` from the store and call `t('key')` for each label; the app display language is set in Settings > Translations.
+- **UI (SPA)**
+  - `GET /` and static assets (served by Vite dev server or Nginx in prod)
+  - `GET /env-config.js` (generated at container start in prod by `entrypoint.sh`)
 
-### API Integration
+- **Reverse-proxy paths (prod Nginx)**
+  - `nginx.conf` currently proxies `location /api/` to `http://oms:8000/`
+    - This makes the dashboard container an ingress point for `/api/*` in production deployments where Nginx is used.
+  - WebSocket proxying for `/ws` is not configured in `nginx.conf` in this service (if you rely on `/ws` in prod, handle it in ingress or update Nginx).
 
-#### Order API (`src/api/orders.js`)
+### Outbound (from the dashboard to other services)
 
-```javascript
-import api from './base';
+#### A) REST API (primary backend; base is `API_CONFIG.API_BASE`)
 
-export const createOrder = async (order) => {
-  const response = await api.post('/api/orders', order);
-  return response.data;
-};
+All of these are called via `src/api/base.js` → `apiClient` (Axios). In development the full URL resolves under `http://localhost:8000/api`.
 
-export const startOrder = async (orderId) => {
-  const response = await api.patch(`/api/orders/${orderId}/start`);
-  return response.data;
-};
+- **Orders / Queue / POS** (`src/api/orders.js`)
+  - `GET /orders` (optional `limit`, `offset`)
+  - `POST /orders`
+  - `PATCH /orders/{orderId}/start`
+  - `POST /orders/{orderId}/stop`
+  - `POST /orders/{orderId}/resume`
+  - `DELETE /orders/{orderId}`
+  - `PUT /queue/reorder` (body: `{ order_ids: string[] }`)
+  - `POST /pos/process-order`
+  - `GET /pos/menu-items`
+  - `GET /pos/ingredients`
+  - `GET /orders/stats/summary`
 
-export const getQueue = async () => {
-  const response = await api.get('/api/queue');
-  return response.data;
-};
-```
+- **Inventory** (`src/api/inventory.js` + settings page)
+  - `GET /inventory/category-info`
+  - `GET /inventory/category-count`
+  - `GET /inventory/stock-level`
+  - `GET /inventory/status`
+  - `GET /inventory/status/{item}`
+  - `GET /inventory/category-summary`
+  - `POST /inventory/refill` (body: `{ ingredient: string, amount: number }`)
+  - `PUT /inventory/{item}/thresholds`
+  - `POST /inventory/update-limits` (used by `src/pages/settings/components/IngredientSettings.jsx`)
 
-#### Inventory API (`src/api/inventory.js`)
+- **Alerts** (`src/api/alerts.js`)
+  - `GET /alerts/active`
+  - `GET /alerts/acknowledged`
+  - `POST /alerts/{alertId}/acknowledge`
+  - `POST /alerts` (create)
 
-```javascript
-export const getInventoryStatus = async () => {
-  const response = await api.get('/api/inventory/status');
-  return response.data;
-};
+- **Logs** (`src/api/logs.js`)
+  - `GET /logs` (filters encoded as query string)
+  - `DELETE /logs` (clear)
+  - `GET /logs/export` (query: `format=csv|...`; response is a file/blob)
 
-export const refillInventory = async (ingredientType, subtype) => {
-  const response = await api.post(
-    `/api/inventory/refill?ingredient_type=${ingredientType}&subtype=${subtype}`
-  );
-  return response.data;
-};
-```
+- **Cameras (control plane)** (`src/api/cameras.js`)
+  - `GET /cameras`
+  - `POST /cameras/{cameraId}/record/start`
+  - `POST /cameras/{cameraId}/record/stop`
+  - `GET /cameras/{cameraId}/recordings`
 
-### Real-Time Updates
+- **System control / status** (`src/api/system.js`)
+  - `GET /system/status`
+  - `POST /system/stop` (body: `{ reason?: string }`)
+  - `POST /system/resume`
 
-#### WebSocket Connection
+- **Recipes** (`src/api/recipes.js`)
+  - `GET /recipes`
 
-```javascript
-// src/utils/websocket.js
-const ws = new WebSocket('ws://localhost:8000/ws');
+#### B) WebSocket (realtime events; base is `API_CONFIG.WEBSOCKET_BASE`)
 
-ws.onopen = () => {
-  console.log('Connected to BARNS');
-};
+- **Endpoint**
+  - Development: `ws://localhost:8000/ws`
+  - Production: `/ws` (relative)
+  - Connection is managed by `src/utils/websocket.js` and wired in `src/store/index.js`.
 
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  
-  switch(data.type) {
-    case 'order_update':
-      dispatch(updateOrder(data.data));
-      break;
-    case 'inventory_update':
-      dispatch(updateInventory(data.data));
-      break;
-  }
-};
-```
+- **Message types/events (handled by the UI)**
+  - `type: "order_update"` with `event` values such as:
+    - `scheduler.plan_built`
+    - `scheduler.order_completed`
+    - `scheduler.order_failed`
+    - `scheduler.order_stopping` / `order_stopping`
+    - `scheduler.order_stopped` / `order_stopped`
+    - `order_resumed`
+    - `scheduler.feedback_processed`
+    - `scheduler.status_update`
+  - `type: "inventory_update"`
+  - Alerts/warnings: `type: "alert"` and/or `event` values including:
+    - `validation_failed`
+    - strings containing `threshold_warning`, `all_stations_occupied`, `retry_status`
+  - Heartbeats:
+    - client sends `{ type: "ping", timestamp: "..." }`
+    - server may respond with `{ type: "pong" }`
 
-#### Order Status Polling
+#### C) Video stream service (data plane; base is `API_CONFIG.VIDEO_STREAM` and direct stream URLs)
 
-For critical order status changes (STOPPING, PROCESSING), the dashboard implements aggressive polling:
+- **Health/status** (used via `videoClient` in `src/api/system.js` and `src/api/cameras.js`)
+  - `GET {VIDEO_STREAM_BASE}/status`
 
-- **Fast Polling**: 1-second intervals when STOPPING/PROCESSING orders exist
-- **Immediate Refresh**: Multiple fetches after stop command (0ms, 1s, 2s)
-- **WebSocket Fallback**: Ensures UI updates even if WebSocket events are delayed
+- **Live stream frames** (currently hard-coded in `src/pages/cameras/components/UnifiedCameraPanel.jsx`)
+  - `GET http://localhost:30001/stream/{cameraId}?k={cacheBust}`
 
-This multi-layer approach ensures order status changes are reflected immediately in the UI without requiring page refresh.
+If you change the video-stream host/port, update both `window.env.VIDEO_STREAM_URL` (for API status calls) and the hard-coded stream URL usage.
 
-#### Socket.IO (Alternative)
+#### D) InfluxDB (monitoring/analytics)
 
-```javascript
-import io from 'socket.io-client';
+The dashboard issues Flux queries and expects CSV responses.
 
-const socket = io('http://localhost:8000');
+- **Query endpoint**
+  - `POST {INFLUX_URL}/query?org={org}`
+  - Default dev path is `/api/v2/query?org=barns` (Vite proxies `/api/v2` to `http://localhost:8086`).
+  - Implementation: `src/utils/influxClient.js` (and debug helpers under `src/utils/`).
 
-socket.on('inventory.update', (data) => {
-  console.log('Inventory updated:', data);
-});
-```
-
-### State Management (Redux)
-
-```javascript
-// src/store/ordersSlice.js
-import { createSlice } from '@reduxjs/toolkit';
-
-const ordersSlice = createSlice({
-  name: 'orders',
-  initialState: {
-    list: [],
-    queue: [],
-    loading: false
-  },
-  reducers: {
-    setOrders: (state, action) => {
-      state.list = action.payload;
-    },
-    updateOrderStatus: (state, action) => {
-      const order = state.list.find(o => o.id === action.payload.id);
-      if (order) {
-        order.status = action.payload.status;
-      }
-    }
-  }
-});
-```
-
-## Usage Examples
-
-### Create Order
-
-```javascript
-import { useDispatch } from 'react-redux';
-import { createOrder } from '../api/orders';
-
-function CreateOrderButton() {
-  const dispatch = useDispatch();
-  
-  const handleCreate = async () => {
-    const order = {
-      cups: [
-        { recipe: 'latte', size: 'medium' }
-      ]
-    };
-    
-    const result = await createOrder(order);
-    dispatch(addOrder(result));
-  };
-  
-  return <button onClick={handleCreate}>Create Order</button>;
-}
-```
-
-### Monitor Inventory
-
-```javascript
-import { useEffect, useState } from 'react';
-import { getInventoryStatus } from '../api/inventory';
-
-function InventoryDashboard() {
-  const [inventory, setInventory] = useState({});
-  
-  useEffect(() => {
-    const fetchInventory = async () => {
-      const data = await getInventoryStatus();
-      setInventory(data.inventory);
-    };
-    
-    fetchInventory();
-    const interval = setInterval(fetchInventory, 10000);
-    return () => clearInterval(interval);
-  }, []);
-  
-  return (
-    <div>
-      {Object.entries(inventory).map(([category, items]) => (
-        <CategoryCard key={category} category={category} items={items} />
-      ))}
-    </div>
-  );
-}
-```
-
-### Video Streaming
-
-```javascript
-function CameraFeed({ cameraId }) {
-  return (
-    <img 
-      src={`${VIDEO_STREAM_URL}/stream/${cameraId}`}
-      alt={`Camera ${cameraId}`}
-      style={{ width: '100%' }}
-    />
-  );
-}
-```
-
-## Dependencies
-
-### Core Dependencies
-
-- **React** (18.2.0): UI framework
-- **Vite** (5.0.0): Build tool and dev server
-- **Redux Toolkit** (@reduxjs/toolkit): State management
-- **React Router** (react-router-dom): Routing
-- **Axios**: HTTP client
-- **Socket.IO Client** (socket.io-client): Real-time updates
-- **Tailwind CSS** (3.4.0): Styling framework
-
-### UI Components
-
-- **Recharts**: Data visualization
-- **React DnD**: Drag-and-drop for queue management
-- **React Icons**: Icon library
-
-## Integration Points
-
-### Upstream Services
-
-1. **API Bridge Service**
-   - All HTTP API calls
-   - WebSocket/Socket.IO connections
-   - **Port**: 8000
-
-2. **Video Stream Service**
-   - Camera feeds
-   - **Port**: 8001
-
-## Development
-
-### Project Structure
-
-```
-src/
-├── api/           # API client modules
-├── assets/        # Images, icons
-├── components/    # Reusable components
-├── pages/         # Page components
-├── store/         # Redux store and slices
-├── utils/         # Utility functions
-├── theme.js       # Theme configuration
-└── main.jsx       # Entry point
-```
-
-### Scripts
+## Scripts
 
 ```bash
-npm run dev        # Start dev server
-npm run build      # Production build
-npm run preview    # Preview production build
-npm run lint       # Run ESLint
+npm install
+npm run dev
+npm run build
+npm run preview
+npm run lint
 ```
 
-## Troubleshooting
+## Troubleshooting (quick checks)
 
-### API Connection Failed
+- **REST API not reachable**
+  - Confirm the backend is serving at `http://localhost:8000/api` (dev default).
+  - Check `/system/status` (used by the dashboard as its main health/status call).
 
-Check API Bridge:
-```bash
-curl http://localhost:8000/api/health
-```
+- **WebSocket not connecting**
+  - Confirm `ws://localhost:8000/ws` is reachable in dev.
+  - In prod, ensure `/ws` is routed by your ingress/reverse-proxy (this service’s `nginx.conf` does not currently proxy it).
 
-### WebSocket Not Connecting
+- **Camera streams not loading**
+  - Confirm the stream server is reachable at `http://localhost:30001/stream/{cameraId}` (current UI default).
+  - Confirm `{VIDEO_STREAM_BASE}/status` responds (used for stream service health).
 
-1. Verify API Bridge WebSocket endpoint
-2. Check browser console for errors
-3. Test WebSocket manually:
-   ```javascript
-   const ws = new WebSocket('ws://localhost:8000/ws');
-   ws.onopen = () => console.log('Connected');
-   ```
+## Security notes (current state)
 
-### Video Feeds Not Loading
+- The dashboard assumes a trusted network; there is no authentication/authorization in this service.
+- For production, terminate TLS at the edge and route REST and WebSocket endpoints over HTTPS/WSS.
 
-1. Check video-stream service:
-   ```bash
-   docker-compose ps video-stream-service
-   ```
-
-2. Test stream URL directly:
-   ```
-   http://localhost:8001/stream/webcam
-   ```
-
-## Performance Considerations
-
-- **Bundle Size**: ~500KB gzipped
-- **Initial Load**: <2s on local network
-- **WebSocket Overhead**: ~10KB/s for real-time updates
-- **Memory Usage**: ~50MB in browser
-
-## Security Notes
-
-- No authentication implemented (internal network)
-- CORS configured for localhost development
-- Production should add authentication layer
-- WebSocket connections not encrypted (use WSS in production)
-
-## Future Enhancements
-
-- User authentication and roles
-- Mobile app version
-- Offline mode support
-- Advanced analytics dashboards
-- Custom alert rules
-- Recipe builder interface
-- Multi-language support

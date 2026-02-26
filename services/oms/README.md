@@ -92,9 +92,122 @@ Initialized from `schema.sql`:
 
 ## API/Endpoints
 
+## Complete API Surface (In/Out)
+
+This section is the canonical list of all current inbound and outbound APIs implemented by OMS (primarily `services/oms/app.py`).
+
+### Inbound APIs (Into OMS)
+
+#### HTTP + WebSocket endpoints exposed by OMS
+
+Default container port is documented as **8002** in this README; paths below are as implemented.
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/orders/` | Create new order (persists + queues) |
+| GET | `/orders/stats/summary` | Order statistics summary |
+| GET | `/orders/` | List orders (supports `status`, `limit`, `offset`) |
+| GET | `/orders/{order_id}` | Get order details (includes tasks/steps summary when available) |
+| PUT | `/orders/{order_id}/reorder` | Reorder a single queued order (expects `new_position`) |
+| PUT | `/orders/reorder` | Bulk reorder queue (body includes `order_ids`) |
+| PATCH | `/orders/{order_id}/start` | Start processing (sends to Scheduler asynchronously) |
+| PATCH | `/orders/{order_id}/status` | Update status (query params: `status`, optional `reason`) |
+| POST | `/orders/{order_id}/halt` | Halt an order (creates alert) |
+| POST | `/orders/{order_id}/stop` | Stop an order (requests Scheduler stop) |
+| POST | `/orders/{order_id}/resume` | Resume a stopped/halted order (requests Scheduler resume) |
+| POST | `/orders/{order_id}/complete` | Mark order completed |
+| POST | `/orders/{order_id}/fail` | Mark order failed |
+| DELETE | `/orders/{order_id}` | Delete order (requests Scheduler cancel if processing) |
+| PATCH | `/tasks/{task_id}/status` | Update a task status |
+| PATCH | `/tasks/steps/{step_id}/status` | Update a task-step status |
+| PATCH | `/alerts/{alert_id}/acknowledge` | Acknowledge alert |
+| GET | `/alerts/active` | List active alerts |
+| GET | `/alerts/acknowledged` | List acknowledged alerts |
+| POST | `/system/stop` | System-wide stop |
+| POST | `/system/resume` | System-wide resume |
+| GET | `/system/status` | System status summary |
+| GET | `/system/rabbitmq-health` | RabbitMQ connectivity status |
+| POST | `/pos/process-order` | POS order processing |
+| GET | `/pos/menu-items` | POS menu items |
+| GET | `/pos/ingredients` | POS ingredients list |
+| GET | `/queue/sync` | Sync/read queue snapshot |
+| POST | `/orders/mark-processing-failed` | Mark stuck processing orders as failed |
+| POST | `/inventory/threshold-warning` | Receive threshold warning (creates alert) |
+| POST | `/inventory/refill` | Manual refill trigger (attempts to call Validation HTTP) |
+| GET | `/inventory/status` | Inventory status placeholder response |
+| WS | `/ws/orders` | WebSocket for order broadcasts |
+| WS | `/ws/alerts` | WebSocket for alert broadcasts |
+
+#### RabbitMQ RPC actions handled by OMS (service name: `oms`)
+
+These are the RPC `action` names other services can call via `RabbitMQClient.send_request(target_service="oms", action=...)`:
+
+| Action | Purpose |
+|---|---|
+| `health` | OMS health check |
+| `create_order` | Create order |
+| `list_orders` | List orders |
+| `get_order` | Get order |
+| `start_order` | Start order processing (sends to Scheduler) |
+| `stop_order` | Stop order (requests Scheduler stop) |
+| `resume_order` | Resume order (requests Scheduler resume) |
+| `halt_order` | Halt order (creates alert) |
+| `update_order_status` | Update order status |
+| `delete_order` | Delete order (requests Scheduler cancel if processing) |
+| `sync_queue` | Queue snapshot/sync |
+| `bulk_reorder_queue` | Bulk reorder queue |
+| `emergency_stop` | System-wide emergency stop |
+| `resume_operations` | Resume after stop |
+| `get_active_alerts` | List active alerts |
+| `get_acknowledged_alerts` | List acknowledged alerts |
+| `acknowledge_alert` | Acknowledge an alert |
+| `mark_processing_orders_failed` | Mark processing orders as failed |
+
+#### RabbitMQ event topics consumed by OMS
+
+OMS subscribes to:
+- `scheduler.#`
+- `validation.#`
+- `automation.*`
+- `routine.*`
+- `system.*`
+
+And registers concrete handlers for:
+- Scheduler: `scheduler.order_completed`, `scheduler.order_failed`, `scheduler.order_heartbeat`, `scheduler.plan_built`, `scheduler.status_update`, `scheduler.feedback_processed`
+- Validation: `validation.threshold_warning`, `validation.all_stations_occupied`, `validation.retry_status`, `validation.failed.dashboard`
+- System: `system.shutdown`
+
+### Outbound APIs (From OMS)
+
+#### RabbitMQ RPC calls made by OMS
+
+| When | Target service | RPC action |
+|---|---|---|
+| Start order | `scheduler` | `process_order` |
+| Stop order | `scheduler` | `stop_order` |
+| Resume order | `scheduler` | `resume_order` |
+| Delete processing order | `scheduler` | `cancel_order` |
+
+#### Direct HTTP calls made by OMS
+
+| Inbound endpoint | Outbound method/path | Notes |
+|---|---|---|
+| POST `/inventory/refill` | `POST http://localhost:8003/inventory/refill` | Best-effort call; OMS continues if Validation is unreachable |
+
+#### Events published by OMS (RabbitMQ)
+
+OMS publishes:
+- `oms.order_created`
+- `oms.order_started`
+- `oms.order_stopping`
+- `oms.order_stopped`
+- `oms.alert_created`
+
+OMS also broadcasts realtime updates to connected WebSocket clients (`/ws/orders`, `/ws/alerts`) using JSON payloads that include an `event` field (for example: `order_received`, `order_started`, `order_stopping`, `order_stopped`, `order_deleted`, `threshold_warning`, `inventory_refilled`).
+
 ### HTTP REST API (Port 8002)
 
-#### POST /orders
+#### POST /orders/
 Create new order.
 
 **Request:**
@@ -120,7 +233,7 @@ Create new order.
 }
 ```
 
-#### GET /orders
+#### GET /orders/
 List all orders with optional status filter.
 
 Query params: `?status=pending`
@@ -140,11 +253,11 @@ Resume stopped order.
 #### DELETE /orders/{order_id}
 Delete order.
 
-#### GET /queue
-Get current order queue.
+#### GET /queue/sync
+Get current order queue snapshot.
 
-#### PUT /queue/reorder
-Reorder queue positions.
+#### PUT /orders/reorder
+Bulk reorder queue positions.
 
 ### POS Integration
 
@@ -185,6 +298,15 @@ Start order processing.
 #### Action: `stop_order`
 Stop order.
 
+#### Action: `resume_order`
+Resume order.
+
+#### Action: `halt_order`
+Halt order.
+
+#### Action: `update_order_status`
+Update order status.
+
 #### Action: `delete_order`
 Delete order.
 
@@ -193,6 +315,21 @@ Get queue status.
 
 #### Action: `emergency_stop`
 System-wide emergency stop.
+
+#### Action: `resume_operations`
+Resume after emergency stop.
+
+#### Action: `get_active_alerts`
+Get active alerts.
+
+#### Action: `get_acknowledged_alerts`
+Get acknowledged alerts.
+
+#### Action: `acknowledge_alert`
+Acknowledge alert.
+
+#### Action: `mark_processing_orders_failed`
+Mark processing orders as failed.
 
 ## Order State Machine
 
@@ -274,11 +411,14 @@ response = await client.put(
 ### Core Dependencies
 
 - **FastAPI** (0.115.12): HTTP API framework
-- **SQLAlchemy** (ORM for PostgreSQL)
 - **psycopg2-binary** (2.9.9): PostgreSQL driver
 - **redis** (5.0.1): Redis client
 - **aio-pika** (9.3.1): RabbitMQ async client
 - **uvicorn** (0.24.0): ASGI server
+- **httpx** (0.25.2): HTTP client (Validation refill best-effort call)
+- **websockets** (12.0): WebSocket support
+- **python-socketio** (5.13.0): Socket.IO support (dependency present)
+- **requests** (2.31.0): HTTP client (dependency present)
 
 ## Integration Points
 
@@ -318,10 +458,9 @@ Listens to:
 Broadcasts to `barns_events` exchange:
 - `oms.order_created`: New order
 - `oms.order_started`: Order processing started
-- `oms.order_completed`: Order finished
-- `oms.order_failed`: Order failed
-- `oms.order_status_updated`: Status changed
-- `oms.order_deleted`: Order removed
+- `oms.order_stopping`: Order stopping initiated
+- `oms.order_stopped`: Order stopped
+- `oms.alert_created`: Alert created (used by API Bridge to push to dashboard)
 
 ## Troubleshooting
 

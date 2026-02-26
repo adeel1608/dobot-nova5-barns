@@ -178,159 +178,278 @@ volumes:
   - ./data:/app/data  # Recipes directory
 ```
 
-## API/Endpoints
+## APIs (Inbound and Outbound)
 
-### Action: `process_order`
-Start processing an order.
+The Scheduler service does **not** expose HTTP endpoints. All integration is via **RabbitMQ RPC actions** (request/response) and **RabbitMQ events** (fire-and-forget, some with ack).
 
-**Request:**
+### Inbound APIs (into Scheduler)
+
+#### RabbitMQ RPC actions (request/response)
+
+These actions are registered by `services/scheduler/app.py` on the Scheduler RPC consumer.
+
+##### Action: `process_order`
+Accept an order and start processing asynchronously.
+
+- **Request**
+
 ```json
 {
-  "request_id": "req-001",
-  "order_id": 123,
+  "id": 123,
   "cups": [
     {
-      "drink": "latte",
-      "cup_id": "cup_1",
+      "type": "latte",
       "size": "medium",
+      "addons": [],
       "ingredients": {
-        "coffee_beans": {"type": "regular", "amount": 2},
-        "milk": {"type": "whole", "amount": 200}
+        "coffee_beans": { "type": "regular", "amount": 2 },
+        "milk": { "type": "whole", "amount": 200 },
+        "position": { "cup_position": 2 }
       }
     }
   ]
 }
 ```
 
-**Response:**
+- **Response**
+
 ```json
 {
   "success": true,
-  "order_id": 123,
-  "message": "Order processing started",
-  "tasks_count": 15,
-  "validation_result": {
-    "passed": true,
-    "details": {}
-  }
+  "message": "Order accepted by scheduler",
+  "order_id": 123
 }
 ```
 
-### Action: `feedback`
-Process task completion/failure feedback from Routine.
+Notes:
+- Scheduler generates internal cup IDs as `"{order_id}-{cup_index}"` (1-based), e.g. `"123-1"`, `"123-2"`.
+- If a cup’s `type` has no matching recipe in `/app/data/recipes.json`, the call fails during setup.
 
-**Request:**
+##### Action: `feedback`
+Synchronous feedback path used by Routine to report completion/failure.
+
+- **Request**
+
 ```json
 {
-  "cup_id": "cup_1",
+  "cup_id": "123-1",
   "action": "pull_espresso_shot",
   "success": true,
-  "message": "Espresso pulled successfully"
+  "message": "optional human-readable message"
 }
 ```
 
-**Response:**
+- **Response**
+
 ```json
 {
   "success": true,
-  "message": "Feedback processed"
+  "status": "received"
 }
 ```
 
-### Action: `get_status`
-Get current order execution status.
+##### Action: `update_cup_position`
+Update the cup position used by future pending tasks (typically after cup detection).
 
-**Response:**
+- **Request**
+
+```json
+{
+  "cup_id": "123-1",
+  "new_position": 3,
+  "old_position": 2
+}
+```
+
+- **Response (success)**
+
+```json
+{
+  "success": true,
+  "message": "Position updated to 3"
+}
+```
+
+##### Action: `get_status`
+Return the current scheduler status object.
+
+- **Response**
+
 ```json
 {
   "success": true,
   "status": {
     "order_id": 123,
-    "cup_index": 0,
-    "step": "pull_espresso_shot",
+    "cup_index": null,
+    "step": "preparing",
     "status": "in_progress"
   },
-  "tasks": {
-    "total": 15,
-    "completed": 8,
-    "failed": 0,
-    "pending": 7
-  },
-  "per_arm": {
-    "Arm1": {
-      "current_cup": "cup_1",
-      "pending_tasks": ["steam_milk", "pour_milk"],
-      "completed_tasks": ["pick_cup_medium"]
-    },
-    "Arm2": {
-      "current_cup": "cup_1",
-      "pending_tasks": [],
-      "completed_tasks": ["grind_coffee", "pull_espresso_shot"]
-    }
-  }
+  "timestamp": "2026-02-26T12:34:56.789012"
 }
 ```
 
-### Action: `stop_order`
-Emergency stop current order.
+##### Action: `subscribe_status`
+Register a service name as a status subscriber (Scheduler still broadcasts status events regardless; this is currently tracked in-memory only).
 
-**Request:**
+- **Request**
+
 ```json
-{
-  "order_id": 123
-}
+{ "service_name": "dashboard" }
 ```
 
-**Response:**
+- **Response**
+
 ```json
-{
-  "success": true,
-  "message": "Order stopped",
-  "tasks_completed": 8,
-  "tasks_cancelled": 7
-}
+{ "success": true, "subscribed": true }
 ```
 
-### Action: `resume_order`
-Resume a stopped order.
+##### Action: `health`
+Service health check, including RabbitMQ client health snapshot.
 
-**Request:**
-```json
-{
-  "order_id": 123
-}
-```
+- **Response**
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Order resumed",
-  "tasks_remaining": 7
-}
-```
-
-### Action: `cancel_order`
-Cancel order entirely.
-
-**Request:**
-```json
-{
-  "order_id": 123
-}
-```
-
-### Action: `health`
-Health check.
-
-**Response:**
 ```json
 {
   "status": "healthy",
   "service": "scheduler",
+  "timestamp": "2026-02-26T12:34:56.789012",
+  "rabbitmq_health": { "healthy": true },
+  "event_listener_connected": true,
   "recipes_loaded": 10
 }
 ```
+
+##### Action: `cancel_order`
+Cancel the active order in scheduler state and request Routine to drop queued work.
+
+- **Request**
+
+```json
+{ "order_id": 123 }
+```
+
+- **Response**
+
+```json
+{ "success": true, "cancelled_tasks": 7 }
+```
+
+##### Action: `stop_order`
+Stop the active order (graceful halt). Scheduler also instructs Routine to stop.
+
+- **Request**
+
+```json
+{ "order_id": 123 }
+```
+
+- **Response**
+
+```json
+{ "success": true, "message": "Order stopped - all tasks completed or halted" }
+```
+
+##### Action: `resume_order`
+Resume a stopped order. Scheduler converts paused/cancelled tasks back to pending and instructs Routine to resume.
+
+- **Request**
+
+```json
+{ "order_id": 123 }
+```
+
+- **Response**
+
+```json
+{ "success": true, "message": "Order resumed" }
+```
+
+##### Action: `revert_previous_step`
+Request that Scheduler revert a cup to a previous step (used by Routine-controlled recovery).
+
+- **Request**
+
+```json
+{ "cup_id": "123-1", "current_action": "pour_milk" }
+```
+
+##### Action: `task_paused`
+Notification from Routine that a task was paused so Scheduler can mark the task as `paused` and avoid waiting on it during stop flows.
+
+- **Request**
+
+```json
+{ "cup_id": "123-1", "function": "validate_ingredients", "reason": "validation_failure" }
+```
+
+#### RabbitMQ events consumed (fire-and-forget)
+
+Scheduler subscribes to `routine.*`, `system.*`, and `oms.*`, and handles:
+- `routine.task_completed` (expects `cup_id`, `function`)
+- `routine.task_failed` (expects `cup_id`, `function`, optional `error`)
+- `system.shutdown`
+
+### Outbound APIs (out of Scheduler)
+
+#### RabbitMQ RPC calls (Scheduler -> other services)
+
+##### To Validation service
+- **Action `validate_ingredients`**: Pre-check a cup before starting work.
+  - **Payload**: `{ "request_id", "client_type": "scheduler", "cup_id", ...ingredients }`
+- **Action `update_ingredients`**: Subtract cup ingredients from inventory after validation passes.
+  - **Payload**: `{ "request_id", "client_type": "scheduler", "cup_id", ...ingredients }`
+
+##### To Routine service
+- **Action `submit_task`**: Submit a task for execution.
+  - **Payload**:
+
+```json
+{
+  "arm_id": 1,
+  "function": "pull_espresso_shot",
+  "item": {
+    "cup_id": "123-1",
+    "drink_type": "latte",
+    "size": "medium",
+    "addons": [],
+    "ingredients": {},
+    "scheduler_validated": true
+  }
+}
+```
+
+- **Action `cancel_order`**: `{ "order_id": 123, "cup_ids": ["123-1", "123-2"] }`
+- **Action `stop_order`**: `{ "order_id": 123 }`
+- **Action `resume_order`**: `{ "order_id": 123 }`
+
+##### To OMS service
+- **Action `update_order_status`**: Used when stopping due to validation failures.
+  - **Payload**: `{ "order_id": 123, "status": "stopped", "reason": "..." }`
+
+#### RabbitMQ events published (Scheduler -> exchange)
+
+These are emitted by `app.py` and `scheduler.py`:
+- `scheduler.order_received`
+- `scheduler.order_processing_started`
+- `scheduler.plan_built` (includes `plan`; may be emitted more than once, treat as idempotent)
+- `scheduler.status_update` (includes `message` and `status`)
+- `scheduler.feedback_processed`
+- `scheduler.cup_position_updated`
+- `scheduler.order_stopping`
+- `scheduler.order_stopped`
+- `scheduler.order_resumed`
+- `scheduler.order_error`
+- `scheduler.order_heartbeat` (every 30s while order is active; fire-and-forget)
+
+Order completion notifications to OMS (sent with acknowledgment):
+- `scheduler.order_completed` (sent via `send_event_with_ack`, expects OMS acknowledgment)
+- `scheduler.order_failed` (sent via `send_event_with_ack`, expects OMS acknowledgment)
+
+Validation-related operator/dashboard events:
+- `validation.failed.dashboard`
+- `scheduler.refill_required`
+- `scheduler.cup_validation_failed`
+- `scheduler.order_stopped_validation`
 
 ## Usage Examples
 
@@ -348,15 +467,16 @@ async def process_order():
         target_service="scheduler",
         action="process_order",
         data={
-            "order_id": 123,
+            "id": 123,
             "cups": [
                 {
-                    "drink": "latte",
-                    "cup_id": "cup_1",
+                    "type": "latte",
                     "size": "medium",
+                    "addons": [],
                     "ingredients": {
                         "coffee_beans": {"type": "regular", "amount": 2},
-                        "milk": {"type": "whole", "amount": 200}
+                        "milk": {"type": "whole", "amount": 200},
+                        "position": {"cup_position": 2}
                     }
                 }
             ]
@@ -427,13 +547,14 @@ async def emergency_stop(order_id):
 ### Downstream Services (Calls To)
 
 1. **Validation Service**
-   - `pre_check`: Validate ingredients before starting
+   - `validate_ingredients`: Validate cup ingredients before starting a new cup
+   - `update_ingredients`: Subtract cup ingredients from inventory after validation passes
    - **Protocol**: RabbitMQ RPC
    - **Timeout**: 30 seconds
 
 2. **Routine Service**
    - Task execution submissions
-   - **Protocol**: Direct function calls (same process in future: RabbitMQ)
+   - **Protocol**: RabbitMQ RPC (`submit_task`, `stop_order`, `resume_order`, `cancel_order`)
 
 ### Upstream Services (Receives From)
 
@@ -451,13 +572,19 @@ Listens to:
 
 ### Event Publications
 
-Broadcasts to `barns_events` exchange:
-- `scheduler.plan_built`: Initial task plan created
-- `scheduler.status_update`: Progress updates
-- `scheduler.feedback_processed`: Task completion
-- `scheduler.order_completed`: All tasks done
-- `scheduler.order_failed`: Order failed
-- `scheduler.order_processing_started`: Order started
+Publishes to the `barns_services` topic exchange using routing keys:
+- **RPC**: `{service}.{action}` (example: `scheduler.process_order`)
+- **Events**: `events.{event_type}` (example: `events.scheduler.status_update`)
+
+Commonly consumed by dashboard/OMS:
+- `scheduler.plan_built`
+- `scheduler.status_update`
+- `scheduler.order_processing_started`
+- `scheduler.order_stopping`
+- `scheduler.order_stopped`
+- `scheduler.order_resumed`
+- `scheduler.order_completed` (acknowledged by OMS)
+- `scheduler.order_failed` (acknowledged by OMS)
 
 ## Troubleshooting
 
@@ -511,8 +638,8 @@ Broadcasts to `barns_events` exchange:
 **Solutions:**
 1. Check task status:
    ```python
-   response = await client.send_request("scheduler", "get_status", {})
-   print(response["per_arm"])
+   response = await client.send_request(target_service="scheduler", action="get_status", data={})
+   print(response["status"])
    ```
 
 2. Verify Routine service:

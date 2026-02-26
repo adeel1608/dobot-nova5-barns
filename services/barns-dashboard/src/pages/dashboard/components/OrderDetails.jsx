@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore from '../../../store';
 import { useTranslation } from '../../../store/translationsStore';
+import { useIsPosMode } from '../../../store/displayStore';
 import stop from '../../../assets/stop.png';
 import coffee from '../../../assets/Coffee.png';
 import lighting from '../../../assets/lighting.png';
 import dots from '../../../assets/dots.png';
 import progressing from '../../../assets/progressing.png';
 import circledots from '../../../assets/circledots.png';
+import CoffeeProgressView from './CoffeeProgressView';
+
 export default function OrderDetails() {
   const { t } = useTranslation('dashboard');
   const { orders, schedulerTasks, schedulerTaskStatus, schedulerStatusMessage, taskTimings, updateTaskTiming } = useStore(state => ({
@@ -17,7 +20,9 @@ export default function OrderDetails() {
     taskTimings: state.taskTimings || {},
     updateTaskTiming: state.updateTaskTiming
   }));
+  const isPosMode = useIsPosMode();
   const [showTaskInterface, setShowTaskInterface] = useState(true);
+  const [viewMode, setViewMode] = useState('progress');
   const arm1ContainerRef = useRef(null);
   const arm2ContainerRef = useRef(null);
   const itemRefs = useRef({});
@@ -215,48 +220,80 @@ export default function OrderDetails() {
   }, [schedulerTasks, isTasksFrozen]);
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col h-full">
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
       {/* Header */}
-      <div className={`p-2 sm:p-3 border-b flex-shrink-0 ${isCurrentOrder ? 'border-gray-200 bg-white' : 'border-gray-300 bg-gray-50'}`}>
-        <div className="flex items-center justify-center space-x-1 sm:space-x-2 flex-wrap gap-y-1">
-          {!isCurrentOrder && (
-            <svg className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          )}
-          <h2 className={`text-base sm:text-lg font-semibold ${isCurrentOrder ? 'text-gray-900' : 'text-gray-600'}`}>
-            {isCurrentOrder ? 'Current Order' : 'Last Order'}{displayedOrder ? `: ${displayedOrder.id}` : ''}
-          </h2>
-          {!isCurrentOrder && displayedOrder && (
-            <span className={`text-[10px] sm:text-xs font-medium px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full ${
-              displayedOrder.status?.toUpperCase() === 'COMPLETED' 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {displayedOrder.status?.toUpperCase() === 'COMPLETED' ? 'Completed' : 'Failed'}
-            </span>
-          )}
+      <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center justify-between gap-2">
+          {/* Order title */}
+          <div className="flex items-center gap-2 min-w-0">
+            {isCurrentOrder ? (
+              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0 animate-pulse" />
+            ) : (
+              <div className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
+            )}
+            <h2 className={`text-sm font-bold truncate ${isCurrentOrder ? 'text-gray-900' : 'text-gray-500'}`}>
+              {isCurrentOrder ? t('currentOrder') : t('lastOrder')}{displayedOrder ? ` #${displayedOrder.id}` : ''}
+            </h2>
+            {!isCurrentOrder && displayedOrder && !isPosMode && (
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                displayedOrder.status?.toUpperCase() === 'COMPLETED'
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-600'
+              }`}>
+                {displayedOrder.status?.toUpperCase() === 'COMPLETED' ? t('completedLabel') : t('failed')}
+              </span>
+            )}
+          </div>
+
+          {/* View mode toggle */}
+          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1 flex-shrink-0 border border-gray-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('progress')}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
+                viewMode === 'progress'
+                  ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+              }`}
+            >
+              {t('progressView')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('tasks')}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
+                viewMode === 'tasks'
+                  ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+              }`}
+            >
+              {t('tasksView')}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Task Management Interface */}
-      <div className="flex-1 p-2 sm:p-4 overflow-hidden flex flex-col">
-        {/* Cup Progress Bar */}
+      {/* Main content area */}
+      <div className="flex-1 px-3 pt-3 pb-3 overflow-hidden flex flex-col">
+        {/* Cup Progress Bar - visible in both views */}
         {cupProgress.total > 0 && (
-          <div className="mb-3 sm:mb-4 flex-shrink-0">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs sm:text-sm font-medium text-gray-700">
-                {t('cupProgress')}: {cupProgress.completed}/{cupProgress.total} {t('completedLabel')}
+          <div className="mb-3 flex-shrink-0">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-medium text-gray-500">
+                {t('cupProgress')}
+                <span className="ml-1.5 font-bold text-gray-700">{cupProgress.completed}/{cupProgress.total}</span>
               </span>
-              <span className="text-xs font-semibold text-gray-600">{cupProgress.percentage}%</span>
+              <span className={`text-xs font-bold ${cupProgress.percentage === 100 ? 'text-green-600' : 'text-blue-500'}`}>
+                {cupProgress.percentage}%
+              </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2.5">
-              <div 
-                className={`h-2.5 rounded-full transition-all duration-300 ${
-                  cupProgress.percentage === 100 ? 'bg-green-600' : 'bg-blue-600'
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  cupProgress.percentage === 100 ? 'bg-green-500' : 'bg-blue-500'
                 }`}
                 style={{ width: `${cupProgress.percentage}%` }}
-              ></div>
+              />
             </div>
           </div>
         )}
@@ -265,60 +302,71 @@ export default function OrderDetails() {
           <div className="mb-2 sm:mb-3 text-xs text-gray-500 flex-shrink-0">{schedulerStatusMessage}</div>
         )}
 
-        {/* Task Columns */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 flex-1 overflow-hidden">
-          {/* Left Column - Arm 1 Tasks (Live) */}
-          <div className="flex flex-col h-full overflow-hidden">
-            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">{t('robotArm1')}</h3>
-            <div ref={arm1ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
-              {schedulerTasks.Arm1.length === 0 ? (
-                <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
-              ) : (
-                <div className="space-y-2 sm:space-y-3">
-                  {schedulerTasks.Arm1.map((task, idx) => (
-                    <TaskRow
-                      key={`${task.cup_id}:${task.action}:${idx}`}
-                      refKey={`Arm1:${task.cup_id}:${task.action}`}
-                      registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
-                      action={task.action}
-                      cup={task.cup_id}
-                      status={task.status}
-                      taskTimings={taskTimings}
-                      currentTime={currentTime}
-                      t={t}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Progress view - default */}
+        {viewMode === 'progress' && (
+          <CoffeeProgressView
+            cups={displayedOrder?.cups || []}
+            schedulerTasks={schedulerTasks}
+            t={t}
+          />
+        )}
 
-          {/* Right Column - Arm 2 Tasks (Live) */}
-          <div className="flex flex-col h-full overflow-hidden">
-            <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">Robot Arm 2</h3>
-            <div ref={arm2ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
-              {schedulerTasks.Arm2.length === 0 ? (
-                <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
-              ) : (
-                <div className="space-y-2 sm:space-y-3">
-                  {schedulerTasks.Arm2.map((task, idx) => (
-                    <TaskRow
-                      key={`${task.cup_id}:${task.action}:${idx}`}
-                      refKey={`Arm2:${task.cup_id}:${task.action}`}
-                      registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
-                      action={task.action}
-                      cup={task.cup_id}
-                      status={task.status}
-                      taskTimings={taskTimings}
-                      currentTime={currentTime}
-                      t={t}
-                    />
-                  ))}
-                </div>
-              )}
+        {/* Tasks view - detailed arm task breakdown */}
+        {viewMode === 'tasks' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 flex-1 overflow-hidden">
+            {/* Left Column - Arm 1 Tasks */}
+            <div className="flex flex-col h-full overflow-hidden">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">{t('robotArm1')}</h3>
+              <div ref={arm1ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
+                {schedulerTasks.Arm1.length === 0 ? (
+                  <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
+                ) : (
+                  <div className="space-y-2 sm:space-y-3">
+                    {schedulerTasks.Arm1.map((task, idx) => (
+                      <TaskRow
+                        key={`${task.cup_id}:${task.action}:${idx}`}
+                        refKey={`Arm1:${task.cup_id}:${task.action}`}
+                        registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
+                        action={task.action}
+                        cup={task.cup_id}
+                        status={task.status}
+                        taskTimings={taskTimings}
+                        currentTime={currentTime}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Column - Arm 2 Tasks */}
+            <div className="flex flex-col h-full overflow-hidden">
+              <h3 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3 flex-shrink-0">{t('robotArm2')}</h3>
+              <div ref={arm2ContainerRef} className="relative flex-1 overflow-y-auto pr-1 sm:pr-2 scroll-smooth pb-3 sm:pb-4">
+                {schedulerTasks.Arm2.length === 0 ? (
+                  <div className="text-xs text-gray-400">{t('noTasksYet')}</div>
+                ) : (
+                  <div className="space-y-2 sm:space-y-3">
+                    {schedulerTasks.Arm2.map((task, idx) => (
+                      <TaskRow
+                        key={`${task.cup_id}:${task.action}:${idx}`}
+                        refKey={`Arm2:${task.cup_id}:${task.action}`}
+                        registerRef={(k, el) => { if (el) itemRefs.current[k] = el; }}
+                        action={task.action}
+                        cup={task.cup_id}
+                        status={task.status}
+                        taskTimings={taskTimings}
+                        currentTime={currentTime}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

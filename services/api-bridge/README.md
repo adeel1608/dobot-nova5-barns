@@ -16,6 +16,121 @@ The API Bridge Service acts as the primary HTTP gateway between the BARNS Dashbo
 
 ## Architecture
 
+## Complete API Surface (In/Out)
+
+This section is the canonical list of all current inbound and outbound APIs implemented in `app.py`.
+
+### Inbound APIs (Into API Bridge)
+
+#### HTTP and WebSocket endpoints exposed by API Bridge
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/health` | API Bridge health check |
+| GET | `/health` | Root health check |
+| POST | `/api/orders` | Create order |
+| GET | `/api/orders` | List orders |
+| GET | `/api/orders/stats/summary` | Order statistics summary |
+| GET | `/api/orders/{order_id}` | Get order by ID |
+| PATCH | `/api/orders/{order_id}/start` | Start order |
+| PATCH | `/api/orders/{order_id}/status` | Update order status |
+| DELETE | `/api/orders/{order_id}` | Delete order |
+| POST | `/api/orders/{order_id}/halt` | Halt order |
+| POST | `/api/orders/{order_id}/stop` | Stop order |
+| POST | `/api/orders/{order_id}/resume` | Resume order |
+| GET | `/api/queue` | Get queue snapshot |
+| PUT | `/api/queue/reorder` | Reorder queue |
+| GET | `/api/system/status` | Aggregate system health |
+| POST | `/api/system/stop` | Emergency stop |
+| POST | `/api/system/resume` | Resume operations |
+| POST | `/api/pos/process-order` | POS order proxy |
+| GET | `/api/pos/menu-items` | POS menu items proxy |
+| GET | `/api/pos/ingredients` | POS ingredients proxy |
+| GET | `/api/recipes` | Load recipes from local data file |
+| POST | `/api/inventory/test_summary` | Trigger category summary test flow |
+| GET | `/api/inventory/status` | Inventory status |
+| GET | `/api/inventory/category-info` | Inventory category metadata |
+| POST | `/api/inventory/refill` | Refill inventory by ingredient |
+| GET | `/api/inventory/category-summary` | Category-level stock summary |
+| GET | `/api/inventory/stock-level` | Stock-level counters |
+| GET | `/api/inventory/category-count` | Category item counts |
+| GET | `/api/inventory/by-stock-level/{stock_level}` | Inventory filtered by stock level |
+| POST | `/api/inventory/update-limits` | Update capacity/threshold limits |
+| GET | `/api/alerts/active` | Active alerts |
+| GET | `/api/alerts/acknowledged` | Acknowledged alerts |
+| POST | `/api/alerts/{alert_id}/acknowledge` | Acknowledge alert |
+| GET | `/api/socketio/stats` | Socket.IO runtime stats |
+| WS | `/ws` | Native WebSocket realtime stream |
+
+#### RabbitMQ event topics consumed by API Bridge
+
+- `oms.#`
+- `scheduler.*`
+- `validation.#`
+- `automation.*`
+- `routine.*`
+
+The service registers concrete handlers for:
+- OMS: `oms.order_created`, `oms.order_started`, `oms.order_status_updated`, `oms.order_stopping`, `oms.order_stopped`, `oms.order_halted`, `oms.order_resumed`, `oms.order_completed`, `oms.order_failed`, `oms.order_deleted`, `oms.alert_created`
+- Scheduler: `scheduler.order_received`, `scheduler.order_processing_started`, `scheduler.order_completed`, `scheduler.order_failed`, `scheduler.order_error`, `scheduler.plan_built`, `scheduler.status_update`, `scheduler.feedback_processed`
+- Validation: `validation.inventory_updated`, `validation.all_inventory_updated`, `validation.stock_level_updated`, `validation.category_summary_updated`, `validation.threshold_warning`, `validation.all_stations_occupied`, `validation.retry_status`
+
+### Outbound APIs (From API Bridge)
+
+#### RabbitMQ RPC calls sent by API Bridge
+
+| Inbound endpoint | Target service | RPC action |
+|---|---|---|
+| POST `/api/orders` | `oms` | `create_order` |
+| GET `/api/orders` | `oms` | `list_orders` |
+| GET `/api/orders/{order_id}` | `oms` | `get_order` |
+| PATCH `/api/orders/{order_id}/start` | `oms` | `start_order` |
+| PATCH `/api/orders/{order_id}/status` | `oms` | `update_order_status` |
+| DELETE `/api/orders/{order_id}` | `oms` | `delete_order` |
+| POST `/api/orders/{order_id}/halt` | `oms` | `halt_order` |
+| POST `/api/orders/{order_id}/stop` | `oms` | `stop_order` |
+| POST `/api/orders/{order_id}/resume` | `oms` | `resume_order` |
+| GET `/api/queue` | `oms` | `sync_queue` |
+| PUT `/api/queue/reorder` | `oms` | `bulk_reorder_queue` |
+| GET `/api/system/status` | `oms`, `scheduler`, `routine`, `validation`, `automation` | `health` |
+| POST `/api/system/stop` | `oms` | `emergency_stop` |
+| POST `/api/system/resume` | `oms` | `resume_operations` |
+| POST `/api/inventory/test_summary` | `validation` | `category_summary` |
+| GET `/api/inventory/status` | `validation` | `inventory_status` |
+| GET `/api/inventory/category-info` | `validation` | `category_info` |
+| POST `/api/inventory/refill` | `validation` | `inventory_refill` |
+| GET `/api/inventory/category-summary` | `validation` | `category_summary` |
+| GET `/api/inventory/stock-level` | `validation` | `stock_level` |
+| GET `/api/inventory/category-count` | `validation` | `category_count` |
+| GET `/api/inventory/by-stock-level/{stock_level}` | `validation` | `inventory_by_stock_level` |
+| POST `/api/inventory/update-limits` | `validation` | `update_limits` |
+| GET `/api/alerts/active` | `oms` | `get_active_alerts` |
+| GET `/api/alerts/acknowledged` | `oms` | `get_acknowledged_alerts` |
+| POST `/api/alerts/{alert_id}/acknowledge` | `oms` | `acknowledge_alert` |
+
+#### Direct HTTP calls sent by API Bridge
+
+| Inbound endpoint | Outbound method/path |
+|---|---|
+| GET `/api/orders/stats/summary` | `GET http://oms-service:8000/orders/stats/summary` |
+| POST `/api/pos/process-order` | `POST http://oms-service:8000/pos/process-order` |
+| GET `/api/pos/menu-items` | `GET http://oms-service:8000/pos/menu-items` |
+| GET `/api/pos/ingredients` | `GET http://oms-service:8000/pos/ingredients` |
+
+#### Realtime events emitted to clients
+
+- Native WebSocket (`/ws`) messages:
+  - `type=connection`, `type=pong`, `type=echo`, `type=error`
+  - `type=order_update` (order and scheduler events)
+  - `type=inventory_update` (inventory/category/stock updates)
+  - `type=alert` (validation alerts)
+- Socket.IO emissions:
+  - `connected`, `pong`
+  - `inventory.update.{category}`, `inventory.update`
+  - `inventory.stock_level`
+  - `inventory.summary`
+  - `inventory.status`
+
 ```
 ┌────────────────────────────────────────────────────────────┐
 │                    BARNS Dashboard                         │

@@ -11,7 +11,30 @@ import { CSS } from '@dnd-kit/utilities';
 import useStore from '../../../store';
 import { useTranslation } from '../../../store/translationsStore';
 import { SERVICE_OFFLINE_MESSAGE } from '../../../utils/errorHandler';
+import { useIsPosMode } from '../../../store/displayStore';
 import deleteIcon from '../../../assets/delete.png';
+
+/** Status dot — colored circle indicating order state, no text label. */
+function StatusDot({ status }) {
+  const colorMap = {
+    PROCESSING: 'bg-orange-500',
+    STOPPING: 'bg-amber-400',
+    COMPLETED: 'bg-green-600',
+    QUEUED: 'bg-blue-500',
+    HALTED: 'bg-yellow-500',
+    STOPPED: 'bg-red-500',
+    ERROR: 'bg-red-500',
+    CANCELLED: 'bg-red-500',
+  };
+  const color = colorMap[status?.toUpperCase()] || 'bg-gray-400';
+  const isActive = status === 'PROCESSING';
+  return (
+    <span
+      className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${color}${isActive ? ' animate-pulse' : ''}`}
+      title={status}
+    />
+  );
+}
 
 function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, onDeleteOrder, onViewDetails, onReorderOrder, isStarting, isStopping, isResuming, isDeleting, isReordering, getStatusBadge, t }) {
 
@@ -36,15 +59,15 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
     switch(status) {
       case 'PROCESSING':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-            <div className="w-2 h-2 bg-orange-500 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
+            <div className="w-2.5 h-2.5 bg-orange-500 rounded-full mr-2"></div>
             {t('processing')}
           </span>
         );
       case 'STOPPING':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-            <svg className="animate-spin w-3 h-3 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-amber-100 text-amber-800">
+            <svg className="animate-spin w-3.5 h-3.5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -53,15 +76,15 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
         );
       case 'COMPLETED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-            <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-800">
+            <div className="w-2.5 h-2.5 bg-green-600 rounded-full mr-2"></div>
             {t('completed')}
           </span>
         );
       case 'QUEUED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            <div className="w-2 h-2 bg-blue-600 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+            <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-2"></div>
             {t('queued')}
           </span>
         );
@@ -69,63 +92,119 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
       case 'ERROR':
       case 'STOPPED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            <div className="w-2 h-2 bg-red-600 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-red-100 text-red-800">
+            <div className="w-2.5 h-2.5 bg-red-600 rounded-full mr-2"></div>
             {status === 'CANCELLED' ? t('cancelled') : status === 'ERROR' ? t('error') : t('stopped')}
           </span>
         );
       case 'HALTED':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            <div className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-yellow-100 text-yellow-800">
+            <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full mr-2"></div>
             {t('halted')}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            <div className="w-2 h-2 bg-gray-500 rounded-full mr-2"></div>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-gray-100 text-gray-800">
+            <div className="w-2.5 h-2.5 bg-gray-500 rounded-full mr-2"></div>
             {status}
           </span>
         );
     }
   };
 
+  const isPosMode = useIsPosMode();
+
   // Visual highlight for processing/stopping/stopped orders
   const isProcessing = order.status === 'PROCESSING';
   const isInStoppingState = order.status === 'STOPPING';
   const isStopped = order.status === 'STOPPED';
   const containerClasses = isProcessing
-    ? 'mb-2 p-4 rounded-lg border-2 border-orange-400 bg-orange-50 shadow-lg transition-all duration-200 ring-2 ring-orange-200'
+    ? 'mb-2 p-3 rounded-lg border-2 border-orange-400 bg-orange-50 shadow-lg transition-all duration-200 ring-2 ring-orange-200'
     : isInStoppingState
-    ? 'mb-2 p-4 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
+    ? 'mb-2 p-3 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
     : isStopped
-    ? 'mb-2 p-4 rounded-lg border-2 border-red-300 shadow-lg ring-2 ring-red-200 animate-blink-red'
-    : 'mb-2 p-4 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
+    ? 'mb-2 p-3 rounded-lg border-2 border-red-300 shadow-lg ring-2 ring-red-200 animate-blink-red'
+    : 'mb-2 p-3 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={containerClasses}
+      className={`${containerClasses} cursor-pointer`}
+      onClick={() => onViewDetails(order)}
     >
-      <div className="flex items-center justify-between">
-        {/* Left side - ID and Status */}
-        <div className="flex flex-col space-y-2">
-          <span className="text-md text-bold text-gray-900">{t('orderId')}: {order.id}</span>
-          {getStatusBadgeWithDot(order.status)}
+      {isPosMode ? (
+        /* POS mode: row 1 = ID + status dot, row 2 = buttons only */
+        <div className="flex flex-col gap-1.5">
+          {/* Row 1: order ID on left, status dot on far right */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold leading-tight">{t('orderId')}: {order.id}</span>
+            <StatusDot status={order.status} />
+          </div>
+          {/* Row 2: action buttons, primary action fills available width */}
+          <div className="flex items-center gap-1.5 w-full">
+            <div className="flex items-center gap-1.5 w-full">
+              {order.status === 'PROCESSING' ? (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onStopOrder(order.id); }} disabled={isStopping === order.id}
+                  className={`flex-1 py-1 rounded text-xs font-bold transition-colors ${isStopping === order.id ? 'bg-red-300 text-white cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}>
+                  {isStopping === order.id ? t('stoppingLabel') : t('stop')}
+                </button>
+              ) : order.status === 'STOPPING' ? (
+                <button type="button" disabled className="flex-1 py-1 rounded text-xs font-bold bg-amber-300 text-white cursor-not-allowed" onClick={(e) => e.stopPropagation()}>
+                  {t('stoppingLabel')}
+                </button>
+              ) : order.status === 'STOPPED' ? (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onResumeOrder(order.id); }} disabled={isResuming === order.id}
+                  className={`flex-1 py-1 rounded text-xs font-bold transition-colors ${isResuming === order.id ? 'bg-blue-300 text-white cursor-not-allowed' : 'text-white'}`}
+                  style={{ backgroundColor: isResuming === order.id ? undefined : '#00754A' }}>
+                  {isResuming === order.id ? t('resuming') : t('resume')}
+                </button>
+              ) : (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onStartOrder(order.id); }} disabled={isDisabled || isStarting === order.id}
+                  className={`flex-1 py-1 rounded text-xs font-bold transition-colors ${isDisabled ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isStarting === order.id ? 'bg-blue-300 text-white cursor-not-allowed' : 'text-white'}`}
+                  style={{ backgroundColor: isDisabled ? undefined : isStarting === order.id ? undefined : '#00754A' }}>
+                  {isStarting === order.id ? t('starting') : t('start')}
+                </button>
+              )}
+              <button type="button" onClick={(e) => { e.stopPropagation(); onReorderOrder(order); }} disabled={isReordering === order.id}
+                className={`p-1 rounded flex items-center justify-center bg-transparent border-none shadow-none ${isReordering === order.id ? 'text-green-300 cursor-not-allowed' : 'text-green-600 hover:text-green-800'}`}
+                aria-label={t('reorder')}>
+                {isReordering === order.id
+                  ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  : <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
+              </button>
+              <button type="button" onClick={(e) => { e.stopPropagation(); onDeleteOrder && onDeleteOrder(order.id); }}
+                disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
+                className="text-xs px-1.5 py-1 rounded flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none"
+                style={{ height: '1.75rem', boxShadow: 'none' }} aria-label={t('delete')}>
+                {isDeleting
+                  ? <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  : <img src={deleteIcon} alt="" aria-hidden="true" className="w-8 h-8" />}
+              </button>
+            </div>
+          </div>
         </div>
-        
-        {/* Right side - Action Buttons */}
-        <div className="flex items-center space-x-2">
+      ) : (
+        /* Default layout: ID + status on left, buttons on right (single row) */
+        <div className="flex items-center justify-between">
+          {/* Left side - ID and Status */}
+          <div className="flex flex-col space-y-1.5">
+            <span className="text-base font-bold">{t('orderId')}: {order.id}</span>
+            {getStatusBadgeWithDot(order.status)}
+          </div>
+
+          {/* Right side - Action Buttons */}
+          <div className="flex items-center space-x-2">
           {/* Dynamic Action Button (Start/Stop/Resume) */}
           {order.status === 'PROCESSING' ? (
             // Stop Button for Processing Orders
             <button 
               type="button"
-              onClick={() => onStopOrder(order.id)}
+              onClick={(e) => { e.stopPropagation(); onStopOrder(order.id); }}
               disabled={isStopping === order.id}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
                 isStopping === order.id
                   ? 'bg-red-300 text-white cursor-not-allowed'
                   : 'bg-red-600 text-white hover:bg-red-700'
@@ -139,8 +218,9 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
             <button 
               type="button"
               disabled={true}
-              className="px-3 py-1.5 rounded text-xs font-medium bg-amber-300 text-white cursor-not-allowed"
+              className="px-4 py-2 rounded text-sm font-bold bg-amber-300 text-white cursor-not-allowed"
               title={t('stoppingLabel')}
+              onClick={(e) => e.stopPropagation()}
             >
               <span className="inline-flex items-center">
                 {t('stoppingLabel')}
@@ -150,9 +230,9 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
             // Resume Button for Stopped Orders
             <button 
               type="button"
-              onClick={() => onResumeOrder(order.id)}
+              onClick={(e) => { e.stopPropagation(); onResumeOrder(order.id); }}
               disabled={isResuming === order.id}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
                 isResuming === order.id
                   ? 'bg-blue-300 text-white cursor-not-allowed'
                   : 'text-white'
@@ -168,9 +248,9 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
             // Start Button for Queued/Cancelled/Error Orders
             <button 
               type="button"
-              onClick={() => onStartOrder(order.id)}
+              onClick={(e) => { e.stopPropagation(); onStartOrder(order.id); }}
               disabled={isDisabled || isStarting === order.id}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
                 isDisabled 
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : isStarting === order.id
@@ -190,88 +270,64 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
             </button>
           )}
 
-          {/* Details Button - Always enabled so users can view completed orders */}
+          {/* Reorder Button - icon only */}
           <button 
             type="button"
-            onClick={() => onViewDetails(order)}
-            className="px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors border-green-600 text-green-600 hover:bg-green-50"
-            style={{
-              borderWidth: '2px',
-              borderStyle: 'solid',
-              borderColor: '#059669'
-            }}
-            title={t('viewDetails')}
+            onClick={(e) => { e.stopPropagation(); onReorderOrder(order); }}
+            disabled={isReordering === order.id}
+            className={`p-1 rounded transition-colors flex items-center justify-center bg-transparent border-none shadow-none ${
+              isReordering === order.id 
+                ? 'text-green-300 cursor-not-allowed'
+                : 'text-green-600 hover:text-green-800'
+            }`}
+            title={isReordering === order.id ? t('reordering') : t('reorder')}
+            aria-label={t('reorder')}
           >
-            {t('details')}
+            {isReordering === order.id ? (
+              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
           </button>
 
-            {/* Reorder Button - outlined like Details */}
-            <button 
-              type="button"
-              onClick={() => onReorderOrder(order)}
-              disabled={isReordering === order.id}
-              className={`px-3 py-1.5 rounded text-xs font-medium border-2 transition-colors ${
-                isReordering === order.id 
-                  ? 'border-green-300 text-green-300 cursor-not-allowed'
-                  : 'border-green-600 text-green-600 hover:bg-green-50'
-              }`}
-              style={{
-                borderWidth: '2px',
-                borderStyle: 'solid',
-                borderColor: isReordering === order.id ? '#86efac' : '#059669'
-              }}
-              title={isReordering === order.id ? t('reordering') : t('reorder')}
-            >
-              {isReordering === order.id ? (
-                <span className="inline-flex items-center">
-                  <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {t('reordering')}
-                </span>
-              ) : (
-                <span className="inline-flex items-center">
-                  {t('reorder')}
-                </span>
-              )}
-            </button>
-
-            {/* Delete Button - Icon only */}
-            <button 
-              type="button"
-              onClick={() => {
-                console.log('🗑️ Delete button clicked for order:', order.id);
-                onDeleteOrder && onDeleteOrder(order.id);
-              }}
-              disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
-              className={`text-xs px-2 py-1 rounded flex items-center justify-center  text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none transition-all`}
-              title={
-                isDeleting ? t('deleting') 
-                : order.status === 'STOPPING' ? t('stoppingLabel') 
-                : order.status === 'PROCESSING' ? t('processing')
-                : t('delete')
-              }
-              aria-label={
-                isDeleting ? t('deleting') 
-                : order.status === 'STOPPING' ? t('stoppingLabel')
-                : order.status === 'PROCESSING' ? t('processing')
-                : t('delete')
-              }
-              style={{height:'2rem',boxShadow:'none'}}
-            >
-              {isDeleting ? (
-                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <img src={deleteIcon} alt="" aria-hidden="true" className="w-10 h-10" />
-              )}
-            </button>
-          </div>
+          {/* Delete Button - Icon only */}
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onDeleteOrder && onDeleteOrder(order.id); }}
+            disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
+            className={`text-xs px-2 py-1 rounded flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none transition-all`}
+            title={
+              isDeleting ? t('deleting') 
+              : order.status === 'STOPPING' ? t('stoppingLabel') 
+              : order.status === 'PROCESSING' ? t('processing')
+              : t('delete')
+            }
+            aria-label={
+              isDeleting ? t('deleting') 
+              : order.status === 'STOPPING' ? t('stoppingLabel')
+              : order.status === 'PROCESSING' ? t('processing')
+              : t('delete')
+            }
+            style={{height:'2rem',boxShadow:'none'}}
+          >
+            {isDeleting ? (
+              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <img src={deleteIcon} alt="" aria-hidden="true" className="w-10 h-10" />
+            )}
+          </button>
         </div>
       </div>
+      )} {/* end default mode */}
+    </div>
   );
 }
 
@@ -690,24 +746,34 @@ function OrderQueue({ connectionStatus }) {
     <div className="bg-white rounded-lg shadow-xl  flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-col space-y-3 p-3 md:p-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-2 sm:space-y-0">
-          <div className="flex items-center">
-            <h2 className="text-lg md:text-xl font-bold flex items-center ">
-              {t('queue')}
-              <div
-                className={`w-2 h-2 rounded-full mx-3 ${
-                  connectionStatus ? 'bg-green-500' : 'bg-red-500'
-                }`}
-              ></div>
-            </h2>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                navigate?.('newOrder');
+                window.location.hash = '#/newOrder';
+              }}
+              className="text-sm rounded font-bold transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-1.5 text-white hover:opacity-90"
+              style={{backgroundColor: '#059669', color: 'white'}}
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {t('newOrder')}
+            </button>
             {errors.orders && (
-              <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                 {t('apiError')}
               </span>
             )}
           </div>
-          
+
           <div className="flex items-center gap-2">
+            <div
+              className={`w-2 h-2 rounded-full ${
+                connectionStatus ? 'bg-green-500' : 'bg-red-500'
+              }`}
+            ></div>
             <h2
               onClick={handleCalibrateOrder}
               className="text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer barns-dark-bg text-white hover:barns-bg"
@@ -715,17 +781,6 @@ function OrderQueue({ connectionStatus }) {
             >
               {t('calibrate')}
             </h2>
-            
-            <button
-              onClick={() => {
-                navigate?.('newOrder');
-                window.location.hash = '#/newOrder';
-              }}
-              className="text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-2 barns-dark-bg text-white hover:barns-bg"
-              style={{color:'white'}}
-            >
-              {t('newOrder')}
-            </button>
           </div>
         </div>
         

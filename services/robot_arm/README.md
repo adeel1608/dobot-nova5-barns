@@ -78,6 +78,47 @@ ROBOT_SIMULATION=false docker-compose up -d robot-arm-service
 
 ## API/Endpoints
 
+## Complete API Surface (In/Out)
+
+This section is the canonical list of all current inbound and outbound APIs implemented in this service (`app.py`, `robot_actions.py`, `server.py`, `proto/robot.proto`).
+
+### Inbound APIs (Into Robot Arm)
+
+#### RabbitMQ RPC actions handled (service name: `robot_arm`)
+
+These are the RPC `action` names other services can call via `RabbitMQClient.send_request(target_service="robot_arm", action=...)`:
+
+| Action | Purpose | Notes |
+|---|---|---|
+| `health` | Service health check | Returns simulation mode and action count |
+| `list_actions` | List available robot actions | Includes test actions; may also query robot container actions (hardware mode) |
+| `robot_action` | Execute a robot action | Requires `function`; uses `params` plus `arm_id` |
+| `emergency_stop` | Emergency stop | Publishes `robot.emergency_stopped` event |
+| `calibrate` | Calibrate an arm | Publishes calibration start/completed events |
+| `get_status` | Get arm status | Returns simulated status payload |
+
+#### RabbitMQ event topics consumed
+
+Robot Arm subscribes to:
+- `system.*`
+- `robot.*`
+
+And registers handlers for:
+- `system.shutdown`
+- `robot.emergency_stop`
+
+#### gRPC API (legacy/ROS bridge)
+
+Defined in `proto/robot.proto` and implemented in `server.py`:
+
+- **Listen**: `0.0.0.0:50051` (insecure)
+- **Service**: `robot.RobotArmService`
+- **RPC methods**:
+
+| Method | Request | Response | Purpose |
+|---|---|---|---|
+| `ExecuteAction` | `ActionRequest { name, params }` | `ActionResult { success, message }` | Execute an action by name (legacy path calls `robot_actions.perform`) |
+
 ### Action: `robot_action`
 Execute a robot action.
 
@@ -196,9 +237,31 @@ response = await rabbitmq_client.send_request(
 - **robot_container**: ROS/MoveIt motion planning
 
 ### Event Publications
-- `robot.action_started`: Action began
-- `robot.action_completed`: Action completed
-- `robot.action_failed`: Action failed
+The Robot Arm service publishes the following events via RabbitMQ:
+
+- `robot.action_started`: emitted before action execution
+- `robot.action_completed`: emitted after action execution
+- `robot.action_error`: emitted when execution throws an exception
+- `robot.emergency_stopped`: emitted when emergency stop is requested
+- `robot.calibration_started`: emitted when calibration begins
+- `robot.calibration_completed`: emitted when calibration completes
+
+### Outbound APIs (From Robot Arm)
+
+#### RabbitMQ RPC calls made to robot containers (hardware path)
+
+When executing non-test actions (and when querying available actions), the service calls robot containers via RabbitMQ:
+
+| Caller | Target service | Action | Purpose |
+|---|---|---|---|
+| `robot_actions.call_robot_container` | `robot_container_{arm_id}` | `health` | Phase 1: readiness check (retry logic) |
+| `robot_actions.call_robot_container` | `robot_container_{arm_id}` | `execute_action` | Phase 2: execute robot action |
+| `robot_actions.get_robot_container_actions` | `robot_container_1` | `list_actions` | Discover supported actions from container |
+
+Notes:
+- `robot_container_{arm_id}` resolves to `robot_container_1` or `robot_container_2` based on `arm_id`.
+- `execute_action` payload includes `action_name` and `params`.
+
 
 ## Troubleshooting
 

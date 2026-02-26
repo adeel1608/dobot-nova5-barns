@@ -52,8 +52,29 @@ k8s/
 2. **kubectl**: Configured to access your cluster
 3. **Storage**: Local storage available at `/mnt/ssd/barns-data/` on worker nodes
 4. **Docker Images**: Built and tagged BARNS service images
+5. **Bash shell** (recommended): `deploy.sh` is a bash script (use Linux/macOS, WSL, or Git Bash on Windows)
+6. **gcloud CLI** (only if pulling from Google Artifact Registry): Used by `deploy.sh` to create the `gcr-json-key` imagePullSecret
+7. **Repo files referenced by ConfigMaps**:
+   - `config/tasks.json` (mounted into `routine-service`)
+   - `data/` directory (mounted into `scheduler-service` via `scheduler-data` ConfigMap)
 
 ## Pre-Deployment Setup
+
+### 0. Review Site-Specific Settings (Required)
+
+Several manifests are **environment/hardware specific** and should be reviewed before deploying:
+
+- **Node pinning (`nodeSelector`)**:
+  - `services/validation-service.yaml` (camera/RTSP access via `hostNetwork: true`)
+  - `services/robot1-deployment.yaml`, `services/robot2-deployment.yaml` (robot hardware access)
+- **Hardware/network assumptions**:
+  - `robot1` / `robot2` include static `IP_ADDRESS` values and camera serial numbers.
+  - `video-stream-service` mounts host `/dev` and runs privileged.
+- **Security posture**:
+  - `robot1` / `robot2` use `privileged: true` plus `hostPID`/`hostIPC`/`hostNetwork`.
+  - `validation-service` uses `hostNetwork: true` and hostPath volumes under `/mnt/ssd/barns-data/`.
+
+If these do not match your environment, update them before applying manifests.
 
 ### 1. Create Storage Directories on Nodes
 
@@ -140,6 +161,8 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
+**Note**: `deploy.sh` creates/updates the `gcr-json-key` imagePullSecret (Google Artifact Registry). If you are not using GAR, remove `imagePullSecrets` from the manifests or create an equivalent secret for your registry.
+
 ### Manual Deployment
 
 Deploy components in order:
@@ -206,6 +229,7 @@ kubectl logs -n barns deployment/api-bridge
 External access is provided through NodePort services. Replace `<NODE-IP>` with your Kubernetes node IP:
 
 - **RabbitMQ Management**: http://\<NODE-IP\>:30672 (admin/admin123)
+- **RabbitMQ MQTT**: `<NODE-IP>:30673` (TCP 1883)
 - **InfluxDB**: http://\<NODE-IP\>:30086
 - **API Bridge**: http://\<NODE-IP\>:30000
 - **Video Stream**: http://\<NODE-IP\>:30001
@@ -216,10 +240,91 @@ External access is provided through NodePort services. Replace `<NODE-IP>` with 
 
 Services communicate internally using Kubernetes DNS:
 
-- `rabbitmq.barns.svc.cluster.local:5672`
-- `postgres.barns.svc.cluster.local:5432`
-- `redis.barns.svc.cluster.local:6379`
-- `telegraf.barns.svc.cluster.local:8094`
+- **Infrastructure**
+  - `rabbitmq.barns.svc.cluster.local:5672` (AMQP)
+  - `rabbitmq.barns.svc.cluster.local:1883` (MQTT)
+  - `rabbitmq.barns.svc.cluster.local:15672` (management UI/API)
+  - `postgres.barns.svc.cluster.local:5432`
+  - `redis.barns.svc.cluster.local:6379`
+  - `influxdb.barns.svc.cluster.local:8086` (InfluxDB v2; API base path `/api/v2`)
+  - `telegraf.barns.svc.cluster.local:8094` (UDP)
+- **HTTP services**
+  - `api-bridge.barns.svc.cluster.local:8000`
+  - `oms-service.barns.svc.cluster.local:8000`
+  - `automation-service.barns.svc.cluster.local:8080`
+  - `routine-service.barns.svc.cluster.local:8080`
+  - `robot-arm-service.barns.svc.cluster.local:8080`
+  - `scheduler-service.barns.svc.cluster.local:8080`
+  - `video-stream-service.barns.svc.cluster.local:8000` (NodePort service also has a ClusterIP)
+  - `dashboard.barns.svc.cluster.local:80` (NodePort service also has a ClusterIP)
+
+## API Surface (Inbound and Outbound)
+
+This section documents the **network-level API surface** implied by the Kubernetes manifests (Services, NodePorts, and environment variables). For detailed HTTP route lists per service, refer to each service’s own README/source.
+
+### Inbound (external-to-cluster)
+
+All inbound traffic is via **NodePort** (no Ingress manifests are included in `k8s/`):
+
+| Component | Protocol | External (NodePort) | In-cluster target |
+|---|---:|---|---|
+| RabbitMQ Management UI/API | HTTP | `http://<NODE-IP>:30672` | `rabbitmq:15672` |
+| RabbitMQ MQTT | TCP | `<NODE-IP>:30673` | `rabbitmq:1883` |
+| InfluxDB UI/API | HTTP | `http://<NODE-IP>:30086` | `influxdb:8086` |
+| API Bridge | HTTP | `http://<NODE-IP>:30000` | `api-bridge:8000` |
+| Video Stream | HTTP | `http://<NODE-IP>:30001` | `video-stream-service:8000` |
+| OMS Service | HTTP | `http://<NODE-IP>:30002` | `oms-service:8000` |
+| Dashboard | HTTP | `http://<NODE-IP>:30003` | `dashboard:80` |
+
+### Inbound (cluster-internal)
+
+| Component | Protocol | Address |
+|---|---:|---|
+| RabbitMQ AMQP | TCP | `rabbitmq:5672` |
+| RabbitMQ MQTT | TCP | `rabbitmq:1883` |
+| PostgreSQL | TCP | `postgres:5432` |
+| Redis | TCP | `redis:6379` |
+| InfluxDB | HTTP | `http://influxdb:8086` |
+| Telegraf StatsD | UDP | `telegraf:8094` |
+
+| Service | Protocol | Address |
+|---|---:|---|
+| API Bridge | HTTP | `http://api-bridge:8000` |
+| OMS Service | HTTP | `http://oms-service:8000` |
+| Automation Service | HTTP | `http://automation-service:8080` |
+| Routine Service | HTTP | `http://routine-service:8080` |
+| Robot Arm Service | HTTP | `http://robot-arm-service:8080` |
+| Scheduler Service | HTTP | `http://scheduler-service:8080` |
+| Video Stream | HTTP | `http://video-stream-service:8000` |
+| Dashboard | HTTP | `http://dashboard:80` |
+
+### Outbound (service-to-service dependencies)
+
+Below is what each workload is configured to call/produce based on its environment variables and runtime mode.
+
+| Workload | Outbound APIs / dependencies |
+|---|---|
+| `api-bridge` | RabbitMQ AMQP (`RABBITMQ_URL`), Telegraf StatsD (`telegraf:8094/UDP`), HTTP health check at `/health` (used by kubelet liveness probe) |
+| `oms-service` | RabbitMQ AMQP, Redis (`redis:6379`), PostgreSQL (`postgres:5432`), Telegraf StatsD (`telegraf:8094/UDP`) |
+| `automation-service` | RabbitMQ AMQP, Telegraf StatsD (`telegraf:8094/UDP`) |
+| `routine-service` | RabbitMQ AMQP, Telegraf StatsD (`telegraf:8094/UDP`), reads routine tasks from ConfigMap mount (`/app/config/tasks.json`) |
+| `robot-arm-service` | RabbitMQ AMQP, Telegraf StatsD (`telegraf:8094/UDP`) |
+| `scheduler-service` | RabbitMQ AMQP, Telegraf StatsD (`telegraf:8094/UDP`), reads scheduler data from ConfigMap (`scheduler-data`) mounted at `/app/data` |
+| `validation-service` | RabbitMQ AMQP, PostgreSQL (`postgres:5432`), writes debug frames/models to hostPath mounts under `/mnt/ssd/barns-data/`, **uses `hostNetwork: true`** (RTSP camera access), sends metrics to Telegraf using `localhost:8094/UDP` due to host networking |
+| `video-stream-service` | Telegraf StatsD (`telegraf:8094/UDP`), **runs privileged** with `hostPath: /dev` (device access) |
+| `dashboard` | Configured with `RABBITMQ_URL`, `API_BRIDGE_URL`, `VIDEO_STREAM_URL`, and InfluxDB v2 settings (`VITE_INFLUX_*`). Review the `localhost`-based URLs in `k8s/frontend/dashboard.yaml`: when served over NodePort, `localhost` resolves on the end user’s machine (browser), not the cluster node. Prefer using the same `<NODE-IP>:<NodePort>` origin or relative URLs if the frontend expects to call these from the browser. |
+| `robot1`, `robot2` | **Privileged + hostNetwork/hostPID/hostIPC**. Connects to RabbitMQ (`rabbitmq.barns.svc.cluster.local:5672`) and to physical robot controllers/cameras (static `IP_ADDRESS` in the manifests). These deployments are hardware/environment specific (nodeSelector hostnames, device mounts under `/dev`, etc.). |
+
+### Port-forward (alternative to NodePort)
+
+If you do not want to expose NodePorts, you can access services via `kubectl port-forward`:
+
+```bash
+kubectl -n barns port-forward svc/api-bridge 8000:8000
+kubectl -n barns port-forward svc/oms-service 8000:8000
+kubectl -n barns port-forward svc/influxdb 8086:8086
+kubectl -n barns port-forward svc/rabbitmq 15672:15672
+```
 
 ## Configuration
 
@@ -367,6 +472,7 @@ kubectl delete -f storage/
 4. **Service Discovery**: Automatic via Kubernetes services
 5. **Validation Service**: Uses `hostNetwork: true` for RTSP camera access
 6. **Video Stream**: Uses privileged mode for device access
+7. **Robotics Pods** (`robot1`, `robot2`): Use privileged + host networking and are node/hardware specific (update `nodeSelector` and device/IP env vars per site)
 
 ## Security Considerations
 
