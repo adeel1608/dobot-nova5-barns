@@ -167,6 +167,54 @@ ln -sf "$SSD_MOUNT/var/lib/etcd" /var/lib/etcd
 
 print_status "Symlinks created to SSD storage"
 
+# not tested
+# Step 3.x: Fix node DNS (systemd-resolved) so /etc/resolv.conf is NOT the stub
+print_header "Step 3.x: Fixing Node DNS for Kubernetes"
+
+# Ensure systemd-resolved uses real upstream DNS servers
+RESOLVED_CONF="/etc/systemd/resolved.conf"
+
+# Backup once
+if [ ! -f "${RESOLVED_CONF}.bak" ]; then
+  cp "$RESOLVED_CONF" "${RESOLVED_CONF}.bak" 2>/dev/null || true
+fi
+
+# Set DNS servers (idempotent)
+# This will either replace existing DNS= line or add it under [Resolve]
+if grep -q "^\[Resolve\]" "$RESOLVED_CONF"; then
+  # ensure DNS line exists and is correct
+  if grep -q "^DNS=" "$RESOLVED_CONF"; then
+    sed -i 's/^DNS=.*/DNS=1.1.1.1 8.8.8.8/' "$RESOLVED_CONF"
+  else
+    sed -i '/^\[Resolve\]/a DNS=1.1.1.1 8.8.8.8' "$RESOLVED_CONF"
+  fi
+
+  # optional fallback
+  if grep -q "^FallbackDNS=" "$RESOLVED_CONF"; then
+    sed -i 's/^FallbackDNS=.*/FallbackDNS=8.8.4.4 1.0.0.1/' "$RESOLVED_CONF"
+  else
+    sed -i '/^\[Resolve\]/a FallbackDNS=8.8.4.4 1.0.0.1' "$RESOLVED_CONF"
+  fi
+else
+  # If file has no [Resolve] section, append it
+  cat >> "$RESOLVED_CONF" <<EOF
+
+[Resolve]
+DNS=1.1.1.1 8.8.8.8
+FallbackDNS=8.8.4.4 1.0.0.1
+EOF
+fi
+
+systemctl restart systemd-resolved
+
+# IMPORTANT: point /etc/resolv.conf to the real resolv.conf, not the stub (127.0.0.53)
+ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+
+print_status "Node DNS fixed: /etc/resolv.conf points to real upstream resolvers"
+print_info "Current /etc/resolv.conf:"
+cat /etc/resolv.conf
+# not tested
+
 # Step 4: Install containerd
 print_header "Step 4: Installing containerd"
 
@@ -429,6 +477,36 @@ esac
 print_header "Step 8: Waiting for Cluster to be Ready"
 
 wait_for_condition "kubectl get nodes | grep -q Ready" 120 "Waiting for node to be ready..."
+
+# not tested
+# Step 7.x: Patch CoreDNS to use stable upstream DNS (permanent cluster-side fix)
+print_header "Step 7.x: Patching CoreDNS upstream resolvers"
+
+export KUBECONFIG=/etc/kubernetes/admin.conf
+
+# Wait for CoreDNS configmap to exist
+for i in {1..60}; do
+  kubectl -n kube-system get cm coredns >/dev/null 2>&1 && break
+  sleep 2
+done
+
+if kubectl -n kube-system get cm coredns >/dev/null 2>&1; then
+  # Patch the Corefile to forward to explicit DNS servers
+  # Replace "forward . /etc/resolv.conf" with explicit forwarders
+  kubectl -n kube-system get cm coredns -o yaml > /tmp/coredns-cm.yaml
+
+  if grep -q "forward \. /etc/resolv\.conf" /tmp/coredns-cm.yaml; then
+    sed -i 's/forward \. \/etc\/resolv\.conf/forward . 1.1.1.1 8.8.8.8/' /tmp/coredns-cm.yaml
+    kubectl apply -f /tmp/coredns-cm.yaml
+    kubectl -n kube-system rollout restart deployment coredns
+    print_status "CoreDNS patched to forward to 1.1.1.1 and 8.8.8.8"
+  else
+    print_info "CoreDNS forwarder not using /etc/resolv.conf (already patched or custom)"
+  fi
+else
+  print_warning "CoreDNS configmap not found; skipping CoreDNS patch"
+fi
+# not tested
 
 if kubectl get nodes | grep -q Ready; then
     print_status "Master node is ready"
