@@ -360,7 +360,7 @@ export default {
     submitOrder: 'إرسال الطلب',
     backToDashboard: 'العودة للوحة التحكم',
     cancel: 'إلغاء',
-    processOrder: 'معالجة الطلب',
+    processOrder: 'تأكيد',
     processing: 'جاري المعالجة...'
   }
 };

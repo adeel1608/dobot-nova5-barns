@@ -162,56 +162,56 @@ function CameraStreamComponent({
 
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden relative group hover:shadow-lg transition-all duration-300 w-full h-full">
-      <div className="w-full h-full relative bg-gray-100">
-        {isOffline ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white">
-            <svg className="w-14 h-14 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            <p className="text-sm font-semibold">{displayName}</p>
-            <p className="text-xs text-gray-300">{t ? t('streamUnavailable') : 'Stream Unavailable'}</p>
-          </div>
-        ) : (
-          <img
-            key={imgKey}
-            src={streamUrl}
-            alt={`${displayName} feed`}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              // Prevent error loops - only handle first error
-              if (!imageError) {
-                addLog('VideoStream', 'warning', `Stream error for ${cameraId}: ${e.type}`);
-                setImageError(true);
-                onStreamError(cameraId);
-              }
-            }}
-            onLoad={() => {
-              if (hasFiredLoadRef.current) return;
-              hasFiredLoadRef.current = true;
-              lastFrameTimeRef.current = Date.now(); // Track frame receipt
-              setImageError(false);
-              onStreamReady(cameraId);
-            }}
-          />
-        )}
+      <div className="w-full h-full flex items-center justify-center bg-gray-100 p-0">
+        <div className="w-full max-w-full aspect-video relative bg-gray-900">
+          {isOffline ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white">
+              <svg className="w-14 h-14 text-red-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <p className="text-sm font-semibold">{displayName}</p>
+              <p className="text-xs text-gray-300">{t ? t('streamUnavailable') : 'Stream Unavailable'}</p>
+            </div>
+          ) : (
+            <img
+              key={imgKey}
+              src={streamUrl}
+              alt={`${displayName} feed`}
+              className="w-full h-full object-contain"
+              onError={(e) => {
+                if (!imageError) {
+                  addLog('VideoStream', 'warning', `Stream error for ${cameraId}: ${e.type}`);
+                  setImageError(true);
+                  onStreamError(cameraId);
+                }
+              }}
+              onLoad={() => {
+                if (hasFiredLoadRef.current) return;
+                hasFiredLoadRef.current = true;
+                lastFrameTimeRef.current = Date.now();
+                setImageError(false);
+                onStreamReady(cameraId);
+              }}
+            />
+          )}
 
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 opacity-90">
-          <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
-            <div className="bg-black/70 px-3 py-2 rounded-lg">
-              <p className="text-white text-sm">{displayName}</p>
-              <p className="text-gray-300 text-xs">{displayType}</p>
+          {/* Overlay on stream viewport only */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/70 opacity-90">
+            <div className="absolute top-3 left-3 right-3 flex justify-between items-start">
+              <div className="bg-black/70 px-3 py-2 rounded-lg">
+                <p className="text-white text-sm">{displayName}</p>
+                <p className="text-gray-300 text-xs">{displayType}</p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2.5 h-2.5 rounded-full ${isOffline ? 'bg-red-500' : 'bg-green-500'} animate-pulse`} />
+                <span className={`text-xs px-2 py-0.5 rounded-md ${isOffline ? 'bg-red-500' : 'bg-green-500'} text-white`}>
+                  {isOffline ? (t ? t('offline') : 'Offline') : (t ? t('live') : 'Live')}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <div className={`w-2.5 h-2.5 rounded-full ${isOffline ? 'bg-red-500' : 'bg-green-500'} animate-pulse`} />
-              <span className={`text-xs px-2 py-0.5 rounded-md ${isOffline ? 'bg-red-500' : 'bg-green-500'} text-white`}>
-                {isOffline ? (t ? t('offline') : 'Offline') : (t ? t('live') : 'Live')}
-              </span>
-            </div>
-          </div>
-          <div className="absolute bottom-3 right-3">
-            <button
+            <div className="absolute bottom-3 right-3">
+              <button
               onClick={() => !isOffline && onFullscreen(cameraId, camera)}
               disabled={isOffline}
               className="bg-black/70 text-white p-2 rounded-md hover:bg-black/90 disabled:opacity-50 transition-all group-hover:opacity-100 opacity-0 duration-300"
@@ -220,7 +220,8 @@ function CameraStreamComponent({
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
               </svg>
-            </button>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -753,23 +754,17 @@ export default function UnifiedCameraPanel() {
         </select>
       </div>
 
-      {/* Grid with 2 columns and 2 rows filling the height */}
-      <div className="p-4 h-[calc(100vh-160px)] ">
+      <div className="p-4 h-[calc(100vh-160px)] overflow-auto">
         {visibleCameras.length === 0 ? (
           <p className="text-center text-gray-500 py-8">{t('noCameraFeeds')}</p>
         ) : (
-          <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full w-full">
-            {visibleCameras.slice(0, 4).map(([id, camera]) => {
-              // If we're in fullscreen for this camera, don't render its grid tile
+          <div className="flex flex-col gap-4 w-full">
+            {visibleCameras.map(([id, camera]) => {
               if (isFullscreen && fullscreenCamera && fullscreenCamera.id === id) {
-                return (
-                  <div key={id} className="flex">
-                    {/* Reserved space while fullscreen is active */}
-                  </div>
-                );
+                return <div key={id} className="w-full aspect-video min-h-0" aria-hidden="true" />;
               }
               return (
-                <div key={id} className="flex">
+                <div key={id} className="w-full aspect-video min-h-0 shrink-0">
                   <CameraStream
                     cameraId={id}
                     camera={camera}

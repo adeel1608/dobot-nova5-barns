@@ -360,7 +360,7 @@ export default {
     submitOrder: 'Submit Order',
     backToDashboard: 'Back to Dashboard',
     cancel: 'Cancel',
-    processOrder: 'Process Order',
+    processOrder: 'Confirm',
     processing: 'Processing...'
   }
 };

@@ -9,6 +9,7 @@ import InventoryPage from "./pages/inventory";
 import CamerasPage from "./pages/cameras";
 import SettingsPage from "./pages/settings";
 import NewOrderPage from "./pages/newOrder";
+import NewOrderCompact from "./pages/newOrder/NewOrderCompact";
 import NavBarCompact from "./components/NavBarCompact";
 import barnsLogo from "./assets/barns.png";
 import qssLogo from "./assets/qss.png";
@@ -389,7 +390,7 @@ export default function App() {
         {activeTab === "inventory" && <InventoryPage />}
         {activeTab === "cameras" && <CamerasPage />}
         {activeTab === "settings" && <SettingsPage />}
-        {activeTab === "newOrder" && <NewOrderPage />}
+        {activeTab === "newOrder" && (isPosMode ? <NewOrderCompact /> : <NewOrderPage />)}
       </div>
     </div>
   );
