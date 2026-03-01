@@ -62,7 +62,9 @@ The Routine Service is the task execution coordinator that manages per-arm task 
    - Validation checks (if configured)
    - Automation hardware control (if configured)
    - Robot arm movements (if configured)
-5. **Event Publishing**: Send `routine.task_completed` or `routine.task_failed`
+5. **Event Publishing**:
+   - Step-level events: `routine.step_completed` (and error events like `validation.failed`, `robot.error`, `automation.error`)
+   - Task-level outcome: `routine.task_completed` or `routine.task_failed`
 6. **Next Task**: Worker continues to next task in queue
 
 ## Setup & Installation
@@ -202,13 +204,13 @@ RESOURCE_LOCK_MAX_WAIT_TIME = 300   # maximum 5 minutes before timeout
 
 **Example Log Output:**
 ```
-[ARM-1] 🔒 Attempting to acquire cup_station lock for place_cup_at_station (cup 123-1)
-[ARM-1] ✅ Acquired cup_station lock for place_cup_at_station (no wait)
+[ARM-1] Attempting to acquire cup_station lock for place_cup_at_station (cup 123-1)
+[ARM-1] Acquired cup_station lock for place_cup_at_station (no wait)
 ...
-[ARM-2] 🔒 Attempting to acquire cup_station lock for place_cup_at_station (cup 123-2)
-[ARM-2] ⏳ Retry 1: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (1.0s elapsed)
-[ARM-2] ⏳ Retry 5: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (5.2s elapsed)
-[ARM-2] ✅ Acquired cup_station lock for place_cup_at_station after 8 retries (8.1s)
+[ARM-2] Attempting to acquire cup_station lock for place_cup_at_station (cup 123-2)
+[ARM-2] Retry 1: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (1.0s elapsed)
+[ARM-2] Retry 5: Waiting for cup_station lock (held by Arm 1) - place_cup_at_station on cup 123-2 (5.2s elapsed)
+[ARM-2] Acquired cup_station lock for place_cup_at_station after 8 retries (8.1s)
 ```
 
 ### Validation Retry
@@ -227,112 +229,90 @@ Robot actions automatically retry on **transient failures**:
 - Temporary RabbitMQ issues
 
 **Retry Configuration:**
-- Maximum 2 retry attempts (3 total attempts)
+- Maximum 20 retry attempts
 - 3 second delay between retries
 - Only retries on transient errors (not hardware/logic errors)
 
 ### Feedback Retry
 
 Feedback to the scheduler is critical for maintaining system state. The routine service retries feedback delivery:
-- Maximum 3 retry attempts
+- Maximum 20 retry attempts
 - 2 second delay between retries
 - Falls back to event-based notification if all retries fail
 
 This ensures the scheduler always knows about task completion/failure, even during temporary network issues.
 
-## API/Endpoints
+## APIs In (Consumed by Routine Service)
 
-### Action: `submit_task`
-Submit a task to execution queue.
+This service does not expose HTTP endpoints. It consumes RabbitMQ actions/events.
 
-**Request:**
+### RabbitMQ Actions
+
+| Action | Purpose | Request Shape (JSON) |
+|--------|---------|----------------------|
+| `submit_task` | Enqueue a task for an arm worker | `{ "arm_id": 1, "function": "<task_name>", "item": { ... } }` |
+| `get_queue_status` | Queue size for one arm or all arms | `{}` or `{ "arm_id": 1 }` |
+| `clear_queue` | Clear one arm queue or all queues | `{}` or `{ "arm_id": 1 }` |
+| `cancel_order` | Remove queued tasks matching `order_id-*` cup ids (or explicit `cup_ids`) | `{ "order_id": 123 }` or `{ "cup_ids": ["123-1","123-2"] }` |
+| `stop_order` | Mark an order as stopped (pause execution) | `{ "order_id": 123 }` |
+| `resume_order` | Clear stopped flag for an order (resume execution) | `{ "order_id": 123 }` |
+| `health` | Service health and queue sizes | `{}` |
+
+### `submit_task` Request Example
+
 ```json
 {
   "arm_id": 1,
   "function": "pick_cup_medium",
   "item": {
-    "cup_id": "cup_1",
+    "cup_id": "123-1",
     "drink": "latte",
     "size": "medium"
   }
 }
 ```
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Task submitted to Arm 1 queue",
-  "queue_size": 3
-}
-```
+### Event Subscriptions
 
-### Action: `get_queue_status`
-Get current queue status for all arms.
+- Subscription patterns: `system.*`, `scheduler.*`
+- Handled events:
+  - `system.shutdown`
 
-**Response:**
-```json
-{
-  "success": true,
-  "arm_1_queue_size": 2,
-  "arm_2_queue_size": 1,
-  "total_tasks": 3
-}
-```
+## APIs Out (Produced by Routine Service)
 
-### Action: `clear_queue`
-Clear all pending tasks from queues.
+### RabbitMQ Events Published
 
-**Request:**
-```json
-{
-  "arm_id": 1  // Optional: specific arm, omit for all
-}
-```
+Queue management / orchestration events:
+- `routine.task_queued`
+- `routine.task_completed`
+- `routine.task_failed`
+- `routine.queue_cleared`
+- `routine.all_queues_cleared`
+- `routine.order_cancelled`
+- `routine.order_stopped`
+- `routine.order_resumed`
 
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Cleared 5 tasks from queues"
-}
-```
+Execution-step events emitted by the task executor:
+- `routine.step_completed`
+- `routine.completed`
+- `step.error`
+- `robot.error`
+- `automation.error`
+- `validation.failed`
+- `validation.failed.dashboard`
 
-### Action: `cancel_order`
-Cancel all tasks for a specific order.
+### Downstream RabbitMQ Requests (Service-to-Service)
 
-**Request:**
-```json
-{
-  "order_id": 123
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Cancelled all tasks for order 123",
-  "tasks_cancelled": 8
-}
-```
-
-### Action: `health`
-Health check.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "routine",
-  "arm_1_worker": "running",
-  "arm_2_worker": "running",
-  "queue_sizes": {
-    "arm_1": 0,
-    "arm_2": 0
-  }
-}
-```
+| Target Service | Action | Purpose | Request Shape (JSON) |
+|---------------|--------|---------|----------------------|
+| `scheduler` | `feedback` | Report task result (with retry + fallback events) | `{ "cup_id": "...", "action": "<task_name>", "success": true, "message": "", "timestamp": "..." }` |
+| `scheduler` | `revert_previous_step` | Revert prior scheduler step after validation failure | `{ "cup_id": "...", "current_action": "<task_name>" }` |
+| `scheduler` | `update_cup_position` | Persist updated cup position when routine remaps stations | `{ "cup_id": "...", "old_position": 1, "new_position": 2, "timestamp": "..." }` |
+| `scheduler` | `task_paused` | Immediately mark task as paused (validation failed or order stopped) | `{ "cup_id": "...", "function": "<task_name>", "reason": "validation_failed|order_stopped", "timestamp": "..." }` |
+| `validation` | `<validation_function_name>` | Run a validation step (action name is dynamic) | `{ "request_id": "...", "client_type": "routine", "cup_id": "...", ...params }` |
+| `automation` | `automate` | Run an automation function | `{ "function": "<automation_function>", "params": { ... } }` |
+| `robot_arm` | `robot_action` | Run a robot-arm function on a specific arm | `{ "function": "<robot_function>", "params": { ... , "arm_id": 1 }, "arm_id": 1 }` |
+| `oms` | `stop_order` | Stop an order via OMS (used on validation failure) | `{ "order_id": 123 }` |
 
 ## Usage Examples
 
@@ -376,10 +356,10 @@ async def monitor_tasks():
     await listener.connect()
     
     def handle_completion(data):
-        print(f"✅ Task completed: {data['function']} for {data['cup_id']}")
+        print(f"Task completed: {data['function']} for {data['cup_id']}")
     
     def handle_failure(data):
-        print(f"❌ Task failed: {data['function']} - {data.get('error')}")
+        print(f"Task failed: {data['function']} - {data.get('error')}")
     
     listener.register_event_handler("routine.task_completed", handle_completion)
     listener.register_event_handler("routine.task_failed", handle_failure)
@@ -408,13 +388,41 @@ async def emergency_clear():
     await client.disconnect()
 ```
 
+### Stop / Resume Order
+
+```python
+async def stop_order(order_id: int):
+    client = RabbitMQClient("control")
+    await client.connect()
+    response = await client.send_request(
+        target_service="routine",
+        action="stop_order",
+        data={"order_id": order_id},
+        timeout=5
+    )
+    print(response)
+    await client.disconnect()
+
+async def resume_order(order_id: int):
+    client = RabbitMQClient("control")
+    await client.connect()
+    response = await client.send_request(
+        target_service="routine",
+        action="resume_order",
+        data={"order_id": order_id},
+        timeout=5
+    )
+    print(response)
+    await client.disconnect()
+```
+
 ## Dependencies
 
 ### Core Dependencies
 
-- **aio-pika** (9.3.1): Async RabbitMQ client
-- **httpx** (0.25.2): HTTP client for service calls
-- **grpcio** (1.60.0): gRPC for robot communication
+- **aio-pika** (9.3.1): Async RabbitMQ client used by `shared.rabbitmq_client`
+- **pika** (1.3.2): RabbitMQ client (used in some components/tools)
+- **python-json-logger** (2.0.7): Structured logging support
 
 ### Shared Modules
 
@@ -427,7 +435,8 @@ async def emergency_clear():
 1. **Validation Service**
    - Pre-task ingredient checks
    - **Protocol**: RabbitMQ RPC
-   - **Timeout**: 30 seconds
+   - **Timeout**: 120 seconds (routine-side timeout; validation may retry internally)
+   - **Action**: Dynamic; the validation function name is sent as the RabbitMQ action
 
 2. **Automation Service**
    - Hardware control (grinder, espresso machine, etc.)
@@ -436,8 +445,18 @@ async def emergency_clear():
 
 3. **Robot Arm Service**
    - Robotic arm movements and actions
-   - **Protocol**: RabbitMQ RPC / gRPC
+   - **Protocol**: RabbitMQ RPC (routine calls `robot_arm` via RPC; the robot service may use gRPC internally)
    - **Timeout**: 300 seconds
+
+4. **Scheduler Service**
+   - Feedback and state coordination
+   - **Protocol**: RabbitMQ RPC
+   - **Actions**: `feedback`, `revert_previous_step`, `update_cup_position`, `task_paused`
+
+5. **OMS Service**
+   - Stop order flow (used on validation failure)
+   - **Protocol**: RabbitMQ RPC
+   - **Action**: `stop_order`
 
 ### Upstream Services (Receives From)
 
@@ -454,9 +473,12 @@ Listens to:
 
 ### Event Publications
 
-Broadcasts to `barns_events` exchange:
-- `routine.task_completed`: Task successfully executed
-- `routine.task_failed`: Task execution failed
+Publishes to the event bus:
+- `routine.task_completed`: Task-level completion (worker outcome)
+- `routine.task_failed`: Task-level failure (worker outcome)
+- `routine.step_completed`: Step-level completion (executor)
+- `routine.completed`: Task-level completion (executor)
+- `validation.failed`, `validation.failed.dashboard`, `robot.error`, `automation.error`, `step.error`
 
 **Event Format:**
 ```json

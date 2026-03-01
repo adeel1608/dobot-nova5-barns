@@ -1,12 +1,16 @@
 import React, { useEffect, useState, useRef } from "react";
 import useStore from "./store";
 import { useTranslationsStore, useTranslation } from "./store/translationsStore";
+import { useIsPosMode } from "./store/displayStore";
 import DashboardPage from "./pages/dashboard";
+import DashboardCompact from "./pages/dashboard/DashboardCompact";
 import AlertsPage from "./pages/alerts";
 import InventoryPage from "./pages/inventory";
 import CamerasPage from "./pages/cameras";
 import SettingsPage from "./pages/settings";
 import NewOrderPage from "./pages/newOrder";
+import NewOrderCompact from "./pages/newOrder/NewOrderCompact";
+import NavBarCompact from "./components/NavBarCompact";
 import barnsLogo from "./assets/barns.png";
 import qssLogo from "./assets/qss.png";
 import notification from "./assets/notification.png";
@@ -103,6 +107,8 @@ export default function App() {
       setNavigationHandler,
     ]);
 
+  const isPosMode = useIsPosMode();
+
   // Mobile menu toggle
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -114,11 +120,19 @@ export default function App() {
   return (
     <div
       className="flex flex-col min-h-screen w-full pb-2"
-
     >
+      {/* Compact header for POS mode */}
+      {isPosMode && (
+        <NavBarCompact
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          alerts={alerts}
+        />
+      )}
+
       {/* Header with Modern BARNS Design */}
       <header
-        className="bg-gray-100 text-gray-500 z-10 flex-shrink-0 px-6"
+        className={`bg-gray-100 text-gray-500 z-10 flex-shrink-0 px-6${isPosMode ? ' hidden' : ''}`}
       >
         <div className="container-fluid">
           <div className="flex justify-between items-center">
@@ -371,12 +385,12 @@ export default function App() {
       {/* Main Content Area */}
 
       <div className={`flex-1 px-2 ${activeTab === 'inventory' ? 'overflow-y-auto' : ''}`}>
-        {activeTab === "dashboard" && <DashboardPage />}
+        {activeTab === "dashboard" && (isPosMode ? <DashboardCompact /> : <DashboardPage />)}
         {activeTab === "alerts" && <AlertsPage />}
         {activeTab === "inventory" && <InventoryPage />}
         {activeTab === "cameras" && <CamerasPage />}
         {activeTab === "settings" && <SettingsPage />}
-        {activeTab === "newOrder" && <NewOrderPage />}
+        {activeTab === "newOrder" && (isPosMode ? <NewOrderCompact /> : <NewOrderPage />)}
       </div>
     </div>
   );

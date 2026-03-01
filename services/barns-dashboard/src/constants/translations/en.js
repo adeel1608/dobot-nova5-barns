@@ -100,6 +100,8 @@ export default {
     noOrderProcessing: 'No Order Processing',
     systemIdle: 'System is idle',
     showTasks: 'Show Tasks',
+    progressView: 'Progress',
+    tasksView: 'Tasks',
     cupProgress: 'Cup Progress',
     completedLabel: 'Completed',
     robotArm1: 'Robot Arm 1',
@@ -200,6 +202,14 @@ export default {
     logs: 'System Logs',
     ingredients: 'Ingredient Settings',
     translations: 'Translations',
+    display: 'Display',
+    displaySettings: 'Display Settings',
+    resolutionMode: 'Resolution Mode',
+    defaultMode: 'Default',
+    defaultModeDesc: 'Full resolution — uses your native screen size.',
+    posMode: 'POS Mode',
+    posModeDesc: 'Compact layout (1024x768) optimized for point-of-sale terminals.',
+    currentMode: 'Active',
     logsTitle: 'System Logs',
     logsEntries: 'entries',
     total: 'Total',
@@ -350,7 +360,7 @@ export default {
     submitOrder: 'Submit Order',
     backToDashboard: 'Back to Dashboard',
     cancel: 'Cancel',
-    processOrder: 'Process Order',
+    processOrder: 'Confirm',
     processing: 'Processing...'
   }
 };

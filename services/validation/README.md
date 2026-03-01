@@ -8,7 +8,7 @@ The Validation Service is the inventory management and computer vision backbone 
 
 - **Real-Time Inventory Tracking**: PostgreSQL-backed ingredient management with in-memory caching
 - **Automated Coffee Detection**: Periodic CV-based coffee beans level detection (every 10 minutes)
-- **Cup Detection**: YOLO-based cup presence validation at positions
+- **Cup Detection**: RF-DETR-based cup presence validation (RTSP + `rfdetr`/`supervision`)
 - **Pre-Order Validation**: Check ingredient availability before order processing
 - **Threshold Alerts**: Automatic low-stock warnings (low/empty levels)
 - **Inventory Refill**: Manual and CV-assisted refill operations
@@ -41,7 +41,7 @@ The Validation Service is the inventory management and computer vision backbone 
 │  ┌────────────────────┐    ┌──────────────────────────┐   │
 │  │  CV Detection      │    │   DatabaseClient         │   │
 │  │  - Coffee (Camera) │    │   (PostgreSQL)           │   │
-│  │  - Cup (YOLO)      │    │   - CRUD Operations      │   │
+│  │  - Cup (RF-DETR)   │    │   - CRUD Operations      │   │
 │  └────────────────────┘    └──────────────────────────┘   │
 │               │                       │                    │
 └───────────────┼───────────────────────┼────────────────────┘
@@ -53,7 +53,7 @@ The Validation Service is the inventory management and computer vision backbone 
        └────────────────┘      └────────────────┘
                                         
        RabbitMQ Communication:
-       ← Receives: Requests from Scheduler, OMS, API Bridge
+       ← Receives: Requests from Scheduler, Routine, API Bridge
        → Sends: Inventory updates, alerts, responses
 ```
 
@@ -64,7 +64,7 @@ The Validation Service is the inventory management and computer vision backbone 
 3. **InventoryManager** (`inventory_manager.py`): Inventory CRUD and calculations
 4. **DatabaseClient** (`db_client.py`): PostgreSQL operations
 5. **ProductionCoffeeDetector** (`coffee_detection/`): CV-based coffee level detection
-6. **CupDetector** (`cup_detection/`): YOLO-based cup presence detection
+6. **CupDetector** (`cup_detection/`): RF-DETR-based cup presence detection
 
 ## Setup & Installation
 
@@ -179,15 +179,47 @@ Defines thresholds and capacities:
 ### Cup Detection Config (`cup_detection/config.py`)
 
 ```python
-RTSP_URL = "rtsp://admin:123456@192.168.200.60:554/stream1"
-MODEL_PATH = "models/yolo11l.pt"
-CONFIDENCE = 0.05
-FRAMES = 1  # Fast single-frame detection
-MAX_DEBUG_FRAMES = 10
-CLEANUP_AFTER_DETECTION = True
+# Store secrets outside git; prefer injecting RTSP URL via env or secret manager.
+RTSP_URL = "rtsp://<user>:<pass>@<camera-ip>:554/stream1"
+
+# RF-DETR local model settings
+RFDETR_VARIANT = "large"          # "base", "medium", "large"
+RFDETR_CONFIDENCE = 0.10          # 0..1
+RFDETR_MODEL_PATHS = {
+  "large": "models/rf-detr-large.pth",
+  "base": "models/rf-detr-base.pth",
+  "medium": "models/rf-detr-medium.pth"
+}
+
+# Runtime behavior
+FRAMES = 1
+DEBUG_MODE = True
+SAVE_FRAMES = True
 ```
 
 ## API/Endpoints
+
+### Transport & Message Envelope
+
+This service **does not expose an HTTP API**. All request/response actions below are **RabbitMQ RPC** actions handled by `ValidationServiceApp` (`services/validation/app.py`).
+
+The handler methods accept both of these shapes (the service normalizes them internally):
+
+```json
+{
+  "request_id": "req-123",
+  "client_type": "scheduler",
+  "payload": { "..." : "..." }
+}
+```
+
+```json
+{
+  "request_id": "req-123",
+  "client_type": "scheduler",
+  "...": "payload fields at top-level"
+}
+```
 
 ### Inventory Management
 
@@ -319,6 +351,27 @@ Update inventory after consumption.
 }
 ```
 
+#### Action: `update_limits`
+Update inventory rule limits (writes to `inventory_rules.json` and updates in-memory cache; may adjust DB `current_amount` if lowering `max_capacity`).
+
+**Request:**
+
+```json
+{
+  "request_id": "req-005",
+  "payload": {
+    "updates": [
+      { "category": "milk", "subtype": "whole_fat_milk", "field": "max_capacity", "value": 20000 },
+      { "category": "cups", "subtype": "cup_H7", "field": "warning_threshold", "value": 60 }
+    ]
+  }
+}
+```
+
+**Notes:**
+- Allowed `field` values: `max_capacity`, `warning_threshold`, `critical_threshold`, `low_threshold`
+- This is an **admin-style operation** and should only be invoked from trusted components (e.g. API Bridge with proper access controls).
+
 ### Analytics
 
 #### Action: `category_summary`
@@ -377,6 +430,12 @@ Get ingredients filtered by level.
 }
 ```
 
+#### Action: `category_info`
+Get inventory category metadata (categories, subtypes, capacities/thresholds).
+
+#### Action: `category_count`
+Get count of items per category (for dashboard summary cards).
+
 ### Computer Vision
 
 #### Action: `cup_detection`
@@ -399,6 +458,44 @@ Detect cup presence at positions.
 }
 ```
 
+#### Action: `milk_cup_detection_present`
+Validate the milk station: **passes only if** a cup is detected (expected present).
+
+#### Action: `milk_cup_detection_absent`
+Validate the milk station: **passes only if** a cup is not detected (expected absent).
+
+#### Action: `sauce_cup_detection_present`
+Validate the sauce station: **passes only if** a cup is detected (expected present).
+
+#### Action: `sauce_cup_detection_absent`
+Validate the sauce station: **passes only if** a cup is not detected (expected absent).
+
+### Routine Service Integration
+
+These actions accept the routine-style payload where ingredient groups are sent by key, for example:
+
+```json
+{
+  "request_id": "routine-cup123-...",
+  "client_type": "routine",
+  "cup_id": "cup123",
+  "milk": { "20": 110.0 },
+  "syrups": { "14": 5.0, "7": 8.0 },
+  "sauce": { "12": 6.0 },
+  "cups": { "cup_H9": 1.0 },
+  "espresso": { "espresso_shot_single": 1.0 }
+}
+```
+
+Supported routine actions:
+- `validate_ingredients`: validate all provided ingredients (no inventory mutation)
+- `update_ingredients`: deduct all provided ingredients
+- `update_milk`: deduct milk only
+- `update_water`: deduct water only (if tracked)
+- `update_syrup`: deduct syrups only
+- `update_sauce`: deduct sauce only
+- `check_coffee_beans`: coffee-beans focused validation using the same routine format
+
 ### System
 
 #### Action: `health`
@@ -412,6 +509,9 @@ Health check.
   "capabilities": ["pre_check", "update_inventory", "cup_detection", ...]
 }
 ```
+
+#### Action: `validation_test` / `validation_test2`
+Simple diagnostic actions used to validate RPC connectivity and latency in non-production flows.
 
 ## Usage Examples
 
@@ -460,9 +560,9 @@ async def validate_order(order_items):
     )
     
     if response["passed"]:
-        print("✅ Order can proceed")
+        print("Order can proceed")
     else:
-        print("❌ Insufficient ingredients")
+        print("Insufficient ingredients")
     
     await client.disconnect()
 ```
@@ -487,7 +587,7 @@ async def refill_coffee():
     
     if response["passed"]:
         percentage = response["details"]["coffee_beans_percentage"]
-        print(f"✅ Refilled to {percentage}%")
+        print(f"Refilled to {percentage}%")
     
     await client.disconnect()
 ```
@@ -499,7 +599,7 @@ async def refill_coffee():
 - **aio-pika** (9.5.5): Async RabbitMQ client
 - **psycopg2-binary** (2.9.10): PostgreSQL driver
 - **pydantic** (2.11.4): Data validation
-- **FastAPI** (0.115.12): API framework (for potential HTTP endpoints)
+- **FastAPI** (0.115.12): Used for shared schemas/exceptions; this service does not run an HTTP server
 
 ### Computer Vision
 
@@ -507,7 +607,10 @@ async def refill_coffee():
 - **numpy** (2.2.6): Array operations
 - **torch** (2.8.0): Deep learning framework
 - **torchvision** (0.23.0): Vision models
-- **ultralytics** (8.3.203): YOLO object detection
+- **transformers**: Model/runtime utilities
+- **rfdetr** (1.3.0): Cup detection model
+- **supervision** (0.26.1): Detection post-processing utilities
+- **pillow** (11.3.0): Image IO utilities
 - **requests** (2.31.0): HTTP client for camera snapshots
 
 ### Utilities
@@ -518,12 +621,16 @@ async def refill_coffee():
 
 ### Downstream Services (Calls To)
 
-1. **PostgreSQL Database**
+1. **RabbitMQ Broker**
+   - RPC request handling and event publication
+   - **Port**: 5672 (typical)
+
+2. **PostgreSQL Database**
    - Inventory CRUD operations
    - Historical data persistence
    - **Port**: 5432
 
-2. **IP Cameras**
+3. **IP Cameras**
    - Coffee beans detection (HTTP snapshot)
    - Cup detection (RTSP stream)
    - **Protocols**: HTTP/RTSP
@@ -535,14 +642,19 @@ async def refill_coffee():
    - `update_inventory`: Deduct ingredients after consumption
    - **Protocol**: RabbitMQ RPC
 
-2. **OMS Service**
-   - Alert acknowledgment (future)
+2. **Routine Service**
+   - `validate_ingredients`, `update_ingredients`, `update_milk`, `update_water`, `update_syrup`, `update_sauce`, `check_coffee_beans`
    - **Protocol**: RabbitMQ RPC
 
 3. **API Bridge / Dashboard**
    - `inventory_status`: Get current levels
    - `inventory_refill`: Manual refill operations
-   - `category_summary`: Dashboard analytics
+   - `category_summary`, `stock_level`, `inventory_by_stock_level`, `category_info`, `category_count`
+   - `update_limits`: Update capacities/thresholds
+   - **Protocol**: RabbitMQ RPC
+
+4. **Automation / Diagnostics**
+   - `validation_test`, `validation_test2`
    - **Protocol**: RabbitMQ RPC
 
 ### Event Publications
@@ -617,7 +729,7 @@ Broadcasts to `barns_events` exchange:
    print(f"Camera accessible: {ret}")
    ```
 
-3. Check YOLO model:
+3. Check RF-DETR model files:
    ```bash
    ls -lh services/validation/cup_detection/models/
    ```

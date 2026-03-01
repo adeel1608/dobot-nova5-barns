@@ -86,86 +86,106 @@ docker-compose logs -f automation-service
 | `MQTT_HOST` | `rabbitmq` | MQTT broker host (uses RabbitMQ MQTT plugin) |
 | `PYTHONPATH` | `/app` | Python module path |
 
-### MQTT Topics
+### MQTT Device Topics (via RabbitMQ MQTT plugin)
 
-- **Request**: `automation/request` - Send automation commands
-- **Response**: `automation/response` - Receive device responses
+The service publishes hardware commands to these topics and waits for responses on the paired `/response` topic:
 
-## API/Endpoints
+- `automation_coffee_machine_hot_water` / `automation_coffee_machine_hot_water/response`
+- `automation_syrup` / `automation_syrup/response`
+- `automation_milk` / `automation_milk/response`
+- `automation_trigger` / `automation_trigger/response`
+- `automation_slush` / `automation_slush/response`
+- `automation_coffee_machine` / `automation_coffee_machine/response`
+- `automation_grinding` / `automation_grinding/response`
+- `automation_tampering` / `automation_tampering/response`
+- `automation_ice` / `automation_ice/response`
+- `automation_frother` / `automation_frother/response`
+- `automation_frother_init` / `automation_frother_init/response`
+- `automation_clean_frother` / `automation_clean_frother/response`
+- `automation_rinser` / `automation_rinser/response`
 
-### Action: `automate`
-Execute an automation function.
+## APIs In (Consumed by Automation Service)
 
-**Request:**
+This service does not expose HTTP endpoints. It consumes RabbitMQ actions/events.
+
+### RabbitMQ Actions
+
+| Action | Purpose | Request Shape |
+|--------|---------|---------------|
+| `automate` | Execute one automation function | `{ "function": "<name>", "params": { ... } }` |
+| `health` | Service health check | `{}` |
+| `list_functions` | List supported function names | `{}` |
+| `stop_automation` | Stop active automation flow | `{}` |
+
+### Event Subscriptions
+
+- `system.shutdown`
+- `automation.emergency_stop`
+- Subscription patterns: `system.*`, `automation.*`
+
+### `automate` Request Example
+
 ```json
 {
-  "function": "activate_grinder",
+  "function": "grinding_machine",
   "params": {
-    "duration_sec": 15,
-    "grind_size": "fine"
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Ground coffee for 15 seconds at fine setting",
-  "details": {
-    "duration": 15,
     "grind_size": "fine",
-    "amount_g": 18
+    "timeout": 75
   }
 }
 ```
 
-### Action: `list_functions`
-Get available automation functions.
+## APIs Out (Produced by Automation Service)
 
-**Response:**
-```json
-{
-  "success": true,
-  "functions": [
-    "heat_water",
-    "dispense_syrup",
-    "activate_grinder",
-    "pull_espresso_shot",
-    "steam_milk",
-    "dispense_milk",
-    "...20 more"
-  ]
-}
-```
+### RabbitMQ Events Published
 
-### Action: `stop_automation`
-Emergency stop all operations.
+- `automation.started`
+- `automation.completed`
+- `automation.error`
+- `automation.stopped`
+- `automation.emergency_stopped`
 
-### Action: `health`
-Health check.
+### Outbound Device Command APIs (MQTT)
+
+| Function (via `automate`) | Command Topic | Response Topic |
+|---------------------------|---------------|----------------|
+| `dispense_hot_water` | `automation_coffee_machine_hot_water` | `automation_coffee_machine_hot_water/response` |
+| `dispense_syrup` | `automation_syrup` | `automation_syrup/response` |
+| `dispense_sauce` | `automation_milk` | `automation_milk/response` |
+| `dispense_milk` | `automation_milk` | `automation_milk/response` |
+| `purge_milks_syrups` | `automation_trigger` | `automation_trigger/response` |
+| `slush_machine` | `automation_slush` | `automation_slush/response` |
+| `coffee_machine` | `automation_coffee_machine` | `automation_coffee_machine/response` |
+| `coffee_machine_wait` | `automation_coffee_machine` | `automation_coffee_machine/response` |
+| `coffee_machine_purge` | `automation_coffee_machine` | `automation_coffee_machine/response` |
+| `grinding_machine` | `automation_grinding` | `automation_grinding/response` |
+| `tampering_machine` | `automation_tampering` | `automation_tampering/response` |
+| `dispense_ice` | `automation_ice` | `automation_ice/response` |
+| `froth_milk` | `automation_frother` | `automation_frother/response` |
+| `initialize_frother` | `automation_frother_init` | `automation_frother_init/response` |
+| `clean_frother` | `automation_clean_frother` | `automation_clean_frother/response` |
+| `rinser_machine` | `automation_rinser` | `automation_rinser/response` |
+| `automation_test` | No external call (returns local success payload) | N/A |
 
 ## Available Functions
 
-### Coffee Preparation
-- `activate_grinder(duration_sec, grind_size)`: Grind coffee beans
-- `pull_espresso_shot(shots, temperature)`: Extract espresso
-- `tamp_coffee(pressure)`: Tamp ground coffee
-
-### Milk Operations
-- `steam_milk(temperature, texture)`: Steam milk to temp
-- `dispense_milk(pump_number, amount)`: Dispense milk type
-- `froth_milk(duration, intensity)`: Create microfoam
-
-### Dispensing
-- `dispense_syrup(pump_number, amount)`: Dispense syrups
-- `dispense_water(amount_ml, temperature)`: Hot water
-- `dispense_ice(amount)`: Ice dispenser
-
-### Utilities
-- `heat_water(target_temp, volume_ml)`: Heat water
-- `clean_group_head()`: Cleaning cycle
-- `purge_steam_wand()`: Steam wand flush
+- `dispense_syrup`
+- `dispense_sauce`
+- `dispense_milk`
+- `purge_milks_syrups`
+- `slush_machine`
+- `coffee_machine`
+- `coffee_machine_purge`
+- `coffee_machine_wait`
+- `grinding_machine`
+- `tampering_machine`
+- `dispense_ice`
+- `froth_milk`
+- `initialize_frother`
+- `clean_frother`
+- `rinser_machine`
+- `automation_test`
+- `dispense_hot_water`
 
 ## Usage Examples
 
@@ -210,16 +230,17 @@ client.publish("automation/request", payload)
 ## Integration Points
 
 ### Upstream Services
-- **Routine Service**: Task execution requests
+- **Routine Service**: Sends `automate` requests and queries (`health`, `list_functions`)
 
 ### Downstream Services
-- **Arduino/ESP32 Devices**: Via MQTT
-- **Direct Hardware**: Via serial/GPIO (if configured)
+- **Arduino/ESP32 Devices**: Controlled via MQTT topics listed above
 
 ### Event Publications
 - `automation.started`: Function execution began
-- `automation.completed`: Function completed successfully
-- `automation.failed`: Function execution failed
+- `automation.completed`: Function execution completed
+- `automation.error`: Function execution failed
+- `automation.stopped`: Stop request handled
+- `automation.emergency_stopped`: Emergency stop processed
 
 ## Troubleshooting
 
