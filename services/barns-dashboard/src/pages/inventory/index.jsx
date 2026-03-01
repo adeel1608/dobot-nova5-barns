@@ -8,6 +8,7 @@ import { useInventoryStore } from "../../store/inventoryStore";
 import { useTranslation } from "../../store/translationsStore";
 import { SERVICE_OFFLINE_MESSAGE } from "../../utils/errorHandler";
 import CategoryInventoryCard from "./components/CategoryInventoryCard";
+import InventoryCompact from "./InventoryCompact";
 import "./styles.css";
 
 const InventoryPage = () => {
@@ -38,7 +39,7 @@ const InventoryPage = () => {
     // App.jsx already loads inventory in background, so check if we have data first
     const inventoryStore = useInventoryStore.getState();
     const hasInventoryData = Object.keys(inventoryStore.inventoryStatus || {}).length > 0;
-    
+
     if (!hasInventoryData) {
       // Fetch all inventory data in parallel (non-blocking)
       Promise.allSettled([
@@ -71,18 +72,18 @@ const InventoryPage = () => {
       await refillCategory(category, 100);
     }
   };
- 
+
   const stockLevelData = useInventoryStore((state) => state.inventoryStockLevel);
   const stocklevel = liveStockLevel || stockLevelData?.stock_level || {
-  high: 0,
-  medium: 0,
-  low: 0,
-  empty: 0,
-  total: 0
-};
+    high: 0,
+    medium: 0,
+    low: 0,
+    empty: 0,
+    total: 0
+  };
 
 
-  
+
 
   const stats = getInventoryStats();
   // no need this now
@@ -114,20 +115,20 @@ const InventoryPage = () => {
   //   return () => socket.off("inventory.stock_level", handleStockUpdate);
   // }, []);
 
-// Old Socket.IO inventory status updates - commented out, using WebSocket now
-// useEffect(() => {
-//   const handleInventoryStatus = async (data) => {
-//     console.log('📡 Live inventory.status received:', data);
-//     if (data?.inventory) {
-//       const store = useInventoryStore.getState();
-//       store.updateInventoryData(data.inventory);
-//       await store.updateCategorySummary();
-//     }
-//   };
+  // Old Socket.IO inventory status updates - commented out, using WebSocket now
+  // useEffect(() => {
+  //   const handleInventoryStatus = async (data) => {
+  //     console.log('📡 Live inventory.status received:', data);
+  //     if (data?.inventory) {
+  //       const store = useInventoryStore.getState();
+  //       store.updateInventoryData(data.inventory);
+  //       await store.updateCategorySummary();
+  //     }
+  //   };
 
-//   socket.on('inventory.status', handleInventoryStatus);
-//   return () => socket.off('inventory.status', handleInventoryStatus);
-// }, []);
+  //   socket.on('inventory.status', handleInventoryStatus);
+  //   return () => socket.off('inventory.status', handleInventoryStatus);
+  // }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,12 +146,12 @@ const InventoryPage = () => {
                 </div>
               </div>
             </div>
-          
+
 
             {/* Statistics Overview */}
             <div className="grid grid-cols-6 gap-2 sm:gap-3 lg:gap-4">
               {/* Info Card - Enhanced styling */}
-              <div 
+              <div
                 className={`col-span-1 bg-gradient-to-br from-[#00784B]/5 via-white to-[#233746]/5 p-3 sm:p-4 rounded-lg shadow-md transition-all duration-300 hover:shadow-lg
                   ${isSocketConnected ? 'border-2 border-green-500' : 'border-2 border-red-500'}
                 `}
@@ -242,7 +243,7 @@ const InventoryPage = () => {
                 </div>
               </div>
 
-               <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
+              <div className="bg-gradient-to-br from-yellow-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-yellow-100 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
@@ -305,7 +306,7 @@ const InventoryPage = () => {
 
 
 
-              
+
               <div className=" bg-gradient-to-br from-red-50 to-white p-3 sm:p-4 rounded-lg shadow-sm border border-red-200 hover:shadow-md transition-all duration-300">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
@@ -338,7 +339,7 @@ const InventoryPage = () => {
 
 
             </div>
-           
+
 
             {/* Low Stock Alert */}
             {lowItems.length > 0 && (
@@ -360,7 +361,7 @@ const InventoryPage = () => {
                       <h3 className="text-sm font-medium  text-red-800">
                         {t('lowStockAlert')}
                       </h3>
-                    
+
                       {hasLowInventory() && (
                         <button
                           onClick={handleRefillAllLow}
@@ -421,19 +422,19 @@ const InventoryPage = () => {
                             ))}
                           {lowItems.length >
                             (window.innerWidth > 640 ? 5 : 3) && (
-                            <li>
-                              ...{t('andMoreItems')}{" "}
-                              {lowItems.length -
-                                (window.innerWidth > 640 ? 5 : 3)}{" "}
-                              {t('moreItems')}
-                            </li>
-                          )}
+                              <li>
+                                ...{t('andMoreItems')}{" "}
+                                {lowItems.length -
+                                  (window.innerWidth > 640 ? 5 : 3)}{" "}
+                                {t('moreItems')}
+                              </li>
+                            )}
                         </ul>
                       </div>
                     </div>
                   </div>
                 </div>
-               
+
               </div>
             )}
           </div>
@@ -474,11 +475,10 @@ const InventoryPage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`tab-button relative py-2.5 px-5 rounded-lg font-medium text-sm
             flex items-center gap-2 min-w-[120px] justify-center group
-            ${
-              activeTab === tab.id
-                ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md hover:text-black"
-                : "bg-white text-[#00784B] hover:bg-[#00784B]/5 hover:text-black"
-            }`}
+            ${activeTab === tab.id
+                      ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md hover:text-black"
+                      : "bg-white text-[#00784B] hover:bg-[#00784B]/5 hover:text-black"
+                    }`}
                   data-active={activeTab === tab.id}
                 >
                   <span className="hidden sm:inline">{tab.name}</span>
@@ -488,11 +488,10 @@ const InventoryPage = () => {
                   <span
                     className={`py-0.5 px-2 rounded-full text-xs font-medium 
               transition-all duration-300
-              ${
-                activeTab === tab.id
-                  ? "bg-white/20 text-white"
-                  : "bg-[#00784B]/5 text-[#00784B] group-hover:bg-[#00784B]/20"
-              }`}
+              ${activeTab === tab.id
+                        ? "bg-white/20 text-white"
+                        : "bg-[#00784B]/5 text-[#00784B] group-hover:bg-[#00784B]/20"
+                      }`}
                   >
                     {tab.count}
                   </span>
@@ -527,24 +526,24 @@ const InventoryPage = () => {
             <CategoryInventoryCard category={activeTab} isAllView={false} />
           )}
         </div> */}
-      <div className="space-y-6 pb-6">
-        {activeTab === "all" ? (
-          Object.entries(categoryDetails).map(([category, count]) => (
+        <div className="space-y-6 pb-6">
+          {activeTab === "all" ? (
+            Object.entries(categoryDetails).map(([category, count]) => (
+              <CategoryInventoryCard
+                key={category}
+                category={category}
+                count={count} // ✅ Passing count here
+                isAllView={true}
+              />
+            ))
+          ) : (
             <CategoryInventoryCard
-              key={category}
-              category={category}
-              count={count} // ✅ Passing count here
-              isAllView={true}
+              category={activeTab}
+              count={categoryDetails[activeTab] || 0} // ✅ count for selected tab
+              isAllView={false}
             />
-          ))
-        ) : (
-          <CategoryInventoryCard
-            category={activeTab}
-            count={categoryDetails[activeTab] || 0} // ✅ count for selected tab
-            isAllView={false}
-          />
-        )}
-      </div>
+          )}
+        </div>
       </div>
 
       {/* Loading Overlay */}

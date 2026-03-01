@@ -32,10 +32,11 @@ function CompactCartItem({
 
     return (
         <div
-            className={`rounded-2xl border-2 p-3.5 mb-2.5 transition-all duration-150 relative ${item.capacityExceeded
-                ? 'border-red-200 bg-red-50'
-                : 'border-gray-100 bg-white hover:border-green-300 hover:shadow-sm'
+            className={`rounded-2xl p-3.5 mb-2.5 transition-all duration-150 relative ${item.capacityExceeded
+                ? 'bg-red-50 hover:shadow-sm'
+                : 'bg-white hover:shadow-sm'
                 }`}
+            style={{ border: item.capacityExceeded ? '2px solid #fca5a5' : '2px solid #d1d5db' }}
         >
             {/* Row 1: name (left) — size (right) */}
             <div className="flex items-baseline justify-between gap-2 mb-2">
@@ -82,10 +83,10 @@ function CompactCartItem({
                 <button
                     type="button"
                     onClick={() => updateCartItem(item.id, { isCustomizeOpen: !item.isCustomizeOpen })}
-                    style={{ padding: 0 }}
-                    className={`w-13 h-8 flex items-center justify-center rounded-xl border-2 transition-all flex-shrink-0 ${item.isCustomizeOpen
-                        ? 'border-green-500 bg-green-50 text-green-800'
-                        : 'border-gray-400 bg-gray-50 text-gray-500 hover:border-green-300 hover:bg-white hover:text-green-700'
+                    style={{ padding: 0, border: item.isCustomizeOpen ? '2px solid #22c55e' : '2px solid #9ca3af' }}
+                    className={`w-12 h-8 flex items-center justify-center rounded-xl transition-all flex-shrink-0 ${item.isCustomizeOpen
+                        ? 'bg-green-50 text-green-800'
+                        : 'bg-gray-50 text-gray-500 hover:bg-white hover:text-green-700'
                         }`}
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -97,8 +98,8 @@ function CompactCartItem({
                 <button
                     type="button"
                     onClick={() => removeFromCart(item.id)}
-                    style={{ padding: 0 }}
-                    className="w-13 h-8 flex flex-shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500 border-2 border-red-400 hover:bg-red-100 hover:text-red-700 active:scale-95 transition-all"
+                    style={{ padding: 0, border: '2px solid #f87171' }}
+                    className="w-12 h-8 flex flex-shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 active:scale-95 transition-all"
                     aria-label={t('removeItem')}
                 >
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -221,6 +222,7 @@ export default function CompactOrderCart({
                         onClick={handleCancel}
                         disabled={isLoading || cartItems.length === 0}
                         className="flex-1 py-3 rounded-xl text-sm font-bold text-gray-500 bg-gray-100 hover:bg-red-50 hover:text-red-500 active:bg-red-100 transition-all disabled:opacity-40"
+                        style={{ border: '2px solid #9ca3af' }}
                     >
                         {t('cancel')}
                     </button>

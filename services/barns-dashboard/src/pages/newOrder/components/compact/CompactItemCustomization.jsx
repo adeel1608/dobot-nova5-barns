@@ -41,6 +41,7 @@ function AmountStepper({ label, value, unit, levelLabel, onDecrease, onIncrease,
           onClick={onDecrease}
           disabled={decreaseDisabled}
           className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-bold transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed ${accentClass}`}
+          style={{ border: '2px solid currentColor' }}
         >
           −
         </button>
@@ -53,6 +54,7 @@ function AmountStepper({ label, value, unit, levelLabel, onDecrease, onIncrease,
           onClick={onIncrease}
           disabled={increaseDisabled}
           className={`w-9 h-9 rounded-xl flex items-center justify-center text-base font-bold transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed ${accentClass}`}
+          style={{ border: '2px solid currentColor' }}
         >
           +
         </button>
@@ -109,12 +111,12 @@ function PillGroup({ options, selected, onSelect, getLabel, getId, getBadge, get
             key={id}
             type="button"
             onClick={() => onSelect(id)}
-            style={{ fontSize: '13px' }}
-            className={`flex-1 min-h-[36px] whitespace-nowrap font-semibold rounded-xl border-2 px-2 py-1 transition-all duration-120 active:scale-95 flex items-center justify-center ${isActive
-              ? 'bg-green-600 text-white border-green-600 shadow-sm'
+            style={{ fontSize: '13px', border: isActive ? '2px solid #16a34a' : wouldExceed ? '2px solid #fbbf24' : '2px solid #9ca3af' }}
+            className={`flex-1 min-h-[36px] whitespace-nowrap font-semibold rounded-xl px-2 py-1 transition-all duration-120 active:scale-95 flex items-center justify-center ${isActive
+              ? 'bg-green-600 text-white shadow-sm'
               : wouldExceed
-                ? 'bg-amber-50 text-amber-700 border-amber-300 hover:border-amber-400'
-                : 'bg-white text-gray-700 border-gray-200 hover:border-green-400 hover:text-green-700'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-white text-gray-700 hover:text-green-700'
               }`}
           >
             {label}
@@ -606,7 +608,8 @@ export default function CompactItemCustomization({
       <button
         type="button"
         onClick={() => setShowNotes(v => !v)}
-        className="flex items-center justify-between w-full min-h-[40px] px-3 rounded-xl border-2 border-dashed border-gray-200 hover:border-green-300 hover:bg-green-50 transition-all"
+        className="flex items-center justify-between w-full min-h-[40px] px-3 rounded-xl hover:bg-green-50 transition-all"
+        style={{ border: '2px dashed #9ca3af' }}
       >
         <span className="text-xs font-semibold text-gray-500">
           Special Instructions

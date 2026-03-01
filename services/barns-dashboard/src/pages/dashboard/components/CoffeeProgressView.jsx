@@ -86,7 +86,7 @@ function CupStatusIcon({ status }) {
   );
 }
 
-function StatusBadge({ status, t }) {
+function StatusBadge({ status, t, compact }) {
   const configs = {
     completed: { bg: 'bg-green-50', text: 'text-green-700', dot: 'bg-green-500', label: t('completedLabel') },
     in_progress: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-400', label: t('inProgress') },
@@ -94,6 +94,9 @@ function StatusBadge({ status, t }) {
     pending: { bg: 'bg-gray-50', text: 'text-gray-400', dot: 'bg-gray-300', label: t('pending') },
   };
   const c = configs[status] || configs.pending;
+  if (compact) {
+    return <span className={`w-3 h-3 rounded-full flex-shrink-0 ${c.dot}`} />;
+  }
   return (
     <span className={`inline-flex items-center gap-1.5 text-[11px] font-semibold ${c.bg} ${c.text} rounded-full px-2.5 py-1 whitespace-nowrap`}>
       <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${c.dot}`} />
@@ -102,7 +105,7 @@ function StatusBadge({ status, t }) {
   );
 }
 
-function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, registerRef, t }) {
+function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, registerRef, t, compact }) {
   const drinkName = cup.drink_type || cup.type || t('unknownItem');
   const displaySize = sanitizeSize(cup.cup_size || cup.size || '');
   const isActive = isArm1Active || isArm2Active;
@@ -132,20 +135,22 @@ function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, register
 
       <div className="flex-1 min-w-0">
         <div className="font-bold text-sm text-gray-900 truncate leading-snug">{drinkName}</div>
-        <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden">
-          <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap">
-            {t('cup')} {idx + 1}
-          </span>
-          {displaySize && (
+        {drinkName.toLowerCase() !== 'calibrate' && (
+          <div className="flex items-center gap-1.5 mt-1.5 overflow-hidden">
             <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap">
-              {displaySize}
+              {t('cup')} {idx + 1}
             </span>
-          )}
-        </div>
+            {displaySize && (
+              <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap">
+                {displaySize}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-shrink-0">
-        <StatusBadge status={status} t={t} />
+        <StatusBadge status={status} t={t} compact={compact} />
       </div>
     </div>
   );
@@ -207,7 +212,7 @@ function ArmTrack({ railRef, arrowY, visible, direction, color }) {
  * Right track: Arm 2 colored arrow slides to the cup Arm 2 is processing.
  * Cup cards are vertically centered in the available space.
  */
-export default function CoffeeProgressView({ cups, schedulerTasks, t }) {
+export default function CoffeeProgressView({ cups, schedulerTasks, t, compact }) {
   const outerRef = useRef(null);
   const arm1RailRef = useRef(null);
   const arm2RailRef = useRef(null);
@@ -301,7 +306,7 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t }) {
         <div
           style={{
             display: 'grid',
-            alignContent: 'center',
+            alignContent: 'start',
             gap: 10,
             minHeight: '100%',
             paddingTop: 4,
@@ -323,6 +328,7 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t }) {
                 isArm2Active={arm2ActiveCupId === cupId}
                 registerRef={registerCupRef}
                 t={t}
+                compact={compact}
               />
             );
           })}

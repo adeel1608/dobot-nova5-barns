@@ -26,7 +26,10 @@ function CompactDrinkCard({ drinkName, sizes, addToCart }) {
             key={size}
             type="button"
             onClick={() => addToCart(drinkName, size)}
-            className="flex-1 min-w-[56px] min-h-[44px] text-[15px] font-bold rounded-xl border-2 border-green-200 bg-green-50 text-green-800 hover:bg-green-600 hover:text-white hover:border-green-600 active:bg-green-700 active:scale-95 transition-all duration-120 select-none flex items-center justify-center flex-shrink-0 shadow-sm"
+            className="flex-1 min-w-[56px] min-h-[44px] text-[15px] font-bold rounded-xl bg-green-50 text-green-800 hover:bg-green-600 hover:text-white active:bg-green-700 active:scale-95 transition-all duration-120 select-none flex items-center justify-center flex-shrink-0 shadow-sm"
+            style={{ border: '2px solid #22c55e' }}
+            onMouseEnter={e => e.currentTarget.style.border = '2px solid #16a34a'}
+            onMouseLeave={e => e.currentTarget.style.border = '2px solid #22c55e'}
           >
             {size}
           </button>

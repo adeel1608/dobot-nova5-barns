@@ -48,7 +48,7 @@ const InventoryPage = () => {
       await refillCategory(category, 100);
     }
   };
- 
+
   const stockLevelData = useInventoryStore((state) => state.inventoryStockLevel);
   const stocklevel = stockLevelData?.stock_level || {
     high: 0,
@@ -57,7 +57,7 @@ const InventoryPage = () => {
     total: 0
   };
   //console.log("🧠 Stock Level Data:", stocklevel);
-  
+
 
   const stats = getInventoryStats();
   // no need this now
@@ -97,7 +97,7 @@ const InventoryPage = () => {
                 </div>
               </div>
             </div>
-          
+
 
             {/* Statistics Overview */}
             <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:gap-4">
@@ -126,7 +126,7 @@ const InventoryPage = () => {
                       Inventory
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl barns-green-text font-medium text-[#233746]">
-                       Management
+                      Management
                     </p>
                   </div>
                 </div>
@@ -152,7 +152,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-blue-600 truncate">
-                      Total Items
+                      Total
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900 barns-dark-text">
                       {stocklevel.total}
@@ -182,7 +182,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-red-600 truncate">
-                      Low Stock
+                      Low
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.low}
@@ -212,7 +212,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-yellow-600 truncate">
-                      Medium Stock
+                      Medium
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.medium}
@@ -242,7 +242,7 @@ const InventoryPage = () => {
                   </div>
                   <div className="ml-3 sm:ml-4 flex-1">
                     <p className="text-xs sm:text-sm font-medium text-green-600 truncate">
-                      High Stock
+                      High
                     </p>
                     <p className="text-sm sm:text-lg lg:text-xl font-bold text-gray-900">
                       {stocklevel.high}
@@ -251,7 +251,7 @@ const InventoryPage = () => {
                 </div>
               </div>
             </div>
-           
+
 
             {/* Low Stock Alert */}
             {lowItems.length > 0 && (
@@ -273,13 +273,13 @@ const InventoryPage = () => {
                       <h3 className="text-sm font-medium  text-red-800">
                         Low Stock Alert
                       </h3>
-                    
+
                       {hasLowInventory() && (
                         <button
                           onClick={handleRefillAllLow}
                           disabled={isLoading}
                           className="px-3 sm:px-4 py-1 bg-red-600 text-white text-sm font-small rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap order-2 sm:order-1"
-                          
+
                         >
                           {isLoading ? (
                             <div className="flex items-center justify-center">
@@ -335,19 +335,19 @@ const InventoryPage = () => {
                             ))}
                           {lowItems.length >
                             (window.innerWidth > 640 ? 5 : 3) && (
-                            <li>
-                              ...and{" "}
-                              {lowItems.length -
-                                (window.innerWidth > 640 ? 5 : 3)}{" "}
-                              more items
-                            </li>
-                          )}
+                              <li>
+                                ...and{" "}
+                                {lowItems.length -
+                                  (window.innerWidth > 640 ? 5 : 3)}{" "}
+                                more items
+                              </li>
+                            )}
                         </ul>
                       </div>
                     </div>
                   </div>
                 </div>
-               
+
               </div>
             )}
           </div>
@@ -388,11 +388,10 @@ const InventoryPage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`tab-button relative py-2.5 px-5 rounded-lg font-medium text-sm
             flex items-center gap-2 min-w-[120px] justify-center group
-            ${
-              activeTab === tab.id
-                ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md hover:text-black"
-                : "bg-white text-[#00784B] hover:bg-[#00784B]/5 hover:text-black"
-            }`}
+            ${activeTab === tab.id
+                      ? "bg-[#00784B] text-white border-2 border-[#00784B] shadow-md hover:text-black"
+                      : "bg-white text-[#00784B] hover:bg-[#00784B]/5 hover:text-black"
+                    }`}
                   data-active={activeTab === tab.id}
                 >
                   <span className="hidden sm:inline">{tab.name}</span>
@@ -402,11 +401,10 @@ const InventoryPage = () => {
                   <span
                     className={`py-0.5 px-2 rounded-full text-xs font-medium 
               transition-all duration-300
-              ${
-                activeTab === tab.id
-                  ? "bg-white/20 text-white"
-                  : "bg-[#00784B]/5 text-[#00784B] group-hover:bg-[#00784B]/20"
-              }`}
+              ${activeTab === tab.id
+                        ? "bg-white/20 text-white"
+                        : "bg-[#00784B]/5 text-[#00784B] group-hover:bg-[#00784B]/20"
+                      }`}
                   >
                     {tab.count}
                   </span>
@@ -441,24 +439,24 @@ const InventoryPage = () => {
             <CategoryInventoryCard category={activeTab} isAllView={false} />
           )}
         </div> */}
-      <div className="space-y-6 pb-6">
-        {activeTab === "all" ? (
-          Object.entries(categoryDetails).map(([category, count]) => (
+        <div className="space-y-6 pb-6">
+          {activeTab === "all" ? (
+            Object.entries(categoryDetails).map(([category, count]) => (
+              <CategoryInventoryCard
+                key={category}
+                category={category}
+                count={count} // ✅ Passing count here
+                isAllView={true}
+              />
+            ))
+          ) : (
             <CategoryInventoryCard
-              key={category}
-              category={category}
-              count={count} // ✅ Passing count here
-              isAllView={true}
+              category={activeTab}
+              count={categoryDetails[activeTab] || 0} // ✅ count for selected tab
+              isAllView={false}
             />
-          ))
-        ) : (
-          <CategoryInventoryCard
-            category={activeTab}
-            count={categoryDetails[activeTab] || 0} // ✅ count for selected tab
-            isAllView={false}
-          />
-        )}
-      </div>
+          )}
+        </div>
       </div>
 
       {/* Loading Overlay */}

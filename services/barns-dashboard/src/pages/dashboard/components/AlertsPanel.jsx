@@ -8,15 +8,15 @@ import { getIngredientData, getSeverityMessage } from '../../../constants/ingred
 
 export default function AlertsPanel() {
   const { t } = useTranslation('alerts');
-  const { 
-    alerts, 
-    acknowledgeAlert, 
-    fetchAlerts, 
-    isLoading, 
+  const {
+    alerts,
+    acknowledgeAlert,
+    fetchAlerts,
+    isLoading,
     errors,
-    clearError 
+    clearError
   } = useStore();
-  
+
   const [acknowledging, setAcknowledging] = useState(new Set());
   const audioContextRef = useRef(null);
   const oscillator1Ref = useRef(null);
@@ -34,68 +34,68 @@ export default function AlertsPanel() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
-      
+
       const ctx = new AudioCtx();
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
-      
+
       // Create oscillator for notification beeps
       const osc = ctx.createOscillator();
       osc.type = 'sine'; // Pleasant, smooth tone
       osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 - pleasant notification tone
-      
+
       osc.connect(gain);
       osc.start();
-      
+
       // Start silent
       gain.gain.setValueAtTime(0, ctx.currentTime);
-      
+
       audioContextRef.current = ctx;
       oscillator1Ref.current = osc;
       gainRef.current = gain;
       isBuzzingRef.current = true;
-      
+
       // Create a pleasant triple-beep pattern that repeats every 3 seconds
       // Pattern: beep-beep-beep ... pause ... beep-beep-beep
       const playBeepPattern = () => {
         if (!audioContextRef.current) return;
-        
+
         const ctx = audioContextRef.current;
         const now = ctx.currentTime;
         const g = gainRef.current;
-        
+
         // Triple beep pattern with pleasant frequency
         const beepDuration = 0.15; // Short beep
         const beepGap = 0.15; // Gap between beeps
         const volume = 0.3; // Gentle volume
-        
+
         // First beep
         g.gain.cancelScheduledValues(now);
         g.gain.setValueAtTime(0, now);
         g.gain.linearRampToValueAtTime(volume, now + 0.02);
         g.gain.linearRampToValueAtTime(0, now + beepDuration);
-        
+
         // Second beep
         const secondBeepStart = now + beepDuration + beepGap;
         g.gain.setValueAtTime(0, secondBeepStart);
         g.gain.linearRampToValueAtTime(volume, secondBeepStart + 0.02);
         g.gain.linearRampToValueAtTime(0, secondBeepStart + beepDuration);
-        
+
         // Third beep
         const thirdBeepStart = secondBeepStart + beepDuration + beepGap;
         g.gain.setValueAtTime(0, thirdBeepStart);
         g.gain.linearRampToValueAtTime(volume, thirdBeepStart + 0.02);
         g.gain.linearRampToValueAtTime(0, thirdBeepStart + beepDuration);
       };
-      
+
       // Play pattern immediately
       playBeepPattern();
-      
+
       // Repeat pattern every 3 seconds
       alarmIntervalRef.current = setInterval(() => {
         playBeepPattern();
       }, 3000);
-      
+
     } catch (error) {
       console.error('Failed to start notification sound:', error);
     }
@@ -109,24 +109,24 @@ export default function AlertsPanel() {
         clearInterval(alarmIntervalRef.current);
         alarmIntervalRef.current = null;
       }
-      
+
       if (isBuzzingRef.current) {
         const ctx = audioContextRef.current;
         const osc = oscillator1Ref.current;
         const gain = gainRef.current;
-        
+
         if (gain && ctx) {
           gain.gain.cancelScheduledValues(ctx.currentTime);
           gain.gain.setValueAtTime(0, ctx.currentTime);
         }
-        
+
         if (osc) {
           osc.stop(ctx ? ctx.currentTime + 0.05 : undefined);
         }
-        
+
         if (ctx && typeof ctx.close === 'function') {
           setTimeout(() => {
-            ctx.close().catch(() => {});
+            ctx.close().catch(() => { });
           }, 100);
         }
       }
@@ -144,7 +144,7 @@ export default function AlertsPanel() {
   // Fetch alerts on component mount and set up refresh interval
   useEffect(() => {
     fetchAlerts();
-    
+
     // Set up periodic refresh every 30 seconds
     const interval = setInterval(() => {
       fetchAlerts();
@@ -153,8 +153,8 @@ export default function AlertsPanel() {
     return () => clearInterval(interval);
   }, [fetchAlerts]);
 
-    const { navigateToTab } = useStore();
-    const handleNavigate = () => {
+  const { navigateToTab } = useStore();
+  const handleNavigate = () => {
     navigateToTab('alerts');       // Update state
     window.location.hash = '#/alerts'; // Update URL
   };
@@ -165,7 +165,7 @@ export default function AlertsPanel() {
     const isCupStations = ingredient === 'cup_stations';
     const validationData = getValidationDataFromAlert(alert);
     const ingredientData = alert.alert_type === 'ingredient_threshold' && ingredient ? getIngredientData(ingredient) : null;
-    
+
     return {
       id: alert.id,
       type: mapAlertTypeToDisplayType(alert.alert_type, alert.severity),
@@ -273,7 +273,7 @@ export default function AlertsPanel() {
     // Try to get ingredient from payload (can be object or JSON string)
     if (alert.payload) {
       let payload = alert.payload;
-      
+
       // If payload is a string, parse it
       if (typeof payload === 'string') {
         try {
@@ -283,13 +283,13 @@ export default function AlertsPanel() {
           payload = null;
         }
       }
-      
+
       // If we have a payload object with ingredient, return it
       if (payload && payload.ingredient) {
         return payload.ingredient;
       }
     }
-    
+
     // Fallback: try to extract from message
     const message = alert.message || '';
     const ingredients = ['cup_stations', 'milk', 'cup', 'beans', 'syrup', 'coffee'];
@@ -303,12 +303,12 @@ export default function AlertsPanel() {
       const severity = getSeverityFromAlert(alert);
       return getSeverityMessage(severity);
     }
-    
+
     // For order_halted alerts, check for validation_function key in payload
     if (alert.alert_type === 'order_halted') {
       if (alert.payload) {
         let payload = alert.payload;
-        
+
         // If payload is a string, parse it
         if (typeof payload === 'string') {
           try {
@@ -318,14 +318,14 @@ export default function AlertsPanel() {
             return alert.message || getDefaultMessage(alert.alert_type);
           }
         }
-        
+
         // If we have a validation_function key, map it to a message
         if (payload && payload.validation_function) {
           return getValidationMessage(payload.validation_function, 'Order processing has been halted due to validation failure');
         }
       }
     }
-    
+
     // For other alert types or if no validation_function found, return message or default
     return alert.message || getDefaultMessage(alert.alert_type);
   }
@@ -336,7 +336,7 @@ export default function AlertsPanel() {
     if (alert.alert_type === 'order_halted') {
       if (alert.payload) {
         let payload = alert.payload;
-        
+
         // If payload is a string, parse it
         if (typeof payload === 'string') {
           try {
@@ -345,19 +345,19 @@ export default function AlertsPanel() {
             return { icon: null, color: "text-gray-600" };
           }
         }
-        
+
         // If we have a validation_function key, get its data
         if (payload && payload.validation_function) {
           return getValidationData(payload.validation_function);
         }
       }
     }
-    
+
     return { icon: null, color: "text-gray-600" };
   }
 
   const unacknowledgedAlerts = mappedAlerts; // All alerts from the store are unacknowledged
-  
+
   // Keep buzzer ON while there are active alerts, OFF otherwise
   useEffect(() => {
     if (!isLoading && unacknowledgedAlerts.length > 0) {
@@ -370,7 +370,7 @@ export default function AlertsPanel() {
       stopBuzz();
     };
   }, [unacknowledgedAlerts.length, isLoading]);
-  
+
   // Helper: build speech text for an alert
   function getAlertSpeechText(alert) {
     const message = alert.message ? alert.message : '';
@@ -468,7 +468,7 @@ export default function AlertsPanel() {
     const diff = Date.now() - timestamp.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(diff / (1000 * 60 * 60));
-    
+
     if (hours > 0) {
       return `${hours}h ago`;
     } else if (minutes > 0) {
@@ -480,9 +480,9 @@ export default function AlertsPanel() {
 
   const handleAcknowledge = async (alertId) => {
     if (acknowledging.has(alertId)) return;
-    
+
     setAcknowledging(prev => new Set(prev).add(alertId));
-    
+
     try {
       const success = await acknowledgeAlert(alertId);
       if (success) {
@@ -504,12 +504,12 @@ export default function AlertsPanel() {
 
   const handleAcknowledgeAll = async () => {
     if (unacknowledgedAlerts.length === 0) return;
-    
+
     // Acknowledge all alerts in parallel
-    const acknowledgePromises = unacknowledgedAlerts.map(alert => 
+    const acknowledgePromises = unacknowledgedAlerts.map(alert =>
       handleAcknowledge(alert.id)
     );
-    
+
     try {
       await Promise.all(acknowledgePromises);
     } catch (error) {
@@ -543,7 +543,7 @@ export default function AlertsPanel() {
           animation: alertBlink 1.5s ease-in-out infinite;
         }
       `}</style>
-      
+
       {/* Header - Responsive */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 border-b border-gray-200 flex-shrink-0 space-y-2 sm:space-y-0  ">
         <div className="flex items-center justify-between w-full ">
@@ -558,26 +558,26 @@ export default function AlertsPanel() {
               API Error
             </span>
           )} */}
-           <div className="flex gap-x-2">
+          <div className="flex gap-x-2">
 
             <div className="relative group inline-block ">
               <button
                 onClick={handleNavigate}
-                className="barns-dark-bg"
-                style={{ padding: '0.3rem', outline: 'none' }}
+                className="barns-dark-bg flex items-center justify-center"
+                style={{ padding: 0, outline: 'none', width: '32px', height: '32px', minWidth: '32px', minHeight: '32px' }}
               >
                 <img src={viewAll} alt="Refresh" className="w-5 h-5 cursor-pointer" />
               </button>
-            <div className="absolute bottom-full left-[-50%] transform -translate-x-1/2 mb-2  
+              <div className="absolute bottom-full left-[-50%] transform -translate-x-1/2 mb-2  
                             bg-gray-800 text-white text-xs rounded px-2 py-1 
                             opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
-              Click to More Details
+                Click to More Details
+              </div>
             </div>
-          </div>
 
+          </div>
         </div>
-        </div>
-        
+
         <div className="flex items-center space-x-2">
           {errors.alerts && (
             <h2
@@ -633,11 +633,10 @@ export default function AlertsPanel() {
           ) : (
             <div className="space-y-3 p-3">
               {unacknowledgedAlerts.map((alert) => (
-                <div 
-                  key={alert.id} 
-                  className={`p-3 md:p-4 hover:bg-gray-50 transition-colors rounded-md border border-gray-200 ${
-                    alert.severity === 'critical' ? 'alert-blink-critical' : 'alert-blink'
-                  }`}
+                <div
+                  key={alert.id}
+                  className={`p-3 md:p-4 hover:bg-gray-50 transition-colors rounded-md border border-gray-200 ${alert.severity === 'critical' ? 'alert-blink-critical' : 'alert-blink'
+                    }`}
                 >
                   <div className="flex items-start gap-4">
                     {/* Large Icon on Left */}
@@ -650,7 +649,7 @@ export default function AlertsPanel() {
                         getAlertIcon(alert.type)
                       )}
                     </div>
-                    
+
                     {/* Content on Right */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
@@ -661,11 +660,11 @@ export default function AlertsPanel() {
                           {getTimeAgo(alert.timestamp)}
                         </span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                         {alert.message}
                       </p>
-                      
+
                       <div className="flex items-center justify-end mt-3">
                         <button
                           onClick={() => handleAcknowledge(alert.id)}
