@@ -6,6 +6,7 @@ import DashboardPage from "./pages/dashboard";
 import DashboardCompact from "./pages/dashboard/DashboardCompact";
 import AlertsPage from "./pages/alerts";
 import InventoryPage from "./pages/inventory";
+import InventoryCompact from "./pages/inventory/InventoryCompact";
 import CamerasPage from "./pages/cameras";
 import SettingsPage from "./pages/settings";
 import NewOrderPage from "./pages/newOrder";
@@ -77,12 +78,12 @@ export default function App() {
 
         // Wait for critical data only
         await Promise.allSettled(criticalData);
-        
+
         // Start background data loading (don't await - let it happen in background)
-        Promise.allSettled(backgroundData).catch(err => 
+        Promise.allSettled(backgroundData).catch(err =>
           console.error("Background data loading error:", err)
         );
-        
+
       } catch (error) {
         console.error("Unexpected error during setup:", error);
       }
@@ -97,15 +98,15 @@ export default function App() {
 
     return () => clearInterval(healthCheckInterval);
   }, [
-      fetchOrders,
-      fetchAlerts,
-      fetchSchedulerStatus,
-      fetchInventoryStatus,
-      checkSystemHealth,
-      connectOrderWS,
-      connectAlertWS,
-      setNavigationHandler,
-    ]);
+    fetchOrders,
+    fetchAlerts,
+    fetchSchedulerStatus,
+    fetchInventoryStatus,
+    checkSystemHealth,
+    connectOrderWS,
+    connectAlertWS,
+    setNavigationHandler,
+  ]);
 
   const isPosMode = useIsPosMode();
 
@@ -157,11 +158,10 @@ export default function App() {
                     window.location.hash = "#/dashboard";
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-1 rounded-lg font-semibold text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "dashboard" 
-                      ? "bg-green-800 text-white" 
+                  className={`px-4 py-1 rounded-lg font-semibold text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === "dashboard"
+                      ? "bg-green-800 text-white"
                       : "text-gray-400 hover:text-green-800"
-                  }`}
+                    }`}
                 >
                   {tApp("navDashboard")}
                 </button>
@@ -171,11 +171,10 @@ export default function App() {
                     window.location.hash = "#/alerts";
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "alerts" 
-                      ? "bg-green-800 text-white" 
+                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === "alerts"
+                      ? "bg-green-800 text-white"
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
-                  }`}
+                    }`}
                 >
                   {tApp("navNotifications")}
                 </button>
@@ -185,11 +184,10 @@ export default function App() {
                     window.location.hash = "#/inventory";
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "inventory" 
-                      ? "bg-green-800 text-white" 
+                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === "inventory"
+                      ? "bg-green-800 text-white"
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
-                  }`}
+                    }`}
                 >
                   {tApp("navInventory")}
                 </button>
@@ -199,11 +197,10 @@ export default function App() {
                     window.location.hash = "#/cameras";
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "cameras" 
-                      ? "bg-green-800 text-white" 
+                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === "cameras"
+                      ? "bg-green-800 text-white"
                       : "text-gray-400 hover:text-white hover:bg-green-800"
-                  }`}
+                    }`}
                 >
                   {tApp("navCameras")}
                 </button>
@@ -213,11 +210,10 @@ export default function App() {
                     window.location.hash = "#/settings";
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === "settings" 
-                      ? "bg-green-800 text-white" 
+                  className={`px-4 py-1 font-medium text-sm transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === "settings"
+                      ? "bg-green-800 text-white"
                       : "text-gray-400 hover:text-white hover:bg-green-800 "
-                  }`}
+                    }`}
                 >
                   {tApp("navSettings")}
                 </button>
@@ -226,7 +222,7 @@ export default function App() {
 
             {/* Right Side - Branding and User Elements */}
             <div className="flex items-center space-x-6">
-              
+
               {/* QSS Logo */}
               <img
                 src={qssLogo}
@@ -258,11 +254,10 @@ export default function App() {
                           setCurrentLocale(lang.code);
                           setLangDropdownOpen(false);
                         }}
-                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                          currentLocale === lang.code
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${currentLocale === lang.code
                             ? "bg-green-50 text-green-800 font-medium"
                             : "text-gray-700 hover:bg-gray-50"
-                        }`}
+                          }`}
                       >
                         {lang.name} ({lang.code})
                       </button>
@@ -270,7 +265,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-              
+
               {/* Notification Bell */}
               <div className="relative">
                 <img
@@ -288,7 +283,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-              
+
               {/* Profile Picture */}
               <img
                 src={profile}
@@ -336,11 +331,10 @@ export default function App() {
                     window.location.hash = `#/${key}`;
                   }}
                   style={{ boxShadow: 'none' }}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${
-                    activeTab === key
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 shadow-none focus:shadow-none hover:shadow-none active:shadow-none ${activeTab === key
                       ? "bg-green-800 text-white"
                       : "text-gray-600 hover:text-green-800"
-                  }`}
+                    }`}
                 >
                   {tApp(labelKey)}
                 </button>
@@ -352,7 +346,7 @@ export default function App() {
 
       {/* System Status Notification */}
       {hasErrors && (
-        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-400 p-4 shadow-sm z-10" style={{display: hasErrors ? 'none' : 'none'}}>
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-400 p-4 shadow-sm z-10" style={{ display: hasErrors ? 'none' : 'none' }}>
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <svg
@@ -387,7 +381,7 @@ export default function App() {
       <div className={`flex-1 px-2 ${activeTab === 'inventory' ? 'overflow-y-auto' : ''}`}>
         {activeTab === "dashboard" && (isPosMode ? <DashboardCompact /> : <DashboardPage />)}
         {activeTab === "alerts" && <AlertsPage />}
-        {activeTab === "inventory" && <InventoryPage />}
+        {activeTab === "inventory" && (isPosMode ? <InventoryCompact /> : <InventoryPage />)}
         {activeTab === "cameras" && <CamerasPage />}
         {activeTab === "settings" && <SettingsPage />}
         {activeTab === "newOrder" && (isPosMode ? <NewOrderCompact /> : <NewOrderPage />)}

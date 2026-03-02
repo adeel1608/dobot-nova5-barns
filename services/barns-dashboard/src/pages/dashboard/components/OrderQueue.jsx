@@ -53,10 +53,10 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
 
   // Determine if buttons should be disabled (only COMPLETED orders are fully disabled)
   const isDisabled = order.status === 'COMPLETED';
-  
+
   // Get status badge with colored dot
   const getStatusBadgeWithDot = (status) => {
-    switch(status) {
+    switch (status) {
       case 'PROCESSING':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-orange-100 text-orange-800">
@@ -123,10 +123,10 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
   const containerClasses = isProcessing
     ? 'mb-2 p-3 rounded-lg border-2 border-orange-400 bg-orange-50 shadow-lg transition-all duration-200 ring-2 ring-orange-200'
     : isInStoppingState
-    ? 'mb-2 p-3 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
-    : isStopped
-    ? 'mb-2 p-3 rounded-lg border-2 border-red-300 shadow-lg ring-2 ring-red-200 animate-blink-red'
-    : 'mb-2 p-3 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
+      ? 'mb-2 p-3 rounded-lg border-2 border-amber-400 bg-amber-50 shadow-lg transition-all duration-200 ring-2 ring-amber-200'
+      : isStopped
+        ? 'mb-2 p-3 rounded-lg border-2 border-red-300 shadow-lg ring-2 ring-red-200 animate-blink-red'
+        : 'mb-2 p-3 rounded-lg border border-gray-200 bg-white hover:shadow-sm transition-shadow duration-200';
 
   return (
     <div
@@ -169,10 +169,11 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
                 </button>
               )}
               <button type="button" onClick={(e) => { e.stopPropagation(); onReorderOrder(order); }} disabled={isReordering === order.id}
-                className={`p-1 rounded flex items-center justify-center bg-transparent border-none shadow-none ${isReordering === order.id ? 'text-green-300 cursor-not-allowed' : 'text-green-600 hover:text-green-800'}`}
+                className={`p-1 rounded flex items-center justify-center ${isReordering === order.id ? 'text-green-300 cursor-not-allowed' : 'text-green-600 hover:text-green-800'}`}
+                style={{ border: '1.5px solid #22c55e', boxShadow: 'none', backgroundColor: 'transparent' }}
                 aria-label={t('reorder')}>
                 {isReordering === order.id
-                  ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  ? <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
                   : <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
               </button>
               <button type="button" onClick={(e) => { e.stopPropagation(); onDeleteOrder && onDeleteOrder(order.id); }}
@@ -180,7 +181,7 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
                 className="text-xs px-1.5 py-1 rounded flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none"
                 style={{ height: '1.75rem', boxShadow: 'none' }} aria-label={t('delete')}>
                 {isDeleting
-                  ? <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  ? <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>
                   : <img src={deleteIcon} alt="" aria-hidden="true" className="w-8 h-8" />}
               </button>
             </div>
@@ -197,135 +198,132 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
 
           {/* Right side - Action Buttons */}
           <div className="flex items-center space-x-2">
-          {/* Dynamic Action Button (Start/Stop/Resume) */}
-          {order.status === 'PROCESSING' ? (
-            // Stop Button for Processing Orders
-            <button 
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onStopOrder(order.id); }}
-              disabled={isStopping === order.id}
-              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
-                isStopping === order.id
-                  ? 'bg-red-300 text-white cursor-not-allowed'
-                  : 'bg-red-600 text-white hover:bg-red-700'
-              }`}
-              title={isStopping === order.id ? t('stoppingLabel') : t('stop')}
-            >
-              {isStopping === order.id ? t('stoppingLabel') : t('stop')}
-            </button>
-          ) : order.status === 'STOPPING' ? (
-            // Stopping - button disabled while waiting
-            <button 
-              type="button"
-              disabled={true}
-              className="px-4 py-2 rounded text-sm font-bold bg-amber-300 text-white cursor-not-allowed"
-              title={t('stoppingLabel')}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="inline-flex items-center">
-                {t('stoppingLabel')}
-              </span>
-            </button>
-          ) : order.status === 'STOPPED' ? (
-            // Resume Button for Stopped Orders
-            <button 
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onResumeOrder(order.id); }}
-              disabled={isResuming === order.id}
-              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
-                isResuming === order.id
-                  ? 'bg-blue-300 text-white cursor-not-allowed'
-                  : 'text-white'
-              }`}
-              style={{
-                backgroundColor: isResuming === order.id ? undefined : '#00754A'
-              }}
-              title={isResuming === order.id ? t('resuming') : t('resume')}
-            >
-              {isResuming === order.id ? t('resuming') : t('resume')}
-            </button>
-          ) : (
-            // Start Button for Queued/Cancelled/Error Orders
-            <button 
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onStartOrder(order.id); }}
-              disabled={isDisabled || isStarting === order.id}
-              className={`px-4 py-2 rounded text-sm font-bold transition-colors ${
-                isDisabled 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : isStarting === order.id
+            {/* Dynamic Action Button (Start/Stop/Resume) */}
+            {order.status === 'PROCESSING' ? (
+              // Stop Button for Processing Orders
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onStopOrder(order.id); }}
+                disabled={isStopping === order.id}
+                className={`px-4 py-2 rounded text-sm font-bold transition-colors ${isStopping === order.id
+                    ? 'bg-red-300 text-white cursor-not-allowed'
+                    : 'bg-red-600 text-white hover:bg-red-700'
+                  }`}
+                title={isStopping === order.id ? t('stoppingLabel') : t('stop')}
+              >
+                {isStopping === order.id ? t('stoppingLabel') : t('stop')}
+              </button>
+            ) : order.status === 'STOPPING' ? (
+              // Stopping - button disabled while waiting
+              <button
+                type="button"
+                disabled={true}
+                className="px-4 py-2 rounded text-sm font-bold bg-amber-300 text-white cursor-not-allowed"
+                title={t('stoppingLabel')}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="inline-flex items-center">
+                  {t('stoppingLabel')}
+                </span>
+              </button>
+            ) : order.status === 'STOPPED' ? (
+              // Resume Button for Stopped Orders
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onResumeOrder(order.id); }}
+                disabled={isResuming === order.id}
+                className={`px-4 py-2 rounded text-sm font-bold transition-colors ${isResuming === order.id
                     ? 'bg-blue-300 text-white cursor-not-allowed'
                     : 'text-white'
-              }`}
-              style={{
-                backgroundColor: isDisabled 
-                  ? undefined 
-                  : isStarting === order.id 
-                    ? undefined 
-                    : '#00754A'
-              }}
-              title={isDisabled ? '' : t('start')}
+                  }`}
+                style={{
+                  backgroundColor: isResuming === order.id ? undefined : '#00754A'
+                }}
+                title={isResuming === order.id ? t('resuming') : t('resume')}
+              >
+                {isResuming === order.id ? t('resuming') : t('resume')}
+              </button>
+            ) : (
+              // Start Button for Queued/Cancelled/Error Orders
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onStartOrder(order.id); }}
+                disabled={isDisabled || isStarting === order.id}
+                className={`px-4 py-2 rounded text-sm font-bold transition-colors ${isDisabled
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : isStarting === order.id
+                      ? 'bg-blue-300 text-white cursor-not-allowed'
+                      : 'text-white'
+                  }`}
+                style={{
+                  backgroundColor: isDisabled
+                    ? undefined
+                    : isStarting === order.id
+                      ? undefined
+                      : '#00754A'
+                }}
+                title={isDisabled ? '' : t('start')}
+              >
+                {isStarting === order.id ? t('starting') : t('start')}
+              </button>
+            )}
+
+            {/* Reorder Button - icon only */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onReorderOrder(order); }}
+              disabled={isReordering === order.id}
+              className={`p-1 rounded transition-colors flex items-center justify-center ${isReordering === order.id
+                  ? 'text-green-300 cursor-not-allowed'
+                  : 'text-green-600 hover:text-green-800'
+                }`}
+              style={{ border: '1.5px solid #22c55e', boxShadow: 'none', backgroundColor: 'transparent' }}
+              title={isReordering === order.id ? t('reordering') : t('reorder')}
+              aria-label={t('reorder')}
             >
-              {isStarting === order.id ? t('starting') : t('start')}
+              {isReordering === order.id ? (
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
             </button>
-          )}
 
-          {/* Reorder Button - icon only */}
-          <button 
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onReorderOrder(order); }}
-            disabled={isReordering === order.id}
-            className={`p-1 rounded transition-colors flex items-center justify-center bg-transparent border-none shadow-none ${
-              isReordering === order.id 
-                ? 'text-green-300 cursor-not-allowed'
-                : 'text-green-600 hover:text-green-800'
-            }`}
-            title={isReordering === order.id ? t('reordering') : t('reorder')}
-            aria-label={t('reorder')}
-          >
-            {isReordering === order.id ? (
-              <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            )}
-          </button>
-
-          {/* Delete Button - Icon only */}
-          <button 
-            type="button"
-            onClick={(e) => { e.stopPropagation(); onDeleteOrder && onDeleteOrder(order.id); }}
-            disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
-            className={`text-xs px-2 py-1 rounded flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none transition-all`}
-            title={
-              isDeleting ? t('deleting') 
-              : order.status === 'STOPPING' ? t('stoppingLabel') 
-              : order.status === 'PROCESSING' ? t('processing')
-              : t('delete')
-            }
-            aria-label={
-              isDeleting ? t('deleting') 
-              : order.status === 'STOPPING' ? t('stoppingLabel')
-              : order.status === 'PROCESSING' ? t('processing')
-              : t('delete')
-            }
-            style={{height:'2rem',boxShadow:'none'}}
-          >
-            {isDeleting ? (
-              <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <img src={deleteIcon} alt="" aria-hidden="true" className="w-10 h-10" />
-            )}
-          </button>
+            {/* Delete Button - Icon only */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDeleteOrder && onDeleteOrder(order.id); }}
+              disabled={isDeleting || order.status === 'STOPPING' || order.status === 'PROCESSING'}
+              className={`text-xs px-2 py-1 rounded flex items-center justify-center text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed disabled:grayscale shadow-none transition-all`}
+              title={
+                isDeleting ? t('deleting')
+                  : order.status === 'STOPPING' ? t('stoppingLabel')
+                    : order.status === 'PROCESSING' ? t('processing')
+                      : t('delete')
+              }
+              aria-label={
+                isDeleting ? t('deleting')
+                  : order.status === 'STOPPING' ? t('stoppingLabel')
+                    : order.status === 'PROCESSING' ? t('processing')
+                      : t('delete')
+              }
+              style={{ height: '2rem', boxShadow: 'none' }}
+            >
+              {isDeleting ? (
+                <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <img src={deleteIcon} alt="" aria-hidden="true" className="w-10 h-10" />
+              )}
+            </button>
+          </div>
         </div>
-      </div>
       )} {/* end default mode */}
     </div>
   );
@@ -333,7 +331,7 @@ function SortableItem({ order, index, onStartOrder, onStopOrder, onResumeOrder, 
 
 function OrderQueue({ connectionStatus }) {
   const { t } = useTranslation('dashboard');
-  const { 
+  const {
     orders,
     ordersTotal,
     ordersHasMore,
@@ -342,15 +340,15 @@ function OrderQueue({ connectionStatus }) {
     createOrder,
     startOrder,
     stopOrder,
-    resumeOrder, 
+    resumeOrder,
     deleteOrder,
     loadMoreOrders,
-    isLoading, 
-    errors, 
+    isLoading,
+    errors,
     clearError,
     navigate
   } = useStore();
-  
+
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
@@ -366,7 +364,7 @@ function OrderQueue({ connectionStatus }) {
   // Auto-refresh when there's a STOPPING order to ensure UI updates quickly
   useEffect(() => {
     const stoppingOrders = orders.filter(o => o.status === 'STOPPING' || o.status === 'PROCESSING');
-    
+
     if (stoppingOrders.length > 0) {
       console.log('📡 Active STOPPING/PROCESSING orders detected, enabling fast polling');
       // Poll every 1 second while there are active stopping/processing orders
@@ -374,7 +372,7 @@ function OrderQueue({ connectionStatus }) {
         console.log('🔄 Polling for order updates (STOPPING/PROCESSING active)');
         fetchOrders();
       }, 1000); // Changed from 2000ms to 1000ms for faster updates
-      
+
       return () => {
         console.log('📡 Stopping fast polling');
         clearInterval(interval);
@@ -385,7 +383,7 @@ function OrderQueue({ connectionStatus }) {
   const displayOrders = orders;
 
   const getStatusBadge = (status) => {
-    switch(status) {
+    switch (status) {
       case 'PROCESSING':
         return <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded">{t('processing')}</span>;
       case 'STOPPING':
@@ -407,11 +405,11 @@ function OrderQueue({ connectionStatus }) {
 
   const handleDragEnd = ({ active, over }) => {
     if (!over || errors.orders) return; // Prevent reordering if there's an API error
-    
+
     const oldIndex = displayOrders.findIndex(o => o.id === active.id);
     const newIndex = displayOrders.findIndex(o => o.id === over.id);
     if (oldIndex === 0 && (displayOrders[0].status === 'PROCESSING' || displayOrders[0].status === 'STOPPING')) return; // block moving processing/stopping
-    
+
     const newOrders = arrayMove(displayOrders, oldIndex, newIndex);
     sendReorder(newOrders);
   };
@@ -419,13 +417,13 @@ function OrderQueue({ connectionStatus }) {
   const handleStartOrder = async (orderId) => {
     console.log('🚀 handleStartOrder called with orderId:', orderId);
     console.log('🚀 Current startingOrderId:', startingOrderId);
-    
+
     setStartingOrderId(orderId);
     try {
       console.log('🚀 About to call startOrder from store...');
       const success = await startOrder(orderId);
       console.log('🚀 startOrder returned:', success);
-      
+
       if (success) {
         console.log(`✅ Order ${orderId} started successfully`);
         // Show success feedback
@@ -444,13 +442,13 @@ function OrderQueue({ connectionStatus }) {
 
   const handleStopOrder = async (orderId) => {
     console.log('🛑 handleStopOrder called with orderId:', orderId);
-    
+
     setStoppingOrderId(orderId);
     try {
       console.log('🛑 About to call stopOrder from store...');
       const success = await stopOrder(orderId);
       console.log('🛑 stopOrder returned:', success);
-      
+
       if (success) {
         console.log(`✅ Order ${orderId} stop command sent successfully`);
         // Clear the stopping state immediately - the order status will be managed by the store
@@ -467,13 +465,13 @@ function OrderQueue({ connectionStatus }) {
 
   const handleResumeOrder = async (orderId) => {
     console.log('🔄 handleResumeOrder called with orderId:', orderId);
-    
+
     setResumingOrderId(orderId);
     try {
       console.log('🔄 About to call resumeOrder from store...');
       const success = await resumeOrder(orderId);
       console.log('🔄 resumeOrder returned:', success);
-      
+
       if (success) {
         console.log(`✅ Order ${orderId} resumed successfully`);
         setTimeout(() => {
@@ -500,9 +498,9 @@ function OrderQueue({ connectionStatus }) {
           ingredients: []
         }]
       };
-      
+
       const success = await createOrder(calibrateOrder);
-      
+
       if (success) {
         Swal.fire({
           icon: 'success',
@@ -690,10 +688,10 @@ function OrderQueue({ connectionStatus }) {
     }
 
     const scrollTop = scrollContainer.scrollTop;
-    
+
     // Load more orders
     await loadMoreOrders();
-    
+
     // Restore scroll position after React re-renders
     // Use setTimeout to ensure DOM has fully updated
     setTimeout(() => {
@@ -708,13 +706,13 @@ function OrderQueue({ connectionStatus }) {
     return {
       ...order,
       // Map cup data to display format
-      itemName: order.cups && order.cups.length > 0 
+      itemName: order.cups && order.cups.length > 0
         ? order.cups.map(cup => `${cup.drink_type || cup.type} (${cup.cup_size || cup.size})`).join(', ')
         : 'Unknown Item',
       // Map status
       status: order.status?.toUpperCase() || 'QUEUED',
       // Check if manual intervention is required
-      manualRequired: order.cups && order.cups.some(cup => 
+      manualRequired: order.cups && order.cups.some(cup =>
         cup.addons && cup.addons.includes('manual_required')
       ),
       // Format timestamps
@@ -722,8 +720,8 @@ function OrderQueue({ connectionStatus }) {
       startedAt: order.started_at ? new Date(order.started_at).toLocaleString() : 'N/A',
       completedAt: order.completed_at ? new Date(order.completed_at).toLocaleString() : 'N/A',
       // For "Updated" field, show the most recent timestamp
-      updatedAt: order.completed_at ? new Date(order.completed_at).toLocaleString() : 
-                 order.started_at ? new Date(order.started_at).toLocaleString() : 'N/A'
+      updatedAt: order.completed_at ? new Date(order.completed_at).toLocaleString() :
+        order.started_at ? new Date(order.started_at).toLocaleString() : 'N/A'
     };
   };
 
@@ -733,12 +731,12 @@ function OrderQueue({ connectionStatus }) {
     if (filterStatus !== 'ALL' && order.status !== filterStatus) {
       return false;
     }
-    
+
     // Filter by search term
     if (searchTerm && !order.itemName.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false;
     }
-    
+
     return true;
   });
 
@@ -754,7 +752,7 @@ function OrderQueue({ connectionStatus }) {
                 window.location.hash = '#/newOrder';
               }}
               className="text-sm rounded font-bold transition-colors duration-300 px-4 py-2 cursor-pointer flex items-center gap-1.5 text-white hover:opacity-90"
-              style={{backgroundColor: '#059669', color: 'white'}}
+              style={{ backgroundColor: '#059669', color: 'white' }}
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -770,20 +768,19 @@ function OrderQueue({ connectionStatus }) {
 
           <div className="flex items-center gap-2">
             <div
-              className={`w-2 h-2 rounded-full ${
-                connectionStatus ? 'bg-green-500' : 'bg-red-500'
-              }`}
+              className={`w-2 h-2 rounded-full ${connectionStatus ? 'bg-green-500' : 'bg-red-500'
+                }`}
             ></div>
             <h2
               onClick={handleCalibrateOrder}
               className="text-sm rounded font-small transition-colors duration-300 px-4 py-2 cursor-pointer barns-dark-bg text-white hover:barns-bg"
-              style={{color:'white'}}
+              style={{ color: 'white' }}
             >
               {t('calibrate')}
             </h2>
           </div>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
           <input
             type="text"
@@ -807,10 +804,10 @@ function OrderQueue({ connectionStatus }) {
             <option value="ERROR">{t('error')}</option>
             <option value="CANCELLED">{t('cancelled')}</option>
           </select>
-          
+
         </div>
       </div>
-      
+
       {/* API Error display */}
       {errors.orders && (
         <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 flex justify-between items-center flex-shrink-0">
@@ -820,7 +817,7 @@ function OrderQueue({ connectionStatus }) {
               <p className="text-xs mt-1">{t('pleaseCheckOms')}</p>
             )}
           </div>
-          <button 
+          <button
             onClick={retryFetchOrders}
             className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-800 rounded text-xs font-medium"
           >
@@ -833,79 +830,79 @@ function OrderQueue({ connectionStatus }) {
       <div className="flex-1 overflow-hidden">
         <div ref={scrollContainerRef} className="h-full overflow-y-auto p-4">
           {/* Orders List */}
-              {isLoading ? (
-                <div className="flex justify-center items-center p-8">
-                  <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                </div>
-              ) : filteredOrders.length === 0 ? (
-                <div className="text-center p-8 text-gray-500">
-                  {searchTerm || filterStatus !== 'ALL' ? (
-                    <p>{t('noOrdersMatch')}</p>
-                  ) : errors.orders ? (
-                    <p>{t('unableToLoadOrders')}</p>
-                  ) : (
-                    <p>{t('noOrdersInQueue')}</p>
-                  )}
-                </div>
+          {isLoading ? (
+            <div className="flex justify-center items-center p-8">
+              <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="text-center p-8 text-gray-500">
+              {searchTerm || filterStatus !== 'ALL' ? (
+                <p>{t('noOrdersMatch')}</p>
+              ) : errors.orders ? (
+                <p>{t('unableToLoadOrders')}</p>
               ) : (
-                <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={filteredOrders.map(o => o.id)} strategy={verticalListSortingStrategy}>
-                    <div className="space-y-2">
-                      {filteredOrders.map((order, idx) => (
-                        <SortableItem 
-                          key={order.id} 
-                          order={order} 
-                          index={idx} 
-                          onStartOrder={handleStartOrder}
-                          onStopOrder={handleStopOrder}
-                          onResumeOrder={handleResumeOrder}
-                          onDeleteOrder={handleDeleteOrder}
-                          onViewDetails={viewOrderDetails}
-                          onReorderOrder={handleReorderOrder}
-                          isStarting={startingOrderId === order.id}
-                          isStopping={stoppingOrderId === order.id}
-                          isResuming={resumingOrderId === order.id}
-                          isDeleting={deletingOrderId === order.id}
-                          isReordering={reorderingOrderId === order.id}
-                          getStatusBadge={getStatusBadge}
-                          t={t}
-                        />
-                      ))}
-                    </div>
-                  </SortableContext>
-                </DndContext>
+                <p>{t('noOrdersInQueue')}</p>
               )}
-              
-              {/* Show More Button */}
-              {filteredOrders.length > 0 && ordersHasMore && (
-                <div className="mt-4 flex justify-center">
-                  <button
-                    onClick={handleLoadMore}
-                    disabled={isLoading}
-                    className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                  >
-                    {isLoading ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span>{t('loading')}</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                        <span>{t('showMore')} ({ordersTotal - orders.length} {t('remaining')})</span>
-                      </>
-                    )}
-                  </button>
+            </div>
+          ) : (
+            <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filteredOrders.map(o => o.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {filteredOrders.map((order, idx) => (
+                    <SortableItem
+                      key={order.id}
+                      order={order}
+                      index={idx}
+                      onStartOrder={handleStartOrder}
+                      onStopOrder={handleStopOrder}
+                      onResumeOrder={handleResumeOrder}
+                      onDeleteOrder={handleDeleteOrder}
+                      onViewDetails={viewOrderDetails}
+                      onReorderOrder={handleReorderOrder}
+                      isStarting={startingOrderId === order.id}
+                      isStopping={stoppingOrderId === order.id}
+                      isResuming={resumingOrderId === order.id}
+                      isDeleting={deletingOrderId === order.id}
+                      isReordering={reorderingOrderId === order.id}
+                      getStatusBadge={getStatusBadge}
+                      t={t}
+                    />
+                  ))}
                 </div>
-              )}
+              </SortableContext>
+            </DndContext>
+          )}
+
+          {/* Show More Button */}
+          {filteredOrders.length > 0 && ordersHasMore && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleLoadMore}
+                disabled={isLoading}
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>{t('loading')}</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                    <span>{t('showMore')} ({ordersTotal - orders.length} {t('remaining')})</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -930,7 +927,7 @@ function OrderQueue({ connectionStatus }) {
                   <p className="text-gray-600">{selectedOrder.itemName}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-4">
                 {getStatusBadge(selectedOrder.status)}
                 <button
@@ -943,7 +940,7 @@ function OrderQueue({ connectionStatus }) {
                 </button>
               </div>
             </div>
-            
+
             {/* Body */}
             <div className="p-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -969,73 +966,73 @@ function OrderQueue({ connectionStatus }) {
                         <span className="text-gray-600 font-medium">{t('item')}:</span>
                         <span className="text-gray-900 font-medium">{selectedOrder.itemName}</span>
                       </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">{t('manualRequired')}:</span>
-                          <span className="text-red-600 font-medium flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                            {selectedOrder.manualRequired ? t('yes') : t('no')}
-                          </span>
-                        </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 font-medium">{t('manualRequired')}:</span>
+                        <span className="text-red-600 font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          {selectedOrder.manualRequired ? t('yes') : t('no')}
+                        </span>
+                      </div>
                       {/* )} */}
                     </div>
                   </div>
-                  
+
                   <div>
-                   {selectedOrder.cups && selectedOrder.cups.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                        </svg>
-                        {t('orderDetails')}
-                      </h3>
-                      <div className="space-y-4">
-                        {selectedOrder.cups.map((cup, index) => (
-                          <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="font-semibold text-gray-900">{t('cup')} #{index + 1}</h4>
-                              <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
-                                {cup.cup_size || cup.size || t('standard')}
-                              </span>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3 text-sm">
-                              <div>
-                                <span className="text-gray-600 font-medium">{t('drink')}:</span>
-                                <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || t('unknownItem')}</p>
+                    {selectedOrder.cups && selectedOrder.cups.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                          <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                          </svg>
+                          {t('orderDetails')}
+                        </h3>
+                        <div className="space-y-4">
+                          {selectedOrder.cups.map((cup, index) => (
+                            <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-3">
+                                <h4 className="font-semibold text-gray-900">{t('cup')} #{index + 1}</h4>
+                                <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
+                                  {cup.cup_size || cup.size || t('standard')}
+                                </span>
                               </div>
-                              <div>
-                                <span className="text-gray-600 font-medium">{t('size')}:</span>
-                                <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || t('standard')}</p>
-                              </div>
-                            </div>
-                            
-                            {cup.addons && cup.addons.length > 0 && (
-                              <div className="mt-3">
-                                <span className="text-gray-600 font-medium text-sm">{t('addons')}:</span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {cup.addons.map((addon, addonIndex) => (
-                                    <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                                      {addon}
-                                    </span>
-                                  ))}
+
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <span className="text-gray-600 font-medium">{t('drink')}:</span>
+                                  <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || t('unknownItem')}</p>
+                                </div>
+                                <div>
+                                  <span className="text-gray-600 font-medium">{t('size')}:</span>
+                                  <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || t('standard')}</p>
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        ))}
+
+                              {cup.addons && cup.addons.length > 0 && (
+                                <div className="mt-3">
+                                  <span className="text-gray-600 font-medium text-sm">{t('addons')}:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {cup.addons.map((addon, addonIndex) => (
+                                      <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                                        {addon}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                   </div>
                 </div>
-                
+
                 {/* Order Details */}
                 <div className="space-y-6">
 
-                  
+
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                       <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1069,7 +1066,7 @@ function OrderQueue({ connectionStatus }) {
                 </div>
               </div>
             </div>
-            
+
             {/* Footer */}
             <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
               <button
@@ -1078,11 +1075,11 @@ function OrderQueue({ connectionStatus }) {
               >
                 {t('close')}
               </button>
-              
+
               {!['PROCESSING', 'STOPPING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(selectedOrder.status) && (
                 <>
                   {selectedOrder.status === 'QUEUED' && (
-                    <button 
+                    <button
                       onClick={() => {
                         handleStartOrder(selectedOrder.id);
                         closeOrderDetails();
@@ -1092,9 +1089,9 @@ function OrderQueue({ connectionStatus }) {
                       {t('startOrder')}
                     </button>
                   )}
-                  
+
                   {selectedOrder.status === 'HALTED' && (
-                    <button 
+                    <button
                       onClick={() => {
                         handleResumeOrder(selectedOrder.id);
                         closeOrderDetails();
@@ -1104,9 +1101,9 @@ function OrderQueue({ connectionStatus }) {
                       {t('resumeOrder')}
                     </button>
                   )}
-                  
+
                   {selectedOrder.status === 'ERROR' && (
-                    <button 
+                    <button
                       onClick={() => {
                         handleStartOrder(selectedOrder.id);
                         closeOrderDetails();

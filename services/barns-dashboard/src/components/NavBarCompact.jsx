@@ -12,10 +12,10 @@ import notification from '../assets/notification.png';
 
 const NAV_TABS = [
   { key: 'dashboard', labelKey: 'navDashboard' },
-  { key: 'alerts',    labelKey: 'navNotifications' },
+  { key: 'alerts', labelKey: 'navNotifications' },
   { key: 'inventory', labelKey: 'navInventory' },
-  { key: 'cameras',   labelKey: 'navCameras' },
-  { key: 'settings',  labelKey: 'navSettings' },
+  { key: 'cameras', labelKey: 'navCameras' },
+  { key: 'settings', labelKey: 'navSettings' },
 ];
 
 export default function NavBarCompact({ activeTab, setActiveTab, alerts }) {
@@ -58,12 +58,11 @@ export default function NavBarCompact({ activeTab, setActiveTab, alerts }) {
                 setActiveTab(key);
                 window.location.hash = `#/${key}`;
               }}
-              style={{ boxShadow: 'none' }}
-              className={`relative px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                activeTab === key
-                  ? 'bg-green-800 text-white'
-                  : 'text-gray-500 hover:text-green-800 hover:bg-green-50'
-              }`}
+              style={{ boxShadow: 'none', height: '35px', minHeight: '30px', padding: '0 12px', display: 'flex', alignItems: 'center' }}
+              className={`relative rounded-lg text-xs font-semibold transition-all duration-200 ${activeTab === key
+                ? 'bg-green-800 text-white'
+                : 'text-gray-500 hover:text-green-800 hover:bg-green-50'
+                }`}
             >
               {tApp(labelKey)}
               {/* Alert badge on Notifications tab */}
@@ -82,7 +81,8 @@ export default function NavBarCompact({ activeTab, setActiveTab, alerts }) {
             <button
               type="button"
               onClick={() => setLangDropdownOpen((v) => !v)}
-              className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:bg-gray-200 transition-colors"
+              style={{ padding: 0, height: '30px', width: '30px', minHeight: '30px', minWidth: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              className="rounded-lg text-gray-500 hover:bg-gray-200 transition-colors flex-shrink-0"
               title="Change language"
               aria-label="Change language"
             >
@@ -101,11 +101,10 @@ export default function NavBarCompact({ activeTab, setActiveTab, alerts }) {
                       setCurrentLocale(lang.code);
                       setLangDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                      currentLocale === lang.code
-                        ? 'bg-green-50 text-green-800 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
+                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${currentLocale === lang.code
+                      ? 'bg-green-50 text-green-800 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50'
+                      }`}
                   >
                     {lang.name} ({lang.code})
                   </button>

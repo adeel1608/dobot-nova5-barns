@@ -13,7 +13,7 @@ import { useWebSocketStore } from '../../store/index';
 import useStore from '../../store';
 import OrderQueue from './components/OrderQueue';
 import OrderDetails from './components/OrderDetails';
-import AlertsPanel from './components/AlertsPanel';
+import CompactAlertsPanel from './components/CompactAlertsPanel';
 import IngredientsIndicator from './components/IngredientsIndicator';
 import { useTranslation } from '../../store/translationsStore';
 
@@ -22,19 +22,19 @@ function OrderStatusCompact() {
   const { orderStats } = useStore();
 
   return (
-    <div className="flex-shrink-0 px-3 pt-2 pb-1">
-      <div className="flex gap-2">
-        <div className="bg-[#E6F1ED] px-4 py-2 rounded-lg flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-2xl font-bold text-gray-700 flex-shrink-0">
+    <div className="flex-shrink-0 px-3 pt-1 pb-0.5">
+      <div className="flex gap-1.5">
+        <div className="bg-[#E6F1ED] px-3 py-1 rounded-lg flex items-center gap-1.5 flex-1 min-w-0" style={{ border: '1.5px solid #86efac' }}>
+          <span className="text-lg font-bold text-gray-700 flex-shrink-0">
             {orderStats?.processing || 0}
           </span>
-          <span className="text-sm font-semibold text-gray-600 truncate">{t('processing')}</span>
+          <span className="text-xs font-semibold text-gray-600 truncate">{t('processing')}</span>
         </div>
-        <div className="bg-[#E6F1ED] px-4 py-2 rounded-lg flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-2xl font-bold text-gray-700 flex-shrink-0">
+        <div className="bg-[#E6F1ED] px-3 py-1 rounded-lg flex items-center gap-1.5 flex-1 min-w-0" style={{ border: '1.5px solid #86efac' }}>
+          <span className="text-lg font-bold text-gray-700 flex-shrink-0">
             {orderStats?.queued || 0}
           </span>
-          <span className="text-sm font-semibold text-gray-600 truncate">{t('inQueue')}</span>
+          <span className="text-xs font-semibold text-gray-600 truncate">{t('inQueue')}</span>
         </div>
       </div>
     </div>
@@ -58,7 +58,7 @@ export default function DashboardCompact() {
         </div>
 
         {/* Middle — compact status strip + Order Details */}
-        <div className="bg-white rounded-lg lg:col-span-5 h-full flex flex-col space-y-2 min-h-0 order-3 lg:order-2">
+        <div className="bg-white rounded-lg lg:col-span-5 h-full flex flex-col space-y-1 min-h-0 order-3 lg:order-2">
           <OrderStatusCompact />
           <div className="flex-1 min-h-0 overflow-hidden px-3 pb-3">
             <OrderDetails />
@@ -68,7 +68,7 @@ export default function DashboardCompact() {
         {/* Right — Alerts + Ingredients (same as default) */}
         <div className="lg:col-span-3 h-full flex flex-col space-y-2 min-h-0 order-2 lg:order-3">
           <div className="flex-1 min-h-0 overflow-hidden">
-            <AlertsPanel />
+            <CompactAlertsPanel />
           </div>
           <div className="flex-shrink-0 min-h-0 max-h-[45vh] overflow-hidden">
             <IngredientsIndicator />

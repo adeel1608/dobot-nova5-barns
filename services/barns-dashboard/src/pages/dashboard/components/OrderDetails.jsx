@@ -26,15 +26,15 @@ export default function OrderDetails() {
   const arm1ContainerRef = useRef(null);
   const arm2ContainerRef = useRef(null);
   const itemRefs = useRef({});
-  
+
   // Track current time for live timers
   const [currentTime, setCurrentTime] = useState(Date.now());
-  
+
   // Track previous in-progress tasks to detect when a new one starts
   const prevInProgressRef = useRef({ Arm1: null, Arm2: null });
 
   // Find the currently processing order
-  const processingOrder = orders?.find(order => 
+  const processingOrder = orders?.find(order =>
     order.status?.toUpperCase() === 'PROCESSING'
   );
 
@@ -50,7 +50,7 @@ export default function OrderDetails() {
   // Use processing order if available, otherwise use last finished order
   const displayedOrder = processingOrder || lastFinishedOrder;
   const isCurrentOrder = !!processingOrder;
-  
+
   // Determine if task state is frozen (order completed/failed/stopped)
   const isTasksFrozen = displayedOrder && ['COMPLETED', 'ERROR', 'STOPPED', 'CANCELLED'].includes(displayedOrder.status?.toUpperCase());
 
@@ -62,7 +62,7 @@ export default function OrderDetails() {
         <div className="p-2 md:p-3  flex-shrink-0 flex  justify-between  p-4">
           <h2 className="text-base md:text-lg font-semibold text-gray-900">{t('currentOrder')}</h2>
           <div className="flex items-center space-x-2">
-            <button 
+            <button
               onClick={() => setShowTaskInterface(true)}
               className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
             >
@@ -71,7 +71,7 @@ export default function OrderDetails() {
             <button className="flex text-red bg-red-300 hover:bg-red-600 text-white" style={{ padding: '0.3rem', outline: 'none', }}>
               {/* Stop */}
               <img src={stop} alt="Refresh" className="w-6 h-6 cursor-pointer " />
-           </button>
+            </button>
           </div>
         </div>
 
@@ -90,10 +90,10 @@ export default function OrderDetails() {
   // Format order data for display (only if we have a processing order)
   const formatOrderForDisplay = (order) => {
     if (!order) return null;
-    
+
     return {
       ...order,
-      itemName: order.cups && order.cups.length > 0 
+      itemName: order.cups && order.cups.length > 0
         ? order.cups.map(cup => `${cup.drink_type || cup.type} (${cup.cup_size || cup.size})`).join(', ')
         : t('unknownItem'),
       createdAt: order.created_at ? new Date(order.created_at).toLocaleString() : 'N/A',
@@ -106,47 +106,47 @@ export default function OrderDetails() {
   // Calculate cup-level progress
   const cupProgress = React.useMemo(() => {
     if (!displayedOrder || !displayedOrder.cups) return { completed: 0, total: 0, percentage: 0 };
-    
+
     const totalCups = displayedOrder.cups.length;
     const allTasks = [...(schedulerTasks.Arm1 || []), ...(schedulerTasks.Arm2 || [])];
-    
+
     // Group tasks by cup_id
     const cupTasks = {};
     allTasks.forEach(task => {
       if (!cupTasks[task.cup_id]) cupTasks[task.cup_id] = [];
       cupTasks[task.cup_id].push(task);
     });
-    
+
     // Count completed cups (all tasks for that cup are completed)
     let completedCups = 0;
     Object.values(cupTasks).forEach(tasks => {
       const allCompleted = tasks.length > 0 && tasks.every(t => t.status === 'completed');
       if (allCompleted) completedCups++;
     });
-    
+
     const percentage = totalCups > 0 ? Math.round((completedCups / totalCups) * 100) : 0;
-    
+
     return { completed: completedCups, total: totalCups, percentage };
   }, [displayedOrder, schedulerTasks]);
 
   // Track task timing - start times and elapsed times (only for live orders)
   useEffect(() => {
     if (isTasksFrozen) return; // Don't update timings for frozen orders
-    
+
     const allTasks = [...(schedulerTasks.Arm1 || []), ...(schedulerTasks.Arm2 || [])];
     const now = Date.now();
-    
+
     allTasks.forEach((task) => {
       const taskKey = `${task.cup_id}:${task.action}`;
       const isInProgress = task.status === 'in_progress' || task.status === 'submitted';
       const isCompleted = task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled';
       const existingTiming = taskTimings[taskKey];
-      
+
       // Start timer when task becomes in progress
       if (isInProgress && !existingTiming) {
         updateTaskTiming(taskKey, { startTime: now, elapsedTime: null });
       }
-      
+
       // Freeze timer when task completes
       if (isCompleted && existingTiming && existingTiming.elapsedTime === null) {
         const elapsed = now - existingTiming.startTime;
@@ -158,18 +158,18 @@ export default function OrderDetails() {
   // Update current time every second for live timers (only for live orders)
   useEffect(() => {
     if (isTasksFrozen) return; // Don't update time for frozen orders
-    
+
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [isTasksFrozen]);
 
   // Auto-scroll to in-progress task when it changes (only for live orders)
   useEffect(() => {
     if (isTasksFrozen) return; // Don't auto-scroll for frozen orders
-    
+
     try {
       const arm1 = schedulerTasks.Arm1 || [];
       const arm2 = schedulerTasks.Arm2 || [];
@@ -186,12 +186,12 @@ export default function OrderDetails() {
         const container = arm1ContainerRef.current;
         const key = `Arm1:${arm1InProgress.cup_id}:${arm1InProgress.action}`;
         const el = itemRefs.current[key];
-        
+
         if (container && el) {
           const top = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
           container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
         }
-        
+
         prevInProgressRef.current.Arm1 = arm1Key;
       } else if (!arm1Key && prevInProgressRef.current.Arm1) {
         // Reset if no in-progress task
@@ -203,12 +203,12 @@ export default function OrderDetails() {
         const container = arm2ContainerRef.current;
         const key = `Arm2:${arm2InProgress.cup_id}:${arm2InProgress.action}`;
         const el = itemRefs.current[key];
-        
+
         if (container && el) {
           const top = el.offsetTop - (container.clientHeight / 2) + (el.clientHeight / 2);
           container.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
         }
-        
+
         prevInProgressRef.current.Arm2 = arm2Key;
       } else if (!arm2Key && prevInProgressRef.current.Arm2) {
         // Reset if no in-progress task
@@ -222,7 +222,7 @@ export default function OrderDetails() {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
+      <div className={`border-b border-gray-100 flex-shrink-0 ${isPosMode ? 'px-3 py-1.5' : 'px-4 py-3'}`}>
         <div className="flex items-center justify-between gap-2">
           {/* Order title */}
           <div className="flex items-center gap-2 min-w-0">
@@ -231,54 +231,90 @@ export default function OrderDetails() {
             ) : (
               <div className="w-2 h-2 rounded-full bg-gray-300 flex-shrink-0" />
             )}
-            <h2 className={`text-sm font-bold truncate ${isCurrentOrder ? 'text-gray-900' : 'text-gray-500'}`}>
+            <h2 className={`${isPosMode ? 'text-xs' : 'text-sm'} font-bold truncate ${isCurrentOrder ? 'text-gray-900' : 'text-gray-500'}`}>
               {isCurrentOrder ? t('currentOrder') : t('lastOrder')}{displayedOrder ? ` #${displayedOrder.id}` : ''}
             </h2>
             {!isCurrentOrder && displayedOrder && !isPosMode && (
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                displayedOrder.status?.toUpperCase() === 'COMPLETED'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-600'
-              }`}>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${displayedOrder.status?.toUpperCase() === 'COMPLETED'
+                ? 'bg-green-100 text-green-700'
+                : 'bg-red-100 text-red-600'
+                }`}>
                 {displayedOrder.status?.toUpperCase() === 'COMPLETED' ? t('completedLabel') : t('failed')}
               </span>
             )}
           </div>
 
           {/* View mode toggle */}
-          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1 flex-shrink-0 border border-gray-200">
-            <button
-              type="button"
-              onClick={() => setViewMode('progress')}
-              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
-                viewMode === 'progress'
+          {isPosMode ? (
+            <div className="flex items-center rounded-lg gap-1 flex-shrink-0 border border-gray-300 bg-gray-100 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('progress')}
+                style={{ padding: 0, width: '28px', height: '28px', minWidth: '28px', minHeight: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                className={`rounded-md transition-all duration-200 ${viewMode === 'progress'
+                  ? 'bg-green-700 text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-200'
+                  }`}
+                title="Progress"
+              >
+                {/* Single column icon */}
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1">
+                  <rect x="2" y="2" width="12" height="4" rx="1" />
+                  <rect x="2" y="9" width="12" height="4" rx="1" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('tasks')}
+                style={{ padding: 0, width: '28px', height: '28px', minWidth: '28px', minHeight: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                className={`rounded-md transition-all duration-200 ${viewMode === 'tasks'
+                  ? 'bg-green-700 text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-200'
+                  }`}
+                title="Tasks"
+              >
+                {/* 2-column grid icon */}
+                <svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1">
+                  <rect x="1.5" y="2" width="4.5" height="4" rx="0.5" />
+                  <rect x="8" y="2" width="4.5" height="4" rx="0.5" />
+                  <rect x="1.5" y="8" width="4.5" height="4" rx="0.5" />
+                  <rect x="8" y="8" width="4.5" height="4" rx="0.5" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1 flex-shrink-0 border border-gray-200">
+              <button
+                type="button"
+                onClick={() => setViewMode('progress')}
+                className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${viewMode === 'progress'
                   ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
                   : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
-              }`}
-            >
-              {t('progressView')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('tasks')}
-              className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
-                viewMode === 'tasks'
+                  }`}
+              >
+                {t('progressView')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('tasks')}
+                className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${viewMode === 'tasks'
                   ? 'bg-white text-blue-600 shadow-sm border border-blue-100'
                   : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
-              }`}
-            >
-              {t('tasksView')}
-            </button>
-          </div>
+                  }`}
+              >
+                {t('tasksView')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Main content area */}
-      <div className="flex-1 px-3 pt-3 pb-3 overflow-hidden flex flex-col">
+      <div className={`flex-1 overflow-hidden flex flex-col ${isPosMode ? 'px-3 pt-1.5 pb-2' : 'px-3 pt-3 pb-3'}`}>
         {/* Cup Progress Bar - visible in both views */}
         {cupProgress.total > 0 && (
-          <div className="mb-3 flex-shrink-0">
-            <div className="flex items-center justify-between mb-1.5">
+          <div className={`flex-shrink-0 ${isPosMode ? 'mb-1.5' : 'mb-3'}`}>
+            <div className={`flex items-center justify-between ${isPosMode ? 'mb-0.5' : 'mb-1.5'}`}>
               <span className="text-xs font-medium text-gray-500">
                 {t('cupProgress')}
                 <span className="ml-1.5 font-bold text-gray-700">{cupProgress.completed}/{cupProgress.total}</span>
@@ -289,16 +325,15 @@ export default function OrderDetails() {
             </div>
             <div className="w-full bg-gray-100 rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all duration-500 ${
-                  cupProgress.percentage === 100 ? 'bg-green-500' : 'bg-blue-500'
-                }`}
+                className={`h-1.5 rounded-full transition-all duration-500 ${cupProgress.percentage === 100 ? 'bg-green-500' : 'bg-blue-500'
+                  }`}
                 style={{ width: `${cupProgress.percentage}%` }}
               />
             </div>
           </div>
         )}
 
-        {schedulerStatusMessage && (
+        {schedulerStatusMessage && !isPosMode && (
           <div className="mb-2 sm:mb-3 text-xs text-gray-500 flex-shrink-0">{schedulerStatusMessage}</div>
         )}
 
@@ -308,6 +343,7 @@ export default function OrderDetails() {
             cups={displayedOrder?.cups || []}
             schedulerTasks={schedulerTasks}
             t={t}
+            compact={isPosMode}
           />
         )}
 
@@ -333,6 +369,7 @@ export default function OrderDetails() {
                         taskTimings={taskTimings}
                         currentTime={currentTime}
                         t={t}
+                        isPosMode={isPosMode}
                       />
                     ))}
                   </div>
@@ -359,6 +396,7 @@ export default function OrderDetails() {
                         taskTimings={taskTimings}
                         currentTime={currentTime}
                         t={t}
+                        isPosMode={isPosMode}
                       />
                     ))}
                   </div>
@@ -370,49 +408,54 @@ export default function OrderDetails() {
       </div>
     </div>
   );
-} 
+}
 
-function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, currentTime, t }) {
+function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, currentTime, t, isPosMode }) {
   const taskKey = `${cup}:${action}`;
   const timing = taskTimings[taskKey];
-  
+
   // Calculate elapsed time
   const getElapsedTime = () => {
     if (!timing) return null;
-    
+
     const isInProgress = status === 'in_progress' || status === 'submitted';
-    const elapsed = isInProgress 
-      ? (currentTime - timing.startTime) 
+    const elapsed = isInProgress
+      ? (currentTime - timing.startTime)
       : timing.elapsedTime;
-    
+
     if (elapsed === null || elapsed === undefined) return null;
-    
+
     const seconds = Math.floor(elapsed / 1000);
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    
+
     if (minutes > 0) {
       return `${minutes}m ${remainingSeconds}s`;
     }
     return `${seconds}s`;
   };
-  
-  const elapsedTime = getElapsedTime();
-  
-  const getBadge = (s) => {
-    if (!t) return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{status}</span>;
-    if (s === 'completed') return <span className="text-[10px] sm:text-xs font-medium bg-green-100 text-green-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('completedLabel')}</span>;
-    if (s === 'failed') return <span className="text-[10px] sm:text-xs font-medium bg-white-100 text-red-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('failed')}</span>;
-    if (s === 'in_progress' || s === 'submitted') return <span className="text-[10px] sm:text-xs font-medium bg-amber-100 text-amber-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('inProgress')}</span>;
-    if (s === 'cancelled') return <span className="text-[10px] sm:text-xs font-medium bg-gray-200 text-gray-600 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('cancelled')}</span>;
-    return <span className="text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 whitespace-nowrap">{t('pending')}</span>;
-  };
 
-  const getIcon = (s) => {
-    if (s === 'failed') return null; // Use SVG icon instead
-    if (s === 'completed') return lighting; // success style handled by bg
-    if (s === 'in_progress' || s === 'submitted') return progressing;
-    return circledots;
+  const elapsedTime = getElapsedTime();
+
+  const getBadge = (s) => {
+    if (isPosMode) {
+      if (s === 'completed') return <div className="w-2.5 h-2.5 rounded-full bg-green-500" title={t('completedLabel')} />;
+      if (s === 'failed') return <div className="w-2.5 h-2.5 rounded-full bg-red-500" title={t('failed')} />;
+      if (s === 'in_progress' || s === 'submitted') return <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title={t('inProgress')} />;
+      if (s === 'cancelled') return <div className="w-2.5 h-2.5 rounded-full bg-gray-400" title={t('cancelled')} />;
+      return <div className="w-2.5 h-2.5 rounded-full bg-gray-300" title={t('pending')} />;
+    }
+
+    const px = 'px-2 sm:px-3';
+    const py = 'py-0.5 sm:py-1';
+    const textSz = 'text-[10px] sm:text-xs';
+
+    if (!t) return <span className={`${textSz} font-medium bg-gray-100 text-gray-800 rounded-full ${px} ${py} whitespace-nowrap`}>{status}</span>;
+    if (s === 'completed') return <span className={`${textSz} font-medium bg-green-100 text-green-800 rounded-full ${px} ${py} whitespace-nowrap`}>{t('completedLabel')}</span>;
+    if (s === 'failed') return <span className={`${textSz} font-medium bg-red-100 text-red-800 rounded-full ${px} ${py} whitespace-nowrap`}>{t('failed')}</span>;
+    if (s === 'in_progress' || s === 'submitted') return <span className={`${textSz} font-medium bg-amber-100 text-amber-800 rounded-full ${px} ${py} whitespace-nowrap`}>{t('inProgress')}</span>;
+    if (s === 'cancelled') return <span className={`${textSz} font-medium bg-gray-200 text-gray-600 rounded-full ${px} ${py} whitespace-nowrap`}>{t('cancelled')}</span>;
+    return <span className={`${textSz} font-medium bg-gray-100 text-gray-800 rounded-full ${px} ${py} whitespace-nowrap`}>{t('pending')}</span>;
   };
 
   const containerClasses = (() => {
@@ -420,7 +463,7 @@ function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, curren
     if (status === 'completed') return 'border border-green-200 bg-green-50';
     if (status === 'in_progress' || status === 'submitted') return 'border-2 border-amber-400 bg-amber-50';
     if (status === 'cancelled') return 'border border-gray-200 bg-gray-50 opacity-80';
-    return 'border border-gray-200 bg-white';
+    return isPosMode ? 'border border-gray-200 bg-white shadow-sm' : 'border border-gray-200 bg-white';
   })();
 
   const iconBg = (() => {
@@ -432,48 +475,51 @@ function TaskRow({ action, cup, status, refKey, registerRef, taskTimings, curren
   })();
 
   return (
-    <div ref={(el) => registerRef && registerRef(refKey, el)} className={`relative flex items-start space-x-2 sm:space-x-4 p-2 sm:p-3 rounded-lg ${containerClasses}`}>
-      <div className={`w-8 h-8 sm:w-10 sm:h-10 ${iconBg} rounded-full flex items-center justify-center flex-shrink-0`}>
+    <div ref={(el) => registerRef && registerRef(refKey, el)} className={`relative flex items-start ${isPosMode ? 'gap-2 p-2' : 'space-x-2 sm:space-x-4 p-2 sm:p-3'} rounded-lg ${containerClasses}`}>
+      <div className={`${isPosMode ? 'w-8 h-8' : 'w-8 h-8 sm:w-10 sm:h-10'} ${iconBg} rounded-full flex items-center justify-center flex-shrink-0 ${isPosMode ? 'mt-0' : ''}`}>
         {status === 'in_progress' || status === 'submitted' ? (
-          <svg className="animate-spin w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className={`animate-spin ${isPosMode ? 'w-4 h-4' : 'w-4 h-4 sm:w-5 sm:h-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3"></circle>
             <path className="opacity-100" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         ) : status === 'failed' ? (
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+          <svg className={`${isPosMode ? 'w-4 h-4' : 'w-4 h-4 sm:w-5 sm:h-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : status === 'cancelled' ? (
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <svg className={`${isPosMode ? 'w-4 h-4' : 'w-4 h-4 sm:w-5 sm:h-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
           </svg>
         ) : status === 'completed' ? (
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
+          <svg className={`${isPosMode ? 'w-4 h-4' : 'w-4 h-4 sm:w-5 sm:h-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3">
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         ) : (
-          // Pending status - clock icon
-          <svg className="w-4 h-4 sm:w-5 sm:h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <svg className={`${isPosMode ? 'w-4 h-4' : 'w-4 h-4 sm:w-5 sm:h-5'} text-white`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2 mb-1">
-          <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
+      <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+        <div className="flex items-center justify-between gap-1 mb-0.5">
+          <span className={`${isPosMode ? 'text-[10px]' : 'text-xs sm:text-sm'} font-medium text-gray-600 flex-shrink-0`}>
             {t ? t('cup') + ' ' : ''}{cup.split('-')[1] || cup}
           </span>
-          <div className="flex-shrink-0">
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {isPosMode && elapsedTime && (
+              <span className="text-[9px] font-mono text-gray-500 bg-gray-100 px-1 rounded">
+                {elapsedTime}
+              </span>
+            )}
             {getBadge(status)}
           </div>
         </div>
-        <div className="flex flex-col justify-between sm:flex-row sm:items-center gap-1 sm:gap-3">
-          <span className="text-xs sm:text-sm font-medium text-gray-900 break-words line-clamp-2">{action}</span>
-          {elapsedTime && (
-            <span className="text-xs font-mono text-gray-500 flex-shrink-0 pr-3">
+        <div className={`flex ${isPosMode ? 'items-center justify-between' : 'flex-col sm:flex-row sm:items-center justify-between'} gap-1`}>
+          <span className={`${isPosMode ? 'text-[11px] leading-tight line-clamp-2' : 'text-xs sm:text-sm line-clamp-2'} font-medium text-gray-900 break-words flex-1 min-w-0`}>{action}</span>
+          {!isPosMode && elapsedTime && (
+            <span className="text-xs font-mono text-gray-500 flex-shrink-0 pr-2 sm:pr-3">
               {elapsedTime}
             </span>
-            
           )}
         </div>
       </div>
