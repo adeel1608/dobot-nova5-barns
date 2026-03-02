@@ -615,11 +615,13 @@ class robot_motion(Node):
         from ament_index_python.packages import get_package_share_directory
 
         log = self.get_logger()
+        rot_thresh_deg = 0.2 if target_tf.strip().lower() == "three_group_espresso" else 2.0
         dl = {
             "start_time":   time.time(),
             "params":       dict(target_tf=target_tf,
                                 required_samples=required_samples,
-                                acq_timeout=acq_timeout),
+                                acq_timeout=acq_timeout,
+                                rot_thresh_deg=rot_thresh_deg),
             "poses":        [],        # list[list[float]]
             "final_pose":   {},
             "yaml_path":    None,
@@ -643,7 +645,7 @@ class robot_motion(Node):
                     target_tf,
                     max_wait=acq_timeout,
                     trans_thresh=0.001,     #1mm tolerance
-                    rot_thresh=2.0,         #2 deg error
+                    rot_thresh=rot_thresh_deg,         #2 deg error
                     num_samples=6,
                 )
             finally:
