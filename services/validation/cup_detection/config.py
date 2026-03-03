@@ -31,17 +31,17 @@ MAX_SIDE = 1920                 # resize longest side to this (keeps aspect)
 # ROI & cups
 # Provide polygon as list of (x,y). Example below is placeholder.
 ROI_POLYGON = np.array([
-    [534, 670],
-    [650, 384],
-    [733, 405],
-    [618, 698]
+    [863, 571],
+    [857, 1021],
+    [994, 1025],
+    [1006, 563]
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (594, 660),
-    (616, 595),
-    (639, 530),
-    (664, 470)
+    (928, 628),
+    (930, 739),
+    (931, 858),
+    (930, 969)
 ]
 
 # Filters / heuristics
@@ -82,26 +82,26 @@ DEBUG_FOLDER = "debug_frames"
 # --- Per-dispenser ROI & cup positions (edited by roi_selector.py) ---
 # Milk dispenser configuration
 MILK_ROI_POLYGON = np.array([
-    [640, 230],
-    [665, 133],
-    [746, 149],
-    [720, 254]
+    [767, 50],
+    [763, 121],
+    [855, 111],
+    [851, 43]
 ], dtype=np.int32)
 
 MILK_CUP_POSITIONS = [
-    (684, 185)
+    (804, 77)
 ]
 
 # Sauce dispenser configuration  
 SAUCE_ROI_POLYGON = np.array([
-    [564, 197],
-    [597, 120],
-    [672, 136],
-    [647, 222]
+    [670, 65],
+    [663, 140],
+    [743, 123],
+    [748, 53]
 ], dtype=np.int32)
 
 SAUCE_CUP_POSITIONS = [
-    (626, 173)
+    (704, 94)
 ]
 # --- Per-dispenser debug folders ---
 MILK_DEBUG_FOLDER = "debug_frames/milk"
