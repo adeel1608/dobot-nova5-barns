@@ -38,10 +38,10 @@ ROI_POLYGON = np.array([
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (928, 628),
-    (930, 739),
+    (930, 969),
     (931, 858),
-    (930, 969)
+    (930, 739),
+    (928, 628)
 ]
 
 # Filters / heuristics
