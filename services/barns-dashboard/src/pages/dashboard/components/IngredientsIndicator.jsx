@@ -168,8 +168,8 @@ const IngredientsIndicator = () => {
     .sort((a, b) => Number(a) - Number(b)) // Sort percentages ascending (lowest first)
     .flatMap(percent => shuffleArray(groupedByPercentage[percent])); // Shuffle items with same percentage
 
-  // Take top 6 lowest
-  const ingredients = sortedIngredients.slice(0, 6);
+  // Take top 4 lowest
+  const ingredients = sortedIngredients.slice(0, 4);
 
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col max-h-full ${isPosMode ? 'p-2' : 'p-5'}`}>
@@ -188,7 +188,7 @@ const IngredientsIndicator = () => {
       </div>
 
       {/* Grid Layout for Inventory Cards */}
-      <div className={`grid gap-2 overflow-y-auto flex-1 ${isPosMode ? 'grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
+      <div className={`overflow-y-auto flex-1 ${isPosMode ? 'flex flex-col gap-1.5' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'}`}>
         {ingredients.map((ingredient) => {
           const { key, name, percentage: numeric, status: level, icon } = ingredient;
           const percentage = Math.max(0, Math.min(100, numeric));
@@ -208,19 +208,24 @@ const IngredientsIndicator = () => {
           };
 
           return isPosMode ? (
-            /* POS compact card: icon + progress bar only, name/% as tooltip */
+            /* POS row card: icon + name + percentage + progress bar */
             <div
               key={key}
-              className={`${getCardBg(level, numeric)} rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md border flex flex-col items-center gap-1.5`}
+              className={`${getCardBg(level, numeric)} rounded-lg px-2.5 py-2 cursor-pointer transition-all duration-200 hover:shadow-md border`}
               onClick={handleNavigate}
-              title={`${name}: ${percentage}%`}
             >
-              <div className={`${level === 'low' || numeric < 20 ? 'text-red-500' : level === 'medium' || numeric < 60 ? 'text-yellow-500' : 'text-green-600'}`}>
-                {icon}
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className={`flex-shrink-0 ${level === 'low' || numeric < 20 ? 'text-red-500' : level === 'medium' || numeric < 60 ? 'text-yellow-500' : 'text-green-600'}`}>
+                  {icon}
+                </div>
+                <span className="flex-1 text-xs font-medium text-gray-700 truncate">{name}</span>
+                <span className={`text-xs font-semibold flex-shrink-0 ${level === 'low' || numeric < 20 ? 'text-red-600' : level === 'medium' || numeric < 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                  {percentage}%
+                </span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(level, numeric)}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${getProgressBarColor(level, numeric)}`}
                   style={{ width: `${percentage}%` }}
                 />
               </div>

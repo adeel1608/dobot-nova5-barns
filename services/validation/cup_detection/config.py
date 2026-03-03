@@ -11,11 +11,11 @@ RFDETR_CONFIDENCE = 0.1        # 0..1 (lowered to catch more cups at milk dispen
 # Station detection: use all classes (set to None or empty list)
 STATION_ALLOWED_CLASSES = None  # None = all classes, or [] = all classes
 # Milk/Sauce detection: only cup and bowl
-MILK_ALLOWED_CLASSES = ["cup", "bowl"]
-SAUCE_ALLOWED_CLASSES = ["cup", "bowl"]
+MILK_ALLOWED_CLASSES = ["cup", "bowl","glass","glass_with_handle","plate"]
+SAUCE_ALLOWED_CLASSES = ["cup", "bowl","glass","glass_with_handle","plate"]
 
 # Legacy: kept for backward compatibility (used as fallback)
-ALLOWED_CLASSES = ["cup", "bowl"]     # Include bowl (cups sometimes detected as bowls)
+ALLOWED_CLASSES = ["cup", "bowl","glass","glass_with_handle","plate"]     # Include bowl (cups sometimes detected as bowls)
 
 # Local model paths (set to None to use default download behavior)
 # Paths are relative to the config.py file location
@@ -38,10 +38,10 @@ ROI_POLYGON = np.array([
 ], dtype=np.int32)
 # Expected cup centers (pixels). Update to your layout.
 CUP_POSITIONS = [
-    (930, 969),
-    (931, 858),
-    (930, 739),
-    (928, 628)
+    (925, 967),
+    (931, 855),
+    (924, 734),
+    (928, 615)
 ]
 
 # Filters / heuristics

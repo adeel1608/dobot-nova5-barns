@@ -346,7 +346,7 @@ export default function CompactAlertsPanel() {
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-medium text-gray-900 leading-snug flex-1 min-w-0">{alert.title}</span>
-                                            <span className="text-[10px] text-gray-400 flex-shrink-0">{getTimeAgo(alert.timestamp)}</span>
+                                            <span className="text-[11px] text-gray-400 flex-shrink-0">{getTimeAgo(alert.timestamp)}</span>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); handleAcknowledge(alert.id); }}
                                                 disabled={isLoading || acknowledging.has(alert.id) || !!errors.alerts}
@@ -366,6 +366,9 @@ export default function CompactAlertsPanel() {
                                                 )}
                                             </button>
                                         </div>
+                                        {alert.message && (
+                                            <p className="text-[12px] text-black-400 leading-snug mt-1 pr-1">{alert.message}</p>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -344,6 +344,8 @@ export default function OrderDetails() {
             schedulerTasks={schedulerTasks}
             t={t}
             compact={isPosMode}
+            taskTimings={taskTimings}
+            currentTime={currentTime}
           />
         )}
 

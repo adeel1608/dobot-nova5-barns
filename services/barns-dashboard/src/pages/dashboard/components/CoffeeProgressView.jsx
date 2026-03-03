@@ -105,10 +105,23 @@ function StatusBadge({ status, t, compact }) {
   );
 }
 
-function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, registerRef, t, compact }) {
+/**
+ * Formats elapsed milliseconds as "M:SS" (e.g. 65000 -> "1:05").
+ * Returns null when no valid duration is provided.
+ */
+function formatElapsed(ms) {
+  if (ms == null || ms < 0) return null;
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, registerRef, t, compact, elapsedMs }) {
   const drinkName = cup.drink_type || cup.type || t('unknownItem');
   const displaySize = sanitizeSize(cup.cup_size || cup.size || '');
   const isActive = isArm1Active || isArm2Active;
+  const elapsedLabel = formatElapsed(elapsedMs);
 
   const cardVariant = (() => {
     if (status === 'failed') return 'bg-red-50 border-red-200 shadow-red-50';
@@ -143,6 +156,19 @@ function CupCard({ cup, idx, cupId, status, isArm1Active, isArm2Active, register
             {displaySize && (
               <span className="text-[10px] font-semibold text-gray-400 bg-gray-100 rounded-md px-2 py-0.5 whitespace-nowrap">
                 {displaySize}
+              </span>
+            )}
+            {elapsedLabel && (status === 'in_progress' || status === 'completed') && (
+              <span className={`text-[10px] font-semibold rounded-md px-2 py-0.5 whitespace-nowrap flex items-center gap-1 ${
+                status === 'in_progress'
+                  ? 'text-amber-700 bg-amber-100'
+                  : 'text-green-700 bg-green-100'
+              }`}>
+                <svg className="w-2.5 h-2.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" d="M12 6v6l4 2" />
+                </svg>
+                {elapsedLabel}
               </span>
             )}
           </div>
@@ -212,7 +238,42 @@ function ArmTrack({ railRef, arrowY, visible, direction, color }) {
  * Right track: Arm 2 colored arrow slides to the cup Arm 2 is processing.
  * Cup cards are vertically centered in the available space.
  */
-export default function CoffeeProgressView({ cups, schedulerTasks, t, compact }) {
+/**
+ * Derives the total elapsed time (ms) for a cup from taskTimings.
+ *
+ * - For in-progress cups: uses currentTime minus the earliest startTime.
+ * - For completed/failed cups: uses the frozen elapsedTime already stored.
+ * - Returns null when no timing data exists.
+ */
+function deriveCupElapsed(cupId, schedulerTasks, taskTimings, currentTime) {
+  const allTasks = [
+    ...(schedulerTasks.Arm1 || []),
+    ...(schedulerTasks.Arm2 || []),
+  ].filter(t => normalizeCupId(t.cup_id) === cupId);
+
+  if (allTasks.length === 0) return null;
+
+  const timings = allTasks
+    .map(task => taskTimings[`${task.cup_id}:${task.action}`])
+    .filter(Boolean);
+
+  if (timings.length === 0) return null;
+
+  const earliestStart = Math.min(...timings.map(t => t.startTime).filter(Boolean));
+  if (!earliestStart) return null;
+
+  // If any timing is still live (elapsedTime === null), use currentTime
+  const hasLive = timings.some(t => t.elapsedTime === null);
+  if (hasLive) return currentTime - earliestStart;
+
+  // All frozen: latest end time minus earliest start
+  const latestEnd = Math.max(
+    ...timings.map(t => t.startTime + t.elapsedTime).filter(Boolean)
+  );
+  return latestEnd - earliestStart;
+}
+
+export default function CoffeeProgressView({ cups, schedulerTasks, t, compact, taskTimings, currentTime }) {
   const outerRef = useRef(null);
   const arm1RailRef = useRef(null);
   const arm2RailRef = useRef(null);
@@ -316,6 +377,9 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t, compact })
           {cups.map((cup, idx) => {
             const cupId = `cup-${idx + 1}`;
             const status = deriveCupStatus(cupId, schedulerTasks);
+            const elapsedMs = taskTimings && currentTime
+              ? deriveCupElapsed(cupId, schedulerTasks, taskTimings, currentTime)
+              : null;
 
             return (
               <CupCard
@@ -329,6 +393,7 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t, compact })
                 registerRef={registerCupRef}
                 t={t}
                 compact={compact}
+                elapsedMs={elapsedMs}
               />
             );
           })}
