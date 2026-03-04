@@ -300,7 +300,8 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t, compact, t
   const calculateArrowPositions = useCallback(() => {
     if (arm1ActiveCupId && arm1RailRef.current) {
       const el = cupRefs.current[arm1ActiveCupId];
-      if (el) {
+      // Guard: skip detached elements — getBoundingClientRect returns zeros when unmounted
+      if (el && el.isConnected) {
         const railRect = arm1RailRef.current.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
         setArm1ArrowY(elRect.top - railRect.top + el.offsetHeight / 2 - ARROW_H / 2);
@@ -308,7 +309,8 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t, compact, t
     }
     if (arm2ActiveCupId && arm2RailRef.current) {
       const el = cupRefs.current[arm2ActiveCupId];
-      if (el) {
+      // Guard: skip detached elements — getBoundingClientRect returns zeros when unmounted
+      if (el && el.isConnected) {
         const railRect = arm2RailRef.current.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
         setArm2ArrowY(elRect.top - railRect.top + el.offsetHeight / 2 - ARROW_H / 2);
@@ -332,7 +334,11 @@ export default function CoffeeProgressView({ cups, schedulerTasks, t, compact, t
   }, [calculateArrowPositions]);
 
   const registerCupRef = useCallback((cupId, el) => {
-    if (el) cupRefs.current[cupId] = el;
+    if (el) {
+      cupRefs.current[cupId] = el;
+    } else {
+      delete cupRefs.current[cupId];
+    }
   }, []);
 
   if (!cups || cups.length === 0) {

@@ -1063,12 +1063,47 @@ async def handle_scheduler_status_update(data: Dict):
     })
 
 async def handle_scheduler_feedback_processed(data: Dict):
+    """Handle per-task feedback from the scheduler.
+
+    Broadcasts the live update to the dashboard and also persists per-cup
+    status and timing to the order_items table so historical orders retain
+    their processing outcomes.
+
+    cup_id format from the scheduler: "{order_id}-{1-based-cup-num}" (e.g. "34-1").
+    """
+    cup_id_raw = data.get("cup_id") or ""
+    success = data.get("success")   # None = in_progress, True = done, False = failed
+    message = data.get("message") or ""
+
+    # Persist per-cup timing to DB when we have enough information.
+    try:
+        parts = cup_id_raw.split("-")
+        if len(parts) >= 2:
+            order_id = int(parts[0])
+            # sequence_index is 0-based; the scheduler uses 1-based cup numbers.
+            sequence_index = int(parts[-1]) - 1
+
+            if success is None:
+                # Task submitted / in-progress: mark the cup as processing (sets started_at once).
+                db.update_cup_item_timing(order_id, sequence_index, "processing")
+            elif success is True:
+                # Individual task completed successfully.
+                # The cup may have more tasks ahead, but we optimistically mark it completed.
+                # If a later task fails, the status will be overwritten to 'failed'.
+                db.update_cup_item_timing(order_id, sequence_index, "completed")
+            elif success is False:
+                error_detail = data.get("message") or "Task failed"
+                db.update_cup_item_timing(order_id, sequence_index, "failed", error=error_detail)
+    except Exception as e:
+        # Never let a DB write failure block the broadcast to the dashboard.
+        log("WARNING", f"Failed to persist cup timing for cup_id={cup_id_raw}: {e}", service="oms")
+
     broadcast({
-        "event": "scheduler.task_update",
-        "cup_id": data.get("cup_id"),
+        "event": "scheduler.feedback_processed",
+        "cup_id": cup_id_raw,
         "action": data.get("action"),
-        "success": data.get("success"),
-        "message": data.get("message")
+        "success": success,
+        "message": message,
     })
 
 async def handle_threshold_warning_event(data: Dict):

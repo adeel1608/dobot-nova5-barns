@@ -146,10 +146,12 @@ def get_orders(status: Optional[str] = None, limit: Optional[int] = None, offset
             
             # Use subquery to limit orders, then join items
             query = f"""
-                SELECT 
+                SELECT
                     o.id, o.created_at, o.status, o.started_at, o.completed_at, o.error_message,
-                    oi.id as item_id, oi.cup_id, oi.sequence_index, oi.drink_type, 
-                    oi.cup_size, oi.addons, oi.ingredients
+                    oi.id as item_id, oi.cup_id, oi.sequence_index, oi.drink_type,
+                    oi.cup_size, oi.addons, oi.ingredients,
+                    oi.cup_status, oi.cup_started_at, oi.cup_completed_at,
+                    oi.process_time_ms, oi.cup_error
                 FROM (
                     SELECT id, created_at, status, started_at, completed_at, error_message
                     FROM orders
@@ -190,7 +192,12 @@ def get_orders(status: Optional[str] = None, limit: Optional[int] = None, offset
                         'drink_type': row['drink_type'],
                         'cup_size': row['cup_size'],
                         'addons': row['addons'],
-                        'ingredients': row['ingredients']
+                        'ingredients': row['ingredients'],
+                        'cup_status': row['cup_status'],
+                        'cup_started_at': row['cup_started_at'].isoformat() if row['cup_started_at'] else None,
+                        'cup_completed_at': row['cup_completed_at'].isoformat() if row['cup_completed_at'] else None,
+                        'process_time_ms': row['process_time_ms'],
+                        'cup_error': row['cup_error'],
                     })
             
             # Convert to list maintaining order
@@ -238,10 +245,11 @@ def get_order(order_id: int) -> Dict[str, Any]:
                 if isinstance(value, datetime):
                     order[key] = value.isoformat()
             
-            # Get order items
+            # Get order items (cups) including per-cup timing fields
             cur.execute(
                 """
-                SELECT id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients
+                SELECT id, cup_id, sequence_index, drink_type, cup_size, addons, ingredients,
+                       cup_status, cup_started_at, cup_completed_at, process_time_ms, cup_error
                 FROM order_items
                 WHERE order_id = %s
                 ORDER BY sequence_index
@@ -249,7 +257,13 @@ def get_order(order_id: int) -> Dict[str, Any]:
                 (order_id,)
             )
             cups = cur.fetchall()
-            order['cups'] = [dict(cup) for cup in cups]
+            order['cups'] = []
+            for cup in cups:
+                cup_dict = dict(cup)
+                for key in ('cup_started_at', 'cup_completed_at'):
+                    if isinstance(cup_dict.get(key), datetime):
+                        cup_dict[key] = cup_dict[key].isoformat()
+                order['cups'].append(cup_dict)
             
             # Get tasks
             cur.execute(
@@ -364,6 +378,65 @@ def delete_order(order_id: int) -> bool:
         raise e
     finally:
         release_connection(conn)
+
+def update_cup_item_timing(
+    order_id: int,
+    sequence_index: int,
+    status: str,
+    error: Optional[str] = None
+) -> None:
+    """Update per-cup processing status and timing on an order_items row.
+
+    Called by the OMS event handler each time the scheduler emits a
+    scheduler.feedback_processed event for a cup action.
+
+    - First call with status='processing' sets cup_started_at (once only).
+    - Subsequent calls with status='completed' or 'failed' set
+      cup_completed_at, compute process_time_ms, and record any error.
+
+    Args:
+        order_id:       The order this cup belongs to.
+        sequence_index: 0-based cup index within the order (parsed from cup_id).
+        status:         'processing' | 'completed' | 'failed' | 'cancelled'
+        error:          Optional error detail (only stored when status='failed').
+    """
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            if status == 'processing':
+                # Set started_at only if not already set (first action for this cup).
+                cur.execute(
+                    """
+                    UPDATE order_items
+                    SET cup_status = %s,
+                        cup_started_at = COALESCE(cup_started_at, %s)
+                    WHERE order_id = %s AND sequence_index = %s
+                    """,
+                    (status, datetime.now(), order_id, sequence_index)
+                )
+            elif status in ('completed', 'failed', 'cancelled'):
+                cur.execute(
+                    """
+                    UPDATE order_items
+                    SET cup_status = %s,
+                        cup_completed_at = %s,
+                        process_time_ms = CASE
+                            WHEN cup_started_at IS NOT NULL
+                            THEN EXTRACT(EPOCH FROM (%s - cup_started_at))::INTEGER * 1000
+                            ELSE NULL
+                        END,
+                        cup_error = %s
+                    WHERE order_id = %s AND sequence_index = %s
+                    """,
+                    (status, datetime.now(), datetime.now(), error, order_id, sequence_index)
+                )
+            conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        release_connection(conn)
+
 
 def save_task(order_id: int, item_id: int, arm_id: int, function_name: str) -> int:
     """Save a new task to the database.

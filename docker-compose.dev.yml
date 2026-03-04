@@ -67,6 +67,9 @@ services:
       - ./db-init.sql:/docker-entrypoint-initdb.d/01-init.sql
       - ./db-schema-oms.sql:/docker-entrypoint-initdb.d/02-oms-schema.sql
       - ./db-validation-schema.sql:/docker-entrypoint-initdb.d/03-validation-schema.sql
+      # Migration 001 runs after the schema; all ALTER TABLE statements use IF NOT EXISTS so this is
+      # a no-op on fresh databases where db-schema-oms.sql already includes the cup timing columns.
+      - ./db-migration-001-cup-timing.sql:/docker-entrypoint-initdb.d/04-migration-001.sql
     networks:
       - barns-network
     healthcheck:

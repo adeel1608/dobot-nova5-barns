@@ -13,6 +13,7 @@ import { useTranslation } from '../../../store/translationsStore';
 import { SERVICE_OFFLINE_MESSAGE } from '../../../utils/errorHandler';
 import { useIsPosMode } from '../../../store/displayStore';
 import deleteIcon from '../../../assets/delete.png';
+import OrderDetailModal from './OrderDetailModal';
 
 /** Status dot — colored circle indicating order state, no text label. */
 function StatusDot({ status }) {
@@ -357,7 +358,6 @@ function OrderQueue({ connectionStatus }) {
   const [resumingOrderId, setResumingOrderId] = useState(null);
   const [deletingOrderId, setDeletingOrderId] = useState(null);
   const [reorderingOrderId, setReorderingOrderId] = useState(null);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
   const logsEndRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
@@ -666,12 +666,10 @@ function OrderQueue({ connectionStatus }) {
 
   const viewOrderDetails = (order) => {
     setSelectedOrder(order);
-    setShowOrderDetails(true);
   };
 
   const closeOrderDetails = () => {
     setSelectedOrder(null);
-    setShowOrderDetails(false);
   };
 
   const retryFetchOrders = () => {
@@ -908,216 +906,14 @@ function OrderQueue({ connectionStatus }) {
 
       {/* Order Details Modal */}
       {selectedOrder && (
-
-
-
-
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            {/* Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 bg-blue-500 rounded-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{t('orderId')} #{selectedOrder.id}</h2>
-                  <p className="text-gray-600">{selectedOrder.itemName}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-4">
-                {getStatusBadge(selectedOrder.status)}
-                <button
-                  onClick={closeOrderDetails}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Basic Information */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {t('orderInformation')}
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('orderId')}:</span>
-                        <span className="font-mono text-gray-900">#{selectedOrder.id}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('status')}:</span>
-                        {getStatusBadge(selectedOrder.status)}
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('item')}:</span>
-                        <span className="text-gray-900 font-medium">{selectedOrder.itemName}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('manualRequired')}:</span>
-                        <span className="text-red-600 font-medium flex items-center">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                          {selectedOrder.manualRequired ? t('yes') : t('no')}
-                        </span>
-                      </div>
-                      {/* )} */}
-                    </div>
-                  </div>
-
-                  <div>
-                    {selectedOrder.cups && selectedOrder.cups.length > 0 && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                          <svg className="w-5 h-5 mr-2 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                          </svg>
-                          {t('orderDetails')}
-                        </h3>
-                        <div className="space-y-4">
-                          {selectedOrder.cups.map((cup, index) => (
-                            <div key={index} className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-3">
-                                <h4 className="font-semibold text-gray-900">{t('cup')} #{index + 1}</h4>
-                                <span className="text-sm text-amber-600 font-medium bg-amber-100 px-2 py-1 rounded">
-                                  {cup.cup_size || cup.size || t('standard')}
-                                </span>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3 text-sm">
-                                <div>
-                                  <span className="text-gray-600 font-medium">{t('drink')}:</span>
-                                  <p className="text-gray-900 mt-1">{cup.drink_type || cup.type || t('unknownItem')}</p>
-                                </div>
-                                <div>
-                                  <span className="text-gray-600 font-medium">{t('size')}:</span>
-                                  <p className="text-gray-900 mt-1">{cup.cup_size || cup.size || t('standard')}</p>
-                                </div>
-                              </div>
-
-                              {cup.addons && cup.addons.length > 0 && (
-                                <div className="mt-3">
-                                  <span className="text-gray-600 font-medium text-sm">{t('addons')}:</span>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {cup.addons.map((addon, addonIndex) => (
-                                      <span key={addonIndex} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
-                                        {addon}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Order Details */}
-                <div className="space-y-6">
-
-
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <svg className="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {t('timeline')}
-                    </h3>
-                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('created')}:</span>
-                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.createdAt}</span>
-                      </div>
-                      {selectedOrder.startedAt !== 'N/A' && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">{t('started')}:</span>
-                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.startedAt}</span>
-                        </div>
-                      )}
-                      {selectedOrder.completedAt !== 'N/A' && (
-                        <div className="flex justify-between">
-                          <span className="text-gray-600 font-medium">{t('completed')}:</span>
-                          <span className="text-gray-900 font-mono text-sm">{selectedOrder.completedAt}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">{t('lastUpdated')}:</span>
-                        <span className="text-gray-900 font-mono text-sm">{selectedOrder.updatedAt}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={closeOrderDetails}
-                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-              >
-                {t('close')}
-              </button>
-
-              {!['PROCESSING', 'STOPPING', 'COMPLETED', 'STOPPED', 'CANCELLED'].includes(selectedOrder.status) && (
-                <>
-                  {selectedOrder.status === 'QUEUED' && (
-                    <button
-                      onClick={() => {
-                        handleStartOrder(selectedOrder.id);
-                        closeOrderDetails();
-                      }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      {t('startOrder')}
-                    </button>
-                  )}
-
-                  {selectedOrder.status === 'HALTED' && (
-                    <button
-                      onClick={() => {
-                        handleResumeOrder(selectedOrder.id);
-                        closeOrderDetails();
-                      }}
-                      className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      {t('resumeOrder')}
-                    </button>
-                  )}
-
-                  {selectedOrder.status === 'ERROR' && (
-                    <button
-                      onClick={() => {
-                        handleStartOrder(selectedOrder.id);
-                        closeOrderDetails();
-                      }}
-                      className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      {t('retryOrder')}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        <OrderDetailModal
+          order={selectedOrder}
+          onClose={closeOrderDetails}
+          onStartOrder={handleStartOrder}
+          onResumeOrder={handleResumeOrder}
+          getStatusBadge={getStatusBadge}
+          t={t}
+        />
       )}
     </div>
   );
