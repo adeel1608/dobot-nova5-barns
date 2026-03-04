@@ -312,6 +312,9 @@ def place_paper_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
         return False
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     return True
 
 def pick_paper_cup_sauces(**params) -> bool:
@@ -331,6 +334,9 @@ def pick_paper_cup_sauces(**params) -> bool:
         return False
     
     gripper_position = 145
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
@@ -356,6 +362,9 @@ def place_paper_cup_milk(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
         return False
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     return True
 
 def pick_paper_cup_milk(**params) -> bool:
@@ -375,6 +384,9 @@ def pick_paper_cup_milk(**params) -> bool:
         return False
     
     gripper_position = 145
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):

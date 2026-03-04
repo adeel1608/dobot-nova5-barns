@@ -418,6 +418,9 @@ def place_plastic_cup_sauces(**params) -> bool:
     run_skill("moveEE",-5,0,0,0,0,0)
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
         return False
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     return True
 
 def pick_plastic_cup_sauces(**params) -> bool:
@@ -448,7 +451,10 @@ def pick_plastic_cup_sauces(**params) -> bool:
     
     run_skill("set_speed_factor", SPEED_NORMAL)
     run_skill("sync")
-    
+
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
@@ -487,6 +493,9 @@ def place_plastic_cup_milk(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
         return False
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     return True
 
 def pick_plastic_cup_milk(**params) -> bool:
@@ -517,7 +526,9 @@ def pick_plastic_cup_milk(**params) -> bool:
     
     run_skill("set_speed_factor", SPEED_NORMAL)
     run_skill("sync")
-    
+    cup_detected = detect_cup_gripper()
+    if not cup_detected:
+        return False
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
