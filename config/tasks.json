@@ -511,11 +511,6 @@
   "Pick Plastic Cup Milk": {
     "steps": [
       {
-        "type": "validation",
-        "function": "milk_cup_detection_present",
-        "params": {}
-      },
-      {
         "type": "robot",
         "function": "pick_plastic_cup_milk",
         "params": {
@@ -543,11 +538,6 @@
   "Pick Paper Cup Sauces": {
     "steps": [
       {
-        "type": "validation",
-        "function": "sauce_cup_detection_present",
-        "params": {}
-      },
-      {
         "type": "robot",
         "function": "pick_paper_cup_sauces",
         "params": {
@@ -558,11 +548,6 @@
   },
   "Pick Plastic Cup Sauces": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "sauce_cup_detection_present",
-        "params": {}
-      },
       {
         "type": "robot",
         "function": "pick_plastic_cup_sauces",
@@ -622,11 +607,6 @@
   },
   "Pick Paper Cup Milk": {
     "steps": [
-      {
-        "type": "validation",
-        "function": "milk_cup_detection_present",
-        "params": {}
-      },
       {
         "type": "robot",
         "function": "pick_paper_cup_milk",
