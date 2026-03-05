@@ -679,6 +679,34 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
     
     return True
 
+def unmount_single(**_ignored) -> bool:
+    """
+    Safely unmount the single portafilter (port_3) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return unmount(port="port_3")
+
+def unmount_double(**_ignored) -> bool:
+    """
+    Safely unmount the double portafilter (port_1) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return unmount(port="port_1")
+
+def mount_single(**_ignored) -> bool:
+    """
+    Safely mount the single portafilter (port_3) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return mount(port="port_3")
+
+def mount_double(**_ignored) -> bool:
+    """
+    Safely mount the double portafilter (port_1) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return mount(port="port_1")
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'unmount': unmount,
@@ -691,4 +719,8 @@ SEQUENCES = {
     'return_espresso_pitcher': return_espresso_pitcher,
     'return_cleaned_espresso_pitcher': return_cleaned_espresso_pitcher,
     'tamper': tamper,
+    'unmount_single': unmount_single,
+    'unmount_double': unmount_double,
+    'mount_single': mount_single,
+    'mount_double': mount_double,
 }
