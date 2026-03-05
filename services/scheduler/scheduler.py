@@ -530,6 +530,30 @@ async def _emit_task_progress(cup_id: str, action: str):
 # Configuration for the routine service
 ROUTINE_SERVICE_URL = "http://routine:8000"  # Can be overridden via environment variable
 
+# Action names that must be replaced when a cup has a triple espresso ingredient.
+# Both "triple" and "tripple" spellings are accepted from the ingredients JSON.
+TRIPLE_ESPRESSO_SUBSTITUTIONS: Dict[str, str] = {
+    "Make Espresso": "Make Espresso Triple",
+    "Pour Espresso": "Pour Espresso Triple",
+    "Clean Portafilter": "Clean Portafilter Triple",
+    "Pour Americano": "Pour Americano Triple",
+    "Make Espresso Only": "Make Espresso Only Triple",
+}
+_TRIPLE_ESPRESSO_KEYS = {"espresso_shot_triple", "espresso_shot_tripple"}
+
+
+def _has_triple_espresso(cup_id: str) -> bool:
+    """Return True if the cup's ingredients specify a triple espresso shot.
+
+    Accepts both 'espresso_shot_triple' and 'espresso_shot_tripple' (common
+    misspelling) as valid keys inside the nested espresso ingredient dict.
+    """
+    cup_data = cup_data_by_cup.get(cup_id, {})
+    espresso_ingredient = cup_data.get("ingredients", {}).get("espresso")
+    if not isinstance(espresso_ingredient, dict):
+        return False
+    return bool(_TRIPLE_ESPRESSO_KEYS.intersection(espresso_ingredient.keys()))
+
 def load_recipes(recipe_file: str):
     """Load drink recipes from a JSON file."""
     with open(recipe_file, 'r') as f:
@@ -578,26 +602,41 @@ def setup_tasks(orders, recipes):
         completed[cup_id] = set()
         tasks_by_cup[cup_id] = []
         cup_completion_status[cup_id] = "pending"  # Initialize cup status
-        # Validate that dependencies in recipe refer to valid actions
-        valid_actions = {step["action"] for step in recipe}
+
+        # Determine whether this cup requires triple-espresso action substitution.
+        # The substitution is applied per cup so that multi-cup orders can mix
+        # standard and triple shots independently.
+        use_triple = _has_triple_espresso(cup_id)
+        if use_triple:
+            log("INFO", f"[TRIPLE ESPRESSO] Cup {cup_id} has triple espresso - substituting action names", service="scheduler")
+
+        def _sub(name: str) -> str:
+            """Return the triple-espresso variant of an action name if applicable."""
+            return TRIPLE_ESPRESSO_SUBSTITUTIONS.get(name, name) if use_triple else name
+
+        # Validate that dependencies in recipe refer to valid actions.
+        # Build valid_actions using post-substitution names so the dependency
+        # check remains consistent when triple-espresso substitution is active.
+        valid_actions = {_sub(step["action"]) for step in recipe}
         for step in recipe:
             if "depends_on" in step:
                 deps = step["depends_on"]
                 # Ensure depends_on is a list for consistency
                 dep_list = deps if isinstance(deps, list) else [deps]
                 for dep in dep_list:
-                    if dep not in valid_actions:
+                    if _sub(dep) not in valid_actions:
                         raise Exception(
                             f"Invalid dependency '{dep}' in recipe for {drink}: no such step"
                         )
         # Create task dicts for each step in the recipe
         for step in recipe:
-            action_name = step["action"]
+            action_name = _sub(step["action"])
             assigned_arm = step["assigned_arm"]
             dep_list = []
             if "depends_on" in step:
                 deps = step["depends_on"]
-                dep_list = deps if isinstance(deps, list) else [deps]
+                raw_deps = deps if isinstance(deps, list) else [deps]
+                dep_list = [_sub(d) for d in raw_deps]
             task = {
                 "drink": drink,
                 "cup": cup_id,

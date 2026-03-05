@@ -1217,6 +1217,126 @@ async def coffee_machine(params: dict):
             "message": f"Failed to prepare coffee: {error_msg}",
             "details": mqtt_response
         }
+async def coffee_machine_single(params: dict):
+
+    """coffee machine using MQTT communication."""
+    # coffee_t is the number of the shots 1,2
+        
+    coffee_t = 1
+    slot_number = 3
+        
+    # slot_number = params.get("slot_number", 1)
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        log("DEBUG", f"Connected with code {rc}", service="automation")
+        client.subscribe("automation_coffee_machine/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
+
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
+
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
+async def coffee_machine_double(params: dict):
+
+    """coffee machine using MQTT communication."""
+    # coffee_t is the number of the shots 1,2
+        
+    coffee_t = 2
+    slot_number = 1
+        
+    # slot_number = params.get("slot_number", 1)
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        log("DEBUG", f"Connected with code {rc}", service="automation")
+        client.subscribe("automation_coffee_machine/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
+
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
+
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
 
 async def coffee_machine_wait(params: dict):
     """coffee machine using MQTT communication."""
@@ -1429,6 +1549,194 @@ async def coffee_machine_purge(params: dict):
             "message": f"Failed to prepare coffee: {error_msg}",
             "details": mqtt_response
         }
+async def coffee_machine_purge_single(params: dict):
+
+    """coffee machine using MQTT communication."""
+    # coffee_t is the number of the shots 1,2
+
+    coffee_t=3
+    slot_number = 3
+    # slot_number = params.get("slot_number", 1)
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        log("DEBUG", f"Connected with code {rc}", service="automation")
+        client.subscribe("automation_coffee_machine/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
+
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
+
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
+    
+    # The following code is unreachable due to early return above
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    # while response["data"] is None and (time.time() - start_time) < timeout:
+    await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from dispenser", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from dispenser",
+            "message": "Timeout: No response from dispenser"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to prepare coffee: {error_msg}",
+            "details": mqtt_response
+        }
+async def coffee_machine_purge_double(params: dict):
+
+    """coffee machine using MQTT communication."""
+    # coffee_t is the number of the shots 1,2
+
+    coffee_t=3
+    slot_number = 1
+    # slot_number = params.get("slot_number", 1)
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        log("DEBUG", f"Connected with code {rc}", service="automation")
+        client.subscribe("automation_coffee_machine/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            log("DEBUG", f"Response: {json.dumps(payload, indent=2)}", service="automation")
+            response["data"] = payload
+        except json.JSONDecodeError:
+            log("DEBUG", f"Invalid JSON: {msg.payload.decode()}", service="automation")
+
+    payload = json.dumps({"coffee_t": coffee_t, "slot_number": slot_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_coffee_machine", payload, qos=1)
+    
+    # Give time for message to be sent before cleanup
+    time.sleep(0.5)
+    client.loop_stop()
+    client.disconnect()
+
+    return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": "Processing coffee"
+        }
+    
+    # The following code is unreachable due to early return above
+    # timeout = params.get("timeout", 120)
+    # start_time = time.time()
+    # while response["data"] is None and (time.time() - start_time) < timeout:
+    await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from dispenser", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from dispenser",
+            "message": "Timeout: No response from dispenser"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully prepared {coffee_t} coffee in {slot_number} slot",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to prepare coffee: {error_msg}",
+            "details": mqtt_response
+        }
 
 async def grinding_machine(params: dict):
     """Grinding machine using MQTT communication."""
@@ -1522,8 +1830,378 @@ async def grinding_machine(params: dict):
             "message": f"Failed to grind coffee: {error_msg}",
             "details": mqtt_response
         }
+async def grinding_machine_single(params: dict):
+    """Grinding machine using MQTT communication."""
+    # example params: {"shots_number": 1, "timeout": 300}
+    # OR nested format: {"espresso": {"espresso_shot_double": 2.0}, "timeout": 300}
+    
+
+    shots_number = 1
+    
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        client.subscribe("automation_grinding/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            response["data"] = payload
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({"shots_number": shots_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    log("INFO", f"[GRINDER] Attempting MQTT connection to {mqtt_host}:{mqtt_port}", service="automation")
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "[GRINDER] Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    log("INFO", f"[GRINDER] Connected to MQTT broker at {connected_host}:{connected_port}", service="automation")
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    log("INFO", f"[GRINDER] Publishing message: {payload}", service="automation")
+    client.publish("automation_grinding", payload, qos=1)
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+    log("INFO", f"[GRINDER] Waiting for response (timeout={timeout}s)", service="automation")
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", f"[GRINDER] Timeout: No response from grinder after {timeout}s", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from grinder",
+            "message": "Timeout: No response from grinder"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully ground coffee for {shots_number} shot(s)",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to grind coffee: {error_msg}",
+            "details": mqtt_response
+        }
+async def grinding_machine_double(params: dict):
+    """Grinding machine using MQTT communication."""
+    # example params: {"shots_number": 1, "timeout": 300}
+    # OR nested format: {"espresso": {"espresso_shot_double": 2.0}, "timeout": 300}
+    
+
+    shots_number = 2
+    
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        client.subscribe("automation_grinding/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            response["data"] = payload
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({"shots_number": shots_number})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"), 
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+    
+    # Connect to RabbitMQ MQTT broker using service name in Docker network
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    log("INFO", f"[GRINDER] Attempting MQTT connection to {mqtt_host}:{mqtt_port}", service="automation")
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "[GRINDER] Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    log("INFO", f"[GRINDER] Connected to MQTT broker at {connected_host}:{connected_port}", service="automation")
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    log("INFO", f"[GRINDER] Publishing message: {payload}", service="automation")
+    client.publish("automation_grinding", payload, qos=1)
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+    log("INFO", f"[GRINDER] Waiting for response (timeout={timeout}s)", service="automation")
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", f"[GRINDER] Timeout: No response from grinder after {timeout}s", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from grinder",
+            "message": "Timeout: No response from grinder"
+        }
+    client.loop_stop()
+    client.disconnect()
+
+    
+    # Standardize the response format
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully ground coffee for {shots_number} shot(s)",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to grind coffee: {error_msg}",
+            "details": mqtt_response
+        }
 
 async def tampering_machine(params: dict):
+    """tampering machine using MQTT communication."""
+    # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
+    
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        # Extract amount from first value (ignore the key name like "espresso_shot_single")
+        espresso_shots = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format
+        espresso_shots = params.get("tampering", 1)
+    
+    # Map espresso shots to calibration
+    # If espresso = 1, send tampering: 1, calibration: 1
+    # If espresso = 2, send tampering: 1, calibration: 2
+    tampering = 1  # Always 1
+    if espresso_shots == 1:
+        calibration = 4000        ##set values here in ms
+    elif espresso_shots == 2:
+        calibration = 3750        ##set values here in ms
+    else:
+        # Default to calibration 1 if unknown shot count
+        log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")
+        calibration = 1
+    
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        client.subscribe("automation_tampering/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            response["data"] = payload
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({"tampering": tampering, "calibration": calibration})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"),
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_tampering", payload, qos=1)
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from tampering machine", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from tampering machine",
+            "message": "Timeout: No response from tampering machine"
+        }
+
+    client.loop_stop()
+    client.disconnect()
+
+
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully completed tampering operation (calibration={calibration})",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to complete tampering: {error_msg}",
+            "details": mqtt_response
+        }
+async def tampering_machine_single(params: dict):
+    """tampering machine using MQTT communication."""
+    # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
+    
+    # Handle nested espresso dictionary format
+    if "espresso" in params and isinstance(params["espresso"], dict):
+        espresso_dict = params["espresso"]
+        # Extract amount from first value (ignore the key name like "espresso_shot_single")
+        espresso_shots = int(list(espresso_dict.values())[0])  # Get first value, convert to int
+    else:
+        # Fallback to flat parameter format
+        espresso_shots = params.get("tampering", 1)
+    
+    # Map espresso shots to calibration
+    # If espresso = 1, send tampering: 1, calibration: 1
+    # If espresso = 2, send tampering: 1, calibration: 2
+    tampering = 1  # Always 1
+    if espresso_shots == 1:
+        calibration = 4000        ##set values here in ms
+    elif espresso_shots == 2:
+        calibration = 3750        ##set values here in ms
+    else:
+        # Default to calibration 1 if unknown shot count
+        log("ERROR", f"Unknown espresso shot count: {espresso_shots}, defaulting to calibration 1", service="automation")
+        calibration = 1
+    
+    response = {"data": None}
+
+    def on_connect(client, userdata, flags, rc, props=None):
+        client.subscribe("automation_tampering/response", qos=1)
+
+    def on_message(client, userdata, msg):
+        try:
+            payload = json.loads(msg.payload.decode())
+            response["data"] = payload
+        except json.JSONDecodeError:
+            pass
+
+    payload = json.dumps({"tampering": tampering, "calibration": calibration})
+    client = mqtt.Client(protocol=mqtt.MQTTv311)
+    client.username_pw_set(
+        params.get("username", "admin"),
+        params.get("password", "admin123")
+    )
+    client.on_connect = on_connect
+    client.on_message = on_message
+
+    # Connect with fallback support
+    mqtt_host = params.get("mqtt_host", "192.168.200.109")
+    mqtt_port = params.get("mqtt_port", 30673)
+    success, connected_host, connected_port = connect_mqtt_with_fallback(client, mqtt_host, mqtt_port)
+    
+    if not success:
+        log("ERROR", "Failed to connect to any MQTT broker", service="automation")
+        return {
+            "success": False,
+            "error": "Failed to connect to MQTT broker",
+            "message": "Failed to connect to MQTT broker"
+        }
+    
+    # Give a moment for subscription to be processed
+    time.sleep(0.5)
+    
+    client.publish("automation_tampering", payload, qos=1)
+
+    timeout = params.get("timeout", 120)
+    start_time = time.time()
+
+    while response["data"] is None and (time.time() - start_time) < timeout:
+        await asyncio.sleep(0.1)
+
+    if response["data"] is None:
+        log("ERROR", "Timeout: No response from tampering machine", service="automation")
+        return {
+            "success": False,
+            "error": "Timeout: No response from tampering machine",
+            "message": "Timeout: No response from tampering machine"
+        }
+
+    client.loop_stop()
+    client.disconnect()
+
+
+    mqtt_response = response["data"]
+    if mqtt_response.get("status") == "success":
+        return {
+            "success": True,
+            "message": f"Successfully completed tampering operation (calibration={calibration})",
+            "details": mqtt_response
+        }
+    else:
+        # Use error field if present, otherwise use status field
+        error_msg = mqtt_response.get('error', mqtt_response.get('status', 'Unknown error'))
+        return {
+            "success": False,
+            "error": error_msg,
+            "message": f"Failed to complete tampering: {error_msg}",
+            "details": mqtt_response
+        }
+async def tampering_machine_double(params: dict):
     """tampering machine using MQTT communication."""
     # example params: {"espresso": {"espresso_shot_single": 1.0}} or {"espresso": {"espresso_shot_double": 2.0}}
     
@@ -2087,10 +2765,18 @@ AUTOMATION_FUNCTIONS = {
     # "dispense_ingredient": dispense_ingredient,
     "slush_machine": slush_machine,
     "coffee_machine": coffee_machine,
+    "coffee_machine_single": coffee_machine_single,
+    "coffee_machine_double": coffee_machine_double,
     "coffee_machine_purge": coffee_machine_purge,
+    "coffee_machine_purge_single": coffee_machine_purge_single,
+    "coffee_machine_purge_double": coffee_machine_purge_double,
     "coffee_machine_wait": coffee_machine_wait,
-    "grinding_machine": grinding_machine,   
+    "grinding_machine": grinding_machine,  
+    "grinding_machine_single": grinding_machine_single, 
+    "grinding_machine_double": grinding_machine_double, 
     "tampering_machine" : tampering_machine,
+    "tampering_machine_double": tampering_machine_double,
+    "tampering_machine_single": tampering_machine_single,
     "dispense_ice": dispense_ice,
     "froth_milk": froth_milk,
     "initialize_frother": initialize_frother,

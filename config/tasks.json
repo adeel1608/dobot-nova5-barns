@@ -198,6 +198,108 @@
       }
       ]
   },
+  "Make Espresso Triple": {
+    "steps": [
+    {
+        "type": "robot",
+        "function": "unmount_double",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine_double",
+        "params": {
+        }
+    },
+    {
+        "type": "robot",
+        "function": "grinder",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "tampering_machine_double",
+        "params": {}
+    },
+    {
+        "type": "robot",
+        "function": "tamper",
+        "params": {
+        }
+    },
+    {
+        "type": "robot",
+        "function": "mount_double",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "coffee_machine_double",
+        "params": {
+        }
+    },
+    {
+      "type": "robot",
+      "function": "unmount_single",
+      "params": {
+      }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine_single",
+        "params": {
+        }
+    },
+    {
+        "type": "robot",
+        "function": "grinder",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "tampering_machine_single",
+        "params": {}
+    },
+    {
+        "type": "robot",
+        "function": "tamper",
+        "params": {
+        }
+    },
+    {
+        "type": "robot",
+        "function": "mount_single",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "coffee_machine_single",
+        "params": {
+        }
+    },
+    {
+      "type": "validation",
+      "function": "cup_detection",
+      "params": {}
+    },
+    {
+      "type": "robot",
+      "function": "dispense_paper_cup_station",
+      "params": {}
+    },
+    {
+        "type": "robot",
+        "function": "double_pick_espresso_pitcher",
+        "params": {
+        }
+    }
+    ]
+  },
   "Make Espresso Only": {
     "steps": [
     {
@@ -257,6 +359,105 @@
     }
     ]
   },
+  "Make Espresso Only Triple": {
+    "steps": [
+    {
+        "type": "robot",
+        "function": "unmount_double",
+        "params": {
+        "port": "port_3"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine_double",
+        "params": {
+        "shots_number": 2
+        }
+    },
+    {
+        "type": "robot",
+        "function": "grinder",
+        "params": {
+        "portafilter_tool": "double_portafilter"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "tampering_machine_double",
+        "params": {}
+    },
+    {
+        "type": "robot",
+        "function": "tamper",
+        "params": {
+        "portafilter_tool": "double_portafilter"
+        }
+    },
+    {
+        "type": "robot",
+        "function": "mount_double",
+        "params": {
+        }
+    },
+    {
+        "type": "automation",
+        "function": "coffee_machine_double",
+        "params": {
+        }
+    },
+    {
+      "type": "robot",
+      "function": "unmount_single",
+      "params": {
+      }
+    },
+    {
+        "type": "automation",
+        "function": "grinding_machine_single",
+        "params": {
+        "shots_number": 2
+        }
+    },
+    {
+        "type": "robot",
+        "function": "grinder",
+        "params": {
+        "portafilter_tool": "double_portafilter"
+        }
+    },
+    {
+        "type": "automation",
+        "function": "tampering_machine_single",
+        "params": {}
+    },
+    {
+        "type": "robot",
+        "function": "tamper",
+        "params": {
+        "portafilter_tool": "single_portafilter"
+        }
+    },
+    {
+        "type": "robot",
+        "function": "mount_single",
+        "params": {
+        }
+    },
+    {
+      "type": "automation",
+      "function": "coffee_machine_single",
+      "params": {
+      }
+  },
+    {
+        "type": "robot",
+        "function": "double_pick_espresso_pitcher",
+        "params": {
+        }
+    }
+    ]
+  },
   "Pour Americano": {
     "steps": [
       {
@@ -271,6 +472,55 @@
         "function": "return_espresso_pitcher",
         "params": {
           "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "pick_cup_for_hot_water",
+        "params": {}
+      },
+      {
+        "type": "automation",
+        "function": "dispense_hot_water",
+        "params": {}
+      },
+      {
+        "type": "robot",
+        "function": "return_cup_with_hot_water",
+        "params": {}
+      }
+    ]
+  },
+  "Pour Americano Triple": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "double_pour_espresso_pitcher_cup_station",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "double_return_espresso_pitcher",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "single_pick_espresso_pitcher",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "single_pour_espresso_pitcher_cup_station",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "single_return_espresso_pitcher",
+        "params": {
         }
       },
       {
@@ -306,6 +556,41 @@
         "port": "port_2"
       }
     }
+    ]
+  },
+  "Pour Espresso Triple": {
+    "steps":[
+      {
+      "type": "robot",
+      "function": "double_pour_espresso_pitcher_cup_station",
+      "params": {
+      }
+    },
+    {
+      "type": "robot",
+      "function": "double_return_espresso_pitcher",
+      "params": {
+      }
+    },
+    {
+      "type": "robot",
+      "function": "single_pick_espresso_pitcher",
+      "params": {
+      }
+    },
+    {
+      "type": "robot",
+      "function": "single_pour_espresso_pitcher_cup_station",
+      "params": {
+      }
+    },
+    {
+      "type": "robot",
+      "function": "single_return_espresso_pitcher",
+      "params": {
+      }
+    }
+
     ]
   },
   "Dispense Milk Pitcher": {
@@ -419,6 +704,72 @@
         "function": "return_cleaned_espresso_pitcher",
         "params": {
           "port": "port_2"
+        }
+      }
+    ]
+  },
+  "Clean Portafilter Triple": {
+    "steps": [
+      {
+        "type": "robot",
+        "function": "unmount_double",
+        "params": {
+        }
+      },
+      {
+          "type": "automation",
+          "function": "coffee_machine_purge_double",
+          "params": {
+          }
+      },
+      {
+        "type": "robot",
+        "function": "clean_portafilter",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "mount_double",
+        "params": {
+          "port": "port_2"
+        }
+      },
+      {
+        "type": "robot",
+        "function": "unmount_single",
+        "params": {
+        }
+      },
+      {
+          "type": "automation",
+          "function": "coffee_machine_purge_single",
+          "params": {
+          }
+      },
+      {
+        "type": "robot",
+        "function": "clean_portafilter",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "mount_single",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "single_return_cleaned_espresso_pitcher",
+        "params": {
+        }
+      },
+      {
+        "type": "robot",
+        "function": "double_return_cleaned_espresso_pitcher",
+        "params": {
         }
       }
     ]
