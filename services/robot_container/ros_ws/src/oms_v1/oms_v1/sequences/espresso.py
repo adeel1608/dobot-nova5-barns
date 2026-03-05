@@ -707,6 +707,34 @@ def mount_double(**_ignored) -> bool:
     """
     return mount(port="port_1")
 
+def single_pick_espresso_pitcher(**_ignored) -> bool:
+    """
+    Safely pick the single portafilter (port_3) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return pick_espresso_pitcher(port="port_3")
+
+def double_pick_espresso_pitcher(**_ignored) -> bool:
+    """
+    Safely pick the double portafilter (port_1) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return pick_espresso_pitcher(port="port_1")
+
+def single_pour_espresso_pitcher_cup_station(**_ignored) -> bool:
+    """
+    Safely pour espresso from the single portafilter (port_3) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return pour_espresso_pitcher_cup_station(port="port_3")
+
+def double_pour_espresso_pitcher_cup_station(**_ignored) -> bool:
+    """
+    Safely pour espresso from the double portafilter (port_1) no matter what.
+    Any passed parameters are ignored on purpose.
+    """
+    return pour_espresso_pitcher_cup_station(port="port_1")
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'unmount': unmount,
@@ -723,4 +751,8 @@ SEQUENCES = {
     'unmount_double': unmount_double,
     'mount_single': mount_single,
     'mount_double': mount_double,
+    'single_pick_espresso_pitcher': single_pick_espresso_pitcher,
+    'double_pick_espresso_pitcher': double_pick_espresso_pitcher,
+    'single_pour_espresso_pitcher_cup_station': single_pour_espresso_pitcher_cup_station,
+    'double_pour_espresso_pitcher_cup_station': double_pour_espresso_pitcher_cup_station,
 }
