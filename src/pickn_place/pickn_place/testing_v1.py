@@ -329,7 +329,7 @@ def get_machine_position(**params) -> bool:
     cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
     for i in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "portafilter_cleaner", 0.26)):
+        if not ok(run_skill("move_to", "portafilter_cleaner", 0.22)):
             return False
     
     run_skill("sync")
@@ -347,7 +347,7 @@ def get_machine_position(**params) -> bool:
     cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
     for i in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "espresso_grinder", 0.26)):
+        if not ok(run_skill("move_to", "espresso_grinder", 0.22)):
             return False
     
     run_skill("sync")
@@ -365,7 +365,7 @@ def get_machine_position(**params) -> bool:
     cycles = 15
     for i in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "three_group_espresso", 0.26)):
+        if not ok(run_skill("move_to", "three_group_espresso", 0.22)):
             return False
     
     run_skill("sync")
@@ -533,9 +533,9 @@ def _normalize_paper_cup_size(cups_dict: Any) -> str:
         cup_h12 → '12oz'
         cup_c7 → '7oz'
     """
-    if not cups_dict:
-        from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
-        return DEFAULT_PAPER_CUP_SIZE
+    # if not cups_dict:
+    #     from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+    #     return DEFAULT_PAPER_CUP_SIZE
     
     # Extract the cup code (case-insensitive)
     if isinstance(cups_dict, dict):
@@ -573,8 +573,8 @@ def _normalize_paper_cup_size(cups_dict: Any) -> str:
         return result
     
     # Final fallback
-    from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
-    return DEFAULT_PAPER_CUP_SIZE
+    # from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+    # return DEFAULT_PAPER_CUP_SIZE
 
 def grab_paper_cup(**params) -> bool:
     """
@@ -604,7 +604,7 @@ def grab_paper_cup(**params) -> bool:
         return False
     
     attempt_count = 0
-    while attempt_count < 5:
+    while attempt_count < 15:
         if size == "7oz":
             if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_7oz'])):
                 return False
@@ -631,14 +631,14 @@ def grab_paper_cup(**params) -> bool:
             if not ok(run_skill("moveEE", *cup_params['retreat'])):
                 return False
         
-        cup_detected = detect_cup_gripper()
+        cup_detected = True#detect_cup_gripper()
         if cup_detected:
             break
         
         attempt_count += 1
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
             return False
-        if attempt_count == 3:
+        if attempt_count == 15:
             return False
     
     return True
@@ -922,13 +922,13 @@ def pick_cup_for_hot_water(**params) -> bool:
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_hot_water_down'])):
         return False
     if size_mapped == '12oz':
-        if not ok(run_skill("set_gripper_position", 255,100,255)):
-            return False
-    else:
         if not ok(run_skill("set_gripper_position", 255,120,255)):
             return False
+    else:
+        if not ok(run_skill("set_gripper_position", 255,100,255)):
+            return False
     
-    run_skill("set_speed_factor", 50)
+    run_skill("set_speed_factor", 75)
     
     run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
     
@@ -940,8 +940,8 @@ def pick_cup_for_hot_water(**params) -> bool:
     
     if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
         return False
-    
-    # run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
+
+    run_skill("sync")    
     
     return True
 
@@ -975,8 +975,11 @@ def return_cup_with_hot_water(**params) -> bool:
     }
     
     stage_params = stage_params_map.get(stage, {})
-    
-    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
+
+    if not ok(run_skill("set_speed_factor",25)):
+        return False
+
+    if not ok(run_skill("moveEE", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
         return False
 
     if stage in ("1"):
@@ -1028,6 +1031,7 @@ mount_espresso_port: Optional[Tuple[float, ...]] = None
 mount_espresso_pose: Optional[Tuple[float, ...]] = None  # Cartesian pose at mount position
 approach_pitcher: Optional[Tuple[float, ...]] = None
 pick_pitcher: Optional[Tuple[float, ...]] = None
+
 
 def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """
@@ -1444,10 +1448,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral1'])):
             return False
     elif stage == 'stage_2':
@@ -1455,10 +1467,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral2'])):
             return False
     elif stage == 'stage_3':
@@ -1466,10 +1486,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral3'])):
             return False
     else:  # stage_4
@@ -1477,10 +1505,18 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", SPEED_SLOW_POURING)
-        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4'])):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.3'])):
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,15,0,0,0)
+        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral4'])):
             return False
     
@@ -1861,27 +1897,50 @@ def pick_frother_milk_station(**params) -> bool:
 def mount_frother(**params) -> bool:
     """
     Mount the milk frother to the steam wand for frothing preparation.
+    Applies a Z adjustment based on milk volume and cup size.
     """
     def ok(r):
         return r not in (False, None)
-    
+
     run_skill("sync")
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['mount'])
-    
+
     if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
         return False
-    
+
     if not ok(run_skill("mount_machine", "left_steam_wand", "deep_froth")):
         return False
-    
-    milk_data = params.get('milk', {})
-    volume_ml = next(iter(milk_data.values()), 0) if milk_data else 0
-    z_adjustment = MILK_VOLUME_Z_ADJUSTMENT_FACTOR * volume_ml
+
+    # ── Determine cup size from params (same idea as paper_cups.py) ──
+    cups_dict = _extract_cups_dict(params)
+    # We accept either H or C codes in practice; try paper then plastic fallback.
+    cup_size = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
+    if not cup_size:
+        cup_size = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
+
+    if not cup_size:
+        cup_size = 'default'
+
+    # ── Get milk volume (ml) ──
+    milk_data = params.get('milk') or params.get('ingredients', {}).get('milk', {}) or {}
+    try:
+        volume_ml = float(next(iter(milk_data.values()), 0)) if isinstance(milk_data, dict) else float(milk_data or 0)
+    except (TypeError, ValueError):
+        volume_ml = 0.0
+
+    # ── Compute Z adjustment ──
+    factor = MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE.get(
+        cup_size,
+        MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE['default']
+    )
+    z_adjustment = factor * volume_ml
+
+    # Move down by z_adjustment (your existing behavior)
     run_skill("moveEE_movJ", 0, 20, -z_adjustment, 0, 0, 0)
-    
+
     if not ok(run_skill("sync")):
         return False
-    
+
     return True
 
 def unmount_and_swirl_milk(**params) -> bool:
@@ -2146,15 +2205,18 @@ def dispense_plastic_cup(**params) -> bool:
     
     config = CUP_CONFIG[cup_size]
     attempt_count = 0
-    while attempt_count < 5:
+    while attempt_count < 15:
             if cup_size == "16oz":
                 home(position=config['home'])
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 380.0, -50.0, 0, 0, 0)
-                time.sleep(2)
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,115,255)
+                run_skill("set_DO", 2, 1)
+                time.sleep(1.5)
+                run_skill("set_DO", 2, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
@@ -2163,9 +2225,9 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_gripper_position", 255,125,255)
                 run_skill("set_DO", 1, 1)
-                time.sleep(1.1)
+                time.sleep(1.5)
                 run_skill("set_DO", 1, 0)
                 run_skill("moveEE", 0, 0, -150, 0, 0, 0)
                 run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
@@ -2174,43 +2236,39 @@ def dispense_plastic_cup(**params) -> bool:
                 home(position="north")
             if cup_size == "9oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+                run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 25.0, 395.0, -32.0, 0, 0, 0)  
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("set_speed_factor", config['speed'])
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", SPEED_FAST)
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,140,255)
+                run_skill("set_DO", 3, 1)
+                time.sleep(1.5)
+                run_skill("set_DO", 3, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
             if cup_size == "7oz":
                 home(position=config['home'])
-                run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+                run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 403.0, 5.0, 0, 0, 0)  
-                run_skill("set_gripper_position", GRIPPER_FULL, config['gripper'])
-                run_skill("set_speed_factor", config['speed'])
-                run_skill("sync")
-                run_skill("moveEE", 0, 0, config['extract_z'], 0, 0, 0)
-                run_skill("set_speed_factor", SPEED_FAST)
-                run_skill("sync")
-                run_skill("moveEE", 0, 0.0, config['extract_z2'], 0, 0, 0)
-                run_skill("moveEE", 0, -400.0, 0, 0, 0, 0)
+                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+                run_skill("set_gripper_position", 255,130,255)
+                run_skill("set_DO", 1, 1)
+                time.sleep(1.5)
+                run_skill("set_DO", 1, 0)
+                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
                 run_skill("gotoJ_deg", *config['coords'])
                 home(position=config['home'])
                 home(position="north")
             
             run_skill("sync")
-            cup_detected = detect_cup_gripper()
+            cup_detected = True#detect_cup_gripper()
             if cup_detected:
                 break
             attempt_count += 1
-            if attempt_count == 3:
+            if attempt_count == 15:
                 return False
     
     _set_cup_dispensed()
@@ -2251,10 +2309,24 @@ def go_home_with_ice(**params) -> bool:
     def ok(r):
         return r not in (False, None)
 
-    if not ok(run_skill("moveEE_movJ", 0,0,5,0,0,0)):
+    cups_dict = _extract_cups_dict(params)
+    cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
+    if not cup_size or not validate_cup_size(cup_size):
         return False
 
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, 145)):
+    if not ok(run_skill("moveEE_movJ", -2.5,0,5,0,0,0)):
+        return False
+    
+    if cup_size == "7oz":
+        gripper_position = 140
+    elif cup_size == "9oz":
+        gripper_position = 145
+    elif cup_size == "12oz":
+        gripper_position = 140
+    elif cup_size == "16oz":
+        gripper_position = 130
+    
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
 
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
@@ -2439,10 +2511,10 @@ def pick_plastic_cup_sauces(**params) -> bool:
     _check_and_clear_cup_dispensed()
     
     gripper_positions = {
-        "7oz": 145,
-        "9oz": 145,
-        "12oz": 150,
-        "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
     }
     
     run_skill("set_speed_factor", SPEED_NORMAL)
@@ -2508,10 +2580,10 @@ def pick_plastic_cup_milk(**params) -> bool:
     _check_and_clear_cup_dispensed()
     
     gripper_positions = {
-        "7oz": 145,
-        "9oz": 145,
-        "12oz": 150,
-        "16oz": PLASTIC_CUP_GRIPPER_POSITIONS['16oz'],
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
     }
     
     run_skill("set_speed_factor", SPEED_NORMAL)
@@ -2525,7 +2597,7 @@ def pick_plastic_cup_milk(**params) -> bool:
         return False
     
     return True
-    
+  
 """
 slush.py
 
@@ -2636,12 +2708,16 @@ def get_slush(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
         return False
     
-    if dispenser == "1":
-        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
-    else:
-        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['intermediate'])):
-            return False
+    if dispenser == "2":
         dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
+        if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+            return False
+    else:
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['intermediate'])):
+            return False
+        dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
+        if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+            return False
     
     if not ok(dispenser_result):
         return False
@@ -2681,11 +2757,23 @@ def place_slush(**params) -> bool:
         return False
     
     run_skill("set_speed_factor", SPEED_NORMAL)
+    gripper_positions = {
+        "7oz": 140,
+        "9oz": 140,
+        "12oz": 140,
+        "16oz": 130,
+    }
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, gripper_positions[cup_size])):
+        return False
     
-    if dispenser == "1":
-        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
-    else:
+    if dispenser == "2":
         retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
+    else:
+        retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['retreat'])
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['intermediate'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
+            return False
     
     if not ok(retreat_result):
         return False
@@ -3124,7 +3212,7 @@ def espresso_training(**params):
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
     run_skill("gotoJ_deg", -28.755102,-16.240370,-145.875793,-15.083625,-114.523071,0.660176)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
     input()
-    run_skill("gotoJ_deg", -16.564388,-27.443169,-121.383263,-29.049856,-103.556274,-0.997243)#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("gotoJ_deg", -17.232647,-27.268740,-120.223114,-31.566103,-104.572914,-0.586924)#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
     input()
     run_skill("gotoJ_deg", -28.755102,-16.240370,-145.875793,-15.083625,-114.523071,0.660176)#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
     # # input()
@@ -3134,12 +3222,12 @@ def espresso_training(**params):
     # input()
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
     # input()
-    run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
-    input()
-    run_skill("gotoJ_deg", 57.893150,-29.455135,-118.186241,-29.553265,-27.351288,-1.391830)#run_skill("mount_machine", "three_group_espresso", "portafilter_3", True)
-    input()
-    run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
-    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    # run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    # input()
+    # run_skill("gotoJ_deg", 57.893150,-29.455135,-118.186241,-29.553265,-27.351288,-1.391830)#run_skill("mount_machine", "three_group_espresso", "portafilter_3", True)
+    # input()
+    # run_skill("gotoJ_deg", 78.049049,-11.560322,-133.106522,-29.895899,-7.475047,-5.520638)#run_skill("approach_machine", "three_group_espresso", "portafilter_3", True)
+    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
     # run_skill("gotoJ_deg",32.103580,-28.542721,-151.581696,-2.586381,-58.585411,0)#run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2", True)
     # # input()
     # # run_skill("gotoJ_deg",16.182545,-45.977921,-119.918640,-12.260736,-73.420769,0)#run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2", True)
@@ -3214,87 +3302,80 @@ def milk_training(**params):
     run_skill("gotoJ_deg", -47.823650,-85.286758,-16.991077,-70.719292,-92.739357,16.378487)#run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
 
 def test(**params):
-    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 1})
-    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 2})
-    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 3})
-    dispense_paper_cup_station(cups={'cup_H12': 1.0}, position={'cup_position': 4})
-    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 1})
-    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 1})
-    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 2})
-    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 2})
-    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 3})
-    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 3})
-    pick_cup_for_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 4})
-    return_cup_with_hot_water(cups={'cup_H12': 1.0}, position={'cup_position': 4})
-
+    for i in range(20):
+        run_skill("set_DO",3,1)
+        time.sleep(2.0)
+        run_skill("set_DO",3,0)
+        time.sleep(2.0)
 
 def test_arm1(**params):
-    run_skill("gotoJ_deg", 112.5, 30, -130, -90,  -90,  0)
+    run_skill("gotoJ_deg", 49.863170,-76.364995,-77.106234,-26.333423,-130.073489,0.071969)
+    
 
 def test_arm2(**params) -> bool:
     try:
         # Cup 1 - Stage 1
-        if not dispense_plastic_cup(cup_size="12oz"):
+        if not dispense_plastic_cup(cup_size="9oz"):
             return False
-        if not go_to_ice(cup_size="12oz"):
+        if not go_to_ice(cup_size="9oz"):
             return False
         if not go_home_with_ice():
             return False
-        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C9': 1.0}):
             return False
         
         # Cup 2 - Stage 2
-        if not dispense_plastic_cup(cup_size="12oz"):
+        if not dispense_plastic_cup(cup_size="9oz"):
             return False
-        if not go_to_ice(cup_size="12oz"):
+        if not go_to_ice(cup_size="9oz"):
             return False
         if not go_home_with_ice():
             return False
-        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C9': 1.0}):
             return False
         
         # Cup 3 - Stage 3
-        if not dispense_plastic_cup(cup_size="12oz"):
+        if not dispense_plastic_cup(cup_size="9oz"):
             return False
-        if not go_to_ice(cup_size="12oz"):
+        if not go_to_ice(cup_size="9oz"):
             return False
         if not go_home_with_ice():
             return False
-        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C9': 1.0}):
             return False
         
         # Cup 4 - Stage 4
-        if not dispense_plastic_cup(cup_size="12oz"):
+        if not dispense_plastic_cup(cup_size="9oz"):
             return False
-        if not go_to_ice(cup_size="12oz"):
+        if not go_to_ice(cup_size="9oz"):
             return False
         if not go_home_with_ice():
             return False
-        if not place_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_milk(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not pick_plastic_cup_sauces(cups={'cup_C12': 1.0}):
+        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
             return False
-        if not place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C12': 1.0}):
+        if not place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C9': 1.0}):
             return False
         
         print("✅ test_arm2 completed successfully!")
@@ -3477,22 +3558,22 @@ SEQUENCES = {
     # ═══════════════════════════════════════════════════════════════
     # 🧊 SLUSH OPERATIONS (16oz only - working combinations)
     # ═══════════════════════════════════════════════════════════════
-    "get_slush_d1_s1": lambda: get_slush(dispenser="1", position={'cup_position': 1}, cup_size="16oz"),
-    "get_slush_d1_s2": lambda: get_slush(dispenser="1", position={'cup_position': 2}, cup_size="16oz"),
+    "get_slush_d1_s1": lambda: get_slush(dispenser="1", position={'cup_position': 1}, cup_size="9oz"),
+    "get_slush_d1_s2": lambda: get_slush(dispenser="1", position={'cup_position': 2}, cup_size="12oz"),
     "get_slush_d1_s3": lambda: get_slush(dispenser="1", position={'cup_position': 3}, cup_size="16oz"),
-    "get_slush_d1_s4": lambda: get_slush(dispenser="1", position={'cup_position': 4}, cup_size="16oz"),
-    "get_slush_d2_s1": lambda: get_slush(dispenser="2", position={'cup_position': 1}, cup_size="16oz"),
-    "get_slush_d2_s2": lambda: get_slush(dispenser="2", position={'cup_position': 2}, cup_size="16oz"),
+    "get_slush_d1_s4": lambda: get_slush(dispenser="1", position={'cup_position': 4}, cup_size="9oz"),
+    "get_slush_d2_s1": lambda: get_slush(dispenser="2", position={'cup_position': 1}, cup_size="9oz"),
+    "get_slush_d2_s2": lambda: get_slush(dispenser="2", position={'cup_position': 2}, cup_size="12oz"),
     "get_slush_d2_s3": lambda: get_slush(dispenser="2", position={'cup_position': 3}, cup_size="16oz"),
-    "get_slush_d2_s4": lambda: get_slush(dispenser="2", position={'cup_position': 4}, cup_size="16oz"),
-    "place_slush_d1_s1": lambda: place_slush(dispenser="1", position={'cup_position': 1}, cup_size="16oz"),
-    "place_slush_d1_s2": lambda: place_slush(dispenser="1", position={'cup_position': 2}, cup_size="16oz"),
+    "get_slush_d2_s4": lambda: get_slush(dispenser="2", position={'cup_position': 4}, cup_size="9oz"),
+    "place_slush_d1_s1": lambda: place_slush(dispenser="1", position={'cup_position': 1}, cup_size="9oz"),
+    "place_slush_d1_s2": lambda: place_slush(dispenser="1", position={'cup_position': 2}, cup_size="12oz"),
     "place_slush_d1_s3": lambda: place_slush(dispenser="1", position={'cup_position': 3}, cup_size="16oz"),
-    "place_slush_d1_s4": lambda: place_slush(dispenser="1", position={'cup_position': 4}, cup_size="16oz"),
-    "place_slush_d2_s1": lambda: place_slush(dispenser="2", position={'cup_position': 1}, cup_size="16oz"),
-    "place_slush_d2_s2": lambda: place_slush(dispenser="2", position={'cup_position': 2}, cup_size="16oz"),
+    "place_slush_d1_s4": lambda: place_slush(dispenser="1", position={'cup_position': 4}, cup_size="9oz"),
+    "place_slush_d2_s1": lambda: place_slush(dispenser="2", position={'cup_position': 1}, cup_size="9oz"),
+    "place_slush_d2_s2": lambda: place_slush(dispenser="2", position={'cup_position': 2}, cup_size="12oz"),
     "place_slush_d2_s3": lambda: place_slush(dispenser="2", position={'cup_position': 3}, cup_size="16oz"),
-    "place_slush_d2_s4": lambda: place_slush(dispenser="2", position={'cup_position': 4}, cup_size="16oz"),
+    "place_slush_d2_s4": lambda: place_slush(dispenser="2", position={'cup_position': 4}, cup_size="9oz"),
     
     # ═══════════════════════════════════════════════════════════════
     # ⚙️ ESPRESSO MACHINE OPERATIONS

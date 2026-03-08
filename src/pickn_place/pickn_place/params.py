@@ -24,8 +24,8 @@ GRIPPER_RELEASE = 25     # Standard release position
 GRIPPER_HOLD_LOOSE = 75  # Loose hold for station placement
 GRIPPER_RELEASE_PITCHER = 25  # Release position for espresso pitcher
 GRIPPER_LIGHT = 100      # Light grip
-GRIPPER_PITCHER_1 = 105  # Gripper setting for espresso pitcher port 2 & 3
-GRIPPER_PITCHER_2 = 110  # Gripper setting for espresso pitcher port 1
+GRIPPER_PITCHER_1 = 115  # Gripper setting for espresso pitcher port 2 & 3
+GRIPPER_PITCHER_2 = 115  # Gripper setting for espresso pitcher port 1
 GRIPPER_MEDIUM = 150     # Medium grip
 GRIPPER_FROTHER_PICKUP = 169  # Initial frother pickup position
 GRIPPER_FROTHER_RELEASE = 165  # Frother release position
@@ -386,16 +386,24 @@ ESPRESSO_GRINDER_PARAMS = {
 ESPRESSO_PITCHER_PARAMS = {
     'home':         (31.076585, -40.253154, -136.313679, -3.210446, -58.931112, -0.206957),
     'pos1':         (128.912586,-14.941652,-132.700460,-34.226286,-58.986065,-40.688192),
-    'pour1':        (132.884964,-18.716054,-131.337356,-38.226868,-58.883868,-119.013201),
+    'pour1.1':        (132.884964,-18.716054,-131.337356,-38.226868,-58.883868,-119.013201),
+    'pour1.2':      (134.006, -18.981, -130.876, -38.523, -57.775, -118.823),
+    'pour1.3':      (134.006, -18.981, -130.876, -38.523, -57.775, -130.823),
     'neutral1':     (128.912586,-14.941652,-132.700460,-34.226286,-58.986065,-40.688192),
     'pos2':         (145.035620,-20.577497,-123.353201,-38.415256,-42.880336,-39.934043),
-    'pour2':        (147.768250,-25.031079,-119.905119,-45.241985,-44.204450,-115.980444),
+    'pour2.1':        (147.768250,-25.031079,-119.905119,-45.241985,-44.204450,-115.980444),
+    'pour2.2':      (148.433, -25.517, -118.997, -45.787, -43.551, -115.811),
+    'pour2.3':      (148.433, -25.517, -118.997, -45.787, -43.551, -130.811),
     'neutral2':     (145.035620,-20.577497,-123.353201,-38.415256,-42.880336,-39.934043),
     'pos3':         (154.657353,-29.363111,-107.498584,-46.035256,-33.279858,-39.233358),
-    'pour3':        (156.487541,-34.301428,-102.053874,-55.833863,-35.667728,-113.361040),
+    'pour3.1':        (156.487541,-34.301428,-102.053874,-55.833863,-35.667728,-113.361040),
+    'pour3.2':      (156.881, -34.934, -100.803, -56.568, -35.285, -113.218),
+    'pour3.3':      (156.881, -34.934, -100.803, -56.568, -35.285, -130.218),
     'neutral3':     (154.657353,-29.363111,-107.498584,-46.035256,-33.279858,-39.233358),
     'pos4':         (160.494843,-40.463178,-86.054746,-56.912785,-27.468759,-38.612881),
-    'pour4':        (161.786199,-46.189147,-78.100186,-69.724693,-30.530701,-111.181931),
+    'pour4.1':      (161.786199,-46.189147,-78.100186,-69.724693,-30.530701,-111.181931),
+    'pour4.2':      (162.035, -47.015, -76.406, -70.695, -30.291, -111.064),
+    'pour4.3':      (162.035, -47.015, -76.406, -70.695, -30.291, -130.064),
     'neutral4':     (160.494843,-40.463178,-86.054746,-56.912785,-27.468759,-38.612881),
     'inter':        (121.242584,-10.634244,-135.326675,-34.000744,-58.927547,0.000000),
 }
@@ -453,8 +461,11 @@ MILK_SWIRL_CIRCLE_PARAMS = {
     'options': ["tool=0"],  # Circle motion options
 }
 
-# Volume-based Z adjustment for frother
-MILK_VOLUME_Z_ADJUSTMENT_FACTOR = 0.1866666667 * 0.7  # Factor for calculating Z adjustment based on milk volume
+MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
+    '9oz':  0.1866666667 * 0.3,
+    '12oz': 0.1866666667 * 0.5,
+    'default': 0.1866666667 * 0.1,
+}
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
 MILK_FROTHING_PARAMS = {
@@ -515,16 +526,16 @@ MILK_FROTHING_PARAMS = {
 # ─── SLUSH PARAMETERS ─────────────────────────────────────────────────────────────
 SLUSH_PARAMS = {
     'navigation': {
-        'intermediate': (106.212090, -43.618443, -136.693954, 1.223362, -23.919476, -0.124173),  # Intermediate position when navigating to slush area
+        'intermediate': (108.048808,-43.659720,-136.952660,1.308469,-21.840798,-0.671933),  # Intermediate position when navigating to slush area
         'slush_area':   (33.380177,-65.448544,-125.305906,18.179613,-139.723057,1.841451),  # Main slush dispensing area position
     },
-    'dispenser_1': {
-        'dispense':     (53.272518, -67.612831, -88.370926, -23.156694, -119.473190, -0.214796),  # Dispenser 1 dispensing position
+    'dispenser_2': {
+        'dispense':     (48.955675,-75.871127,-78.937630,-24.995098,-130.979792,0.074919),  # Dispenser 1 dispensing position
         'retreat':      (45.785095, -64.636208, -119.745956, 10.442498, -127.393181, -0.156864),  # Retreat position from dispenser 1
     },
-    'dispenser_2': {
+    'dispenser_1': {
         'intermediate': (17.117330,-72.397126,-55.180654,-48.179137,-153.839501,1.256867),  # Intermediate position for dispenser 2
-        'dispense':     (39.080325,-80.227702,-48.030111,-51.277060,-130.866959,-0.148558),  # Dispenser 2 dispensing position
+        'dispense':     (37.399140,-96.148986,-22.368426,-61.228713,-142.586873,0.170621),  # Dispenser 2 dispensing position
         'retreat':      (22.607694,-78.770437,-48.740179,-48.922226,-148.368363,0.479901),  # Retreat position from dispenser 2
     },
 }
@@ -568,20 +579,20 @@ PLASTIC_CUPS_PARAMS = {
     'dispenser': {
         # Cup dispenser coordinates for grabbing plastic cups
         '7oz_coords':   (157.029014,-29.678097,-117.343398,-32.416276,-22.856233,-0.528079),  # 7oz cup dispenser position
-        '9oz_coords':   (145.520738,-21.027729,-128.794233,-29.809187,-34.358134,-0.313671),  # 9oz cup dispenser position
+        '9oz_coords':   (153.851, -35.737, -111.148, -32.605, -26.039, -0.474),  # 9oz cup dispenser position
         '12oz_coords':  (115.363006,-26.809169,-138.267717,-14.690222,-64.514647,-0.132663),  # 12oz cup dispenser position
-        '16oz_coords':  (79.037093,-39.242251,-132.377459,-8.192847,-100.849547,-0.020315),  # 16oz cup dispenser position
+        '16oz_coords':  (140.980, -20.832, -129.160, -29.678, -38.898, -0.267),  # 16oz cup dispenser position
     },
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
-        'position2':    (46.241082,-71.126117,-82.426418,-26.093993,-43.687633,-0.302819),  # Second ice position (dispense)
+        'position2':    (46.241162,-70.803957,-82.605716,-26.237127,-43.687160,-0.302443),  # Second ice position (dispense)
     },
     'staging': {
         # Staging positions for placing plastic cups
-        'place_1':      (-82.522181,-50.735762,-126.581344,-2.476677,-82.420135,-0.099928),  # Stage 1 placement position
-        'place_2':      (-102.678188,-51.825704,-116.952115,-11.037622,-102.578374,-0.025293),  # Stage 2 placement position
-        'place_3':      (-118.947162,-55.648503,-100.620319,-23.542009,-118.855164,0.038563),  # Stage 3 placement position
-        'place_4':      (-130.494242,-62.993442,-78.390283,-38.407176,-130.418147,0.093833),  # Stage 4 placement position
+        'place_1':      (-82.495347,-50.751238,-126.575974,-2.414609,-82.426553,-0.078193),  # Stage 1 placement position
+        'place_2':      (-103.053575,-51.655540,-118.074840,-10.022299,-102.986149,0.016289),  # Stage 2 placement position
+        'place_3':      (-119.620530,-54.959088,-103.132825,-21.640516,-119.557694,0.101475),  # Stage 3 placement position
+        'place_4':      (-131.763914,-61.608221,-82.272711,-35.811243,-131.710665,0.182086),  # Stage 4 placement position
         # Pickup positions for picking plastic cups (same as paper cups)
         'pickup_1':     (-79.183964,-53.698625,-144.678190,18.593209,-79.087779,-0.133025),  # Stage 1 pickup position
         'pickup_2':     (-107.022091,-50.755058,-132.327806,3.262599,-106.920207,-0.022566),  # Stage 2 pickup position
@@ -590,11 +601,11 @@ PLASTIC_CUPS_PARAMS = {
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
-        'position2':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Second position at sauces station (place/pick)
+        'position2':    (-27.222774,-66.047969,-95.799123,-17.971018,-117.142337,0.018850),  # Second position at sauces station (place/pick)
     },
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
-        'position2':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Second position at milk station (place/pick)
+        'position2':    (-39.590470,-73.316870,-70.346339,-36.135459,-129.527190,0.080320),  # Second position at milk station (place/pick)
     },
 }
 
@@ -618,7 +629,7 @@ GRAB_PAPER_CUP_PARAMS = {
     '12oz': {
         'twist_back':   (-142.260873, -17.875853,  10.033241,   8.226858,  -0.089241, -47.128327),
         'approach':     ( 222.0,        -5,          0,          0,          0,         0),
-        'grip_width':   145,
+        'grip_width':   150,
         'retreat':      (-350,        0,          0,          0,          0,         0),
     },
     '9oz': {
@@ -630,7 +641,7 @@ GRAB_PAPER_CUP_PARAMS = {
     '7oz': {
         'twist_back':   ( -65.440372, -10.652569,   4.188843,   6.867561,   0.095261,  29.626037),
         'approach':     ( 250,         -10,           0.0,          0,          0,         0),
-        'grip_width':   155,
+        'grip_width':   163,
         'retreat':      (-290,         0,           0,          0,          0,         0),
     },
 }
@@ -709,7 +720,7 @@ PAPER_CUPS_STATION_PARAMS = {
     'milk_station': {
         'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
         'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
-        'position3':    (-38.663287,-75.415087,-67.047894,-37.337316,-128.603573,0.076145),  # Third position at milk station (place/pick)
+        'position3':    (-38.663202,-74.192391,-67.777961,-37.829308,-128.602018,0.077164),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
@@ -782,7 +793,7 @@ __all__ = [
     'ESPRESSO_HOT_WATER_PARAMS',
     'MILK_FROTHER_SPEEDS', 'MILK_FROTHER_GRIPPER_POSITIONS', 'MILK_FROTHER_MOVEMENT_OFFSETS',
     'MILK_POURING_OFFSETS', 'MILK_FROTHING_DELAYS', 'MILK_SWIRL_CIRCLE_PARAMS',
-    'MILK_VOLUME_Z_ADJUSTMENT_FACTOR', 'MILK_FROTHING_PARAMS',
+    'MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE', 'MILK_FROTHING_PARAMS',
     'SLUSH_PARAMS',
     'PLASTIC_CUP_GRIPPER_POSITIONS', 'PLASTIC_CUP_DISPENSE_GRIPPER',
     'PLASTIC_CUP_DISPENSE_SPEEDS', 'PLASTIC_CUP_EXTRACT_OFFSETS',
