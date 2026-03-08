@@ -22,4 +22,4 @@ services/validation/cup_detection/debug_frames_cup/*.jpg
 services/validation/cup_detection/debug_frames/*.png
 services/validation/cup_detection/debug_frames/*.jpg
 rf-detr-large.pth
-debug_frame.jpg
+debug_frame.jpgk8s/gcr-key.json
