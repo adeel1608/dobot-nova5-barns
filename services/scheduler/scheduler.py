@@ -82,9 +82,13 @@ async def validate_cup_ingredients(cup_id: str) -> dict:
         
         # Extract ingredients from cup data
         ingredients = cup_data.get("ingredients", {})
-        
-        if not ingredients:
-            log("WARNING", f"[CUP VALIDATION] No ingredients found for cup {cup_id}, skipping validation", service="scheduler")
+        # Treat a non-dict value (e.g. an empty list []) as having no ingredients
+        if not isinstance(ingredients, dict):
+            ingredients = {}
+
+        drink_name = cup_data.get("type", "")
+        if drink_name == "Calibrate" or not ingredients:
+            log("INFO", f"[CUP VALIDATION] Skipping validation for cup {cup_id} (drink='{drink_name}', no ingredients required)", service="scheduler")
             return {"success": True, "passed": True, "details": "No ingredients to validate"}
         
         # Build validation payload matching routine service format
@@ -164,9 +168,13 @@ async def update_cup_ingredients(cup_id: str) -> dict:
         
         # Extract ingredients from cup data
         ingredients = cup_data.get("ingredients", {})
-        
-        if not ingredients:
-            log("WARNING", f"[INGREDIENT UPDATE] No ingredients found for cup {cup_id}, skipping update", service="scheduler")
+        # Treat a non-dict value (e.g. an empty list []) as having no ingredients
+        if not isinstance(ingredients, dict):
+            ingredients = {}
+
+        drink_name = cup_data.get("type", "")
+        if drink_name == "Calibrate" or not ingredients:
+            log("INFO", f"[INGREDIENT UPDATE] Skipping ingredient update for cup {cup_id} (drink='{drink_name}', no ingredients required)", service="scheduler")
             return {"success": True, "passed": True, "details": "No ingredients to update"}
         
         # Build update payload matching validation service format
@@ -547,9 +555,14 @@ def _has_triple_espresso(cup_id: str) -> bool:
 
     Accepts both 'espresso_shot_triple' and 'espresso_shot_tripple' (common
     misspelling) as valid keys inside the nested espresso ingredient dict.
+    Gracefully handles cups (e.g. 'Calibrate') whose ingredients field is
+    absent, an empty dict, or an empty list.
     """
     cup_data = cup_data_by_cup.get(cup_id, {})
-    espresso_ingredient = cup_data.get("ingredients", {}).get("espresso")
+    ingredients = cup_data.get("ingredients", {})
+    if not isinstance(ingredients, dict):
+        return False
+    espresso_ingredient = ingredients.get("espresso")
     if not isinstance(espresso_ingredient, dict):
         return False
     return bool(_TRIPLE_ESPRESSO_KEYS.intersection(espresso_ingredient.keys()))
