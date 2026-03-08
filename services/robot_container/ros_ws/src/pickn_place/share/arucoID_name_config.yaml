@@ -29,5 +29,9 @@ aruco_id:
     name: espresso_grinder
   - id: 32
     name: slush_machine
+  - id: 33
+    name: ice_machine
+  - id: 35
+    name: hybrid_dispenser
   - id: 41
     name: three_group_espresso
