@@ -198,6 +198,7 @@ def place_slush(**params) -> bool:
         return False
     
     return True 
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'get_slush': get_slush,

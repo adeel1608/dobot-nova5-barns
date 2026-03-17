@@ -139,7 +139,7 @@ def dispense_plastic_cup(**params) -> bool:
                 run_skill("set_gripper_position", 255, 0, 255)
                 run_skill("gotoJ_deg", *config['coords'])
                 run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,115,255)
+                run_skill("set_gripper_position", 255,110,255)
                 run_skill("set_DO", 2, 1)
                 time.sleep(1.5)
                 run_skill("set_DO", 2, 0)

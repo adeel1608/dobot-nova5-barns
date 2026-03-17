@@ -208,14 +208,13 @@ def grinder(**params) -> bool:
     
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])):
         return False
-    
-    run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)
-    
-    # approach_tool_result = run_skill("approach_tool", portafilter_tool)
-    # if not ok(approach_tool_result):
-    #     fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
-    #     if not ok(run_skill("approach_tool", fallback_tool)):
-    #         return False
+
+    if port == 'port_1':
+        if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
+            return False
+    elif port == 'port_3':
+        if not ok(run_skill("approach_tool", "single_portafilter")):
+            return False
     
     return True
     
@@ -228,19 +227,15 @@ def tamper(**params) -> bool:
     
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
     portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter")
     
     if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
         return False
     
-    # run_skill("sync")
-    
-    # approach_tool_result = run_skill("approach_tool", portafilter_tool)
-    # if not ok(approach_tool_result):
-    #     fallback_tool = "double_portafilter" if portafilter_tool == "single_portafilter" else "single_portafilter"
-    #     if not ok(run_skill("approach_tool", fallback_tool)):
-    #         return False
-    #     portafilter_tool = fallback_tool
+    if port == 'port_3':
+        if not ok(run_skill("approach_tool", "single_portafilter")):
+            return False
     
     run_skill("sync")
     
@@ -267,6 +262,20 @@ def tamper(**params) -> bool:
         return False
     
     return True
+
+def single_tamper(**params) -> bool:
+    """
+    Tamp coffee at the tamper station using the single portafilter tool.
+    """
+    params["portafilter_tool"] = "single_portafilter"
+    return tamper(**params)
+
+def double_tamper(**params) -> bool:
+    """
+    Tamp coffee at the tamper station using the double portafilter tool.
+    """
+    params["portafilter_tool"] = "double_portafilter"
+    return tamper(**params)
 
 def mount(**params) -> bool:
     """
@@ -634,11 +643,13 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             return False
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])):
             return False
-        run_skill("moveEE_movJ", 0,250,10,0,0,0)
+        run_skill("moveEE_movJ", 0,0,20,0,0,0)
+        run_skill("moveEE_movJ", 0,250,0,0,0,0)
         run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("sync")
         run_skill("moveJ_deg", 0,0,0,0,0,135)
-        run_skill("moveEE_movJ", 0,-250,-10,0,0,0)
+        run_skill("moveEE_movJ", 0,-250,0,0,0,0)
+        run_skill("moveEE_movJ", 0,0,-20,0,0,0)
         if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
             return False
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
@@ -662,10 +673,12 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             return False
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])):
             return False
-        run_skill("moveEE_movJ", 0,-250,10,0,0,0)
+        run_skill("moveEE_movJ", 0,0,20,0,0,0)
+        run_skill("moveEE_movJ", 0,-250,0,0,0,0)
         run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("moveJ_deg", 0,0,0,0,0,135)
-        run_skill("moveEE_movJ", 0,250,-10,0,0,0)
+        run_skill("moveEE_movJ", 0,250,0,0,0,0)
+        run_skill("moveEE_movJ", 0,0,-20,0,0,0)
         if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
             return False
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
@@ -679,89 +692,89 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
     
     return True
 
-def unmount_single(**_ignored) -> bool:
+def unmount_single(**params) -> bool:
     """
-    Safely unmount the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Unmount the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return unmount(port="port_3")
+    params["port"] = "port_3"
+    return unmount(**params)
 
-def unmount_double(**_ignored) -> bool:
+def unmount_double(**params) -> bool:
     """
-    Safely unmount the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Unmount the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return unmount(port="port_1")
+    params["port"] = "port_1"
+    return unmount(**params)
 
-def mount_single(**_ignored) -> bool:
+def mount_single(**params) -> bool:
     """
-    Safely mount the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Mount the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return mount(port="port_3")
+    params["port"] = "port_3"
+    return mount(**params)
 
-def mount_double(**_ignored) -> bool:
+def mount_double(**params) -> bool:
     """
-    Safely mount the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Mount the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return mount(port="port_1")
+    params["port"] = "port_1"
+    return mount(**params)
 
-def single_pick_espresso_pitcher(**_ignored) -> bool:
+def single_pick_espresso_pitcher(**params) -> bool:
     """
-    Safely pick the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Pick the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return pick_espresso_pitcher(port="port_3")
+    params["port"] = "port_3"
+    return pick_espresso_pitcher(**params)
 
-def double_pick_espresso_pitcher(**_ignored) -> bool:
+def double_pick_espresso_pitcher(**params) -> bool:
     """
-    Safely pick the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Pick the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return pick_espresso_pitcher(port="port_1")
+    params["port"] = "port_1"
+    return pick_espresso_pitcher(**params)
 
-def single_pour_espresso_pitcher_cup_station(**_ignored) -> bool:
+def single_pour_espresso_pitcher_cup_station(**params) -> bool:
     """
-    Safely pour espresso from the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Pour espresso from the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return pour_espresso_pitcher_cup_station(port="port_3")
+    params["port"] = "port_3"
+    return pour_espresso_pitcher_cup_station(**params)
 
-def double_pour_espresso_pitcher_cup_station(**_ignored) -> bool:
+def double_pour_espresso_pitcher_cup_station(**params) -> bool:
     """
-    Safely pour espresso from the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Pour espresso from the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return pour_espresso_pitcher_cup_station(port="port_1")
+    params["port"] = "port_1"
+    return pour_espresso_pitcher_cup_station(**params)
 
-def single_return_espresso_pitcher(**_ignored) -> bool:
+def single_return_espresso_pitcher(**params) -> bool:
     """
-    Safely return the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Return the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return return_espresso_pitcher(port="port_3")
+    params["port"] = "port_3"
+    return return_espresso_pitcher(**params)
 
-def double_return_espresso_pitcher(**_ignored) -> bool:
+def double_return_espresso_pitcher(**params) -> bool:
     """
-    Safely return the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Return the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return return_espresso_pitcher(port="port_1")
+    params["port"] = "port_1"
+    return return_espresso_pitcher(**params)
 
-def single_return_cleaned_espresso_pitcher(**_ignored) -> bool:
+def single_return_cleaned_espresso_pitcher(**params) -> bool:
     """
-    Safely return the single portafilter (port_3) no matter what.
-    Any passed parameters are ignored on purpose.
+    Return the cleaned single portafilter (port_3). Port is hardcoded; all other params are forwarded.
     """
-    return return_cleaned_espresso_pitcher(port="port_3")
+    params["port"] = "port_3"
+    return return_cleaned_espresso_pitcher(**params)
 
-def double_return_cleaned_espresso_pitcher(**_ignored) -> bool:
+def double_return_cleaned_espresso_pitcher(**params) -> bool:
     """
-    Safely return the double portafilter (port_1) no matter what.
-    Any passed parameters are ignored on purpose.
+    Return the cleaned double portafilter (port_1). Port is hardcoded; all other params are forwarded.
     """
-    return return_cleaned_espresso_pitcher(port="port_1")
+    params["port"] = "port_1"
+    return return_cleaned_espresso_pitcher(**params)
 
 # Register functions for CLI discovery and external access
 SEQUENCES = {
@@ -775,6 +788,8 @@ SEQUENCES = {
     'return_espresso_pitcher': return_espresso_pitcher,
     'return_cleaned_espresso_pitcher': return_cleaned_espresso_pitcher,
     'tamper': tamper,
+    'single_tamper': single_tamper,
+    'double_tamper': double_tamper,
     'unmount_single': unmount_single,
     'unmount_double': unmount_double,
     'mount_single': mount_single,
@@ -785,4 +800,6 @@ SEQUENCES = {
     'double_pour_espresso_pitcher_cup_station': double_pour_espresso_pitcher_cup_station,
     'single_return_espresso_pitcher': single_return_espresso_pitcher,
     'double_return_espresso_pitcher': double_return_espresso_pitcher,
+    'single_return_cleaned_espresso_pitcher': single_return_cleaned_espresso_pitcher,
+    'double_return_cleaned_espresso_pitcher': double_return_cleaned_espresso_pitcher,
 }

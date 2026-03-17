@@ -116,6 +116,8 @@ def place_frother_milk_station(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_final'])):
         return False
+    if not ok(run_skill("moveEE_movJ", 5, 0, 0, 0, 0, 0)):
+        return False
     if not ok(run_skill("set_gripper_position", 50, MILK_FROTHER_GRIPPER_POSITIONS['place'])):
         return False
     return True
@@ -127,7 +129,7 @@ def pick_frother_milk_station(**params) -> bool:
     def ok(r):
         return r not in (False, None)
     
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])):
+    if not ok(run_skill("set_gripper_position", 255, 255, 255)):
         return False
     if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_pick'])):
         return False
@@ -321,7 +323,7 @@ def return_frother(**params) -> bool:
     run_skill("sync")
     run_skill("moveEE",0,0,2.5,0,0,0)
     time.sleep(1.0)
-    if not ok(run_skill("set_gripper_position", 100, 165, 255)):
+    if not ok(run_skill("set_gripper_position", 75, 165, 255)):
         return False
     if not ok(run_skill("moveEE", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach'])):
         return False

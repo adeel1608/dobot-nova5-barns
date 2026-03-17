@@ -6,8 +6,12 @@ This module provides functions for robot positioning, machine calibration,
 and system diagnostics for the BARNS coffee automation system.
 """
 
+import logging
+import subprocess
 import time
 from typing import Dict, Any, Union
+
+_log = logging.getLogger(__name__)
 from oms_v1.params import (
     HOME_ANGLES, ESPRESSO_HOME, ESPRESSO_GRINDER_HOME, 
     HOME_CALIBRATION_PARAMS, HOME_CALIBRATION_CONSTANTS,
@@ -263,7 +267,7 @@ def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0
     
     return inv_result
 
-def solution_interactive():
+def solution_interactive(*params):
     """
     Interactive wrapper for solution function that prompts for input.
     """
@@ -296,7 +300,67 @@ def solution_interactive():
     except KeyboardInterrupt:
         print("\nCancelled")
         return None
-    
+
+def open_gripper(**params):
+    run_skill("set_gripper_position", 255, 0, 255)   
+    return True
+
+def close_gripper(**params):
+    run_skill("set_gripper_position", 255, 255, 255)
+    return True
+
+def toggle_drag_mode(**params):
+    run_skill("toggle_drag_mode")
+    return True
+
+# NUC host where kubectl runs (qss@192.168.200.254). Prefer env vars for password in production.
+_RESET_SSH_HOST = "192.168.200.254"
+_RESET_SSH_USER = "qss"
+_RESET_SSH_PASS = "123"
+
+
+def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
+    """Run kubectl rollout restart on the NUC via SSH. Returns True on success."""
+    cmd = f"kubectl rollout restart deployment {deployment} -n barns"
+    ssh_cmd = [
+        "sshpass", "-p", _RESET_SSH_PASS,
+        "ssh", "-o", "StrictHostKeyChecking=no",
+        f"{_RESET_SSH_USER}@{_RESET_SSH_HOST}",
+        cmd,
+    ]
+    try:
+        result = subprocess.run(
+            ssh_cmd, capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return True
+        _log.error(
+            "reset_robot: SSH/kubectl failed (exit %s): stderr=%s stdout=%s",
+            result.returncode,
+            (result.stderr or "").strip(),
+            (result.stdout or "").strip(),
+        )
+        return False
+    except FileNotFoundError as e:
+        _log.error(
+            "reset_robot: ssh or sshpass not found (install openssh-client sshpass in container): %s",
+            e,
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        _log.error("reset_robot: SSH to %s timed out (check network)", _RESET_SSH_HOST)
+        return False
+
+
+def reset_robot1(**params):
+    """Restart robot1 deployment via kubectl on NUC (qss@192.168.200.254)."""
+    return _run_kubectl_rollout_restart_on_nuc("robot1")
+
+
+def reset_robot2(**params):
+    """Restart robot2 deployment via kubectl on NUC (qss@192.168.200.254)."""
+    return _run_kubectl_rollout_restart_on_nuc("robot2")
+
 # Register functions for CLI discovery and external access
 SEQUENCES = {
     'home': home,
@@ -304,4 +368,9 @@ SEQUENCES = {
     'get_machine_position': get_machine_position,
     'check_saved_data': check_saved_data,
     'check_aruco_status': check_aruco_status,
+    'open_gripper': open_gripper,
+    'close_gripper': close_gripper,
+    'toggle_drag_mode': toggle_drag_mode,
+    'reset_robot1': reset_robot1,
+    'reset_robot2': reset_robot2,
 }
