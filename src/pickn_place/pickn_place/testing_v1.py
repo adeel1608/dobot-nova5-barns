@@ -593,9 +593,9 @@ def _normalize_paper_cup_size(cups_dict: Any) -> str:
         cup_h12 → '12oz'
         cup_c7 → '7oz'
     """
-    if not cups_dict:
-        from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
-        return DEFAULT_PAPER_CUP_SIZE
+    # if not cups_dict:
+    #     from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+    #     return DEFAULT_PAPER_CUP_SIZE
     
     # Extract the cup code (case-insensitive)
     if isinstance(cups_dict, dict):
@@ -633,8 +633,8 @@ def _normalize_paper_cup_size(cups_dict: Any) -> str:
         return result
     
     # Final fallback
-    from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
-    return DEFAULT_PAPER_CUP_SIZE
+    # from oms_v1.params import DEFAULT_PAPER_CUP_SIZE
+    # return DEFAULT_PAPER_CUP_SIZE
 
 def grab_paper_cup(**params) -> bool:
     """
@@ -1869,7 +1869,7 @@ def clean_portafilter(**params) -> bool:
       5) grinder home
     """
     # Import here to avoid circular import with espresso.py
-    from oms_v1.sequences.espresso import _normalize_espresso_shot
+    # from oms_v1.sequences.espresso import _normalize_espresso_shot
     
     # Normalize from espresso shot if provided
     # New format: {'espresso': {'espresso_shot_double': 2.0}}
@@ -2281,9 +2281,9 @@ def _normalize_plastic_cup_size(cups_dict: Any) -> str:
         cup_h12 → '12oz'
         cup_c16 → '16oz'
     """
-    if not cups_dict:
-        from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
-        return DEFAULT_PLASTIC_CUP_SIZE
+    # if not cups_dict:
+    #     from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+    #     return DEFAULT_PLASTIC_CUP_SIZE
     
     # Extract the cup code (case-insensitive)
     if isinstance(cups_dict, dict):
@@ -2321,8 +2321,8 @@ def _normalize_plastic_cup_size(cups_dict: Any) -> str:
         return result
     
     # Final fallback
-    from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
-    return DEFAULT_PLASTIC_CUP_SIZE
+    # from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
+    # return DEFAULT_PLASTIC_CUP_SIZE
 
 def dispense_plastic_cup(**params) -> bool:
     """
