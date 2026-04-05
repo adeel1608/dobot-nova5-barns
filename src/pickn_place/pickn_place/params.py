@@ -462,9 +462,9 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
-    '9oz':  0.1866666667 * 0.3,
-    '12oz': 0.1866666667 * 0.5,
-    'default': 0.1866666667 * 0.1,
+    '9oz':  0.1866666667 * 0.5,
+    '12oz': 0.1866666667 * 0.7,
+    'default': 0.1866666667 * 0.0,
 }
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────

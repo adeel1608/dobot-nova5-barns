@@ -100,7 +100,12 @@ class robot_perception(Node):
         self._percep_exec = None
         self._executor_thread = None
         self._shutdown_requested = False
-        
+
+        from tf2_ros import Buffer, TransformListener
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+        self._tf_ready = True
+
         try:
             self._percep_exec = SingleThreadedExecutor()
             self._percep_exec.add_node(self)
@@ -193,29 +198,25 @@ class robot_perception(Node):
         trans_thresh: float = 0.001,
         rot_thresh: float = 2.5,
         num_samples: int = 10,
+        warmup_sec: float = 0.3,
     ) -> list[float] | None:
         """
-        Obtain one *stable* transform for `target_frame`. Samples until `num_samples` 
-        unique poses are collected; if the max spread (ΔT, ΔR) across the window is 
-        within thresholds, return the averaged pose. Otherwise clear and retry until 
+        Obtain one *stable* transform for `target_frame`. Samples until `num_samples`
+        unique poses are collected; if the max spread across the window is within
+        thresholds, return the averaged pose. Otherwise clear and retry until
         `max_wait` elapses.
         """
         import time, math, numpy as np
         from scipy.spatial.transform import Rotation as Rot
 
         log = self.get_logger()
-        SAMPLE_DELAY = 0.035 #for 30 FPS
+        SAMPLE_DELAY = 0.04
 
-        # Lazy‐initialize TF listener
         if not hasattr(self, "_tf_ready"):
             from tf2_ros import Buffer, TransformListener
             self.tf_buffer = Buffer()
             self.tf_listener = TransformListener(self.tf_buffer, self)
             self._tf_ready = True
-
-        def get_pose_and_stamp():
-            pose, stamp = self.get_tf(target_frame, max_retries=3)
-            return pose
 
         def spread(a, b):
             d_pos = np.linalg.norm(np.array(a[:3]) - np.array(b[:3]))
@@ -232,61 +233,65 @@ class robot_perception(Node):
             arr = np.asarray(buf)
             pos = arr[:, :3].mean(axis=0)
             Q = arr[:, 3:]
-            # align quaternion hemisphere
             Q[np.sum(Q * Q[0], axis=1) < 0] *= -1
             M = (Q[:, :, None] * Q[:, None, :]).mean(axis=0)
             quat = np.linalg.eigh(M)[1][:, -1]
             quat /= np.linalg.norm(quat)
             return np.concatenate([pos, quat]).tolist()
 
+        # Discard initial stale TF data from before the node was ready
+        warmup_end = time.monotonic() + warmup_sec
+        while time.monotonic() < warmup_end:
+            self.get_tf(target_frame, max_retries=1)
+            time.sleep(SAMPLE_DELAY)
+
         samples = []
+        last_stamp = 0.0
         start_time = time.monotonic()
         last_dT = last_dR = None
 
         while (time.monotonic() - start_time) < max_wait:
-            pose = get_pose_and_stamp()
+            pose, stamp = self.get_tf(target_frame, max_retries=3)
             if pose is None:
                 time.sleep(SAMPLE_DELAY)
                 continue
 
-            # Discard duplicates against *all* previous samples
-            if pose in samples:
+            # Timestamp-based dedup: only accept poses from new TF frames
+            if stamp is not None and stamp <= last_stamp:
                 time.sleep(SAMPLE_DELAY)
                 continue
+            if stamp is not None:
+                last_stamp = stamp
 
             samples.append(pose)
             if len(samples) > num_samples:
                 samples.pop(0)
 
-            # Only check stability once the window is full
             if len(samples) < num_samples:
                 time.sleep(SAMPLE_DELAY)
                 continue
 
-            # Compute max spread over the window
             dT, dR = max_spread(samples)
             last_dT, last_dR = dT, dR
-            log.info(f"[acqTF] max dT={dT:.4f} m, dR={dR:.2f}° "
-                    f"(tol ≤{trans_thresh:.4f} m / {rot_thresh:.2f}°)")
+            log.info(f"[acqTF] max dT={dT:.4f} m, dR={dR:.2f} "
+                    f"(tol <={trans_thresh:.4f} m / {rot_thresh:.2f})")
 
             if dT <= trans_thresh and dR <= rot_thresh:
-                log.info("[acqTF] stable → returning averaged pose")
+                log.info("[acqTF] stable -> returning averaged pose")
                 return average_pose(samples)
 
-            # Unstable: clear buffer and retry
             log.warn(
-                f"[acqTF] unstable window → reset buffer "
-                f"(dT={dT:.4f}m > {trans_thresh:.4f}m OR dR={dR:.2f}° > {rot_thresh:.2f}°)"
+                f"[acqTF] unstable window -> reset buffer "
+                f"(dT={dT:.4f}m > {trans_thresh:.4f}m OR dR={dR:.2f} > {rot_thresh:.2f})"
             )
             samples.clear()
             time.sleep(SAMPLE_DELAY)
 
-        # Timeout
         if last_dT is not None:
             log.error(
                 f"acquire_target_transform({target_frame}): TIMEOUT after {max_wait:.1f}s; "
-                f"last dT={last_dT:.4f} m (required ≤{trans_thresh:.4f}), "
-                f"dR={last_dR:.2f}° (required ≤{rot_thresh:.2f}°), "
+                f"last dT={last_dT:.4f} m (required <={trans_thresh:.4f}), "
+                f"dR={last_dR:.2f} (required <={rot_thresh:.2f}), "
                 f"collected {len(samples)}/{num_samples} samples"
             )
         else:
@@ -606,71 +611,56 @@ class robot_motion(Node):
             debug: bool = False
     ) -> tuple[dict, dict] | None:
         """
-        Collect `required_samples` fresh poses for `target_tf`, average them,
-        write the result to machine_pose_data_memory.yaml, and return both the
-        YAML entry and a datalog dictionary.  Returns *None* on any failure.
+        Acquire a stable averaged pose for `target_tf` using a single
+        perception node, write the result to machine_pose_data_memory.yaml,
+        and return both the YAML entry and a datalog dictionary.
+        Returns *None* on any failure.
         """
 
-        import time, os, yaml, numpy as np
+        import time, os, yaml, contextlib
         from ament_index_python.packages import get_package_share_directory
 
         log = self.get_logger()
         rot_thresh_deg = 0.2 if target_tf.strip().lower() == "three_group_espresso" else 2.0
+        num_samples = required_samples + 5
+
         dl = {
             "start_time":   time.time(),
             "params":       dict(target_tf=target_tf,
-                                required_samples=required_samples,
+                                num_samples=num_samples,
                                 acq_timeout=acq_timeout,
                                 rot_thresh_deg=rot_thresh_deg),
-            "poses":        [],        # list[list[float]]
+            "poses":        [],
             "final_pose":   {},
             "yaml_path":    None,
         }
 
-        # ── 1) collect poses ──────────────────────────────────────────────────
-        for i in range(required_samples):
-            # spin up a *temporary* robot_perception node
-            perception = robot_perception()
-            perc_exec  = SingleThreadedExecutor()
-            perc_exec.add_node(perception)
-
-            # ── start TF listener in a helper thread ───────────────────────────
-            import threading, contextlib
-            tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
-            tf_thread.start()
-
-            pose = None
-            try:
-                pose = perception.acquire_target_transform(
-                    target_tf,
-                    max_wait=acq_timeout,
-                    trans_thresh=0.001,     #1mm tolerance
-                    rot_thresh=rot_thresh_deg,         #2 deg error
-                    num_samples=6,
-                )
-            finally:
-                # shut down executor and destroy the node
-                with contextlib.suppress(Exception):
-                    perc_exec.shutdown()
+        # ── 1) collect a single stable window of poses ────────────────────────
+        perception = robot_perception()
+        pose = None
+        try:
+            pose = perception.acquire_target_transform(
+                target_tf,
+                max_wait=acq_timeout,
+                trans_thresh=0.001,
+                rot_thresh=rot_thresh_deg,
+                num_samples=num_samples,
+            )
+        finally:
+            with contextlib.suppress(Exception):
                 perception.destroy_node()
 
-            if pose is None:
-                log.error(f"[GMP] acquire_target_transform timed out (sample {i})")
-                return None
+        if pose is None:
+            log.error(f"[GMP] acquire_target_transform timed out for {target_tf}")
+            return None
 
-            dl["poses"].append(pose)
-            if debug:
-                log.debug(f"[GMP] #{i:02d}: {pose}")
+        dl["poses"].append(pose)
+        if debug:
+            log.debug(f"[GMP] stable pose: {pose}")
 
-        # ── 2) average translation & quaternion (Markley method) ──────────────
-        poses_np = np.asarray(dl["poses"])           # (N, 7)
-        tx, ty, tz = poses_np[:, :3].mean(axis=0)
-
-        quats = poses_np[:, 3:]                      # (N, 4)  [x y z w]
-        M = sum(np.outer([q[3], *q[:3]], [q[3], *q[:3]]) for q in quats) / required_samples
-        eig_vals, eig_vecs = np.linalg.eig(M)
-        q_avg_wxyz = eig_vecs[:, eig_vals.argmax()]   # (w x y z)
-        qw, qx, qy, qz = (q_avg_wxyz / np.linalg.norm(q_avg_wxyz)).tolist()
+        # ── 2) unpack the already-averaged pose ──────────────────────────────
+        tx, ty, tz = pose[0], pose[1], pose[2]
+        qx, qy, qz, qw = pose[3], pose[4], pose[5], pose[6]
 
         dl["final_pose"] = {
             "translation": {"x": float(tx), "y": float(ty), "z": float(tz)},
@@ -702,7 +692,7 @@ class robot_motion(Node):
         dl["duration_s"]  = dl["end_time"] - dl["start_time"]
 
         self.datalog_lastrun_skill = dl
-        log.info(f"[GMP] ✅ finished in {dl['duration_s']:.2f} s → {mem_path}")
+        log.info(f"[GMP] finished in {dl['duration_s']:.2f} s -> {mem_path}")
 
         return data["machines"][target_tf], dl
 
@@ -766,7 +756,7 @@ class robot_motion(Node):
                 return False
             if res == 0:
                 log.info("StopDrag OK – tension released ✔️")
-                time.sleep(0.5)
+                time.sleep(0.2)
                 return True
             log.warn(f"StopDrag driver res={res}; retrying ({attempt}/{max_attempts})")
             time.sleep(retry_pause)
@@ -881,9 +871,8 @@ class robot_motion(Node):
                         raise SyncFailureError(final_msg) from e
                     return False
             
-            # Short pause between retries
             import time
-            time.sleep(0.5)
+            time.sleep(0.25)
 
         if raise_on_failure:
             raise SyncFailureError(last_error_msg or 'sync: Failed for unknown reason')
@@ -902,8 +891,6 @@ class robot_motion(Node):
 
         Returns (True, final_position) on success; (False, None) otherwise.
         """
-        self.sync()
-
         import time, rclpy
 
         # ── clamp & build request ───────────────────────────────────────────────
@@ -939,7 +926,7 @@ class robot_motion(Node):
             log.error("set_gripper_position: exceeded max_attempts")
             return False, None
         
-        time.sleep(0.5)
+        time.sleep(0.15)
 
         # ── 2) optionally wait until position stabilises ───────────────────────
         if not wait_finish:
@@ -970,7 +957,7 @@ class robot_motion(Node):
                 consecutive_ok = 1
                 latest_reading = current
 
-            time.sleep(0.2)
+            time.sleep(0.1)
 
         log.error("set_gripper_position: did not stabilise within 3 s")
 
@@ -1000,27 +987,19 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) acquire a fresh, stable TF via a temp perception node ────────────
+        import contextlib
         perception = robot_perception()
-        perc_exec  = SingleThreadedExecutor()
-        perc_exec.add_node(perception)
-
-        # start the TF listener in the background while we work
-        import threading, contextlib
-        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
-        tf_thread.start()
-
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.002,    #2 mm accuracy
-                rot_thresh=180.0,      #ignore orientation
+                trans_thresh=0.002,
+                rot_thresh=180.0,
                 num_samples=6,
             )
         finally:
             with contextlib.suppress(Exception):
-                perc_exec.shutdown()
-            perception.destroy_node()
+                perception.destroy_node()
 
         if pose is None:
             log.error("move_to: failed to obtain stable TF")
@@ -2081,27 +2060,19 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) fresh TF via temp perception node ──────────────────────────────
-        perception, exec_ = robot_perception(), SingleThreadedExecutor()
-        exec_.add_node(perception)
-
-        # ── start TF listener in a helper thread ───────────────────────────
-        import threading, contextlib
-        tf_thread = threading.Thread(target=exec_.spin, daemon=True)
-        tf_thread.start()
-
+        import contextlib
+        perception = robot_perception()
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.002,    #2 mm accuracy
-                rot_thresh=2.0,        #2 deg error
+                trans_thresh=0.002,
+                rot_thresh=2.0,
                 num_samples=3,
             )
         finally:
-            # shut down executor and destroy the node
             with contextlib.suppress(Exception):
-                exec_.shutdown()
-            perception.destroy_node()
+                perception.destroy_node()
 
         if pose is None:
             log.error("approach_tool: stable TF not found")
@@ -2317,33 +2288,24 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) stable transform for the object ────────────────────────────────
+        import contextlib
         perception = robot_perception()
-        perc_exec  = SingleThreadedExecutor()
-        perc_exec.add_node(perception)
-
-        # ── start TF listener in a helper thread ───────────────────────────
-        import threading, contextlib
-        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
-        tf_thread.start()
-
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.0005,    #1 mm accuracy
-                rot_thresh=1,        #1.5 deg error
+                trans_thresh=0.0005,
+                rot_thresh=1,
                 num_samples=6,
             )
         finally:
-            # shut down executor and destroy the node
             with contextlib.suppress(Exception):
-                perc_exec.shutdown()
-            perception.destroy_node()
+                perception.destroy_node()
 
         if pose is None:
             log.error(
                 f"grab_tool: no stable TF for '{target_tf}' - "
-                f"Required: pos ±{0.0005*1000:.2f}mm, rot ±1.0°, {9} samples. "
+                f"Required: pos +/-{0.0005*1000:.2f}mm, rot +/-1.0, {6} samples. "
                 f"Consider relaxing tolerances if marker is detected but unstable."
             )
             return False
@@ -2614,7 +2576,7 @@ class robot_motion(Node):
 
         req = SpeedFactor.Request()
         req.ratio = ratio
-        retry_pause, max_attempts = 1.0, 20
+        retry_pause, max_attempts = 0.5, 20
         
         for attempt in range(1, max_attempts + 1):
             self.safe_log("info", f"set_speed_factor: attempt {attempt}/{max_attempts}")

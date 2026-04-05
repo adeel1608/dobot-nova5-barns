@@ -730,7 +730,9 @@ def place_paper_cup(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
         return False
     
-    if not ok(run_skill("set_gripper_position", 25, 0, 255)):
+    if not ok(run_skill("set_gripper_position", 25, 100, 255)):
+        return False
+    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
         return False
     
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])):
@@ -840,8 +842,12 @@ def place_paper_cup_station(**params) -> bool:
     
     if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
         return False
+
+    run_skill("sync")
     
-    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
+    if not ok(run_skill("set_gripper_position", 25, 100, 255)):
+        return False
+    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
         return False
     
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_return_up'])):
@@ -3482,88 +3488,430 @@ def milk_training(**params):
     run_skill("gotoJ_deg", -47.823650,-85.286758,-16.991077,-70.719292,-92.739357,16.378487)#run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
 
 def test(**params):
-    for i in range(75):
+    for i in range(1):
         run_skill("set_DO",2,1)
         time.sleep(1.75)
         run_skill("set_DO",2,0)
         time.sleep(1.0)
         print(f"Cycle {i + 1}/500")
 
-def test_arm1(**params):
-    run_skill("gotoJ_deg", 49.863170,-76.364995,-77.106234,-26.333423,-130.073489,0.071969)
+def test_arm1(times=4, **params):
+     for i in range(times):
+        stage = (i % 4) + 1
+        stage_params = PLACE_PAPER_CUP_PARAMS[f"stage_{stage}"]
+        home(position="south_west")
+        run_skill("gotoJ_deg",197.715030, -10.101135, -45.875032, -124.798814,  17.743947,   0.733667)
+        run_skill("gotoJ_deg",181.717385,-14.366071,-40.523831,-133.004464,1.727064,7.890433)# run_skill("moveEE_movJ", 10, 100, 0, 0, 0, 0)
+        run_skill("sync")
+        run_skill("set_gripper_position", 255, 165, 255)
+        run_skill("moveEE_movJ", 0, 0, -200, 0, 0, 0)
+        run_skill("gotoJ_deg", *stage_params["pose"])
+        run_skill("sync")
+        run_skill("set_gripper_position", 25, 100, 255)
+        run_skill("set_gripper_position", 255, 0, 255)
+        run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS["place_up"])
+        run_skill("gotoJ_deg", *stage_params["stage_home"])
     
-def test_arm2(**params) -> bool:
+    
+import time
+import csv
+import math
+import statistics
+from pathlib import Path
+
+
+START_JOINTS = (
+    -127.669303, -38.953130, -30.134748,
+    -110.679805, -127.621770, 0.127810
+)
+
+TOTAL_TRAVEL_MM = 900
+
+# Step sizes to test. Each one will try to cover ~900 mm total.
+STEP_SIZES_MM = [1, 5, 10, 25, 50, 90, 100, 150, 225, 300]
+
+# Gripper commands
+GRIPPER_OPEN = (255, 255, 255)
+GRIPPER_CLOSE = (255, 0, 255)
+
+# Output folder
+OUT_DIR = Path.home() / "robot_timing_logs"
+
+
+def now_ms() -> float:
+    return time.perf_counter() * 1000.0
+
+
+def summarize(values, label, skip_first=False):
+    if skip_first and len(values) > 1:
+        data = values[1:]
+        suffix = " (excluding first)"
+    else:
+        data = values
+        suffix = ""
+
+    if not data:
+        print(f"\n{label}{suffix}: no data")
+        return None
+
+    avg = statistics.mean(data)
+    mn = min(data)
+    mx = max(data)
+    std = statistics.pstdev(data) if len(data) > 1 else 0.0
+    med = statistics.median(data)
+
+    print(f"\n{label}{suffix}:")
+    print(f"  count = {len(data)}")
+    print(f"  avg   = {avg:.3f} ms")
+    print(f"  min   = {mn:.3f} ms")
+    print(f"  max   = {mx:.3f} ms")
+    print(f"  med   = {med:.3f} ms")
+    print(f"  std   = {std:.3f} ms")
+
+    # 3-sigma outliers
+    if std > 0:
+        lower = avg - 3 * std
+        upper = avg + 3 * std
+        outliers = [(i + 1, v) for i, v in enumerate(data) if v < lower or v > upper]
+    else:
+        outliers = []
+
+    print(f"  outliers (3-sigma) = {len(outliers)}")
+    for idx, v in outliers[:10]:
+        print(f"    sample {idx:03d}: {v:.3f} ms")
+
+    return {
+        "count": len(data),
+        "avg_ms": avg,
+        "min_ms": mn,
+        "max_ms": mx,
+        "median_ms": med,
+        "std_ms": std,
+        "outliers_3sigma": len(outliers),
+    }
+
+
+def print_chunk_stats(values, label, chunk_size=10):
+    if not values:
+        return
+    print(f"\n{label} chunk stats (chunk={chunk_size}):")
+    for start in range(0, len(values), chunk_size):
+        block = values[start:start + chunk_size]
+        print(
+            f"  {start+1:03d}-{start+len(block):03d}: "
+            f"avg={statistics.mean(block):.3f} ms, "
+            f"min={min(block):.3f}, "
+            f"max={max(block):.3f}, "
+            f"std={statistics.pstdev(block) if len(block) > 1 else 0.0:.3f}"
+        )
+
+
+def safe_run_skill(skill_name, *args):
+    t0 = now_ms()
+    ok = True
+    err = ""
     try:
-        # Cup 1 - Stage 1
-        if not dispense_plastic_cup(cup_size="9oz"):
-            return False
-        if not go_to_ice(cup_size="9oz"):
-            return False
-        if not go_home_with_ice():
-            return False
-        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C9': 1.0}):
-            return False
-        
-        # Cup 2 - Stage 2
-        if not dispense_plastic_cup(cup_size="9oz"):
-            return False
-        if not go_to_ice(cup_size="9oz"):
-            return False
-        if not go_home_with_ice():
-            return False
-        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C9': 1.0}):
-            return False
-        
-        # Cup 3 - Stage 3
-        if not dispense_plastic_cup(cup_size="9oz"):
-            return False
-        if not go_to_ice(cup_size="9oz"):
-            return False
-        if not go_home_with_ice():
-            return False
-        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_station(position={'cup_position': 3}, cups={'cup_C9': 1.0}):
-            return False
-        
-        # Cup 4 - Stage 4
-        if not dispense_plastic_cup(cup_size="9oz"):
-            return False
-        if not go_to_ice(cup_size="9oz"):
-            return False
-        if not go_home_with_ice():
-            return False
-        if not place_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_milk(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not pick_plastic_cup_sauces(cups={'cup_C9': 1.0}):
-            return False
-        if not place_plastic_cup_station(position={'cup_position': 4}, cups={'cup_C9': 1.0}):
-            return False
-        
-        print("✅ test_arm2 completed successfully!")
-        return True
-        
+        run_skill(skill_name, *args)
     except Exception as e:
-        print(f"[ERROR] test_arm2 failed with exception: {e}")
-        return False
+        ok = False
+        err = repr(e)
+    t1 = now_ms()
+    return ok, (t1 - t0), err
+
+
+def go_to_start():
+    ok, dt, err = safe_run_skill("gotoJ_deg", *START_JOINTS)
+    print(f"gotoJ_deg to start: {dt:.3f} ms")
+    if not ok:
+        print(f"ERROR in gotoJ_deg: {err}")
+    return ok
+
+
+def warmup():
+    print("\n--- Warm-up ---")
+    safe_run_skill("gotoJ_deg", *START_JOINTS)
+    safe_run_skill("moveEE", 1, 0, 0, 0, 0, 0)
+    safe_run_skill("set_gripper_position", *GRIPPER_OPEN)
+    safe_run_skill("set_gripper_position", *GRIPPER_CLOSE)
+    safe_run_skill("gotoJ_deg", *START_JOINTS)
+    print("Warm-up done.")
+
+
+def run_motion_series(motion_name, dx_mm, repeats, writer):
+    """
+    motion_name: 'moveEE' or 'moveEE_movJ'
+    dx_mm: step size in +X
+    repeats: number of repetitions
+    """
+    timings = []
+    print(f"\n--- Testing {motion_name}: step={dx_mm} mm, repeats={repeats}, total={dx_mm * repeats} mm ---")
+
+    # Always reset to same start pose before each series
+    if not go_to_start():
+        return timings
+
+    for i in range(repeats):
+        ok, dt, err = safe_run_skill(motion_name, dx_mm, 0, 0, 0, 0, 0)
+        timings.append(dt)
+
+        writer.writerow({
+            "category": "motion",
+            "test_name": motion_name,
+            "sample_index": i + 1,
+            "step_mm": dx_mm,
+            "repeats": repeats,
+            "total_travel_mm": dx_mm * repeats,
+            "command": motion_name,
+            "arg1": dx_mm,
+            "arg2": 0,
+            "arg3": 0,
+            "arg4": 0,
+            "arg5": 0,
+            "arg6": 0,
+            "dt_ms": f"{dt:.3f}",
+            "ok": ok,
+            "error": err,
+        })
+
+        print(f"{motion_name} {i+1:03d}/{repeats:03d}: {dt:.3f} ms" + ("" if ok else f"  ERROR={err}"))
+
+        if not ok:
+            print("Stopping this series because of error.")
+            break
+
+    summarize(timings, f"{motion_name} step={dx_mm} mm")
+    summarize(timings, f"{motion_name} step={dx_mm} mm", skip_first=True)
+    print_chunk_stats(timings, f"{motion_name} step={dx_mm} mm", chunk_size=min(10, max(1, len(timings) // 5 or 1)))
+    return timings
+
+
+def run_gripper_series(cycles, writer):
+    print(f"\n--- Testing gripper: {cycles} open/close cycles ---")
+
+    open_times = []
+    close_times = []
+    cycle_times = []
+
+    # optional reset to start before gripper test
+    go_to_start()
+
+    for i in range(cycles):
+        c0 = now_ms()
+
+        ok1, dt_open, err1 = safe_run_skill("set_gripper_position", *GRIPPER_OPEN)
+        open_times.append(dt_open)
+        writer.writerow({
+            "category": "gripper",
+            "test_name": "gripper_open",
+            "sample_index": i + 1,
+            "step_mm": "",
+            "repeats": cycles,
+            "total_travel_mm": "",
+            "command": "set_gripper_position",
+            "arg1": GRIPPER_OPEN[0],
+            "arg2": GRIPPER_OPEN[1],
+            "arg3": GRIPPER_OPEN[2],
+            "arg4": "",
+            "arg5": "",
+            "arg6": "",
+            "dt_ms": f"{dt_open:.3f}",
+            "ok": ok1,
+            "error": err1,
+        })
+
+        ok2, dt_close, err2 = safe_run_skill("set_gripper_position", *GRIPPER_CLOSE)
+        close_times.append(dt_close)
+        writer.writerow({
+            "category": "gripper",
+            "test_name": "gripper_close",
+            "sample_index": i + 1,
+            "step_mm": "",
+            "repeats": cycles,
+            "total_travel_mm": "",
+            "command": "set_gripper_position",
+            "arg1": GRIPPER_CLOSE[0],
+            "arg2": GRIPPER_CLOSE[1],
+            "arg3": GRIPPER_CLOSE[2],
+            "arg4": "",
+            "arg5": "",
+            "arg6": "",
+            "dt_ms": f"{dt_close:.3f}",
+            "ok": ok2,
+            "error": err2,
+        })
+
+        c1 = now_ms()
+        cycle_dt = c1 - c0
+        cycle_times.append(cycle_dt)
+
+        print(
+            f"cycle {i+1:03d}/{cycles:03d}: "
+            f"open={dt_open:.3f} ms, close={dt_close:.3f} ms, cycle={cycle_dt:.3f} ms"
+        )
+
+        if not ok1 or not ok2:
+            print("Stopping gripper series because of error.")
+            break
+
+    summarize(open_times, "Gripper open")
+    summarize(open_times, "Gripper open", skip_first=True)
+    summarize(close_times, "Gripper close")
+    summarize(close_times, "Gripper close", skip_first=True)
+    summarize(cycle_times, "Gripper open+close cycle")
+    summarize(cycle_times, "Gripper open+close cycle", skip_first=True)
+
+    return open_times, close_times, cycle_times
+
+
+def test_arm2(**params) -> bool:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    csv_path = OUT_DIR / f"robot_full_timing_{ts}.csv"
+
+    print(f"Writing CSV to: {csv_path}")
+
+    with open(csv_path, "w", newline="") as f:
+        fieldnames = [
+            "category",
+            "test_name",
+            "sample_index",
+            "step_mm",
+            "repeats",
+            "total_travel_mm",
+            "command",
+            "arg1", "arg2", "arg3", "arg4", "arg5", "arg6",
+            "dt_ms",
+            "ok",
+            "error",
+        ]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+
+        # One-time warm-up
+        warmup()
+
+        # Motion tests
+        all_results = {}
+
+        for step_mm in STEP_SIZES_MM:
+            repeats = TOTAL_TRAVEL_MM // step_mm
+            if repeats <= 0:
+                continue
+
+            total = repeats * step_mm
+            if total > TOTAL_TRAVEL_MM:
+                continue
+
+            # Linear EE
+            timings_lin = run_motion_series("moveEE", step_mm, repeats, writer)
+            all_results[f"moveEE_{step_mm}"] = timings_lin
+
+            # Reset before next type
+            go_to_start()
+
+            # Joint-style move
+            timings_j = run_motion_series("moveEE_movJ", step_mm, repeats, writer)
+            all_results[f"moveEE_movJ_{step_mm}"] = timings_j
+
+        # Gripper tests
+        # 20 cycles is already pretty informative; increase if you want more
+        open_times, close_times, cycle_times = run_gripper_series(cycles=20, writer=writer)
+        all_results["gripper_open"] = open_times
+        all_results["gripper_close"] = close_times
+        all_results["gripper_cycle"] = cycle_times
+
+    print("\n=== FINAL COMPARISON ===")
+    for key, vals in all_results.items():
+        if not vals:
+            continue
+        use = vals[1:] if len(vals) > 1 else vals
+        avg = statistics.mean(use)
+        std = statistics.pstdev(use) if len(use) > 1 else 0.0
+        print(f"{key:20s}  count={len(vals):4d}  avg(excl first)={avg:9.3f} ms  std={std:8.3f} ms")
+
+    print(f"\nCSV saved: {csv_path}")
+    return True
+
+def robot_arm_test(**params):
+    """
+    Deterministic timing test:
+    - Go to zero position
+    - Move joint 4: +90 / -90 (3 cycles)
+    - Repeat 10 times
+    - Log timing for each run
+    """
+
+    def ok(r):
+        return r not in (False, None)
+
+    TOTAL_RUNS = 10
+    CYCLES_PER_RUN = 3
+
+    results = []
+
+    print("\n===== ROBOT ARM TIMING TEST START =====\n")
+
+    for run in range(1, TOTAL_RUNS + 1):
+        print(f"\n--- RUN {run}/{TOTAL_RUNS} ---")
+
+        # Ensure consistent speed
+        run_skill("set_speed_factor", 100)
+        run_skill("sync")
+
+        # Move to zero/home
+        if not ok(run_skill("gotoJ_deg", 0, 0, 0, 0, 0, 0)):
+            print("[ERROR] Failed to move to zero position")
+            return False
+
+        run_skill("sync")
+        time.sleep(0.5)  # small settle time
+
+        start_time = time.time()
+        print(f"[START] {start_time:.6f}")
+
+        # Perform oscillation cycles
+        for cycle in range(1, CYCLES_PER_RUN + 1):
+            print(f"  Cycle {cycle}/{CYCLES_PER_RUN}")
+
+            if not ok(run_skill("moveJ_deg", 0, 0, 0, 90, 0, 0)):
+                print("[ERROR] Failed at +90")
+                return False
+            
+            run_skill("sync")
+
+            if not ok(run_skill("moveJ_deg", 0, 0, 0, -90, 0, 0)):
+                print("[ERROR] Failed at -90")
+                return False
+
+            run_skill("sync")
+
+        run_skill("sync")
+
+        end_time = time.time()
+        duration = end_time - start_time
+
+        print(f"[END]   {end_time:.6f}")
+        print(f"[DURATION] {duration:.4f} sec")
+
+        results.append(duration)
+
+        time.sleep(1.0)  # pause between runs
+
+    # Summary
+    print("\n===== TEST SUMMARY =====")
+    for i, t in enumerate(results, 1):
+        print(f"Run {i}: {t:.4f} sec")
+
+    avg = sum(results) / len(results)
+    print(f"\nAverage: {avg:.4f} sec")
+    print(f"Min: {min(results):.4f} sec")
+    print(f"Max: {max(results):.4f} sec")
+
+    print("\n===== TEST COMPLETE =====\n")
+
+    return True
+
 
 def hello(**params):
     start_time = time.perf_counter()
@@ -3884,6 +4232,7 @@ SEQUENCES = {
     # ═══════════════════════════════════════════════════════════════
     "show_version_info": lambda: show_version_info(),
     "switch_version": lambda: switch_version(),
+    "robot_arm_test": lambda: robot_arm_test(),
 }
 
 # ------------------------------------------------------------------
