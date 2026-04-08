@@ -462,8 +462,8 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
-    '9oz':  0.1866666667 * 0.5,
-    '12oz': 0.1866666667 * 0.7,
+    '9oz':  0.1866666667 * 0.55,
+    '12oz': 0.1866666667 * 0.55,
     'default': 0.1866666667 * 0.0,
 }
 

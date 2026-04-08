@@ -131,8 +131,8 @@ def detect_cup_gripper(**params):
     last_print_time = time.time()
     cup_detected = False
     frames_processed = 0
-    max_frames = 5
-    timeout_seconds = 10.0
+    max_frames = 3
+    timeout_seconds = 3.0
     start_time = time.time()
     
     try:
@@ -141,7 +141,6 @@ def detect_cup_gripper(**params):
         while (node.latest_depth_image is None or not node.depth_info_received) and \
               (time.time() - start_time) < timeout_seconds:
             rclpy.spin_once(node, timeout_sec=0.1)
-            time.sleep(0.1)
         
         if node.latest_depth_image is None:
             print("[CV] ERROR: No depth image received within timeout")
@@ -235,7 +234,7 @@ def detect_cup_gripper(**params):
                 last_print_time = current_time
             
             frames_processed += 1
-            time.sleep(0.2)  # Small delay between frames
+            time.sleep(0.1)
         
         print(f"[CV] Cup detection result: {cup_detected}")
         node.destroy_node()

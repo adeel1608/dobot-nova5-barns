@@ -234,19 +234,20 @@ def home(**params) -> bool:
     """
     def ok(r):
         return r not in (False, None)
-    
+
     position = params.get("position", "north")
     if not position:
         return False
-    
+
     angles = HOME_ANGLES.get(str(position))
     if not angles:
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *angles)):
         return False
-    
+
     return True
+
 
 def return_back_to_home() -> bool:
     """
@@ -254,22 +255,23 @@ def return_back_to_home() -> bool:
     """
     def ok(r):
         return r not in (False, None)
-    
+
     release_result = run_skill("release_tension")
     if not ok(release_result):
         if not ok(run_skill("toggle_drag_mode")):
             return False
-    
-    run_skill("set_speed_factor", SPEED_FAST)
-    run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)
+
+    run_skill("set_speed_factor", 100)
+    run_skill("sync")
+    run_skill("set_gripper_position", 255,0,255)
     angles = run_skill("current_angles")
-    
+
     if not ok(angles) or len(angles) < 6:
         return False
-    
+
     a1 = float(angles[0])
     j1_val = None
-    
+
     if -22.49 <= a1 <= 22.49:
         j1_val = 0.0
     elif 22.51 <= a1 <= 67.49:
@@ -304,85 +306,93 @@ def return_back_to_home() -> bool:
         j1_val = 45.0
     elif -360.0 <= a1 <= -337.51:
         j1_val = 0.0
-    
+
     if j1_val is None:
         return False
-    
+
     home_j2_j6 = HOME_CALIBRATION_PARAMS['return_home_position']
     if not ok(run_skill("gotoJ_deg", j1_val, *home_j2_j6)):
         return False
-    
+
     return True
+
 
 def get_machine_position(**params) -> bool:
     """
     Calibrate and record machine positions for all coffee equipment.
     """
+    # from oms_v1.sequences.espresso import invalidate_port_cache
+    # from oms_v1.sequences.cleaning import invalidate_cleaning_cache
+    # from oms_v1.sequences.milk_frothing import invalidate_milk_frothing_cache
+
     def ok(r):
         return r not in (False, None)
-    
+
+    invalidate_port_cache()
+    invalidate_cleaning_cache()
     run_skill("set_speed_factor", SPEED_FAST)
-    
+
     if not return_back_to_home():
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])):
         return False
-    
+
     cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-    for i in range(cycles):
+    for _ in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
         if not ok(run_skill("move_to", "portafilter_cleaner", 0.22)):
             return False
-    
+
     run_skill("sync")
-    
+
     cleaner_record_result = run_skill("get_machine_position", "portafilter_cleaner")
     if not ok(cleaner_record_result):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])):
         return False
-    
+
     cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-    for i in range(cycles):
+    for _ in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
         if not ok(run_skill("move_to", "espresso_grinder", 0.22)):
             return False
-    
+
     run_skill("sync")
-    
+
     grinder_record_result = run_skill("get_machine_position", "espresso_grinder")
     if not ok(grinder_record_result):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])):
         return False
-    
+
     if not ok(run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)):
         return False
-    
-    cycles = 15
-    for i in range(cycles):
+
+    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+    for _ in range(cycles):
         time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
         if not ok(run_skill("move_to", "three_group_espresso", 0.22)):
             return False
-    
+
     run_skill("sync")
-    
+
     espresso_record_result = run_skill("get_machine_position", "three_group_espresso")
     if not ok(espresso_record_result):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
         return False
-    
+
     check_saved_data()
-    
+
     return True
+
 
 def check_saved_data() -> Dict[str, Any]:
     """
@@ -391,22 +401,23 @@ def check_saved_data() -> Dict[str, Any]:
     import os
     import yaml
     from ament_index_python.packages import get_package_share_directory
-    
+
     try:
         pkg_share = get_package_share_directory("pickn_place")
         mem_path = os.path.join(pkg_share, "machine_pose_data_memory.yaml")
-        
+
         if not os.path.exists(mem_path):
             return {}
-        
+
         with open(mem_path, "r") as f:
             data = yaml.safe_load(f) or {}
-        
+
         machines = data.get("machines", {})
         return machines
-        
-    except Exception as e:
+
+    except Exception:
         return {}
+
 
 def check_aruco_status(**params) -> bool:
     """
@@ -415,53 +426,41 @@ def check_aruco_status(**params) -> bool:
     check_saved_data()
     return True
 
+
 def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0):
     """
     Convert joint values to cartesian, apply offsets, and convert back to joints.
-    
-    Args:
-        j1-j6: Joint values in degrees
-        x, y, z: Position offsets in mm (default: 0.0)
-        rx, ry, rz: Rotation offsets in degrees (default: 0.0)
-    
-    Returns:
-        Result from inverse_solution with the offset cartesian pose
     """
     print(f"Input joints: [{j1}, {j2}, {j3}, {j4}, {j5}, {j6}]")
-    
-    # Get current cartesian position from joint values
+
     pos_result = run_skill("positive_solution", j1, j2, j3, j4, j5, j6)
-    
+
     if not pos_result or not hasattr(pos_result, 'pose'):
         print("Failed to get positive solution")
         return None
-    
-    # Parse pose string: "{x,y,z,rx,ry,rz,...}"
+
     try:
         pose_values = [float(v) for v in pos_result.pose.strip("{}").split(",")[:6]]
         current_x, current_y, current_z, current_rx, current_ry, current_rz = pose_values
     except (ValueError, IndexError) as e:
         print(f"Failed to parse pose string: {e}")
         return None
-    
+
     print(f"Current cartesian: x={current_x:.3f}, y={current_y:.3f}, z={current_z:.3f}, rx={current_rx:.3f}, ry={current_ry:.3f}, rz={current_rz:.3f}")
-    
-    # Apply offsets
+
     new_x = current_x + x
     new_y = current_y + y
     new_z = current_z + z
     new_rx = current_rx + rx
     new_ry = current_ry + ry
     new_rz = current_rz + rz
-    
+
     print(f"Offsets applied: x={x}, y={y}, z={z}, rx={rx}, ry={ry}, rz={rz}")
     print(f"New cartesian: x={new_x:.3f}, y={new_y:.3f}, z={new_z:.3f}, rx={new_rx:.3f}, ry={new_ry:.3f}, rz={new_rz:.3f}")
-    
-    # Convert back to joint values
+
     inv_result = run_skill("inverse_solution", new_x, new_y, new_z, new_rx, new_ry, new_rz)
-    
+
     if inv_result and hasattr(inv_result, 'angle'):
-        # Parse angle string: "{j1,j2,j3,j4,j5,j6,...}"
         try:
             angle_values = [float(v) for v in inv_result.angle.strip("{}").split(",")[:6]]
             res_j1, res_j2, res_j3, res_j4, res_j5, res_j6 = angle_values
@@ -472,8 +471,9 @@ def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0
     else:
         print("Failed to get inverse solution")
         return None
-    
+
     return inv_result
+
 
 def solution_interactive(*params):
     """
@@ -482,7 +482,7 @@ def solution_interactive(*params):
     print("\n=== Joint to Cartesian Offset Solution ===")
     print("Enter joint values (j1-j6) and optional cartesian offsets (x,y,z,rx,ry,rz)")
     print("Press Enter to use default value of 0.0 for any parameter\n")
-    
+
     try:
         j1 = float(input("j1 (degrees): ") or 0.0)
         j2 = float(input("j2 (degrees): ") or 0.0)
@@ -490,7 +490,7 @@ def solution_interactive(*params):
         j4 = float(input("j4 (degrees): ") or 0.0)
         j5 = float(input("j5 (degrees): ") or 0.0)
         j6 = float(input("j6 (degrees): ") or 0.0)
-        
+
         print("\nCartesian offsets (optional - press Enter for 0.0):")
         x = float(input("x offset (mm): ") or 0.0)
         y = float(input("y offset (mm): ") or 0.0)
@@ -498,10 +498,10 @@ def solution_interactive(*params):
         rx = float(input("rx offset (degrees): ") or 0.0)
         ry = float(input("ry offset (degrees): ") or 0.0)
         rz = float(input("rz offset (degrees): ") or 0.0)
-        
-        print("\n" + "="*50)
+
+        print("\n" + "=" * 50)
         return solution(j1, j2, j3, j4, j5, j6, x, y, z, rx, ry, rz)
-        
+
     except ValueError as e:
         print(f"Invalid input: {e}")
         return None
@@ -509,22 +509,28 @@ def solution_interactive(*params):
         print("\nCancelled")
         return None
 
+
 def open_gripper(**params):
-    run_skill("set_gripper_position", 255, 0, 255)   
+    run_skill("sync")
+    run_skill("set_gripper_position", 255, 0, 255)
     return True
 
+
 def close_gripper(**params):
+    run_skill("sync")
     run_skill("set_gripper_position", 255, 255, 255)
     return True
+
 
 def toggle_drag_mode(**params):
     run_skill("toggle_drag_mode")
     return True
 
-# NUC host where kubectl runs (qss@192.168.200.254). Prefer env vars for password in production.
+
 _RESET_SSH_HOST = "192.168.200.254"
 _RESET_SSH_USER = "qss"
 _RESET_SSH_PASS = "123"
+
 
 def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
     """Run kubectl rollout restart on the NUC via SSH. Returns True on success."""
@@ -558,14 +564,65 @@ def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
         _log.error("reset_robot: SSH to %s timed out (check network)", _RESET_SSH_HOST)
         return False
 
+
 def reset_robot1(**params):
     """Restart robot1 deployment via kubectl on NUC (qss@192.168.200.254)."""
     return _run_kubectl_rollout_restart_on_nuc("robot1")
 
+
 def reset_robot2(**params):
     """Restart robot2 deployment via kubectl on NUC (qss@192.168.200.254)."""
     return _run_kubectl_rollout_restart_on_nuc("robot2")
- 
+
+
+
+_RESET_SSH_HOST = "192.168.200.254"
+_RESET_SSH_USER = "qss"
+_RESET_SSH_PASS = "123"
+
+
+def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
+    """Run kubectl rollout restart on the NUC via SSH. Returns True on success."""
+    cmd = f"kubectl rollout restart deployment {deployment} -n barns"
+    ssh_cmd = [
+        "sshpass", "-p", _RESET_SSH_PASS,
+        "ssh", "-o", "StrictHostKeyChecking=no",
+        f"{_RESET_SSH_USER}@{_RESET_SSH_HOST}",
+        cmd,
+    ]
+    try:
+        result = subprocess.run(
+            ssh_cmd, capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            return True
+        _log.error(
+            "reset_robot: SSH/kubectl failed (exit %s): stderr=%s stdout=%s",
+            result.returncode,
+            (result.stderr or "").strip(),
+            (result.stdout or "").strip(),
+        )
+        return False
+    except FileNotFoundError as e:
+        _log.error(
+            "reset_robot: ssh or sshpass not found (install openssh-client sshpass in container): %s",
+            e,
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        _log.error("reset_robot: SSH to %s timed out (check network)", _RESET_SSH_HOST)
+        return False
+
+
+def reset_robot1(**params):
+    """Restart robot1 deployment via kubectl on NUC (qss@192.168.200.254)."""
+    return _run_kubectl_rollout_restart_on_nuc("robot1")
+
+
+def reset_robot2(**params):
+    """Restart robot2 deployment via kubectl on NUC (qss@192.168.200.254)."""
+    return _run_kubectl_rollout_restart_on_nuc("robot2")
+
 """
 paper_cups.py
 
@@ -664,7 +721,7 @@ def grab_paper_cup(**params) -> bool:
         return False
     
     attempt_count = 0
-    while attempt_count < 5:
+    while attempt_count < 15:
         if size == "7oz":
             if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_7oz'])):
                 return False
@@ -696,6 +753,7 @@ def grab_paper_cup(**params) -> bool:
             break
         
         attempt_count += 1
+        run_skill("sync")
         if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
             return False
         if attempt_count == 15:
@@ -730,6 +788,7 @@ def place_paper_cup(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
         return False
     
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", 25, 100, 255)):
         return False
     if not ok(run_skill("set_gripper_position", 255, 0, 255)):
@@ -746,6 +805,321 @@ def place_paper_cup(**params) -> bool:
         if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_NAVIGATION_PARAMS['twist_back_machine'])):
             return False
     
+    return True
+
+def grab_paper_cup_arm1(**params) -> bool:
+    """
+    Grab a paper cup of specified size from the paper cup dispenser.
+
+    First attempt does the full size-specific approach.
+    If detection fails, retries only:
+      1) open gripper
+      2) move back up
+      3) close gripper with size-specific width
+      4) move back down
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    cups_dict = _extract_cups_dict(params)
+    size = _normalize_paper_cup_size(cups_dict if cups_dict else "7oz")
+    if not size:
+        return False
+
+    size_cfg = {
+        "7oz": {
+            "home": "south_west",
+            "grip": 165,
+            "up_down_z": 200,
+            "pose1": (191.646150,74.117401,-112.223690,-142.814608,11.629319,0.888704),
+            "pose2": (191.667596,49.107588,-70.637578,-159.483294,11.665208,0.983008),
+        },
+        "9oz": {
+            "home": "south_west",
+            "grip": 165,
+            "up_down_z": 200,
+            "pose1": (181.710022,-5.584718,-88.052513,-93.715889,1.744494,7.348929),
+            "pose2": (181.717385, -14.366071, -40.523831, -133.004464, 1.727064, 7.890433),
+        },
+        "12oz": {
+            "home": "south_west",
+            "grip": 165,
+            "up_down_z": 200,
+            "pose1": (175.946579,32.215965,-120.514900,-88.941734,-4.002728,-2.748568),
+            "pose2": (175.906542,23.482150,-80.123117,-120.455698,-4.057709,-2.892895),
+        },
+    }
+
+    cfg = size_cfg.get(size)
+    if not cfg:
+        return False
+
+    if not ok(home(position=cfg["home"])):
+        return False
+    if not ok(run_skill("gotoJ_deg", *cfg["pose1"])):
+        return False
+    if not ok(run_skill("gotoJ_deg", *cfg["pose2"])):
+        return False
+    if not ok(run_skill("sync")):
+        return False
+
+    attempt_count = 0
+    while attempt_count < 15:
+        if attempt_count > 0:
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if not ok(run_skill("moveEE_movJ", 0, 0, cfg["up_down_z"], 0, 0, 0)):
+                return False
+
+        if not ok(run_skill("set_gripper_position", 255, cfg["grip"], 255)):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -cfg["up_down_z"], 0, 0, 0)):
+            return False
+
+        cup_detected = detect_cup_gripper()
+        if cup_detected:
+            break
+
+        attempt_count += 1
+        run_skill("sync")
+
+        if attempt_count == 15:
+            return False
+
+    if not ok(home(position=cfg["home"])):
+        return False
+    return True
+
+def place_paper_cup_arm1(**params) -> bool:
+    """
+    Place a paper cup at the specified staging area.
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+
+    cups_dict = _extract_cups_dict(params)
+    if not cups_dict:
+        cups_dict = {"cup_H12": 1.0}
+
+    size_mapped = _normalize_paper_cup_size(cups_dict)
+
+    valid_stages = ('1', '2', '3', '4')
+    valid_sizes = ('7oz', '9oz', '12oz')
+
+    if stage not in valid_stages or size_mapped not in valid_sizes:
+        return False
+
+    stage_params_map = {
+        "1": PLACE_PAPER_CUP_PARAMS['stage_1'],
+        "2": PLACE_PAPER_CUP_PARAMS['stage_2'],
+        "3": PLACE_PAPER_CUP_PARAMS['stage_3'],
+        "4": PLACE_PAPER_CUP_PARAMS['stage_4'],
+    }
+
+    stage_params = stage_params_map[stage]
+
+    if stage == "1":
+        if not ok(run_skill("gotoJ_deg", 112.5, 30, -130, -90, -90, 0)):
+            return False
+    elif stage == "2":
+        if not ok(home(position="south_west")):
+            return False
+    elif stage in ("3", "4"):
+        if not ok(home(position="south")):
+            return False
+
+    if 'pose' not in stage_params:
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 25, 100, 255)):
+        return False
+
+    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+        return False
+
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_up'])):
+        return False
+
+    if not ok(run_skill("set_speed_factor", 100)):
+        return False
+
+    if 'stage_home' in stage_params:
+        if not ok(run_skill("gotoJ_deg", *stage_params['stage_home'])):
+            return False
+
+    return True
+
+def dispense_paper_arm1_cup_station(**params) -> bool:
+    """
+    Dispense a paper cup by grabbing it from the dispenser and placing it at the requested stage.
+    """
+    if not grab_paper_cup_arm1(**params):
+        return False
+    if not place_paper_cup_arm1(**params):
+        return False
+    return True
+
+def grab_paper_cup_arm2(**params) -> bool:
+    """
+    Grab a paper cup of specified size from the paper cup dispenser.
+
+    First attempt does the full size-specific approach.
+    If detection fails, retries only:
+      1) open gripper
+      2) move back up
+      3) close gripper with size-specific width
+      4) move back down
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    cups_dict = _extract_cups_dict(params)
+    size = _normalize_paper_cup_size(cups_dict if cups_dict else "7oz")
+    if not size:
+        return False
+
+    size_cfg = {
+        "7oz": {
+            "home": "south_east",
+            "grip": 150,
+            "up_down_z": 200,
+            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
+            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
+            "visitfix":(0,0,-2,0,0,0),
+        },
+        "9oz": {
+            "home": "south_east",
+            "grip": 150,
+            "up_down_z": 200,
+            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
+            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
+            "visitfix":(0,0,-2,0,0,0),
+        },
+        "12oz": {
+            "home": "south_east",
+            "grip": 150,
+            "up_down_z": 200,
+            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
+            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
+            "visitfix":(0,0,-2,0,0,0),
+        },
+    }
+
+    cfg = size_cfg.get(size)
+    if not cfg:
+        return False
+
+    if not ok(home(position=cfg["home"])):
+        return False
+    if not ok(run_skill("gotoJ_deg", *cfg["pose1"])):
+        return False
+    if not ok(run_skill("gotoJ_deg", *cfg["pose2"])):
+        return False
+    if not ok(run_skill("moveEE_movJ", *cfg["visitfix"])):
+        return False
+    # if not ok(run_skill("sync")):
+    #     return False
+
+    attempt_count = 0
+    while attempt_count < 15:
+        if attempt_count > 0:
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if not ok(run_skill("moveEE_movJ", 0, 0, cfg["up_down_z"], 0, 0, 0)):
+                return False
+
+        if not ok(run_skill("set_gripper_position", 255, cfg["grip"], 255)):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -cfg["up_down_z"], 0, 0, 0)):
+            return False
+
+        cup_detected = detect_cup_gripper()
+        if cup_detected:
+            break
+
+        attempt_count += 1
+        run_skill("sync")
+
+        if attempt_count == 15:
+            return False
+
+    if not ok(home(position=cfg["home"])):
+        return False
+    return True
+
+def place_paper_cup_arm2(**params) -> bool:
+    """
+    Place a paper cup at specified staging area.
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    cup_position = _extract_cup_position(params)
+    stage = str(cup_position)
+
+    valid_stages = ("1", "2", "3", "4")
+    if stage not in valid_stages:
+        return False
+
+    if stage in ("1", "2"):
+        if not ok(home(position="east")):
+            return False
+    if stage in ("3", "4"):
+        if not ok(home(position="south_east")):
+            return False
+
+    stage_positions = {
+        "1": PAPER_CUPS_STATION_PARAMS["staging"]["place_1"],
+        "2": PAPER_CUPS_STATION_PARAMS["staging"]["place_2"],
+        "3": PAPER_CUPS_STATION_PARAMS["staging"]["place_3"],
+        "4": PAPER_CUPS_STATION_PARAMS["staging"]["place_4"],
+    }
+
+    stage_home_map = {
+        "1": "east",
+        "2": "east",
+        "3": "south_east",
+        "4": "south_east",
+    }
+
+    if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
+        return False
+    if not ok(run_skill("sync")):
+        return False
+
+    if not ok(run_skill("set_gripper_position", 25, 100, 255)):
+        return False
+
+    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+        return False
+
+    if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS["place_up"])):
+        return False
+
+    if not ok(run_skill("set_speed_factor", 100)):
+        return False
+
+    if not ok(home(position=stage_home_map[stage])):
+        return False
+
+    return True
+
+def dispense_paper_arm2_cup_station(**params) -> bool:
+    """
+    Dispense a paper cup by grabbing it from the dispenser and placing it at the requested stage.
+    """
+    if not grab_paper_cup_arm2(**params):
+        return False
+    if not place_paper_cup_arm2(**params):
+        return False
     return True
 
 def dispense_paper_cup_station(**params) -> bool:
@@ -842,12 +1216,8 @@ def place_paper_cup_station(**params) -> bool:
     
     if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
         return False
-
     run_skill("sync")
-    
-    if not ok(run_skill("set_gripper_position", 25, 100, 255)):
-        return False
-    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
         return False
     
     if not ok(run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS['place_return_up'])):
@@ -870,6 +1240,7 @@ def place_paper_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3'])):
         return False
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
         return False
     cup_detected = detect_cup_gripper()
@@ -920,6 +1291,7 @@ def place_paper_cup_milk(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position3'])):
         return False
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
         return False
     cup_detected = detect_cup_gripper()
@@ -1003,12 +1375,17 @@ def pick_cup_for_hot_water(**params) -> bool:
         if not ok(run_skill("set_gripper_position", 255,120,255)):
             return False
     else:
+        run_skill("sync")
         if not ok(run_skill("set_gripper_position", 255,125,255)):
             return False
     
-    run_skill("set_speed_factor", 75)
+    run_skill("sync")
     
-    run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])
+    if not ok(run_skill("set_speed_factor", 75)):
+        return False
+    
+    if not ok(run_skill("moveEE_movJ", *PAPER_CUP_MOVEMENT_OFFSETS['pickup_up'])):
+        return False
     
     if not home(position="west"):
         return False
@@ -1076,6 +1453,7 @@ def return_cup_with_hot_water(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *stage_params['pose'])):
         return False
     
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
         return False
     
@@ -1111,425 +1489,476 @@ approach_pitcher: Optional[Tuple[float, ...]] = None
 pick_pitcher: Optional[Tuple[float, ...]] = None
 
 
+def invalidate_port_cache():
+    _port_angle_cache.clear()
+    _pitcher_clean_cache.clear()
+    _pitcher_pick_cache.clear()
+    _pitcher_return_cache.clear()
+    _tool_pick_pose_cache.clear()
+    _mount_runtime_cache.clear()
+
+def _is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
 def _normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """
-    Parse espresso parameters from new JSON format.
-
-    Expected format: {'espresso_shot_single': 1.0} or {'espresso_shot_double': 2.0}
-
-    Rules:
-      - 'espresso_shot_single' -> single shot → port_3, positioning_time=5.0, portafilter_tool=single_portafilter
-      - 'espresso_shot_double' -> double shot → port_1, positioning_time=5.0, portafilter_tool=double_portafilter
-    """
     try:
         if not espresso_dict or not isinstance(espresso_dict, dict):
             return None
-        
-        # Get the first key from the espresso dictionary
+
         espresso_key = next(iter(espresso_dict.keys()), None)
         if not espresso_key:
             return None
-        
-        # Parse the key to determine shot type
+
         espresso_key_lower = str(espresso_key).lower()
-        
+
         if 'single' in espresso_key_lower:
             return {
                 "port": "port_3",
-                "positioning_time": 5.0,
+                "positioning_time": 1.2,
                 "portafilter_tool": "single_portafilter",
             }
         elif 'double' in espresso_key_lower:
             return {
                 "port": "port_1",
-                "positioning_time": 5.0,
+                "positioning_time": 2.4,
                 "portafilter_tool": "double_portafilter",
             }
         else:
-            # Fallback: try to parse as numeric value
             value = espresso_dict.get(espresso_key)
             if value is not None:
                 shots = float(value)
                 if shots <= 1.0:
                     return {
                         "port": "port_3",
-                        "positioning_time": 5.0,
+                        "positioning_time": 1.2,
                         "portafilter_tool": "single_portafilter",
                     }
                 else:
                     return {
                         "port": "port_1",
-                        "positioning_time": 5.0,
+                        "positioning_time": 2.4,
                         "portafilter_tool": "double_portafilter",
                     }
     except Exception as e:
         print(f"[WARNING] Error parsing espresso parameters: {e}")
         return None
-    
+
     return None
 
 def unmount(**params) -> bool:
-    """
-    Unmount portafilter from espresso group for cleaning or grinding.
-    """
-    global below_espresso_port, mount_espresso_port, mount_espresso_pose
-    
+    global below_espresso_port, mount_espresso_port
+
     def ok(r):
         return r not in (False, None)
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    
+
     if not port:
         return False
-    
+
     port_params = PULL_ESPRESSO_PARAMS.get(str(port))
     if not port_params:
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
-    
-    if port == 'port_1' or port == 'port_3':
+
+    if port in ('port_1', 'port_3'):
         if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
             return False
-    
+
     if not ok(run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])):
         return False
-    
+
     run_skill("sync")
-    
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['grip'])):
+
+    if not ok(run_skill("set_gripper_position", 255, 255, 255)):
         return False
-    
+
     if not ok(run_skill("release_tension")):
         return False
-    
+
+    run_skill("sync")
+
     if not ok(run_skill("enforce_rxry")):
         return False
-    
+
     run_skill("sync")
-    
+
     if not ok(run_skill("move_portafilter_arc_movJ", -42.0)):
         return False
-    
-    run_skill("sync")
-    
+
     if not ok(run_skill("release_tension")):
         return False
-    
-    time.sleep(ESPRESSO_DELAYS['orientation_settle'])
-    
-    mount_espresso_port = run_skill("current_angles")
-    if not ok(mount_espresso_port) or not isinstance(mount_espresso_port, (tuple, list)) or len(mount_espresso_port) != 6:
-        return False
-    
-    mount_espresso_pose = run_skill("current_pose")
-    if not ok(mount_espresso_pose) or not isinstance(mount_espresso_pose, (tuple, list)) or len(mount_espresso_pose) != 6:
-        return False
-    
-    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
-        return False
-    
-    below_espresso_port = run_skill("current_angles")
-    if not ok(below_espresso_port) or not isinstance(below_espresso_port, (tuple, list)) or len(below_espresso_port) != 6:
-        return False
-    
+
+    cached = _port_angle_cache.get(port)
+    if cached:
+        mount_pose = cached['mount']
+        below_pose = cached['below']
+        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
+            return False
+    else:
+        run_skill("sync")
+        mount_pose = run_skill("current_angles")
+        if not _is_valid_angles(mount_pose):
+            return False
+        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
+            return False
+        below_pose = run_skill("current_angles")
+        if not _is_valid_angles(below_pose):
+            return False
+        mount_pose = tuple(mount_pose)
+        below_pose = tuple(below_pose)
+        _port_angle_cache[port] = {'mount': mount_pose, 'below': below_pose}
+
+    # Keep both per-port runtime state and backward-compatible globals.
+    _mount_runtime_cache[port] = {'mount': tuple(mount_pose), 'below': tuple(below_pose)}
+    mount_espresso_port = tuple(mount_pose)
+    below_espresso_port = tuple(below_pose)
+
     if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
         return False
-    
+
     if port in ('port_2', 'port_3'):
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])):
             return False
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav2'])):
             return False
-    
+
     return True
 
 def grinder(**params) -> bool:
-    """
-    Grind coffee and tamp portafilter at the grinder station.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
     positioning_time = params.get("positioning_time")
     if positioning_time is None:
-        positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 5.0)
+        positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 2.4)
     portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter")
-    
+
     if not port or portafilter_tool not in ('single_portafilter', 'double_portafilter'):
         return False
-    
+
     if port == 'port_1':
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
             return False
-    
+
     if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
-        return False
-    
-    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
-        return False
-    
-    if not ok(run_skill("approach_machine", "espresso_grinder", "tamper")):
-        return False
-    
-    time.sleep(positioning_time)
-    
-    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
-        return False
-    
-    if not ok(run_skill("mount_machine", "espresso_grinder", "tamper")):
-        return False
-    
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])):
         return False
 
-    if port == 'port_1':
-        if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
-            return False
-    elif port == 'port_3':
-        if not ok(run_skill("approach_tool", "single_portafilter")):
-            return False
-    
-    return True
-    
-def tamper(**params) -> bool:
-    """
-    Tamp coffee at the tamper station using portafilter tool.
-    """
-    def ok(r):
-        return r not in (False, None)
-    
-    espresso_dict = params.get("espresso")
-    shot_cfg = _normalize_espresso_shot(espresso_dict)
-    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter")
-    
-    if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
-        return False
-    
-    if port == 'port_3':
-        if not ok(run_skill("approach_tool", "single_portafilter")):
-            return False
-    
-    run_skill("sync")
-    
-    if not ok(run_skill("grab_tool", portafilter_tool)):
-        return False
-    
-    run_skill("sync")
-    
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['grip'])):
-        return False
-    
-    run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)
-    
-    if not ok(run_skill("moveEE", 0, 0, 45, 0, 0, 0)):
-        return False
-    
     if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
         return False
-    
-    if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
+
+    if not ok(run_skill("approach_machine", "espresso_grinder", "tamper")):
         return False
-    
+    run_skill("sync")
+    time.sleep(positioning_time)
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "tamper")):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255,0,255)):
+        return False
+
+    cached_tool_pick_pose = _tool_pick_pose_cache.get(portafilter_tool)
+    if _is_valid_angles(cached_tool_pick_pose):
+        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+            return False
+    else:
+        if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
+            return False
+        tool_pick_pose = run_skill("current_angles")
+        if not _is_valid_angles(tool_pick_pose):
+            return False
+        _tool_pick_pose_cache[portafilter_tool] = tuple(tool_pick_pose)
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
         return False
-    
+
+    return True
+
+def tamper(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = _normalize_espresso_shot(espresso_dict)
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter")
+
+    if portafilter_tool not in ('single_portafilter', 'double_portafilter'):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
+    cached_tool_pick_pose = _tool_pick_pose_cache.get(portafilter_tool)
+    if _is_valid_angles(cached_tool_pick_pose):
+        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+            return False
+    else:
+        if not ok(run_skill("move_to", portafilter_tool, 0.22)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("approach_tool", portafilter_tool)):
+            return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("grab_tool", portafilter_tool)):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255,255,255)):
+        return False
+
+    if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
+        return False
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
     return True
 
 def single_tamper(**params) -> bool:
-    """
-    Tamp coffee at the tamper station using the single portafilter tool.
-    """
     params["portafilter_tool"] = "single_portafilter"
     return tamper(**params)
 
 def double_tamper(**params) -> bool:
-    """
-    Tamp coffee at the tamper station using the double portafilter tool.
-    """
     params["portafilter_tool"] = "double_portafilter"
     return tamper(**params)
 
 def mount(**params) -> bool:
-    """
-    Mount portafilter back to espresso group after grinding.
-    """
-    global mount_espresso_pose, below_espresso_port
-    
+    global below_espresso_port, mount_espresso_port
+
     def ok(r):
         return r not in (False, None)
-    
-    attempt_count = params.get("attempt_count", 0)
-    if attempt_count >= 3:
-        return False
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    
+
     if not port:
         return False
-    
+
     port_params = PULL_ESPRESSO_PARAMS.get(str(port))
     if not port_params:
         return False
-    
+
     if port in ('port_2', 'port_3'):
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])):
             return False
-    
+
     if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
         return False
-    
-    if below_espresso_port is None or not isinstance(below_espresso_port, (tuple, list)) or len(below_espresso_port) != 6:
+
+    runtime_cached = _mount_runtime_cache.get(port)
+    if runtime_cached:
+        below_pose = runtime_cached.get('below')
+        mount_pose = runtime_cached.get('mount')
+    else:
+        below_pose = below_espresso_port
+        mount_pose = mount_espresso_port
+
+    if not _is_valid_angles(below_pose):
         return False
-    
-    if not ok(run_skill("gotoJ_deg", *below_espresso_port)):
+
+    if not ok(run_skill("gotoJ_deg", *below_pose)):
         return False
-    
-    if mount_espresso_port is None or not isinstance(mount_espresso_port, (tuple, list)) or len(mount_espresso_port) != 6:
+
+    if not _is_valid_angles(mount_pose):
         return False
-    
-    if not ok(run_skill("gotoJ_deg", *mount_espresso_port)):
+
+    if not ok(run_skill("gotoJ_deg", *mount_pose)):
         return False
-    
-    run_skill("sync")
-    
-    current_mount_pose = run_skill("current_pose")
-    if current_mount_pose is not None and mount_espresso_pose is not None:
-        z_original = float(mount_espresso_pose[2])
-        z_current = float(current_mount_pose[2])
-        z_difference = abs(z_current - z_original)
-        
-        if z_difference > PORTAFILTER_Z_THRESHOLD_MM:
-            if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
-                return False
-            
-            below_espresso_port = run_skill("current_angles")
-            if not ok(below_espresso_port) or not isinstance(below_espresso_port, (tuple, list)) or len(below_espresso_port) != 6:
-                return False
-            
-            if port_params and 'move_back' in port_params:
-                if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
-                    return False
-            
-            if not clean_portafilter(port=port):
-                return False
-            
-            if not mount(port=port, attempt_count=attempt_count + 1):
-                return False
-            
-            return True
-        else:
-            if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up'])):
-                return False
-    
-    run_skill("sync")
-    
+
+    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up'])):
+        return False
+
     if not ok(run_skill("enforce_rxry")):
         return False
-    
+
     run_skill("sync")
-    
+
     if not ok(run_skill("move_portafilter_arc_movJ", 44.0)):
         return False
-    
-    run_skill("sync")
-    
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PORTAFILTER_GRIPPER['release'])):
+
+    if not ok(run_skill("set_gripper_position", 255,0,255)):
         return False
-    
-    if port == 'port_1' or port == 'port_3':
+
+    run_skill("sync")
+
+    if port in ('port_1', 'port_3'):
         if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
             return False
-    
+
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
-    
+
+    return True
+
+def grab_espresso_pitcher(**params) -> bool:
+    """
+    Grab the espresso pitcher and stop right after closing the gripper.
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = _normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+        return False
+
+    cached = _pitcher_pick_cache.get(port)
+
+    if port == 'port_1':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if _is_valid_angles(approach_angles):
+                _pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    elif port == 'port_2':
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    elif port == 'port_3':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if _is_valid_angles(approach_angles):
+                _pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    else:
+        return False
+
     return True
 
 def pick_espresso_pitcher(**params) -> bool:
     """
-    Pick up espresso pitcher for the specified port.
+    Complete pitcher pickup after grab_espresso_pitcher().
     """
-    global approach_pitcher, pick_pitcher
-    
     def ok(r):
         return r not in (False, None)
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    
+
     if not port or port not in ('port_1', 'port_2', 'port_3'):
         return False
-    
-    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
-        return False
-    
-    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
-        return False
-    
+
+    cached = _pitcher_pick_cache.get(port)
+
+    run_skill("sync")
+    run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
+
     if port == 'port_1':
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            return False
-        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
-            return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])):
-            return False
-        run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
-        run_skill("sync")
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            return False
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if _is_valid_angles(retreat_angles):
+                _pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
     elif port == 'port_2':
-        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
-            return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_2'])):
-            return False
-        run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
-        run_skill("sync")
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
-            return False
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if _is_valid_angles(retreat_angles):
+                _pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
     elif port == 'port_3':
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            return False
-        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
-            return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])):
-            return False
-        run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
-        run_skill("sync")
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            return False
-    
-    if port == 'port_1' or port == 'port_2':
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if _is_valid_angles(retreat_angles):
+                _pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
+    if port in ('port_1', 'port_2'):
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])):
             return False
-    
-    return True    
+
+    return True
 
 def pour_espresso_pitcher_cup_station(**params) -> bool:
-    """
-    Pour milk from espresso pitcher into cup at specified position.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
     cup_position = _extract_cup_position(params)
     stage = f"stage_{cup_position}"
-    
-    run_skill("gotoJ_deg", 103.201965,-21.933174,-150.611664,-10.398072,-23.882843,0.127716)
-    
+
+    run_skill("gotoJ_deg", 103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716)
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])):
         return False
-    
+
     if stage == 'stage_1':
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos1'])):
             return False
@@ -1543,10 +1972,6 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral1'])):
             return False
     elif stage == 'stage_2':
@@ -1562,10 +1987,6 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral2'])):
             return False
     elif stage == 'stage_3':
@@ -1581,13 +2002,9 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral3'])):
             return False
-    else:  # stage_4
+    else:
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos4'])):
             return False
         run_skill("sync")
@@ -1600,259 +2017,307 @@ def pour_espresso_pitcher_cup_station(**params) -> bool:
             return False
         run_skill("sync")
         run_skill("set_speed_factor", 100)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,15,0,0,0)
-        # run_skill("moveEE_movJ",0,0,-15,0,0,0)
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral4'])):
             return False
-    
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])):
         return False
-    
-    run_skill("gotoJ_deg", 103.201965,-21.933174,-150.611664,-10.398072,-23.882843,0.127716)
-    run_skill("sync")
-    
+
+    run_skill("gotoJ_deg", 103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716)
+    # run_skill("sync")
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])):
         return False
-    
+
     return True
 
 def get_hot_water(**params) -> bool:
-    """
-    Position espresso pitcher under hot water dispenser.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
     if not ok(run_skill("approach_machine", "three_group_espresso", "hot_water")):
         return False
-    
+
     if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
         return False
-    
+
     run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
-    
     return True
 
 def with_hot_water(**params) -> bool:
-    """
-    Complete hot water dispensing sequence and return to holding position.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
     run_skill("set_speed_factor", ESPRESSO_SPEEDS['hot_water_pour'])
-    
+
     if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
         return False
-    
+
     return True
 
 def return_espresso_pitcher(**params) -> bool:
-    """
-    Return espresso pitcher to its home position after use.
-    """
     global approach_pitcher, pick_pitcher
-    
+
     def ok(r):
         return r not in (False, None)
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    
+
     if not port or port not in ('port_1', 'port_2', 'port_3'):
         return False
-    
+
+    cached = _pitcher_return_cache.get(port)
+
     if port == 'port_1':
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            return False
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if _is_valid_angles(approach_angles):
+                _pitcher_return_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
             return False
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
             return False
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            return False
+        run_skill("sync")
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if _is_valid_angles(retreat_angles):
+                _pitcher_return_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
     elif port == 'port_2':
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
             return False
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
             return False
+        run_skill("sync")
     elif port == 'port_3':
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            return False
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if _is_valid_angles(approach_angles):
+                _pitcher_return_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
             return False
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
             return False
-        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            return False
-    
+        run_skill("sync")
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if _is_valid_angles(retreat_angles):
+                _pitcher_return_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
     if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
         return False
-    
+
     return True
 
 def return_cleaned_espresso_pitcher(**params) -> bool:
-    global approach_pitcher, pick_pitcher
-    
     def ok(r):
         return r not in (False, None)
-    
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
-    
+
     if not port or port not in ('port_1', 'port_2', 'port_3'):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
         return False
-    
+
     if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
         return False
-    
+
+    cached = _pitcher_clean_cache.get(port)
+
     if port == 'port_1':
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
             return False
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
             return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_1'])):
-            return False
-        run_skill("moveEE_movJ", 0,0,20,0,0,0)
-        run_skill("moveEE_movJ", 0,250,0,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("sync")
-        run_skill("moveJ_deg", 0,0,0,0,0,135)
-        run_skill("moveEE_movJ", 0,-250,0,0,0,0)
-        run_skill("moveEE_movJ", 0,0,-20,0,0,0)
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
             return False
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, -250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(_is_valid_angles(w) for w in waypoints):
+                _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
             return False
     elif port == 'port_2':
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
             return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_2'])):
-            return False
-        run_skill("moveEE_movJ", 0,0,10,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-135)
         run_skill("sync")
-        run_skill("moveJ_deg", 0,0,0,0,0,135)
-        run_skill("moveEE_movJ", 0,0,-10,0,0,0)
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
+            return False
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -10, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(_is_valid_angles(w) for w in waypoints):
+                _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
             return False
     elif port == 'port_3':
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
             return False
         if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
             return False
-        if not ok(run_skill("set_gripper_position", GRIPPER_FULL, ESPRESSO_PITCHER_GRIPPER['port_3'])):
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
             return False
-        run_skill("moveEE_movJ", 0,0,20,0,0,0)
-        run_skill("moveEE_movJ", 0,-250,0,0,0,0)
-        run_skill("moveJ_deg", 0,0,0,0,0,-135)
-        run_skill("moveJ_deg", 0,0,0,0,0,135)
-        run_skill("moveEE_movJ", 0,250,0,0,0,0)
-        run_skill("moveEE_movJ", 0,0,-20,0,0,0)
-        if not ok(run_skill("set_gripper_position", ESPRESSO_PITCHER_GRIPPER['release'], GRIPPER_OPEN)):
+        run_skill("sync")
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, -250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(_is_valid_angles(w) for w in waypoints):
+                _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
             return False
+        run_skill("sync")
         if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
             return False
-    
+
     if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
         return False
-    
+
     return True
 
 def unmount_single(**params) -> bool:
-    """
-    Unmount the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return unmount(**params)
 
 def unmount_double(**params) -> bool:
-    """
-    Unmount the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return unmount(**params)
 
 def mount_single(**params) -> bool:
-    """
-    Mount the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return mount(**params)
 
 def mount_double(**params) -> bool:
-    """
-    Mount the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return mount(**params)
 
+def single_grab_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_3"
+    return grab_espresso_pitcher(**params)
+
+def double_grab_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_1"
+    return grab_espresso_pitcher(**params)
+
 def single_pick_espresso_pitcher(**params) -> bool:
-    """
-    Pick the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return pick_espresso_pitcher(**params)
 
 def double_pick_espresso_pitcher(**params) -> bool:
-    """
-    Pick the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return pick_espresso_pitcher(**params)
 
 def single_pour_espresso_pitcher_cup_station(**params) -> bool:
-    """
-    Pour espresso from the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return pour_espresso_pitcher_cup_station(**params)
 
 def double_pour_espresso_pitcher_cup_station(**params) -> bool:
-    """
-    Pour espresso from the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return pour_espresso_pitcher_cup_station(**params)
 
 def single_return_espresso_pitcher(**params) -> bool:
-    """
-    Return the single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return return_espresso_pitcher(**params)
 
 def double_return_espresso_pitcher(**params) -> bool:
-    """
-    Return the double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return return_espresso_pitcher(**params)
 
 def single_return_cleaned_espresso_pitcher(**params) -> bool:
-    """
-    Return the cleaned single portafilter (port_3). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_3"
     return return_cleaned_espresso_pitcher(**params)
 
 def double_return_cleaned_espresso_pitcher(**params) -> bool:
-    """
-    Return the cleaned double portafilter (port_1). Port is hardcoded; all other params are forwarded.
-    """
     params["port"] = "port_1"
     return return_cleaned_espresso_pitcher(**params)
 
@@ -1865,80 +2330,111 @@ coffee automation system, including hard brush and soft brush cleaning sequences
 with precise positioning and error handling.
 """
 
+
+def invalidate_cleaning_cache():
+    _hard_brush_clean_cache.clear()
+    _soft_brush_clean_cache.clear()
+
+def _is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
+def _capture_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
+    angles = run_skill("current_angles")
+    if not _is_valid_angles(angles):
+        return False
+    cache_list.append(tuple(angles))
+    return True
+
 def clean_portafilter(**params) -> bool:
     """
-    Very simple cleaning flow:
-      1) unmount
-      2) grinder home
-      3) hard brush: approach → adjust → mount → motion1 → motion2 → retreat_hard
-      4) soft brush: approach → mount → motion1 → motion2 → retreat_soft
-      5) grinder home
+    Keep approach/mount live, cache only the post-mount motion sequence.
     """
-    # Import here to avoid circular import with espresso.py
     # from oms_v1.sequences.espresso import _normalize_espresso_shot
-    
-    # Normalize from espresso shot if provided
-    # New format: {'espresso': {'espresso_shot_double': 2.0}}
+
     espresso_dict = params.get("espresso")
     shot_cfg = _normalize_espresso_shot(espresso_dict)
-
-    # Extract and validate port parameter (derived from shot when not explicitly provided)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else DEFAULT_PORT)
 
-    def ok(r):  # minimal check: treat False/None as failure
+    def ok(r):
         return r not in (False, None)
 
-    # 2) Go to cleaning station home
-    if not ok(run_skill("gotoJ_deg", -35.223076,-2.939468,-128.314575,-47.896400,-73.999352,1.973845)):
+    hard_cached = _hard_brush_clean_cache.get(port)
+    soft_cached = _soft_brush_clean_cache.get(port)
+
+    if not ok(run_skill("gotoJ_deg", -35.223076, -2.939468, -128.314575, -47.896400, -73.999352, 1.973845)):
         return False
 
-    # 3) Hard brush
     if not ok(run_skill("approach_machine", "portafilter_cleaner", "hard_brush")):
         return False
     if not ok(run_skill("gotoJ_deg", *CLEANING_PARAMS['hard_brush_adjust'])):
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
         return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", 0,0,50,0,0,0)):
-        return False
-    if not ok(run_skill("moveEE_movJ", 0,0,-35,-2.5,0,0)):
-        return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
-        return False
 
-    # 4) Soft brush
+    if hard_cached:
+        if len(hard_cached) != 3:
+            return False
+        run_skill("sync")  
+        if not ok(run_skill("gotoJ_deg", *hard_cached[0])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *hard_cached[1])):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *hard_cached[2])):
+            return False
+    else:
+        hard_capture: List[Tuple[float, ...]] = []
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
+            return False
+        if not _capture_current_angles(hard_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+            return False
+        if not _capture_current_angles(hard_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
+            return False
+        if not _capture_current_angles(hard_capture):
+            return False
+        _hard_brush_clean_cache[port] = hard_capture
+
     if not ok(run_skill("approach_machine", "portafilter_cleaner", "soft_brush")):
         return False
     if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
         return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", 0,0,50,0,0,0)):
-        return False
-    if not ok(run_skill("moveEE_movJ", 0,0,-55,0,0,0)):
-        return False
-    if not ok(run_skill("moveEE_movJ", 0,10,0,0,0,0)):
-        return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", 10,0,0,0,0,0)):
-        return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", -20,0,0,0,0,0)):
-        return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE_movJ", 0,-10,10,-2.5,0,0)):
-        return False
-    # time.sleep(DELAY_VERY_SHORT)
-    if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
-        return False
 
-    # 5) Return to cleaning station home
+    if soft_cached:
+        if len(soft_cached) != 3:
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *soft_cached[0])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *soft_cached[1])):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *soft_cached[2])):
+            return False
+    else:
+        soft_capture: List[Tuple[float, ...]] = []
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
+            return False
+        if not _capture_current_angles(soft_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+            return False
+        if not _capture_current_angles(soft_capture):
+            return False
+        if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
+            return False
+        if not _capture_current_angles(soft_capture):
+            return False
+        _soft_brush_clean_cache[port] = soft_capture
+
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
         return False
 
     return True
-    
+ 
 """
 milk_frothing.py
 
@@ -1952,89 +2448,141 @@ steam activation, milk pouring, and cleaning procedures.
 approach_angles: Optional[Tuple[float, ...]] = None
 grab_angles: Optional[Tuple[float, ...]] = None
 
+def invalidate_milk_frothing_cache():
+    global _pick_frother_milk_station_cache, _clean_milk_pitcher_cache
+    global _get_frother_position_done, _milk_frother_position_done
+
+    _place_frother_milk_station_cache.clear()
+    _pick_frother_milk_station_cache = None
+    _mount_frother_cache.clear()
+    _pour_milk_cup_station_cache.clear()
+    _clean_milk_pitcher_cache = None
+    _return_frother_cache.clear()
+    _pick_frother_cache.clear()
+    _get_frother_position_done = False
+    _milk_frother_position_done = False
+
+def _is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
+
+def _capture_current_angles() -> Optional[Tuple[float, ...]]:
+    angles = run_skill("current_angles")
+    if not _is_valid_angles(angles):
+        return None
+    return tuple(angles)
+
+
+def _capture_current_position() -> Optional[Tuple[float, ...]]:
+    position = run_skill("current_pose")
+    if not _is_valid_position(position):
+        return None
+    return tuple(position)
+
+
+def _is_valid_position(position: Any) -> bool:
+    return bool(position) and isinstance(position, (tuple, list)) and len(position) == 6
+
+
+def _cache_key_from_z_adjustment(z_adjustment: float) -> str:
+    return f"{round(float(z_adjustment), 3):.3f}"
+
+
 def get_frother_position(**params) -> bool:
     """
     Calibrate and record the milk frother position for future operations.
+    After first successful calibration, skip re-reading machine position on later runs.
     """
     def ok(r):
         return r not in (False, None)
-    
+
+    global _get_frother_position_done, _milk_frother_position_done
+
+    invalidate_plastic_cup_cache()
+    invalidate_milk_frothing_cache()
+
     run_skill("set_speed_factor", 100)
-    
-    if not home(position="north_east"):
+    if not return_back_to_home():
         return False
-    
-    run_skill("move_to", "left_steam_wand", 0.29)
-    run_skill("sync")
-    run_skill("grab_tool", "left_steam_wand")
-    run_skill("set_gripper_position", 255, 255, 255)
-    run_skill("gotoJ_deg", -43.788200,-68.169113,-36.695751,-72.909874,-90.922371,6.132053)
-    run_skill("set_gripper_position", 255, 0,255)
-    
-    cycles = 3
-    for i in range(cycles):
-        time.sleep(CALIBRATION_SETTLE_TIME)
-        if not ok(run_skill("move_to", "left_steam_wand", 0.29)):
-            return False
-    
-    if not ok(run_skill("get_machine_position", "left_steam_wand")):
-        return False
-    
+
     if not home(position="north_east"):
         return False
 
+    if not _get_frother_position_done:
+        cycles = 3
+        for _ in range(cycles):
+            time.sleep(CALIBRATION_SETTLE_TIME)
+            if not ok(run_skill("move_to", "left_steam_wand", 0.29)):
+                return False
+        if not ok(run_skill("get_machine_position", "left_steam_wand")):
+            return False
+        _get_frother_position_done = True
+
+    if not home(position="north_east"):
+        return False
+    
+    if not ok(run_skill("gotoJ_deg", 27.975568,-34.583337,-124.996051,-68.785292,-70.522135,20.578546)):
+        return False
+
+    if not _milk_frother_position_done:
+        cycles = 3
+        for _ in range(cycles):
+            time.sleep(CALIBRATION_SETTLE_TIME)
+            if not ok(run_skill("move_to", "milk_frother_2", 0.29)):
+                return False
+        if not ok(run_skill("get_machine_position", "milk_frother_2")):
+            return False
+        _milk_frother_position_done = True
+
+    
+    if not home(position="north"):
+        return False
+
     return True
+
 
 def pick_frother(**params) -> bool:
     """
     Pick up the milk frother for milk frothing operations.
     """
-    global approach_angles, grab_angles
-    
+
     def ok(r):
         return r not in (False, None)
-    
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pickup']['area'])):
         return False
-    
-    if not ok(run_skill("move_to", 'milk_frother_1', 0.29)):
+
+    if not ok(run_skill("approach_machine", 'milk_frother_2', 'milk_frother_1')):
         return False
-    
     run_skill("sync")
-    
-    if not ok(run_skill("approach_tool", 'milk_frother_1')):
-        return False
-    
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['pickup_initial'])):
         return False
-    
-    run_skill("sync")
-    
-    approach_angles = run_skill("current_angles")
-    
-    run_skill("sync")
-    
-    if not ok(run_skill("grab_tool", 'milk_frother_1', 100, 100,-5,-10.5)):
+    if not ok(run_skill("mount_machine", 'milk_frother_2', 'milk_frother_1')):
         return False
-    
     run_skill("sync")
-    
-    grab_angles = run_skill("current_angles")
-    
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])):
         return False
-    
     return True
-        
+
+
 def place_frother_milk_station(**params) -> bool:
-    """
-    Place the milk frother at the milk station safely.
-    """
     def ok(r):
         return r not in (False, None)
-    
-    if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_place'])):
-        return False
+
+    cached_lift = _place_frother_milk_station_cache.get('lift_after_place')
+    cached_nudge = _place_frother_milk_station_cache.get('final_nudge')
+
+    if _is_valid_position(cached_lift):
+        if not ok(run_skill("gotoEE", *cached_lift)):
+            return False
+    else:
+        if not ok(run_skill("moveEE", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_place'])):
+            return False
+        lift_pose = _capture_current_position()
+        if not _is_valid_position(lift_pose):
+            return False
+        _place_frother_milk_station_cache['lift_after_place'] = lift_pose
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_pre1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_pre2'])):
@@ -2043,28 +2591,51 @@ def place_frother_milk_station(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['place_final'])):
         return False
-    if not ok(run_skill("moveEE_movJ", 5, 0, 0, 0, 0, 0)):
-        return False
+
+    if _is_valid_angles(cached_nudge):
+        if not ok(run_skill("gotoJ_deg", *cached_nudge)):
+            return False
+        run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE_movJ", 5, 0, 0, 0, 0, 0)):
+            return False
+        nudge_pose = _capture_current_angles()
+        if not _is_valid_angles(nudge_pose):
+            return False
+        _place_frother_milk_station_cache['final_nudge'] = nudge_pose
+
     if not ok(run_skill("set_gripper_position", 50, MILK_FROTHER_GRIPPER_POSITIONS['place'])):
         return False
     return True
 
+
 def pick_frother_milk_station(**params) -> bool:
-    """
-    Pick the milk frother up from the milk station safely.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
+    global _pick_frother_milk_station_cache
+
     if not ok(run_skill("set_gripper_position", 255, 255, 255)):
         return False
-    if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_pick'])):
-        return False
+
+    if _is_valid_angles(_pick_frother_milk_station_cache):
+        if not ok(run_skill("gotoJ_deg", *_pick_frother_milk_station_cache)):
+            return False
+        run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['lift_after_pick'])):
+            return False
+        lift_pose = _capture_current_angles()
+        if not _is_valid_angles(lift_pose):
+            return False
+        _pick_frother_milk_station_cache = lift_pose
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['pick_retreat1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['pick_retreat2'])):
         return False
     return True
+
 
 def mount_frother(**params) -> bool:
     """
@@ -2074,46 +2645,36 @@ def mount_frother(**params) -> bool:
     def ok(r):
         return r not in (False, None)
 
-    run_skill("sync")
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['mount'])
-
     if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
         return False
-
     if not ok(run_skill("mount_machine", "left_steam_wand", "deep_froth")):
         return False
 
-    # ── Determine cup size from params (same idea as paper_cups.py) ──
     cups_dict = _extract_cups_dict(params)
-    # We accept either H or C codes in practice; try paper then plastic fallback.
     cup_size = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
     if not cup_size:
         cup_size = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
-
     if not cup_size:
         cup_size = 'default'
 
-    # ── Get milk volume (ml) ──
     milk_data = params.get('milk') or params.get('ingredients', {}).get('milk', {}) or {}
     try:
         volume_ml = float(next(iter(milk_data.values()), 0)) if isinstance(milk_data, dict) else float(milk_data or 0)
     except (TypeError, ValueError):
         volume_ml = 0.0
 
-    # ── Compute Z adjustment ──
     factor = MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE.get(
         cup_size,
         MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE['default']
     )
     z_adjustment = factor * volume_ml
 
-    # Move down by z_adjustment (your existing behavior)
-    run_skill("moveEE_movJ", 0, 20, -z_adjustment, 0, 0, 0)
-
-    if not ok(run_skill("sync")):
+    if not ok(run_skill("moveEE_movJ", 12.5, 12.5, -z_adjustment, 0, 0, 0)):
         return False
 
     return True
+
 
 def unmount_and_swirl_milk(**params) -> bool:
     """
@@ -2121,122 +2682,119 @@ def unmount_and_swirl_milk(**params) -> bool:
     """
     def ok(r):
         return r not in (False, None)
-    
+
     time.sleep(MILK_FROTHING_DELAYS['swirl_delay'])
-    
+
     if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
         return False
-    
+
     run_skill("sync")
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['swirl'])
-    
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['swirling']['intermediate1'])):
         return False
-    
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['swirling']['swirl_pos'])):
         return False
-    
+
     run_skill("sync")
-    
-    run_skill("move_circle", 
+
+    run_skill(
+        "move_circle",
         MILK_SWIRL_CIRCLE_PARAMS['cycles'],
         MILK_SWIRL_CIRCLE_PARAMS['point1_offset'],
         MILK_SWIRL_CIRCLE_PARAMS['point2_offset'],
-        MILK_SWIRL_CIRCLE_PARAMS['options'])
-    
+        MILK_SWIRL_CIRCLE_PARAMS['options']
+    )
+
     return True
+
 
 def pour_milk_cup_station(**params) -> bool:
-    """
-    Pour frothed milk into cup at specified stage.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
     cup_position = _extract_cup_position(params)
     stage = str(cup_position)
-    
-    if stage == '1':
-        if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['position'])):
+    stage_cache = _pour_milk_cup_station_cache.setdefault(stage, {})
+    stage_cfg = MILK_FROTHING_PARAMS['pouring'][f'stage{stage}']
+    stage_offsets = MILK_POURING_OFFSETS[f'stage{stage}']
+
+    run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
+    if not ok(run_skill("gotoJ_deg", *stage_cfg['position'])):
+        return False
+    run_skill("sync")
+
+    run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
+    if not ok(run_skill("gotoJ_deg", *stage_cfg['adjust1'])):
+        return False
+
+    if _is_valid_angles(stage_cache.get('forward')):
+        if not ok(run_skill("gotoJ_deg", *stage_cache['forward'])):
             return False
         run_skill("sync")
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
-        run_skill("sync")
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['adjust1'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage1']['move_forward'])
-        run_skill("sync")
-        time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage1']['move_up'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage1']['position'])
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
-    elif stage == '2':
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
-        if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['position'])):
+    else:
+        if not ok(run_skill("moveEE_movJ", *stage_offsets['move_forward'])):
             return False
-        run_skill("sync")
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['adjust1'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage2']['move_forward'])
-        time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage2']['move_up'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage2']['position'])
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
-    elif stage == '3':
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
-        if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['position'])):
+        forward_pose = _capture_current_angles()
+        if not _is_valid_angles(forward_pose):
             return False
-        run_skill("sync")
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['adjust1'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage3']['move_forward'])
-        time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage3']['move_up'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage3']['position'])
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
-    else:  # stage == '4'
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour_approach'])
-        if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['position'])):
+        stage_cache['forward'] = forward_pose
+
+    if _is_valid_angles(stage_cache.get('up')):
+        if not ok(run_skill("gotoJ_deg", *stage_cache['up'])):
             return False
-        run_skill("sync")
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['pour'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['adjust1'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage4']['move_forward'])
-        time.sleep(MILK_FROTHING_DELAYS['pour_completion'])
-        run_skill("moveEE_movJ", *MILK_POURING_OFFSETS['stage4']['move_up'])
-        run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['pouring']['stage4']['position'])
-        run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
-    
+    else:
+        if not ok(run_skill("moveEE_movJ", *stage_offsets['move_up'])):
+            return False
+        up_pose = _capture_current_angles()
+        if not _is_valid_angles(up_pose):
+            return False
+        stage_cache['up'] = up_pose
+
+    if not ok(run_skill("gotoJ_deg", *stage_cfg['position'])):
+        return False
+
+    run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
     return True
 
+
 def clean_milk_pitcher(**params) -> bool:
-    """
-    Perform a cleaning motion for the frother tool.
-    """
     def ok(r):
         return r not in (False, None)
-    
+
+    global _clean_milk_pitcher_cache
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose2'])):
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['cleaning']['pose3'])):
         return False
-    if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['cleaning_motion'])):
-        return False
+
+    if _is_valid_angles(_clean_milk_pitcher_cache):
+        if not ok(run_skill("gotoJ_deg", *_clean_milk_pitcher_cache)):
+            return False
+        run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE_movJ", *MILK_FROTHER_MOVEMENT_OFFSETS['cleaning_motion'])):
+            return False
+        clean_pose = _capture_current_angles()
+        if not _is_valid_angles(clean_pose):
+            return False
+        _clean_milk_pitcher_cache = clean_pose
+
     return True
+
 
 def return_frother(**params) -> bool:
     """
     Return the frother to its original location using recorded approach/grab angles.
     """
-    global approach_angles, grab_angles
-    
+
     def ok(r):
         return r not in (False, None)
-    
-    if grab_angles is None or approach_angles is None:
-        return False
-    
+
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return2'])):
@@ -2245,19 +2803,27 @@ def return_frother(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['return']['pre_return4'])):
         return False
-    if not ok(run_skill("gotoJ_deg", *grab_angles)):
+
+    cached_lift = _place_frother_milk_station_cache.get('lift_after_place')
+    if not _is_valid_position(cached_lift):
         return False
-    run_skill("sync")
-    run_skill("moveEE",0,0,2.5,0,0,0)
-    time.sleep(1.0)
+    if not ok(run_skill("gotoEE", *cached_lift)):
+        return False
+    if not ok(run_skill("moveEE", 0, 0, -150, 0, 0, 0)):
+        return False
+    time.sleep(0.5)
     if not ok(run_skill("set_gripper_position", 75, 165, 255)):
         return False
+    time.sleep(0.5)
     if not ok(run_skill("moveEE", *MILK_FROTHER_MOVEMENT_OFFSETS['final_approach'])):
         return False
-    if not ok(run_skill("gotoJ_deg", *approach_angles)):
+    if not ok(run_skill("approach_machine", "milk_frother_2", "milk_frother_1")):
         return False
-    home(position="north")
-    run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])
+    if not ok(home(position="north")):
+        return False
+    run_skill("sync")
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['open'])):
+        return False
     return True
 
 """
@@ -2269,280 +2835,187 @@ in the BARNS coffee automation system, supporting multiple cup sizes for cold be
 like slushes, iced drinks, and cold brews.
 """
 
+def invalidate_plastic_cup_cache():
+    _go_home_with_ice_cache.clear()
+    _place_plastic_cup_station_cache.clear()
+    _pick_plastic_cup_station_cache.clear()
+    global _place_plastic_cup_sauces_cache
+    _place_plastic_cup_sauces_cache = None
+    _pick_plastic_cup_sauces_cache.clear()
+    _pick_plastic_cup_milk_cache.clear()
+
+
+def _is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
+
+def _capture_current_angles() -> Optional[Tuple[float, ...]]:
+    angles = run_skill("current_angles")
+    if not _is_valid_angles(angles):
+        return None
+    return tuple(angles)
+
+
 def _normalize_plastic_cup_size(cups_dict: Any) -> str:
-    """
-    Universal cup size normalizer for plastic cup operations.
-    Accepts BOTH H-codes AND C-codes regardless of prefix.
-    Extracts the numeric size and returns standardized format.
-    
-    Args:
-        cups_dict: Dictionary containing cup information, or a simple string/value
-        
-    Returns:
-        str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
-        
-    Examples:
-        cup_H9 → '9oz'
-        cup_C9 → '9oz'
-        cup_h12 → '12oz'
-        cup_c16 → '16oz'
-    """
     # if not cups_dict:
     #     from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
     #     return DEFAULT_PLASTIC_CUP_SIZE
-    
-    # Extract the cup code (case-insensitive)
+
     if isinstance(cups_dict, dict):
         cup_key = next(iter(cups_dict.keys()), None)
         if cup_key:
-            # Convert to uppercase for parsing
             cup_key_str = str(cup_key).upper()
             if 'CUP_' in cup_key_str:
                 cup_code = cup_key_str.split('CUP_', 1)[1]
             else:
                 cup_code = cup_key_str
-            
-            # Extract numeric size from code (works with both H and C prefixes)
-            # H7, H9, H12, C7, C9, C12, C16 → extract the number
+
             if cup_code and len(cup_code) >= 2:
-                # Remove H or C prefix if present
                 if cup_code[0] in ('H', 'C'):
                     size_num = cup_code[1:]
                 else:
                     size_num = cup_code
-                
-                # Validate and return standardized size
+
                 if size_num in ('7', '9', '12', '16'):
                     return f"{size_num}oz"
-    
-    # If parsing failed, try the standard normalizers
-    # Try plastic first
+
     result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
     if result and result != '':
         return result
-    
-    # Try paper
+
     result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
     if result and result != '':
         return result
-    
-    # Final fallback
+
     # from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
     # return DEFAULT_PLASTIC_CUP_SIZE
 
+
 def dispense_plastic_cup(**params) -> bool:
-    """
-    Dispense a plastic cup of specified size from the dispenser.
-    """
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
     if not cup_size or not validate_cup_size(cup_size):
         return False
-    
+
     CUP_CONFIG = {
-        '16oz': {
-            'home': 'west',
-            'coords': PLASTIC_CUPS_PARAMS['dispenser']['16oz_coords'],
-            'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['16oz'],
-            'speed': PLASTIC_CUP_DISPENSE_SPEEDS['16oz'],
-            'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['16oz']['z1'],
-            'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['16oz']['z2'],
-        },
-        '12oz': {
-            'home': 'west',
-            'coords': PLASTIC_CUPS_PARAMS['dispenser']['12oz_coords'],
-            'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['12oz'],
-            'speed': PLASTIC_CUP_DISPENSE_SPEEDS['12oz'],
-            'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['12oz']['z1'],
-            'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['12oz']['z2'],
-        },
-        '9oz': {
-            'home': 'south_west',
-            'coords': PLASTIC_CUPS_PARAMS['dispenser']['9oz_coords'],
-            'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['9oz'],
-            'speed': PLASTIC_CUP_DISPENSE_SPEEDS['9oz'],
-            'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['9oz']['z1'],
-            'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['9oz']['z2'],
-        },
-        '7oz': {
-            'home': 'south_west',
-            'coords': PLASTIC_CUPS_PARAMS['dispenser']['7oz_coords'],
-            'gripper': PLASTIC_CUP_DISPENSE_GRIPPER['7oz'],
-            'speed': PLASTIC_CUP_DISPENSE_SPEEDS['7oz'],
-            'extract_z': PLASTIC_CUP_EXTRACT_OFFSETS['7oz']['z1'],
-            'extract_z2': PLASTIC_CUP_EXTRACT_OFFSETS['7oz']['z2'],
-        }
+        '16oz': {'home': 'west', 'coords': PLASTIC_CUPS_PARAMS['dispenser']['16oz_coords']},
+        '12oz': {'home': 'west', 'coords': PLASTIC_CUPS_PARAMS['dispenser']['12oz_coords']},
+        '9oz': {'home': 'south_west', 'coords': PLASTIC_CUPS_PARAMS['dispenser']['9oz_coords']},
+        '7oz': {'home': 'south_west', 'coords': PLASTIC_CUPS_PARAMS['dispenser']['7oz_coords']},
     }
-    
     if cup_size not in CUP_CONFIG:
         return False
-    
+
+    DISPENSE_PARAMS = {
+        '16oz': {'gripper_pos': 110, 'do_index': 2},
+        '12oz': {'gripper_pos': 135, 'do_index': 1},
+        '9oz':  {'gripper_pos': 140, 'do_index': 3},
+        '7oz':  {'gripper_pos': 130, 'do_index': 1},
+    }
+
     config = CUP_CONFIG[cup_size]
+    dp = DISPENSE_PARAMS[cup_size]
     attempt_count = 0
     while attempt_count < 15:
-            if cup_size == "16oz":
-                home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0, 255)
-                run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,110,255)
-                run_skill("set_DO", 2, 1)
-                time.sleep(1.5)
-                run_skill("set_DO", 2, 0)
-                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
-                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
-                run_skill("gotoJ_deg", *config['coords'])
-                home(position=config['home'])
-                home(position="north")
-            elif cup_size == "12oz":
-                home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0, 255)
-                run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,135,255)
-                run_skill("set_DO", 1, 1)
-                time.sleep(1.5)
-                run_skill("set_DO", 1, 0)
-                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
-                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
-                run_skill("gotoJ_deg", *config['coords'])
-                home(position=config['home'])
-                home(position="north")
-            if cup_size == "9oz":
-                home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0, 255)
-                run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,140,255)
-                run_skill("set_DO", 3, 1)
-                time.sleep(1.5)
-                run_skill("set_DO", 3, 0)
-                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
-                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
-                run_skill("gotoJ_deg", *config['coords'])
-                home(position=config['home'])
-                home(position="north")
-            if cup_size == "7oz":
-                home(position=config['home'])
-                run_skill("set_gripper_position", 255, 0, 255)
-                run_skill("gotoJ_deg", *config['coords'])
-                run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
-                run_skill("set_gripper_position", 255,130,255)
-                run_skill("set_DO", 1, 1)
-                time.sleep(1.5)
-                run_skill("set_DO", 1, 0)
-                run_skill("moveEE", 0, 0, -150, 0, 0, 0)
-                run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
-                run_skill("gotoJ_deg", *config['coords'])
-                home(position=config['home'])
-                home(position="north")
-            
-            run_skill("sync")
-            cup_detected = detect_cup_gripper()
-            if cup_detected:
-                break
-            attempt_count += 1
-            if attempt_count == 15:
-                return False
-    
+        home(position=config['home'])
+        run_skill("set_gripper_position", 255, 0, 255)
+        run_skill("gotoJ_deg", *config['coords'])
+        run_skill("moveEE", 0.0, 328.0, 10.0, 0, 0, 0)
+        run_skill("set_gripper_position", 255, dp['gripper_pos'], 255)
+        run_skill("sync")
+        run_skill("set_DO", dp['do_index'], 1)
+        time.sleep(1.5)
+        run_skill("set_DO", dp['do_index'], 0)
+        run_skill("moveEE", 0, 0, -150, 0, 0, 0)
+        run_skill("moveEE", 0, -328.0, 0, 0, 0, 0)
+        run_skill("gotoJ_deg", *config['coords'])
+        home(position=config['home'])
+        home(position="north")
+        run_skill("sync")
+        cup_detected = detect_cup_gripper()
+        if cup_detected:
+            break
+        attempt_count += 1
+        if attempt_count == 15:
+            return False
+
     _set_cup_dispensed()
     return True
 
+
 def go_to_ice(**params) -> bool:
-    """
-    Get ice for the specified cup size.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict)
     if not cup_size:
         return False
-    
-    valid_sizes = ('16oz', '12oz', '9oz', '7oz')
-    if cup_size not in valid_sizes:
+    if cup_size not in ('16oz', '12oz', '9oz', '7oz'):
         return False
-    
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
         return False
-    
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position2'])):
         return False
-
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
         return False
-    
-    run_skill("sync")
+    # run_skill("sync")
     return True
 
+
 def go_home_with_ice(**params) -> bool:
-    """
-    Return home with ice-filled cup.
-    """
     def ok(r):
         return r not in (False, None)
-
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)
     if not cup_size or not validate_cup_size(cup_size):
         return False
 
-    if not ok(run_skill("moveEE_movJ", -3,0,0,0,0,0)):
+    cached_retreat = _go_home_with_ice_cache.get(cup_size)
+    if _is_valid_angles(cached_retreat):
+        if not ok(run_skill("gotoJ_deg", *cached_retreat)):
+            return False
+        # run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE_movJ", -3, 0, 0, 0, 0, 0)):
+            return False
+        retreat_pose = _capture_current_angles()
+        if not _is_valid_angles(retreat_pose):
+            return False
+        _go_home_with_ice_cache[cup_size] = retreat_pose
+
+    gripper_position = {"7oz": 140, "9oz": 145, "12oz": 140, "16oz": 130}.get(cup_size)
+    if gripper_position is None:
         return False
-    
-    if cup_size == "7oz":
-        gripper_position = 140
-    elif cup_size == "9oz":
-        gripper_position = 145
-    elif cup_size == "12oz":
-        gripper_position = 140
-    elif cup_size == "16oz":
-        gripper_position = 130
-    
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
-
+    run_skill("sync")
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
         return False
-    
     if not home(position="north"):
         return False
-    
     _set_cup_dispensed()
     return True
 
+
 def place_plastic_cup_station(**params) -> bool:
-    """
-    Place a plastic cup at specified staging area.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cup_position = _extract_cup_position(params)
     stage = str(cup_position)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict)
-    
-    if not cup_size:
+    if not cup_size or cup_size not in ('7oz', '9oz', '12oz', '16oz'):
         return False
-    
-    valid_sizes = ('7oz', '9oz', '12oz', '16oz')
-    if cup_size not in valid_sizes:
-        return False
-    
+
     _check_and_clear_cup_dispensed()
-    
     run_skill("set_speed_factor", SPEED_NORMAL)
-    run_skill("sync")
-    
+
     if not home(position="north_east"):
         return False
     if not home(position="east"):
         return False
-    
-    stage_result = False
+
     if stage == "1":
         stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_1'])
     elif stage == "2":
@@ -2553,56 +3026,53 @@ def place_plastic_cup_station(**params) -> bool:
     elif stage == "4":
         home(position="south_east")
         stage_result = run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['staging']['place_4'])
-    
+    else:
+        return False
+
     if not ok(stage_result):
         return False
-    
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
         return False
-    
+    run_skill("sync")
     run_skill("set_speed_factor", SPEED_FAST)
-    
-    if not ok(run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['place_return_up'])):
-        return False
+
+    cached_up = _place_plastic_cup_station_cache.get(stage)
+    if _is_valid_angles(cached_up):
+        if not ok(run_skill("gotoJ_deg", *cached_up)):
+            return False
+        run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['place_return_up'])):
+            return False
+        up_pose = _capture_current_angles()
+        if not _is_valid_angles(up_pose):
+            return False
+        _place_plastic_cup_station_cache[stage] = up_pose
+
     if not home(position="east"):
         return False
-    
     return True
 
+
 def pick_plastic_cup_station(**params) -> bool:
-    """
-    Pick up a plastic cup from a specific stage and add ice to it.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cup_position = _extract_cup_position(params)
     stage = str(cup_position)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict)
-    
-    if not cup_size:
+    if not cup_size or cup_size not in ('7oz', '9oz', '12oz', '16oz'):
         return False
-    
-    valid_sizes = ('7oz', '9oz', '12oz', '16oz')
-    if cup_size not in valid_sizes:
-        return False
-    
+
     stage_positions = {
         "1": PLASTIC_CUPS_PARAMS['staging']['pickup_1'],
         "2": PLASTIC_CUPS_PARAMS['staging']['pickup_2'],
         "3": PLASTIC_CUPS_PARAMS['staging']['pickup_3'],
         "4": PLASTIC_CUPS_PARAMS['staging']['pickup_4']
     }
-    
-    gripper_positions = {
-        "7oz": 145,
-        "9oz": 125, 
-        "12oz": 140,
-        "16oz": 118
-    }
-    
+    gripper_positions = {"7oz": 145, "9oz": 125, "12oz": 140, "16oz": 118}
+
     if not home(position="north_east"):
         return False
     if not home(position="east"):
@@ -2610,180 +3080,175 @@ def pick_plastic_cup_station(**params) -> bool:
     if stage in ("3", "4"):
         if not home(position="south_east"):
             return False
-    
+
     if not ok(run_skill("gotoJ_deg", *stage_positions[stage])):
         return False
-    
-    if not ok(run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['pickup_down'])):
-        return False
-    
+    run_skill("sync")
+
+    cache_key = (stage, cup_size)
+    cached_down = _pick_plastic_cup_station_cache.get(cache_key)
+    if _is_valid_angles(cached_down):
+        if not ok(run_skill("gotoJ_deg", *cached_down)):
+            return False
+        run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE", *PLASTIC_CUP_MOVEMENT_OFFSETS['pickup_down'])):
+            return False
+        down_pose = _capture_current_angles()
+        if not _is_valid_angles(down_pose):
+            return False
+        _pick_plastic_cup_station_cache[cache_key] = down_pose
+
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
-    
     run_skill("set_speed_factor", SPEED_NORMAL)
     run_skill("sync")
-    
-    if cup_position == 3 or cup_position == 4:
+
+    if cup_position in (3, 4):
         if not home(position="south_east"):
             return False
-    
     if not home(position="east"):
         return False
     if not home(position="north_east"):
         return False
-    
     return True
 
+
 def place_plastic_cup_sauces(**params) -> bool:
-    """
-    Place the plastic cup at the sauces station.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
-    
-    if not cup_size:
+    if not cup_size or cup_size not in ("7oz", "9oz", "12oz", "16oz"):
         return False
-    
-    valid_sizes = ("7oz", "9oz", "12oz", "16oz")
-    if cup_size not in valid_sizes:
-        return False
-    
+
     after_dispense = _check_and_clear_cup_dispensed()
-    
     if not after_dispense:
         run_skill("set_speed_factor", SPEED_NORMAL)
-        run_skill("sync")
-    
+
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2'])):
         return False
-    run_skill("moveEE",-5,0,0,0,0,0)
-    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
-        return False
-    cup_detected = detect_cup_gripper()
-    if not cup_detected:
-        return False
-    return True
-
-def pick_plastic_cup_sauces(**params) -> bool:
-    """
-    Pick the plastic cup from the sauces station.
-    """
-    def ok(r):
-        return r not in (False, None)
-    
-    cups_dict = _extract_cups_dict(params)
-    cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
-    
-    if not cup_size:
-        return False
-    
-    valid_sizes = ("7oz", "9oz", "12oz", "16oz")
-    if cup_size not in valid_sizes:
-        return False
-    
-    _check_and_clear_cup_dispensed()
-    
-    gripper_positions = {
-        "7oz": 140,
-        "9oz": 140,
-        "12oz": 140,
-        "16oz": 130,
-    }
-    
-    run_skill("set_speed_factor", SPEED_NORMAL)
     run_skill("sync")
 
+    global _place_plastic_cup_sauces_cache
+    if _is_valid_angles(_place_plastic_cup_sauces_cache):
+        if not ok(run_skill("gotoJ_deg", *_place_plastic_cup_sauces_cache)):
+            return False
+        # run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE", -5, 0, 0, 0, 0, 0)):
+            return False
+        nudge_pose = _capture_current_angles()
+        if not _is_valid_angles(nudge_pose):
+            return False
+        _place_plastic_cup_sauces_cache = nudge_pose
+
+    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
+        return False
+    # run_skill("sync")
     cup_detected = detect_cup_gripper()
     if not cup_detected:
         return False
-    if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
-        return False
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
-        return False
-    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
-        return False
-    
     return True
 
-def place_plastic_cup_milk(**params) -> bool:
-    """
-    Place the plastic cup at the milk station.
-    """
+
+def pick_plastic_cup_sauces(**params) -> bool:
     def ok(r):
         return r not in (False, None)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
-    
-    if not cup_size:
+    if not cup_size or cup_size not in ("7oz", "9oz", "12oz", "16oz"):
         return False
-    
-    valid_sizes = ("7oz", "9oz", "12oz", "16oz")
-    if cup_size not in valid_sizes:
+
+    _check_and_clear_cup_dispensed()
+    gripper_positions = {"7oz": 140, "9oz": 140, "12oz": 140, "16oz": 130}
+    run_skill("set_speed_factor", SPEED_NORMAL)
+    if not detect_cup_gripper():
         return False
-    
+
+    cached_lift = _pick_plastic_cup_sauces_cache.get(cup_size)
+    if _is_valid_angles(cached_lift):
+        if not ok(run_skill("gotoJ_deg", *cached_lift)):
+            return False
+        # run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE", 0, 0, 5, 0, 0, 0)):
+            return False
+        lift_pose = _capture_current_angles()
+        if not _is_valid_angles(lift_pose):
+            return False
+        _pick_plastic_cup_sauces_cache[cup_size] = lift_pose
+
+    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
+        return False
+    run_skill("sync")
+    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
+        return False
+    return True
+
+
+def place_plastic_cup_milk(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+    cups_dict = _extract_cups_dict(params)
+    cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
+    if not cup_size or cup_size not in ("7oz", "9oz", "12oz", "16oz"):
+        return False
+
     after_dispense = _check_and_clear_cup_dispensed()
-    
     if not after_dispense:
         run_skill("set_speed_factor", SPEED_NORMAL)
-        run_skill("sync")
-    
+
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1'])):
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position2'])):
         return False
+    run_skill("sync")
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
         return False
-    cup_detected = detect_cup_gripper()
-    if not cup_detected:
+    # run_skill("sync")
+    if not detect_cup_gripper():
         return False
     return True
 
+
 def pick_plastic_cup_milk(**params) -> bool:
-    """
-    Pick the plastic cup from the milk station.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None
-    
-    if not cup_size:
+    if not cup_size or cup_size not in ("7oz", "9oz", "12oz", "16oz"):
         return False
-    
-    valid_sizes = ("7oz", "9oz", "12oz", "16oz")
-    if cup_size not in valid_sizes:
-        return False
-    
+
     _check_and_clear_cup_dispensed()
-    
-    gripper_positions = {
-        "7oz": 140,
-        "9oz": 140,
-        "12oz": 140,
-        "16oz": 130,
-    }
-    
+    gripper_positions = {"7oz": 140, "9oz": 140, "12oz": 140, "16oz": 130}
     run_skill("set_speed_factor", SPEED_NORMAL)
-    run_skill("sync")
-    cup_detected = detect_cup_gripper()
-    if not cup_detected:
+    if not detect_cup_gripper():
         return False
-    if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
-        return False
+
+    cached_lift = _pick_plastic_cup_milk_cache.get(cup_size)
+    if _is_valid_angles(cached_lift):
+        if not ok(run_skill("gotoJ_deg", *cached_lift)):
+            return False
+        # run_skill("sync")
+    else:
+        if not ok(run_skill("moveEE", 0, 0, 5, 0, 0, 0)):
+            return False
+        lift_pose = _capture_current_angles()
+        if not _is_valid_angles(lift_pose):
+            return False
+        _pick_plastic_cup_milk_cache[cup_size] = lift_pose
+
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
+    run_skill("sync")
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1'])):
         return False
-    
     return True
-   
+ 
 """
 slush.py
 
@@ -2794,164 +3259,95 @@ for frozen beverage preparation.
 """
 
 def _normalize_slush_cup_size(cups_dict: Any) -> str:
-    """
-    Universal cup size normalizer for slush operations.
-    Accepts BOTH H-codes AND C-codes regardless of prefix.
-    Extracts the numeric size and returns standardized format.
-    
-    Args:
-        cups_dict: Dictionary containing cup information
-        
-    Returns:
-        str: Normalized cup size (e.g., '7oz', '9oz', '12oz', '16oz')
-        
-    Examples:
-        cup_H9 → '9oz'
-        cup_C9 → '9oz'
-        cup_h12 → '12oz'
-        cup_c16 → '16oz'
-    """
     if not cups_dict:
         return DEFAULT_PLASTIC_CUP_SIZE
-    
-    # Extract the cup code (case-insensitive)
     if isinstance(cups_dict, dict):
         cup_key = next(iter(cups_dict.keys()), None)
         if cup_key:
-            # Convert to uppercase for parsing
             cup_key_str = str(cup_key).upper()
             if 'CUP_' in cup_key_str:
                 cup_code = cup_key_str.split('CUP_', 1)[1]
             else:
                 cup_code = cup_key_str
-            
-            # Extract numeric size from code (works with both H and C prefixes)
-            # H7, H9, H12, C7, C9, C12, C16 → extract the number
             if cup_code and len(cup_code) >= 2:
-                # Remove H or C prefix if present
                 if cup_code[0] in ('H', 'C'):
                     size_num = cup_code[1:]
                 else:
                     size_num = cup_code
-                
-                # Validate and return standardized size
                 if size_num in ('7', '9', '12', '16'):
                     return f"{size_num}oz"
-    
-    # If parsing failed, try the standard normalizers
-    # Try plastic first
     result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')
     if result and result != '':
         return result
-    
-    # Try paper
     result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')
     if result and result != '':
         return result
-    
-    # Final fallback
     return DEFAULT_PLASTIC_CUP_SIZE
 
+
 def get_slush(**params) -> bool:
-    """
-    Get slush from specified dispenser and prepare for serving.
-    """
     def ok(r):
         return r not in (False, None)
-    
-    cup_position = _extract_cup_position(params)
-    stage = str(cup_position)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_slush_cup_size(cups_dict)
-    
     dispenser = params.get("dispenser")
-    
     if not dispenser:
         premixes = params.get("premixes", {})
         if premixes:
             premix_name = list(premixes.keys())[0] if premixes else ""
-            if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
-                dispenser = "2"
-            else:
-                dispenser = "1"
+            dispenser = "2" if ("chocolate" in premix_name.lower() or "choco" in premix_name.lower()) else "1"
         else:
             dispenser = "1"
-    
-    valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")
-    valid_dispensers = ("1", "2")
-    
-    if cup_size not in valid_cup_sizes or dispenser not in valid_dispensers:
+    if cup_size not in ("7oz", "9oz", "12oz", "16oz") or dispenser not in ("1", "2"):
         return False
-    
     cup_code = f"cup_C{cup_size.replace('oz', '')}"
     if not dispense_plastic_cup(cups={cup_code: 1.0}):
         return False
-    
     if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['intermediate'])):
         return False
-    
     if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
         return False
-    
     if dispenser == "2":
         dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['dispense'])
+        run_skill("sync")
         if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
             return False
+        run_skill("sync")
     else:
         if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['intermediate'])):
             return False
         dispenser_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_1']['dispense'])
+        run_skill("sync")
         if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE)):
             return False
-    
+        run_skill("sync")
     if not ok(dispenser_result):
         return False
-    
     return True
 
+
 def place_slush(**params) -> bool:
-    """
-    Place slush-filled cup at specified staging area after dispensing.
-    """
     def ok(r):
         return r not in (False, None)
-    
     cup_position = _extract_cup_position(params)
     stage = str(cup_position)
-    
     cups_dict = _extract_cups_dict(params)
     cup_size = _normalize_slush_cup_size(cups_dict)
-    
     dispenser = params.get("dispenser")
-    
     if not dispenser:
         premixes = params.get("premixes", {})
         if premixes:
             premix_name = list(premixes.keys())[0] if premixes else ""
-            if "chocolate" in premix_name.lower() or "choco" in premix_name.lower():
-                dispenser = "2"
-            else:
-                dispenser = "1"
+            dispenser = "2" if ("chocolate" in premix_name.lower() or "choco" in premix_name.lower()) else "1"
         else:
             dispenser = "1"
-    
-    valid_cup_sizes = ("7oz", "9oz", "12oz", "16oz")
-    valid_dispensers = ("1", "2")
-    
-    if cup_size not in valid_cup_sizes or dispenser not in valid_dispensers:
+    if cup_size not in ("7oz", "9oz", "12oz", "16oz") or dispenser not in ("1", "2"):
         return False
-    
     run_skill("set_speed_factor", SPEED_NORMAL)
-    gripper_positions = {
-        "7oz": 140,
-        "9oz": 140,
-        "12oz": 140,
-        "16oz": 130,
-    }
+    gripper_positions = {"7oz": 140, "9oz": 140, "12oz": 140, "16oz": 130}
     if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE_GENTLE, gripper_positions[cup_size])):
         return False
-    
+    run_skill("sync")
     if dispenser == "2":
         retreat_result = run_skill("gotoJ_deg", *SLUSH_PARAMS['dispenser_2']['retreat'])
     else:
@@ -2960,18 +3356,14 @@ def place_slush(**params) -> bool:
             return False
         if not ok(run_skill("gotoJ_deg", *SLUSH_PARAMS['navigation']['slush_area'])):
             return False
-    
     if not ok(retreat_result):
         return False
-    
     if not home(position="north"):
         return False
-    
     cup_code = f"cup_C{cup_size.replace('oz', '')}"
     if not place_plastic_cup_station(position={'cup_position': int(stage)}, cups={cup_code: 1.0}):
         return False
-    
-    return True 
+    return True
 
 '''
 RECIPES
@@ -3476,16 +3868,37 @@ def espresso_training(**params):
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def milk_training(**params):
-    home(position="north_east")
+    # home(position="north_east")
+    # for i in range(5):
+    #     time.sleep(1.0)
+    #     run_skill("move_to", "left_steam_wand", 0.26)
+    # run_skill("get_machine_position", "left_steam_wand")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    # input()
+    # run_skill("gotoJ_deg", -45.731773,-48.647770,-90.804688,-52.454651,-90.259727,10.531549)
+    # run_skill("gotoJ_deg",-47.825047,-86.633034,-28.265034,-67.004753,-96.852402,10.037631)#run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
+    # input()
+    # run_skill("gotoJ_deg", -47.823650,-85.286758,-16.991077,-70.719292,-92.739357,16.378487)#run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
+    ##############################
+    run_skill("gotoJ_deg",27.975568,-34.583337,-124.996051,-68.785292,-70.522135,20.578546)
     for i in range(5):
         time.sleep(1.0)
-        run_skill("move_to", "left_steam_wand", 0.26)
-    run_skill("get_machine_position", "left_steam_wand")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+        run_skill("move_to", "milk_frother_2", 0.26)
+    run_skill("get_machine_position", "milk_frother_2")
     input()
-    run_skill("gotoJ_deg", -45.731773,-48.647770,-90.804688,-52.454651,-90.259727,10.531549)
-    run_skill("gotoJ_deg",-47.825047,-86.633034,-28.265034,-67.004753,-96.852402,10.037631)#run_skill("approach_machine", "left_steam_wand", "deep_froth", True)
+    run_skill("gotoJ_deg",27.975568,-34.583337,-124.996051,-68.785292,-70.522135,20.578546)
+    run_skill("sync")
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "milk_frother_1", 0.26)
+    run_skill("sync")
+    run_skill("approach_tool", 'milk_frother_1')
     input()
-    run_skill("gotoJ_deg", -47.823650,-85.286758,-16.991077,-70.719292,-92.739357,16.378487)#run_skill("mount_machine", "left_steam_wand", "deep_froth", True)
+    run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['pickup_initial'])    
+    run_skill("sync")
+    run_skill("grab_tool", 'milk_frother_1', 100, 100,-5,-10.5)
+    input()
+    run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])
+    
 
 def test(**params):
     for i in range(1):
@@ -3495,13 +3908,13 @@ def test(**params):
         time.sleep(1.0)
         print(f"Cycle {i + 1}/500")
 
-def test_arm1(times=4, **params):
+def test_arm1(times=1, **params):
      for i in range(times):
         stage = (i % 4) + 1
         stage_params = PLACE_PAPER_CUP_PARAMS[f"stage_{stage}"]
         home(position="south_west")
-        run_skill("gotoJ_deg",197.715030, -10.101135, -45.875032, -124.798814,  17.743947,   0.733667)
-        run_skill("gotoJ_deg",181.717385,-14.366071,-40.523831,-133.004464,1.727064,7.890433)# run_skill("moveEE_movJ", 10, 100, 0, 0, 0, 0)
+        run_skill("gotoJ_deg",191.646150,74.117401,-112.223690,-142.814608,11.629319,0.888704)
+        run_skill("gotoJ_deg",191.667596,49.107588,-70.637578,-159.483294,11.665208,0.983008) #run_skill("moveEE_movJ", 10, 100, 0, 0, 0, 0)
         run_skill("sync")
         run_skill("set_gripper_position", 255, 165, 255)
         run_skill("moveEE_movJ", 0, 0, -200, 0, 0, 0)
@@ -3511,6 +3924,7 @@ def test_arm1(times=4, **params):
         run_skill("set_gripper_position", 255, 0, 255)
         run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS["place_up"])
         run_skill("gotoJ_deg", *stage_params["stage_home"])
+
     
     
 import time
