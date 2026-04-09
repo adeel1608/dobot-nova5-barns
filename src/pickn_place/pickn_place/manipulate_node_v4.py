@@ -3189,12 +3189,235 @@ class robot_motion(Node):
 
         log.info("move_portafilter_arc_movJ: completed all chunks ✓")
         return True
+    
+    def move_portafilter_arc_movJ_angled(
+        self,
+        angle_deg: float,
+        d_rel_z: float = 287.5,     # mm from Link-6 flange to TCP along tool local Z
+        tcp_rx_deg: float = -17.5,  # angled TCP rotation
+        tcp_ry_deg: float = 0.0,
+        tcp_rz_deg: float = 0.0,
+        velocity: int = 100,
+        acceleration: int = 100,
+    ) -> bool:
+        """
+        Rotate the ANGLED portafilter about its own local Y axis by `angle_deg`
+        while keeping its TCP pivot fixed.
+
+        This treats the angled tool as having TCP:
+            (0, 0, d_rel_z, tcp_rx_deg, tcp_ry_deg, tcp_rz_deg)
+
+        So compared to the normal function, the TCP orientation is built into:
+        - pivot computation
+        - rotation axis selection
+        - flange goal orientation solving
+
+        Returns True only if every MovJ succeeds.
+        """
+        import math, numpy as np, rclpy, tf_transformations
+        from scipy.spatial.transform import Rotation as Rot
+        from dobot_msgs_v3.srv import GetPose, MovJ
+
+        log = self.get_logger()
+
+        # ── 0) trivial no-op ────────────────────────────────────────────────
+        if abs(angle_deg) <= 0.1:
+            log.info("move_portafilter_arc_movJ_angled: |angle| <= 0.1 deg, nothing to do")
+            return True
+
+        # ── 1) chunk the requested angle ────────────────────────────────────
+        seg = 5.0
+        n_full = int(abs(angle_deg) // seg)
+        remainder = abs(angle_deg) % seg
+        chunks = [seg] * n_full
+        if remainder > 0.1:
+            chunks.append(remainder)
+        sign = 1 if angle_deg > 0 else -1
+        chunks = [c * sign for c in chunks]
+
+        # ── 2) single GetPose at the start ──────────────────────────────────
+        gp_future = self.get_pose_cli.call_async(GetPose.Request(user=0, tool=0))
+        rclpy.spin_until_future_complete(self, gp_future, timeout_sec=5.0)
+        if not gp_future.done() or gp_future.result() is None or not hasattr(gp_future.result(), "pose"):
+            log.error("move_portafilter_arc_movJ_angled: initial GetPose failed")
+            return False
+
+        try:
+            tx_mm, ty_mm, tz_mm, rx_deg, ry_deg, rz_deg = \
+                map(float, gp_future.result().pose.strip("{}").split(",")[:6])
+        except ValueError as exc:
+            log.error(f"move_portafilter_arc_movJ_angled: bad pose string - {exc}")
+            return False
+
+        # Current flange pose in world
+        p6 = np.array([tx_mm, ty_mm, tz_mm]) * 1e-3
+        R6 = tf_transformations.euler_matrix(
+            *np.radians([rx_deg, ry_deg, rz_deg])
+        )[:3, :3]
+
+        # TCP rotation relative to flange
+        R_tcp = tf_transformations.euler_matrix(
+            *np.radians([tcp_rx_deg, tcp_ry_deg, tcp_rz_deg])
+        )[:3, :3]
+
+        if not self.movj_cli.wait_for_service(timeout_sec=5.0):
+            log.error("move_portafilter_arc_movJ_angled: MovJ service unavailable")
+            return False
+
+        # ── 3) iterate over chunks ──────────────────────────────────────────
+        for idx, delta in enumerate(chunks, 1):
+            # Current TCP orientation in world
+            R_tool = R6 @ R_tcp
+
+            # TCP pivot point in world
+            pivot = p6 + R_tool @ (np.array([0.0, 0.0, d_rel_z]) * 1e-3)
+
+            # Vector from pivot back to flange origin
+            v0 = p6 - pivot
+
+            # Rotate around TOOL local Y axis (in world frame)
+            axis_w = R_tool[:, 1]
+            rot_w = Rot.from_rotvec(axis_w * math.radians(delta))
+
+            # New flange position after rotating around pivot
+            p6_goal = pivot + rot_w.apply(v0)
+
+            # New TOOL orientation after chunk rotation
+            R_tool_goal = rot_w.as_matrix() @ R_tool
+
+            # Solve required flange orientation:
+            # R6_goal @ R_tcp = R_tool_goal
+            # => R6_goal = R_tool_goal @ inv(R_tcp)
+            R6_goal = R_tool_goal @ R_tcp.T
+
+            # Convert goal flange orientation to Euler XYZ
+            M_goal = np.eye(4)
+            M_goal[:3, :3] = R6_goal
+            rx_g, ry_g, rz_g = np.degrees(
+                tf_transformations.euler_from_matrix(M_goal, 'sxyz')
+            )
+
+            # Queue MovJ
+            req = MovJ.Request()
+            req.x = float(p6_goal[0] * 1000.0)
+            req.y = float(p6_goal[1] * 1000.0)
+            req.z = float(p6_goal[2] * 1000.0)
+            req.rx = float(rx_g)
+            req.ry = float(ry_g)
+            req.rz = float(rz_g)
+            req.param_value = [f"SpeedJ={velocity},AccJ={acceleration}"]
+
+            log.info(
+                f"[arc angled] chunk {idx}/{len(chunks)} -> {delta:+.2f} deg | "
+                f"tcp=({0.0}, {0.0}, {d_rel_z}, {tcp_rx_deg}, {tcp_ry_deg}, {tcp_rz_deg})"
+            )
+
+            fut = self.movj_cli.call_async(req)
+            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
+
+            if not fut.done() or fut.result() is None:
+                log.error("move_portafilter_arc_movJ_angled: MovJ call timed out")
+                return False
+            if getattr(fut.result(), "res", 1) != 0:
+                log.error(f"move_portafilter_arc_movJ_angled: driver res={fut.result().res}")
+                return False
+
+            # Update cached flange pose for next chunk
+            p6, R6 = p6_goal, R6_goal
+
+        # ── 4) optional final sync ──────────────────────────────────────────
+        self.sync()
+
+        log.info("move_portafilter_arc_movJ_angled: completed all chunks")
+        return True
 
     def move_portafilter_arc_tool(
         self,
         arc_size_deg: float = 45.0,
         axis: str = "z",
         tcp_table: str = "{0,0,287.5,0,0,0}",
+    ) -> bool:
+        """
+        1) Configure TCP via SetTool (tool index 1, tcp_table)
+        2) Pivot the portafilter_link by arc_size_deg around the given axis
+           via RelMovL (relative linear move) using Tool=1
+        3) Reset TCP to default (tool 0, zero table)
+        Returns True on success, False otherwise.
+        """
+        from dobot_msgs_v3.srv import SetTool, RelMovL
+        import rclpy
+        import time
+
+        time.sleep(0.2) #stability settling
+    
+        log = self.get_logger()
+        retry_pause = 0.25
+        max_attempts = 20
+
+        # ── 1) SetTool to configure the TCP for tool 1 ─────────────────────────
+        set_req = SetTool.Request()
+        set_req.index = 1
+        set_req.table = tcp_table
+
+        if not self.set_tool_cli.wait_for_service(timeout_sec=5.0):
+            log.error("move_portafilter_arc_tool: SetTool service unavailable")
+            return False
+        fut = self.set_tool_cli.call_async(set_req)
+        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
+        if not fut.done() or fut.result() is None or fut.result().res != 0:
+            log.error(f"move_portafilter_arc_tool: SetTool failed (res={getattr(fut.result(), 'res', None)})")
+            return False
+
+        # ── 2) Build the RelMovL request for the arc around the specified axis ─
+        off1 = off2 = off3 = off4 = off5 = off6 = 0.0
+        axis = axis.lower()
+        if axis == "x":
+            off4 = arc_size_deg
+        elif axis == "y":
+            off5 = arc_size_deg
+        elif axis == "z":
+            off6 = arc_size_deg
+        else:
+            log.error(f"move_portafilter_arc_tool: invalid axis '{axis}'")
+            return False
+
+        rel_req = RelMovL.Request()
+        rel_req.offset1 = off1
+        rel_req.offset2 = off2
+        rel_req.offset3 = off3
+        rel_req.offset4 = off4
+        rel_req.offset5 = off5
+        rel_req.offset6 = off6
+        rel_req.param_value = ["Tool=1"]
+
+        for attempt in range(1, max_attempts + 1):
+            if not self.relmov_l_cli.wait_for_service(timeout_sec=5.0):
+                log.warn(f"move_portafilter_arc_tool: RelMovL unavailable, retry {attempt}/{max_attempts}")
+                time.sleep(retry_pause)
+                continue
+
+            fut2 = self.relmov_l_cli.call_async(rel_req)
+            rclpy.spin_until_future_complete(self, fut2, timeout_sec=5.0)
+            if fut2.done() and fut2.result() is not None and fut2.result().res == 0:
+                log.info("move_portafilter_arc_tool: RelMovL succeeded ✓")
+                break
+
+            log.warn(f"move_portafilter_arc_tool: RelMovL attempt {attempt} failed (res={getattr(fut2.result(), 'res', None)})")
+            time.sleep(retry_pause)
+        else:
+            log.error("move_portafilter_arc_tool: RelMovL failed after retries")
+            return False
+        
+        self.use_tool(index=0)
+
+        log.info("move_portafilter_arc_tool: completed successfully")
+        return True
+
+    def move_portafilter_arc_tool_angled(
+        self,
+        arc_size_deg: float = 30.0,
+        axis: str = "z",
+        tcp_table: str = "{0,0,287.5,-17.5,0,0}",
     ) -> bool:
         """
         1) Configure TCP via SetTool (tool index 1, tcp_table)

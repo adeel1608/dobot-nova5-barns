@@ -23,6 +23,10 @@ aruco_id:
     name: espresso_pitcher_3
   - id: 18
     name: left_steam_wand
+  - id: 19
+    name: single_portafilter_angled
+  - id: 20
+    name: double_portafilter_angled
   - id: 23
     name: portafilter_cleaner
   - id: 31

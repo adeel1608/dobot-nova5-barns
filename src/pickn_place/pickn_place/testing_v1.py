@@ -5,7 +5,7 @@ import signal
 import atexit
 import sys
 import threading
-from typing import Dict, Any, Optional, Union, Tuple
+from typing import Dict, Any, Optional, Union, Tuple, List
 import logging
 import subprocess
 _log = logging.getLogger(__name__)
@@ -330,6 +330,7 @@ def get_machine_position(**params) -> bool:
 
     invalidate_port_cache()
     invalidate_cleaning_cache()
+    angled_invalidate_port_cache()
     run_skill("set_speed_factor", SPEED_FAST)
 
     if not return_back_to_home():
@@ -1488,6 +1489,13 @@ mount_espresso_pose: Optional[Tuple[float, ...]] = None  # Cartesian pose at mou
 approach_pitcher: Optional[Tuple[float, ...]] = None
 pick_pitcher: Optional[Tuple[float, ...]] = None
 
+_port_angle_cache: Dict[str, Any] = {}
+_pitcher_clean_cache: Dict[str, Any] = {}
+_pitcher_pick_cache: Dict[str, Any] = {}
+_pitcher_return_cache: Dict[str, Any] = {}
+_tool_pick_pose_cache: Dict[str, Any] = {}
+_mount_runtime_cache: Dict[str, Any] = {}
+
 
 def invalidate_port_cache():
     _port_angle_cache.clear()
@@ -2322,6 +2330,868 @@ def double_return_cleaned_espresso_pitcher(**params) -> bool:
     return return_cleaned_espresso_pitcher(**params)
 
 """
+angled_espresso.py
+
+Parallel definitions prefixed with angled_; same behavior as the espresso section above until customized.
+"""
+
+# Global variables to store captured positions during angled_unmount sequence
+angled_below_espresso_port: Optional[Tuple[float, ...]] = None
+angled_mount_espresso_port: Optional[Tuple[float, ...]] = None
+angled_mount_espresso_pose: Optional[Tuple[float, ...]] = None  # Cartesian pose at angled_mount position
+angled_approach_pitcher: Optional[Tuple[float, ...]] = None
+angled_pick_pitcher: Optional[Tuple[float, ...]] = None
+
+angled__port_angle_cache: Dict[str, Any] = {}
+angled__pitcher_clean_cache: Dict[str, Any] = {}
+angled__pitcher_pick_cache: Dict[str, Any] = {}
+angled__pitcher_return_cache: Dict[str, Any] = {}
+angled__tool_pick_pose_cache: Dict[str, Any] = {}
+angled__mount_runtime_cache: Dict[str, Any] = {}
+
+
+def angled_invalidate_port_cache():
+    angled__port_angle_cache.clear()
+    angled__pitcher_clean_cache.clear()
+    angled__pitcher_pick_cache.clear()
+    angled__pitcher_return_cache.clear()
+    angled__tool_pick_pose_cache.clear()
+    angled__mount_runtime_cache.clear()
+
+def angled__is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
+def angled__normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    try:
+        if not espresso_dict or not isinstance(espresso_dict, dict):
+            return None
+
+        espresso_key = next(iter(espresso_dict.keys()), None)
+        if not espresso_key:
+            return None
+
+        espresso_key_lower = str(espresso_key).lower()
+
+        if 'single' in espresso_key_lower:
+            return {
+                "port": "angled_portafilter_1",
+                "positioning_time": 1.2,
+                "portafilter_tool": "single_portafilter_angled",
+            }
+        elif 'double' in espresso_key_lower:
+            return {
+                "port": "angled_portafilter_1",
+                "positioning_time": 2.4,
+                "portafilter_tool": "single_portafilter_angled",
+            }
+        else:
+            value = espresso_dict.get(espresso_key)
+            if value is not None:
+                shots = float(value)
+                if shots <= 1.0:
+                    return {
+                        "port": "angled_portafilter_1",
+                        "positioning_time": 1.2,
+                        "portafilter_tool": "single_portafilter_angled",
+                    }
+                else:
+                    return {
+                        "port": "angled_portafilter_1",
+                        "positioning_time": 2.4,
+                        "portafilter_tool": "single_portafilter_angled",
+                    }
+    except Exception as e:
+        print(f"[WARNING] Error parsing espresso parameters: {e}")
+        return None
+
+    return None
+
+def angled_unmount(**params) -> bool:
+    global angled_below_espresso_port, angled_mount_espresso_port
+
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+
+    if not port:
+        return False
+
+    port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+    if not port_params:
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *port_params['home'])):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
+        return False
+
+    if port in ('port_1', 'port_3', 'angled_portafilter_1'):
+        if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
+            return False
+
+    if not ok(run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+        return False
+
+    if not ok(run_skill("release_tension")):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("move_portafilter_arc_tool_angled", -28.0)):
+        return False
+    
+    run_skill("sync")
+
+    if not ok(run_skill("release_tension")):
+        return False
+
+    cached = angled__port_angle_cache.get(port)
+    if cached:
+        mount_pose = cached['angled_mount']
+        below_pose = cached['below']
+        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
+            return False
+    else:
+        run_skill("sync")
+        mount_pose = run_skill("current_angles")
+        if not angled__is_valid_angles(mount_pose):
+            return False
+        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
+            return False
+        below_pose = run_skill("current_angles")
+        if not angled__is_valid_angles(below_pose):
+            return False
+        mount_pose = tuple(mount_pose)
+        below_pose = tuple(below_pose)
+        angled__port_angle_cache[port] = {'angled_mount': mount_pose, 'below': below_pose}
+
+    # Keep both per-port runtime state and backward-compatible globals.
+    angled__mount_runtime_cache[port] = {'angled_mount': tuple(mount_pose), 'below': tuple(below_pose)}
+    angled_mount_espresso_port = tuple(mount_pose)
+    angled_below_espresso_port = tuple(below_pose)
+
+    if not ok(run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
+        return False
+
+    if port in ('port_2', 'port_3'):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav2'])):
+            return False
+
+    return True
+
+def angled_grinder(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+    positioning_time = params.get("positioning_time")
+    if positioning_time is None:
+        positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 2.4)
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
+
+    if not port or portafilter_tool not in ('single_portafilter_angled', 'double_portafilter_angled'):
+        return False
+
+    if port in ('port_1', 'angled_portafilter_1'):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+            return False
+
+    if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
+        return False
+
+    run_skill("moveEE", 0, 0, 20, 0, 0, 0)
+
+    if not ok(run_skill("approach_machine", "espresso_grinder", "tamper")):
+        return False
+    run_skill("sync")
+    time.sleep(positioning_time)
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "tamper")):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255,0,255)):
+        return False
+
+    cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
+    if angled__is_valid_angles(cached_tool_pick_pose):
+        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+            return False
+    else:
+        if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
+            return False
+        tool_pick_pose = run_skill("current_angles")
+        if not angled__is_valid_angles(tool_pick_pose):
+            return False
+        angled__tool_pick_pose_cache[portafilter_tool] = tuple(tool_pick_pose)
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
+    return True
+
+def angled_tamper(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
+
+    if portafilter_tool not in ('single_portafilter_angled', 'double_portafilter_angled'):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
+    cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
+    if angled__is_valid_angles(cached_tool_pick_pose):
+        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+            return False
+    else:
+        if not ok(run_skill("move_to", portafilter_tool, 0.22)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("approach_tool", portafilter_tool)):
+            return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("grab_tool", portafilter_tool)):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255,255,255)):
+        return False
+
+    if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
+        return False
+
+    if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
+    return True
+
+def angled_single_tamper(**params) -> bool:
+    params["portafilter_tool"] = "single_portafilter_angled"
+    return angled_tamper(**params)
+
+def angled_double_tamper(**params) -> bool:
+    # Angled flow currently supports single only; keep this alias for compatibility.
+    params["portafilter_tool"] = "single_portafilter_angled"
+    return angled_tamper(**params)
+
+def angled_mount(**params) -> bool:
+    global angled_below_espresso_port, angled_mount_espresso_port
+
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+
+    if not port:
+        return False
+
+    port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+    if not port_params:
+        return False
+
+    if port in ('port_2', 'port_3'):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])):
+            return False
+
+    if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)):
+        return False
+
+    runtime_cached = angled__mount_runtime_cache.get(port)
+    if runtime_cached:
+        below_pose = runtime_cached.get('below')
+        mount_pose = runtime_cached.get('angled_mount')
+    else:
+        below_pose = angled_below_espresso_port
+        mount_pose = angled_mount_espresso_port
+
+    if not angled__is_valid_angles(below_pose):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *below_pose)):
+        return False
+
+    if not angled__is_valid_angles(mount_pose):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *mount_pose)):
+        return False
+
+    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up'])):
+        return False
+
+    if not ok(run_skill("move_portafilter_arc_tool_angled", 31.0)):
+        return False
+
+    run_skill("sync")
+
+    if not ok(run_skill("set_gripper_position", 255,0,255)):
+        return False
+
+    run_skill("sync")
+
+    if port in ('port_1', 'port_3', 'angled_portafilter_1'):
+        if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
+            return False
+    
+    if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *port_params['home'])):
+        return False
+
+    return True
+
+def angled_grab_espresso_pitcher(**params) -> bool:
+    """
+    Grab the espresso pitcher and stop right after closing the gripper.
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+        return False
+
+    cached = angled__pitcher_pick_cache.get(port)
+
+    if port == 'port_1':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if angled__is_valid_angles(approach_angles):
+                angled__pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    elif port == 'port_2':
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    elif port == 'port_3':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if angled__is_valid_angles(approach_angles):
+                angled__pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 115, 255)):
+            return False
+
+    else:
+        return False
+
+    return True
+
+def angled_pick_espresso_pitcher(**params) -> bool:
+    """
+    Complete pitcher pickup after angled_grab_espresso_pitcher().
+    """
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        return False
+
+    cached = angled__pitcher_pick_cache.get(port)
+
+    run_skill("sync")
+    run_skill("set_speed_factor", ESPRESSO_SPEEDS['pitcher_handling'])
+
+    if port == 'port_1':
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if angled__is_valid_angles(retreat_angles):
+                angled__pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
+    elif port == 'port_2':
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if angled__is_valid_angles(retreat_angles):
+                angled__pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
+    elif port == 'port_3':
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if angled__is_valid_angles(retreat_angles):
+                angled__pitcher_pick_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
+    if port in ('port_1', 'port_2'):
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])):
+            return False
+
+    return True
+
+def angled_pour_espresso_pitcher_cup_station(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    cup_position = _extract_cup_position(params)
+    stage = f"stage_{cup_position}"
+
+    run_skill("gotoJ_deg", 103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716)
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])):
+        return False
+
+    if stage == 'stage_1':
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos1'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", SPEED_SLOW_POURING)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour1.3'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", 100)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral1'])):
+            return False
+    elif stage == 'stage_2':
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos2'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", SPEED_SLOW_POURING)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour2.3'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", 100)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral2'])):
+            return False
+    elif stage == 'stage_3':
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos3'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", SPEED_SLOW_POURING)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour3.3'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", 100)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral3'])):
+            return False
+    else:
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pos4'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", SPEED_SLOW_POURING)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.1'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.2'])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['pour4.3'])):
+            return False
+        run_skill("sync")
+        run_skill("set_speed_factor", 100)
+        if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['neutral4'])):
+            return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['inter'])):
+        return False
+
+    run_skill("gotoJ_deg", 103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716)
+    # run_skill("sync")
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])):
+        return False
+
+    return True
+
+def angled_get_hot_water(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "hot_water")):
+        return False
+
+    if not ok(run_skill("mount_machine", "three_group_espresso", "hot_water")):
+        return False
+
+    run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_move'])
+    return True
+
+def angled_with_hot_water(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    run_skill("set_speed_factor", ESPRESSO_SPEEDS['hot_water_pour'])
+
+    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['hot_water_retreat'])):
+        return False
+
+    return True
+
+def angled_return_espresso_pitcher(**params) -> bool:
+    global angled_approach_pitcher, angled_pick_pitcher
+
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        return False
+
+    cached = angled__pitcher_return_cache.get(port)
+
+    if port == 'port_1':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if angled__is_valid_angles(approach_angles):
+                angled__pitcher_return_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if angled__is_valid_angles(retreat_angles):
+                angled__pitcher_return_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+    elif port == 'port_2':
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
+    elif port == 'port_3':
+        if cached and cached.get('approach'):
+            if not ok(run_skill("gotoJ_deg", *cached['approach'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            approach_angles = run_skill("current_angles")
+            if angled__is_valid_angles(approach_angles):
+                angled__pitcher_return_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
+        if cached and cached.get('retreat'):
+            if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
+                return False
+        else:
+            if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+                return False
+            run_skill("sync")
+            retreat_angles = run_skill("current_angles")
+            if angled__is_valid_angles(retreat_angles):
+                angled__pitcher_return_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+
+    return True
+
+def angled_return_cleaned_espresso_pitcher(**params) -> bool:
+    def ok(r):
+        return r not in (False, None)
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "port_2")
+
+    if not port or port not in ('port_1', 'port_2', 'port_3'):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+        return False
+
+    cached = angled__pitcher_clean_cache.get(port)
+
+    if port == 'port_1':
+        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
+            return False
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, -250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(angled__is_valid_angles(w) for w in waypoints):
+                angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
+            return False
+    elif port == 'port_2':
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
+            return False
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -10, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(angled__is_valid_angles(w) for w in waypoints):
+                angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+    elif port == 'port_3':
+        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+        if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,115,255)):
+            return False
+        run_skill("sync")
+        if cached:
+            for angles in cached:
+                if not ok(run_skill("gotoJ_deg", *angles)):
+                    return False
+        else:
+            waypoints = []
+            run_skill("moveEE_movJ", 0, 0, 20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, -250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, -135)
+            run_skill("sync")
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveJ_deg", 0, 0, 0, 0, 0, 135)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 250, 0, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            run_skill("moveEE_movJ", 0, 0, -20, 0, 0, 0)
+            waypoints.append(run_skill("current_angles"))
+            if all(angled__is_valid_angles(w) for w in waypoints):
+                angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 25,0,255)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
+            return False
+
+    if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
+        return False
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
+        return False
+
+    return True
+
+def angled_unmount_single(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_unmount(**params)
+
+def angled_unmount_double(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_unmount(**params)
+
+def angled_mount_single(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_mount(**params)
+
+def angled_mount_double(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_mount(**params)
+
+def angled_single_grab_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_grab_espresso_pitcher(**params)
+
+def angled_double_grab_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_grab_espresso_pitcher(**params)
+
+def angled_single_pick_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_pick_espresso_pitcher(**params)
+
+def angled_double_pick_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_pick_espresso_pitcher(**params)
+
+def angled_single_pour_espresso_pitcher_cup_station(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_pour_espresso_pitcher_cup_station(**params)
+
+def angled_double_pour_espresso_pitcher_cup_station(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_pour_espresso_pitcher_cup_station(**params)
+
+def angled_single_return_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_return_espresso_pitcher(**params)
+
+def angled_double_return_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_return_espresso_pitcher(**params)
+
+def angled_single_return_cleaned_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_3"
+    return angled_return_cleaned_espresso_pitcher(**params)
+
+def angled_double_return_cleaned_espresso_pitcher(**params) -> bool:
+    params["port"] = "port_1"
+    return angled_return_cleaned_espresso_pitcher(**params)
+
+"""
 cleaning.py
 
 Defines the cleaning routine for machine ports using parameterized configurations.
@@ -2329,6 +3199,9 @@ This module provides comprehensive portafilter cleaning functionality for the BA
 coffee automation system, including hard brush and soft brush cleaning sequences
 with precise positioning and error handling.
 """
+
+_hard_brush_clean_cache: Dict[str, Any] = {}
+_soft_brush_clean_cache: Dict[str, Any] = {}
 
 
 def invalidate_cleaning_cache():
@@ -2338,7 +3211,7 @@ def invalidate_cleaning_cache():
 def _is_valid_angles(angles: Any) -> bool:
     return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
 
-def _capture_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
+def _cleaning_capture_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
     angles = run_skill("current_angles")
     if not _is_valid_angles(angles):
         return False
@@ -2386,15 +3259,15 @@ def clean_portafilter(**params) -> bool:
         hard_capture: List[Tuple[float, ...]] = []
         if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _cleaning_capture_current_angles(hard_capture):
             return False
         if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _cleaning_capture_current_angles(hard_capture):
             return False
         if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _cleaning_capture_current_angles(hard_capture):
             return False
         _hard_brush_clean_cache[port] = hard_capture
 
@@ -2418,15 +3291,15 @@ def clean_portafilter(**params) -> bool:
         soft_capture: List[Tuple[float, ...]] = []
         if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _cleaning_capture_current_angles(soft_capture):
             return False
         if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _cleaning_capture_current_angles(soft_capture):
             return False
         if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _cleaning_capture_current_angles(soft_capture):
             return False
         _soft_brush_clean_cache[port] = soft_capture
 
@@ -2434,7 +3307,120 @@ def clean_portafilter(**params) -> bool:
         return False
 
     return True
- 
+
+"""
+angled_cleaning.py
+
+Parallel definitions prefixed with angled_; same behavior as cleaning above until customized.
+"""
+
+angled__hard_brush_clean_cache: Dict[str, Any] = {}
+angled__soft_brush_clean_cache: Dict[str, Any] = {}
+
+def angled_invalidate_cleaning_cache():
+    angled__hard_brush_clean_cache.clear()
+    angled__soft_brush_clean_cache.clear()
+
+def angled_cleaning_is_valid_angles(angles: Any) -> bool:
+    return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
+
+def angled_cleaning_capture_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
+    angles = run_skill("current_angles")
+    if not angled_cleaning_is_valid_angles(angles):
+        return False
+    cache_list.append(tuple(angles))
+    return True
+
+def angled_clean_portafilter(**params) -> bool:
+    """
+    Keep approach/mount live, cache only the post-mount motion sequence.
+    """
+    # from oms_v1.sequences.espresso import angled__normalize_espresso_shot
+
+    espresso_dict = params.get("espresso")
+    shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else DEFAULT_PORT)
+
+    def ok(r):
+        return r not in (False, None)
+
+    hard_cached = angled__hard_brush_clean_cache.get(port)
+    soft_cached = angled__soft_brush_clean_cache.get(port)
+
+    if not ok(run_skill("gotoJ_deg", -35.223076, -2.939468, -128.314575, -47.896400, -73.999352, 1.973845)):
+        return False
+
+    if not ok(run_skill("approach_machine", "portafilter_cleaner", "hard_brush")):
+        return False
+    if not ok(run_skill("gotoJ_deg", *CLEANING_PARAMS['hard_brush_adjust'])):
+        return False
+    if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
+        return False
+
+    if hard_cached:
+        if len(hard_cached) != 3:
+            return False
+        run_skill("sync")  
+        if not ok(run_skill("gotoJ_deg", *hard_cached[0])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *hard_cached[1])):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *hard_cached[2])):
+            return False
+    else:
+        hard_capture: List[Tuple[float, ...]] = []
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
+            return False
+        if not angled_cleaning_capture_current_angles(hard_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+            return False
+        if not angled_cleaning_capture_current_angles(hard_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
+            return False
+        if not angled_cleaning_capture_current_angles(hard_capture):
+            return False
+        angled__hard_brush_clean_cache[port] = hard_capture
+
+    if not ok(run_skill("approach_machine", "portafilter_cleaner", "soft_brush")):
+        return False
+    if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
+        return False
+
+    if soft_cached:
+        if len(soft_cached) != 3:
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *soft_cached[0])):
+            return False
+        if not ok(run_skill("gotoJ_deg", *soft_cached[1])):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("gotoJ_deg", *soft_cached[2])):
+            return False
+    else:
+        soft_capture: List[Tuple[float, ...]] = []
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
+            return False
+        if not angled_cleaning_capture_current_angles(soft_capture):
+            return False
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+            return False
+        if not angled_cleaning_capture_current_angles(soft_capture):
+            return False
+        if not ok(run_skill("moveEE", *CLEANING_PARAMS['retreat_soft'])):
+            return False
+        if not angled_cleaning_capture_current_angles(soft_capture):
+            return False
+        angled__soft_brush_clean_cache[port] = soft_capture
+
+    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+        return False
+
+    return True
+
 """
 milk_frothing.py
 
@@ -3462,6 +4448,85 @@ def espresso(**params):
         print(f"[ERROR] Espresso preparation failed with exception: {e}")
         return False
 
+def espresso_angled(**params):
+    """
+    Angled toolhead espresso: machine port key angled_portafilter_1, tool single_portafilter_angled,
+    then paper cup arm1 7oz at stage 1, standard pitcher on port_1, pour and return at stage 1.
+
+    Steps: angled_unmount, clean_portafilter, angled_grinder, return_cleaned_espresso_pitcher,
+    angled_tamper, angled_mount, dispense_paper_arm1_cup_station, grab/pick/pour/return pitcher.
+    """
+    angled_port = "angled_portafilter_1"
+    tool = "single_portafilter_angled"
+    pitcher_port = "port_1"
+    cup_stage = 1
+
+    print("Starting espresso_angled sequence...")
+
+    try:
+        print("[1/11] angled_unmount")
+        if not angled_unmount(port=angled_port):
+            print("[ERROR] angled_unmount failed")
+            return False
+
+        print("[2/11] clean_portafilter")
+        if not clean_portafilter(port=angled_port):
+            print("[ERROR] clean_portafilter failed")
+            return False
+
+        # print("[3/11] angled_grinder")
+        # if not angled_grinder(port=angled_port, portafilter_tool=tool):
+        #     print("[ERROR] angled_grinder failed")
+        #     return False
+
+        # print("[4/11] return_cleaned_espresso_pitcher")
+        # if not return_cleaned_espresso_pitcher(port=pitcher_port):
+        #     print("[ERROR] return_cleaned_espresso_pitcher failed")
+        #     return False
+
+        # print("[5/11] angled_tamper")
+        # if not angled_tamper(portafilter_tool=tool):
+        #     print("[ERROR] angled_tamper failed")
+        #     return False
+
+        print("[6/11] angled_mount")
+        if not angled_mount(port=angled_port):
+            print("[ERROR] angled_mount failed")
+            return False
+
+        # print("[7/11] dispense_paper_arm1_cup_station 7oz stage 1")
+        # if not dispense_paper_arm1_cup_station(size="7oz", position={'cup_position': cup_stage}):
+        #     print("[ERROR] dispense_paper_arm1_cup_station failed")
+        #     return False
+
+        # print("[8/11] grab_espresso_pitcher")
+        # if not grab_espresso_pitcher(port=pitcher_port):
+        #     print("[ERROR] grab_espresso_pitcher failed")
+        #     return False
+
+        # print("[9/11] pick_espresso_pitcher")
+        # if not pick_espresso_pitcher(port=pitcher_port):
+        #     print("[ERROR] pick_espresso_pitcher failed")
+        #     return False
+
+        # print("[10/11] pour_espresso_pitcher_cup_station stage 1")
+        # if not pour_espresso_pitcher_cup_station(position={'cup_position': cup_stage}):
+        #     print("[ERROR] pour_espresso_pitcher_cup_station failed")
+        #     return False
+
+        # print("[11/11] return_espresso_pitcher")
+        # if not return_espresso_pitcher(port=pitcher_port):
+        #     print("[ERROR] return_espresso_pitcher failed")
+        #     return False
+
+        print("espresso_angled completed successfully.")
+        return True
+
+    except Exception as e:
+        print(f"[ERROR] espresso_angled failed: {e}")
+        return False
+
+
 def americano(**params):
     """
     Complete americano preparation sequence using port_1.
@@ -3898,15 +4963,94 @@ def milk_training(**params):
     run_skill("grab_tool", 'milk_frother_1', 100, 100,-5,-10.5)
     input()
     run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])
-    
+
+def angled_espresso_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.22)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("sync")
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    input()
+    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    input()
+    run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
+    run_skill("sync")
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    input()
+    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    input()
+    run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
+    run_skill("sync")
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    input()
+    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    # for i in range(5):
+    #     time.sleep(1.0)
+    #     run_skill("move_to", "portafilter_cleaner", 0.26)
+    # run_skill("get_machine_position", "portafilter_cleaner")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    # input()
+    # run_skill("gotoJ_deg", -62.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    # run_skill("gotoJ_deg", 0.427441, 13.883821, -133.648376, -81.024788, -49.533218, 13.894379)
+    # run_skill("gotoJ_deg", -79.218399,-0.662163,-126.990761,-53.961704,-81.920143,-1.976189)# run_skill("approach_machine", "portafilter_cleaner", "hard_brush", True)
+    # input()
+    # run_skill("moveEE_movJ", -88, 0, 0, 0, 0, -135)
+    # run_skill("gotoJ_deg", -95.707840,-18.450220,-129.333282,-34.286320,-96.467575,-179.530777)#run_skill("mount_machine", "portafilter_cleaner", "hard_brush", True)
+    # input()
+    # run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)
+    # run_skill("gotoJ_deg", -79.218399,-0.662163,-126.990761,-53.961708,-81.920143,-179.457260)# run_skill("approach_machine", "portafilter_cleaner", "soft_brush", True)
+    # input()
+    # run_skill("gotoJ_deg", -79.220100,-15.084805,-135.632080,-30.894413,-81.913452,-179.481079)#run_skill("mount_machine", "portafilter_cleaner", "soft_brush", True)
+    # input()
+    # run_skill("moveEE_movJ", 0, 0, 150, 0, 0, 0)
+    # run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
+
 
 def test(**params):
-    for i in range(1):
-        run_skill("set_DO",2,1)
-        time.sleep(1.75)
-        run_skill("set_DO",2,0)
-        time.sleep(1.0)
-        print(f"Cycle {i + 1}/500")
+    run_skill("set_speed_factor", 100)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1")
+    run_skill("mount_machine", "three_group_espresso", "angled_portafilter_1")
+    run_skill("sync")
+    run_skill("set_gripper_position", 255, 255, 255)
+    run_skill("release_tension")
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", -30.0)
+    run_skill("sync")
+    run_skill("release_tension")
+    run_skill("moveEE_movJ", 0, 0, -35, 0, 0, 0)
+    run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)
+    run_skill("gotoJ_deg", -5.932289,-9.177162,-138.612458,-46.645501,-94.418543,0.008893)
+    clean_portafilter()
+    angled_grinder()
+    angled_tamper()
+    ####
+    # run_skill("moveEE_movJ", 0, 0, 45, 0, 0, 0)
+    # run_skill("move_portafilter_arc_tool_angled", 30.0)
+    # run_skill("sync")
+    # run_skill("set_gripper_position", 255,0,255)
+    # run_skill("sync")
+    # run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1")
+    # run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def test_arm1(times=1, **params):
      for i in range(times):
@@ -4566,7 +5710,42 @@ SEQUENCES = {
     "return_cup_hot_water_stage_2": lambda: return_cup_with_hot_water(position={'cup_position': 2}),
     "return_cup_hot_water_stage_3": lambda: return_cup_with_hot_water(position={'cup_position': 3}),
     "return_cup_hot_water_stage_4": lambda: return_cup_with_hot_water(position={'cup_position': 4}),
-    
+
+    # Angled espresso/cleaning (separate caches and globals; same motion as defaults until customized)
+    "angled_unmount_port_1": lambda: angled_unmount(port="port_1"),
+    "angled_unmount_port_2": lambda: angled_unmount(port="port_2"),
+    "angled_unmount_port_3": lambda: angled_unmount(port="port_3"),
+    "angled_mount_port_1": lambda: angled_mount(port="port_1"),
+    "angled_mount_port_2": lambda: angled_mount(port="port_2"),
+    "angled_mount_port_3": lambda: angled_mount(port="port_3"),
+    "angled_grinder": lambda: angled_grinder(),
+    "angled_tamper": lambda: angled_tamper(),
+    "angled_pick_espresso_pitcher_port_1": lambda: angled_pick_espresso_pitcher(port="port_1"),
+    "angled_pick_espresso_pitcher_port_2": lambda: angled_pick_espresso_pitcher(port="port_2"),
+    "angled_pick_espresso_pitcher_port_3": lambda: angled_pick_espresso_pitcher(port="port_3"),
+    "angled_pour_espresso_pitcher_stage_1": lambda: angled_pour_espresso_pitcher_cup_station(position={'cup_position': 1}),
+    "angled_pour_espresso_pitcher_stage_2": lambda: angled_pour_espresso_pitcher_cup_station(position={'cup_position': 2}),
+    "angled_pour_espresso_pitcher_stage_3": lambda: angled_pour_espresso_pitcher_cup_station(position={'cup_position': 3}),
+    "angled_pour_espresso_pitcher_stage_4": lambda: angled_pour_espresso_pitcher_cup_station(position={'cup_position': 4}),
+    "angled_return_espresso_pitcher_port_1": lambda: angled_return_espresso_pitcher(port="port_1"),
+    "angled_return_espresso_pitcher_port_2": lambda: angled_return_espresso_pitcher(port="port_2"),
+    "angled_return_espresso_pitcher_port_3": lambda: angled_return_espresso_pitcher(port="port_3"),
+    "angled_return_cleaned_espresso_pitcher_port_1": lambda: angled_return_cleaned_espresso_pitcher(port="port_1"),
+    "angled_return_cleaned_espresso_pitcher_port_2": lambda: angled_return_cleaned_espresso_pitcher(port="port_2"),
+    "angled_return_cleaned_espresso_pitcher_port_3": lambda: angled_return_cleaned_espresso_pitcher(port="port_3"),
+    "angled_unmount_p1": lambda: angled_unmount(port="port_1"),
+    "angled_unmount_p2": lambda: angled_unmount(port="port_2"),
+    "angled_unmount_p3": lambda: angled_unmount(port="port_3"),
+    "angled_mount_p1": lambda: angled_mount(port="port_1"),
+    "angled_mount_p2": lambda: angled_mount(port="port_2"),
+    "angled_mount_p3": lambda: angled_mount(port="port_3"),
+    "angled_get_hot_water": lambda: angled_get_hot_water(),
+    "angled_with_hot_water": lambda: angled_with_hot_water(),
+    "angled_clean_port_1": lambda: angled_clean_portafilter(port="port_1"),
+    "angled_clean_port_2": lambda: angled_clean_portafilter(port="port_2"),
+    "angled_clean_port_3": lambda: angled_clean_portafilter(port="port_3"),
+    "angled_clean": lambda: angled_clean_portafilter(port="port_2"),
+    "angled_espresso_training": lambda: angled_espresso_training(),
     # ═══════════════════════════════════════════════════════════════
     # 🥛 MILK FROTHING OPERATIONS
     # ═══════════════════════════════════════════════════════════════
@@ -4635,7 +5814,7 @@ SEQUENCES = {
     "milk_2": lambda: milk_2(),
     "milk_3": lambda: milk_3(),
     "milk_4": lambda: milk_4(),
-    
+    "espresso_angled": lambda: espresso_angled(),
     # ═══════════════════════════════════════════════════════════════
     # 📸 COMPUTER VISION & DETECTION
     # ═══════════════════════════════════════════════════════════════
