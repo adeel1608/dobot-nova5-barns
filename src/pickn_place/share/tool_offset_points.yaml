@@ -103,7 +103,7 @@ single_portafilter:
       x: 0.014633546393300506
       y: 0.054159132647511904
       z: -0.005992230726285897
-single_portafilter_angled:
+double_portafilter_angled:
   approach_pose:
     rotation:
       w: -0.5721913675627852

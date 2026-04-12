@@ -228,6 +228,30 @@ This module provides functions for robot positioning, machine calibration,
 and system diagnostics for the BARNS coffee automation system.
 """
 
+MAX_CALIBRATION_RETRIES = 5
+
+
+def _calibrate_marker(marker_name, prep_fn, ok):
+    """Retry a single marker calibration up to MAX_CALIBRATION_RETRIES times.
+
+    prep_fn must move the arm into the correct approach pose and call sync.
+    Returns True on the first successful get_machine_position, False if all
+    attempts are exhausted.
+    """
+    for attempt in range(1, MAX_CALIBRATION_RETRIES + 1):
+        if not prep_fn():
+            _log.warning(f"[CALIBRATION] {marker_name} prep failed (attempt {attempt}/{MAX_CALIBRATION_RETRIES})")
+            time.sleep(1.0)
+            continue
+        result = run_skill("get_machine_position", marker_name)
+        if ok(result):
+            return True
+        _log.warning(f"[CALIBRATION] {marker_name} failed (attempt {attempt}/{MAX_CALIBRATION_RETRIES})")
+        time.sleep(1.0)
+    _log.error(f"[CALIBRATION] {marker_name} failed after {MAX_CALIBRATION_RETRIES} attempts")
+    return False
+
+
 def home(**params) -> bool:
     """
     Move robot to a predefined home position.
@@ -321,8 +345,11 @@ def get_machine_position(**params) -> bool:
     """
     Calibrate and record machine positions for all coffee equipment.
     """
-    # from oms_v1.sequences.espresso import invalidate_port_cache
-    # from oms_v1.sequences.cleaning import invalidate_cleaning_cache
+    # from oms_v1.sequences.espresso import invalidate_port_cache, angled_invalidate_port_cache
+    # from oms_v1.sequences.cleaning import (
+    #     invalidate_cleaning_cache,
+    #     angled_invalidate_cleaning_cache,
+    # )
     # from oms_v1.sequences.milk_frothing import invalidate_milk_frothing_cache
 
     def ok(r):
@@ -330,61 +357,57 @@ def get_machine_position(**params) -> bool:
 
     invalidate_port_cache()
     invalidate_cleaning_cache()
+    angled_invalidate_cleaning_cache()
     angled_invalidate_port_cache()
     run_skill("set_speed_factor", SPEED_FAST)
 
     if not return_back_to_home():
         return False
 
-    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])):
-        return False
-
-    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-    for _ in range(cycles):
-        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "portafilter_cleaner", 0.22)):
+    def _prep_cleaner():
+        if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['portafilter_cleaner']['prep_position'])):
             return False
+        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+        for _ in range(cycles):
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+            if not ok(run_skill("move_to", "portafilter_cleaner", 0.22)):
+                return False
+        run_skill("sync")
+        return True
 
-    run_skill("sync")
-
-    cleaner_record_result = run_skill("get_machine_position", "portafilter_cleaner")
-    if not ok(cleaner_record_result):
+    if not _calibrate_marker("portafilter_cleaner", _prep_cleaner, ok):
         return False
 
-    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])):
-        return False
-
-    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])):
-        return False
-
-    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-    for _ in range(cycles):
-        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "espresso_grinder", 0.22)):
+    def _prep_grinder():
+        if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep1'])):
             return False
-
-    run_skill("sync")
-
-    grinder_record_result = run_skill("get_machine_position", "espresso_grinder")
-    if not ok(grinder_record_result):
-        return False
-
-    if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])):
-        return False
-
-    if not ok(run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)):
-        return False
-
-    cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
-    for _ in range(cycles):
-        time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
-        if not ok(run_skill("move_to", "three_group_espresso", 0.22)):
+        if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['espresso_grinder_calibration']['prep2'])):
             return False
+        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+        for _ in range(cycles):
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+            if not ok(run_skill("move_to", "espresso_grinder", 0.22)):
+                return False
+        run_skill("sync")
+        return True
 
-    run_skill("sync")
+    if not _calibrate_marker("espresso_grinder", _prep_grinder, ok):
+        return False
 
-    espresso_record_result = run_skill("get_machine_position", "three_group_espresso")
-    if not ok(espresso_record_result):
+    def _prep_espresso():
+        if not ok(run_skill("gotoJ_deg", *HOME_CALIBRATION_PARAMS['three_group_espresso_calibration']['prep1'])):
+            return False
+        if not ok(run_skill("moveJ_deg", 35, 0, 0, 0, 0, 0)):
+            return False
+        cycles = HOME_CALIBRATION_CONSTANTS['approach_cycles']
+        for _ in range(cycles):
+            time.sleep(HOME_CALIBRATION_CONSTANTS['settle_time'])
+            if not ok(run_skill("move_to", "three_group_espresso", 0.22)):
+                return False
+        run_skill("sync")
+        return True
+
+    if not _calibrate_marker("three_group_espresso", _prep_espresso, ok):
         return False
 
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_HOME)):
@@ -526,55 +549,6 @@ def close_gripper(**params):
 def toggle_drag_mode(**params):
     run_skill("toggle_drag_mode")
     return True
-
-
-_RESET_SSH_HOST = "192.168.200.254"
-_RESET_SSH_USER = "qss"
-_RESET_SSH_PASS = "123"
-
-
-def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
-    """Run kubectl rollout restart on the NUC via SSH. Returns True on success."""
-    cmd = f"kubectl rollout restart deployment {deployment} -n barns"
-    ssh_cmd = [
-        "sshpass", "-p", _RESET_SSH_PASS,
-        "ssh", "-o", "StrictHostKeyChecking=no",
-        f"{_RESET_SSH_USER}@{_RESET_SSH_HOST}",
-        cmd,
-    ]
-    try:
-        result = subprocess.run(
-            ssh_cmd, capture_output=True, text=True, timeout=30
-        )
-        if result.returncode == 0:
-            return True
-        _log.error(
-            "reset_robot: SSH/kubectl failed (exit %s): stderr=%s stdout=%s",
-            result.returncode,
-            (result.stderr or "").strip(),
-            (result.stdout or "").strip(),
-        )
-        return False
-    except FileNotFoundError as e:
-        _log.error(
-            "reset_robot: ssh or sshpass not found (install openssh-client sshpass in container): %s",
-            e,
-        )
-        return False
-    except subprocess.TimeoutExpired:
-        _log.error("reset_robot: SSH to %s timed out (check network)", _RESET_SSH_HOST)
-        return False
-
-
-def reset_robot1(**params):
-    """Restart robot1 deployment via kubectl on NUC (qss@192.168.200.254)."""
-    return _run_kubectl_rollout_restart_on_nuc("robot1")
-
-
-def reset_robot2(**params):
-    """Restart robot2 deployment via kubectl on NUC (qss@192.168.200.254)."""
-    return _run_kubectl_rollout_restart_on_nuc("robot2")
-
 
 
 _RESET_SSH_HOST = "192.168.200.254"
@@ -2376,13 +2350,13 @@ def angled__normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> 
             return {
                 "port": "angled_portafilter_1",
                 "positioning_time": 1.2,
-                "portafilter_tool": "single_portafilter_angled",
+                "portafilter_tool": "double_portafilter_angled",
             }
         elif 'double' in espresso_key_lower:
             return {
                 "port": "angled_portafilter_1",
                 "positioning_time": 2.4,
-                "portafilter_tool": "single_portafilter_angled",
+                "portafilter_tool": "double_portafilter_angled",
             }
         else:
             value = espresso_dict.get(espresso_key)
@@ -2392,13 +2366,13 @@ def angled__normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> 
                     return {
                         "port": "angled_portafilter_1",
                         "positioning_time": 1.2,
-                        "portafilter_tool": "single_portafilter_angled",
+                        "portafilter_tool": "double_portafilter_angled",
                     }
                 else:
                     return {
                         "port": "angled_portafilter_1",
                         "positioning_time": 2.4,
-                        "portafilter_tool": "single_portafilter_angled",
+                        "portafilter_tool": "double_portafilter_angled",
                     }
     except Exception as e:
         print(f"[WARNING] Error parsing espresso parameters: {e}")
@@ -2503,9 +2477,9 @@ def angled_grinder(**params) -> bool:
     positioning_time = params.get("positioning_time")
     if positioning_time is None:
         positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 2.4)
-    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter_angled")
 
-    if not port or portafilter_tool not in ('single_portafilter_angled', 'double_portafilter_angled'):
+    if not port or portafilter_tool not in ('double_portafilter_angled', 'double_portafilter_angled'):
         return False
 
     if port in ('port_1', 'angled_portafilter_1'):
@@ -2559,9 +2533,9 @@ def angled_tamper(**params) -> bool:
 
     espresso_dict = params.get("espresso")
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
-    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter_angled")
 
-    if portafilter_tool not in ('single_portafilter_angled', 'double_portafilter_angled'):
+    if portafilter_tool not in ('double_portafilter_angled', 'double_portafilter_angled'):
         return False
 
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
@@ -2603,12 +2577,12 @@ def angled_tamper(**params) -> bool:
     return True
 
 def angled_single_tamper(**params) -> bool:
-    params["portafilter_tool"] = "single_portafilter_angled"
+    params["portafilter_tool"] = "double_portafilter_angled"
     return angled_tamper(**params)
 
 def angled_double_tamper(**params) -> bool:
     # Angled flow currently supports single only; keep this alias for compatibility.
-    params["portafilter_tool"] = "single_portafilter_angled"
+    params["portafilter_tool"] = "double_portafilter_angled"
     return angled_tamper(**params)
 
 def angled_mount(**params) -> bool:
@@ -3429,10 +3403,21 @@ This module provides comprehensive functions for handling milk frothing operatio
 in the BARNS coffee automation system, including frother positioning, mounting,
 steam activation, milk pouring, and cleaning procedures.
 """
-# Global variables to store robot positions during milk frothing operations
-# These are used to remember positions between function calls for safe return operations
-approach_angles: Optional[Tuple[float, ...]] = None
-grab_angles: Optional[Tuple[float, ...]] = None
+
+_log = logging.getLogger(__name__)
+MAX_FROTHER_CALIBRATION_RETRIES = 5
+
+
+_place_frother_milk_station_cache: Dict[str, Tuple[float, ...]] = {}
+_pick_frother_milk_station_cache: Optional[Tuple[float, ...]] = None
+_mount_frother_cache: Dict[str, Tuple[float, ...]] = {}
+_pour_milk_cup_station_cache: Dict[str, Dict[str, Tuple[float, ...]]] = {}
+_clean_milk_pitcher_cache: Optional[Tuple[float, ...]] = None
+_return_frother_cache: Dict[str, Tuple[float, ...]] = {}
+_get_frother_position_done: bool = False
+_milk_frother_position_done: bool = False
+_pick_frother_cache: Dict[str, Tuple[float, ...]] = {}
+
 
 def invalidate_milk_frothing_cache():
     global _pick_frother_milk_station_cache, _clean_milk_pitcher_cache
@@ -3495,12 +3480,26 @@ def get_frother_position(**params) -> bool:
         return False
 
     if not _get_frother_position_done:
-        cycles = 3
-        for _ in range(cycles):
-            time.sleep(CALIBRATION_SETTLE_TIME)
-            if not ok(run_skill("move_to", "left_steam_wand", 0.29)):
-                return False
-        if not ok(run_skill("get_machine_position", "left_steam_wand")):
+        steam_calibrated = False
+        for attempt in range(1, MAX_FROTHER_CALIBRATION_RETRIES + 1):
+            prep_ok = True
+            cycles = 3
+            for _ in range(cycles):
+                time.sleep(CALIBRATION_SETTLE_TIME)
+                if not ok(run_skill("move_to", "left_steam_wand", 0.29)):
+                    prep_ok = False
+                    break
+            if not prep_ok:
+                _log.warning(f"[CALIBRATION] left_steam_wand prep failed (attempt {attempt}/{MAX_FROTHER_CALIBRATION_RETRIES})")
+                time.sleep(1.0)
+                continue
+            if ok(run_skill("get_machine_position", "left_steam_wand")):
+                steam_calibrated = True
+                break
+            _log.warning(f"[CALIBRATION] left_steam_wand failed (attempt {attempt}/{MAX_FROTHER_CALIBRATION_RETRIES})")
+            time.sleep(1.0)
+        if not steam_calibrated:
+            _log.error(f"[CALIBRATION] left_steam_wand failed after {MAX_FROTHER_CALIBRATION_RETRIES} attempts")
             return False
         _get_frother_position_done = True
 
@@ -3511,12 +3510,26 @@ def get_frother_position(**params) -> bool:
         return False
 
     if not _milk_frother_position_done:
-        cycles = 3
-        for _ in range(cycles):
-            time.sleep(CALIBRATION_SETTLE_TIME)
-            if not ok(run_skill("move_to", "milk_frother_2", 0.29)):
-                return False
-        if not ok(run_skill("get_machine_position", "milk_frother_2")):
+        frother_calibrated = False
+        for attempt in range(1, MAX_FROTHER_CALIBRATION_RETRIES + 1):
+            prep_ok = True
+            cycles = 3
+            for _ in range(cycles):
+                time.sleep(CALIBRATION_SETTLE_TIME)
+                if not ok(run_skill("move_to", "milk_frother_2", 0.29)):
+                    prep_ok = False
+                    break
+            if not prep_ok:
+                _log.warning(f"[CALIBRATION] milk_frother_2 prep failed (attempt {attempt}/{MAX_FROTHER_CALIBRATION_RETRIES})")
+                time.sleep(1.0)
+                continue
+            if ok(run_skill("get_machine_position", "milk_frother_2")):
+                frother_calibrated = True
+                break
+            _log.warning(f"[CALIBRATION] milk_frother_2 failed (attempt {attempt}/{MAX_FROTHER_CALIBRATION_RETRIES})")
+            time.sleep(1.0)
+        if not frother_calibrated:
+            _log.error(f"[CALIBRATION] milk_frother_2 failed after {MAX_FROTHER_CALIBRATION_RETRIES} attempts")
             return False
         _milk_frother_position_done = True
 
@@ -4450,14 +4463,14 @@ def espresso(**params):
 
 def espresso_angled(**params):
     """
-    Angled toolhead espresso: machine port key angled_portafilter_1, tool single_portafilter_angled,
+    Angled toolhead espresso: machine port key angled_portafilter_1, tool double_portafilter_angled,
     then paper cup arm1 7oz at stage 1, standard pitcher on port_1, pour and return at stage 1.
 
     Steps: angled_unmount, clean_portafilter, angled_grinder, return_cleaned_espresso_pitcher,
     angled_tamper, angled_mount, dispense_paper_arm1_cup_station, grab/pick/pour/return pitcher.
     """
     angled_port = "angled_portafilter_1"
-    tool = "single_portafilter_angled"
+    tool = "double_portafilter_angled"
     pitcher_port = "port_1"
     cup_stage = 1
 
@@ -4974,31 +4987,31 @@ def angled_espresso_training(**params):
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
     run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
     run_skill("sync")
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     input()
-    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
     input()
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
     input()
     run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
     run_skill("sync")
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     input()
-    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
     input()
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
     input()
     run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
     run_skill("sync")
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     input()
-    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
     input()
-    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
     # for i in range(5):

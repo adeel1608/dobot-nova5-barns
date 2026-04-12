@@ -273,8 +273,9 @@ class robot_perception(Node):
 
             dT, dR = max_spread(samples)
             last_dT, last_dR = dT, dR
-            log.info(f"[acqTF] max dT={dT:.4f} m, dR={dR:.2f} "
-                    f"(tol <={trans_thresh:.4f} m / {rot_thresh:.2f})")
+            log.info(f"[acqTF] max dT={dT:.6f} m, dR={dR:.4f} "
+                    f"(tol <={trans_thresh:.6f} m / {rot_thresh:.4f}) "
+                    f"[{len(samples)} samples]")
 
             if dT <= trans_thresh and dR <= rot_thresh:
                 log.info("[acqTF] stable -> returning averaged pose")
@@ -282,7 +283,7 @@ class robot_perception(Node):
 
             log.warn(
                 f"[acqTF] unstable window -> reset buffer "
-                f"(dT={dT:.4f}m > {trans_thresh:.4f}m OR dR={dR:.2f} > {rot_thresh:.2f})"
+                f"(dT={dT:.6f}m > {trans_thresh:.6f}m OR dR={dR:.4f} > {rot_thresh:.4f})"
             )
             samples.clear()
             time.sleep(SAMPLE_DELAY)
@@ -290,8 +291,8 @@ class robot_perception(Node):
         if last_dT is not None:
             log.error(
                 f"acquire_target_transform({target_frame}): TIMEOUT after {max_wait:.1f}s; "
-                f"last dT={last_dT:.4f} m (required <={trans_thresh:.4f}), "
-                f"dR={last_dR:.2f} (required <={rot_thresh:.2f}), "
+                f"last dT={last_dT:.6f} m (required <={trans_thresh:.6f}), "
+                f"dR={last_dR:.4f} (required <={rot_thresh:.4f}), "
                 f"collected {len(samples)}/{num_samples} samples"
             )
         else:
@@ -621,8 +622,14 @@ class robot_motion(Node):
         from ament_index_python.packages import get_package_share_directory
 
         log = self.get_logger()
-        rot_thresh_deg = 0.2 if target_tf.strip().lower() == "three_group_espresso" else 2.0
+        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "three_group_espresso" else 2.0
+        trans_thresh_mm = 0.0001 if target_tf.strip().lower() == "three_group_espresso" else 0.001
+        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "left_steam_wand" else 2.0
+        trans_thresh_mm = 0.0001 if target_tf.strip().lower() == "left_steam_wand" else 0.001
         num_samples = required_samples + 5
+
+        log.info(f"[GMP] {target_tf}: trans_thresh={trans_thresh_mm:.6f} m, "
+                f"rot_thresh={rot_thresh_deg:.4f} deg, num_samples={num_samples}")
 
         dl = {
             "start_time":   time.time(),
@@ -642,7 +649,7 @@ class robot_motion(Node):
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=acq_timeout,
-                trans_thresh=0.001,
+                trans_thresh=trans_thresh_mm,
                 rot_thresh=rot_thresh_deg,
                 num_samples=num_samples,
             )
@@ -666,8 +673,8 @@ class robot_motion(Node):
             "translation": {"x": float(tx), "y": float(ty), "z": float(tz)},
             "rotation":    {"x": float(qx), "y": float(qy), "z": float(qz), "w": float(qw)},
         }
-        log.info(f"[GMP] mean XYZ = ({tx:.4f}, {ty:.4f}, {tz:.4f})  "
-                f"quat = ({qx:.4f}, {qy:.4f}, {qz:.4f}, {qw:.4f})")
+        log.info(f"[GMP] mean XYZ = ({tx:.6f}, {ty:.6f}, {tz:.6f})  "
+                f"quat = ({qx:.6f}, {qy:.6f}, {qz:.6f}, {qw:.6f})")
 
         # ── 3) write YAML once ────────────────────────────────────────────────
         pkg_share = get_package_share_directory("pickn_place")

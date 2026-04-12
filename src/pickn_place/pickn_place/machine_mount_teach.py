@@ -41,6 +41,9 @@ class MachineMountTeach(Node):
     MARKER_SAMPLES  = 100
     MARKER_INTERVAL = 0.1
     OUTLIER_K       = 1.5
+    STABILITY_RETRIES = 5
+
+    TIGHT_TARGETS = {"three_group_espresso", "left_steam_wand"}
 
     def __init__(self):
         super().__init__("machine_mount_teach")
@@ -80,28 +83,85 @@ class MachineMountTeach(Node):
         q_avg = vecs[:, vals.argmax()]
         return (q_avg / np.linalg.norm(q_avg)).tolist()
 
+    def _get_stability_thresholds(self, target_tf: str):
+        """Return (trans_thresh_m, rot_thresh_deg) based on target frame.
+
+        Tight targets need sub-mm / sub-degree precision for reliable teaching.
+        """
+        name = target_tf.strip().lower()
+        if name in self.TIGHT_TARGETS:
+            return 0.0001, 0.1       # 0.1 mm, 0.1 deg
+        return 0.001, 2.0            # 1.0 mm, 2.0 deg
+
+    def _check_sample_stability(self, valid_translations, avg_t, valid_quats, avg_q,
+                                trans_thresh, rot_thresh_deg):
+        """Return (is_stable, max_trans_err, max_rot_err_deg)."""
+        trans_errs = np.linalg.norm(valid_translations - np.array(avg_t), axis=1)
+        max_trans = float(np.max(trans_errs))
+
+        max_rot = 0.0
+        avg_q_arr = np.array(avg_q, dtype=float)
+        for q in valid_quats:
+            dot = min(abs(np.dot(q, avg_q_arr)), 1.0)
+            angle_deg = 2.0 * np.degrees(np.arccos(dot))
+            if angle_deg > max_rot:
+                max_rot = angle_deg
+
+        stable = (max_trans <= trans_thresh) and (max_rot <= rot_thresh_deg)
+        return stable, max_trans, max_rot
+
     def average_marker(self, marker_frame: str):
-        translations, quats = [], []
-        while len(translations) < self.MARKER_SAMPLES:
-            tfm = self.lookup("base_link", marker_frame, timeout=self.MARKER_INTERVAL * 1.5)
-            if tfm:
-                t = tfm.transform.translation
-                r = tfm.transform.rotation
-                translations.append([t.x, t.y, t.z])
-                # store as [w,x,y,z] for consistency in avg_quat
-                quats.append([r.w, r.x, r.y, r.z])
-            self.spin_for(self.MARKER_INTERVAL)
+        trans_thresh, rot_thresh_deg = self._get_stability_thresholds(marker_frame)
+        self.get_logger().info(
+            f"Stability thresholds for '{marker_frame}': "
+            f"trans={trans_thresh*1000:.4f} mm, rot={rot_thresh_deg:.2f} deg"
+        )
 
-        arr    = np.array(translations)
-        median = np.median(arr, axis=0)
-        dists  = np.linalg.norm(arr - median, axis=1)
-        q1, q3 = np.percentile(dists, [25, 75])
-        iqr    = q3 - q1
-        valid  = [i for i, d in enumerate(dists)
-                  if (q1 - self.OUTLIER_K * iqr) <= d <= (q3 + self.OUTLIER_K * iqr)]
+        for attempt in range(1, self.STABILITY_RETRIES + 1):
+            translations, quats = [], []
+            while len(translations) < self.MARKER_SAMPLES:
+                tfm = self.lookup("base_link", marker_frame, timeout=self.MARKER_INTERVAL * 1.5)
+                if tfm:
+                    t = tfm.transform.translation
+                    r = tfm.transform.rotation
+                    translations.append([t.x, t.y, t.z])
+                    quats.append([r.w, r.x, r.y, r.z])
+                self.spin_for(self.MARKER_INTERVAL)
 
-        avg_t = np.mean(arr[valid], axis=0).tolist()
-        avg_q = self.avg_quat([quats[i] for i in valid])
+            arr    = np.array(translations)
+            median = np.median(arr, axis=0)
+            dists  = np.linalg.norm(arr - median, axis=1)
+            q1, q3 = np.percentile(dists, [25, 75])
+            iqr    = q3 - q1
+            valid  = [i for i, d in enumerate(dists)
+                      if (q1 - self.OUTLIER_K * iqr) <= d <= (q3 + self.OUTLIER_K * iqr)]
+
+            avg_t = np.mean(arr[valid], axis=0).tolist()
+            avg_q = self.avg_quat([quats[i] for i in valid])
+
+            stable, max_t_err, max_r_err = self._check_sample_stability(
+                arr[valid], avg_t,
+                [quats[i] for i in valid], avg_q,
+                trans_thresh, rot_thresh_deg,
+            )
+
+            if stable:
+                self.get_logger().info(
+                    f"Samples STABLE (attempt {attempt}/{self.STABILITY_RETRIES}): "
+                    f"max_trans={max_t_err*1000:.4f} mm, max_rot={max_r_err:.4f} deg"
+                )
+                return avg_t, avg_q
+
+            self.get_logger().warn(
+                f"Samples NOT stable (attempt {attempt}/{self.STABILITY_RETRIES}): "
+                f"max_trans={max_t_err*1000:.4f} mm (limit {trans_thresh*1000:.4f}), "
+                f"max_rot={max_r_err:.4f} deg (limit {rot_thresh_deg:.2f}). "
+                f"{'Re-sampling...' if attempt < self.STABILITY_RETRIES else 'Accepting best result.'}"
+            )
+
+        self.get_logger().warn(
+            "Stability threshold not met after all retries -- using last average."
+        )
         return avg_t, avg_q
 
     def capture_tf(self, parent: str, child: str, timeout: float = 1.0):
