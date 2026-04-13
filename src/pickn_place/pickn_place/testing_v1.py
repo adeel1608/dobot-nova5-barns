@@ -4989,31 +4989,31 @@ def angled_espresso_training(**params):
     run_skill("sync")
     run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     input()
-    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "angled_portafilter_1", True)
     input()
     run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
     run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    input()
-    run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
-    run_skill("sync")
-    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
-    input()
-    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
-    input()
-    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
-    run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
-    run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    input()
-    run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
-    run_skill("sync")
-    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
-    input()
-    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
-    input()
-    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
-    run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
-    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    # input()
+    # run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
+    # run_skill("sync")
+    # run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_2", True)
+    # input()
+    # run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    # input()
+    # run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    # run_skill("gotoJ_deg", 35.770206,4.758220,-128.029175,-84.061310,-57.503407,15.573264)
+    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    # input()
+    # run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
+    # run_skill("sync")
+    # run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    # input()
+    # run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    # input()
+    # run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    # run_skill("gotoJ_deg", 50.518208,-1.260620,-120.952957,-81.799118,-62.782921,11.558730)
+    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
     # for i in range(5):
     #     time.sleep(1.0)
     #     run_skill("move_to", "portafilter_cleaner", 0.26)
@@ -5035,6 +5035,80 @@ def angled_espresso_training(**params):
     # run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
+def espresso_port_1_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.22)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("sync")
+    run_skill("move_to", "double_portafilter", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("sync")
+    run_skill("approach_tool", "double_portafilter")#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("grab_tool", "double_portafilter")#run_skill("mount_machine", "three_group_espresso", "portafilter_1", True)
+    input()
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "portafilter_1", True)
+    run_skill("move_to", "double_portafilter", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+
+def espresso_port_2_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.22)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("sync")
+    run_skill("move_to", "single_portafilter", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("sync")
+    run_skill("approach_tool", "single_portafilter")#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
+    input()
+    run_skill("grab_tool", "single_portafilter")#run_skill("mount_machine", "three_group_espresso", "portafilter_2", True)
+    input()
+    run_skill("approach_tool", "single_portafilter")#run_skill("approach_machine", "three_group_espresso", "portafilter_2", True)
+    run_skill("move_to", "single_portafilter", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+
+def angled_espresso_port_1_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.22)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("sync")
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    input()
+    run_skill("grab_tool", "double_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "angled_portafilter_1", True)
+    input()
+    run_skill("approach_tool", "double_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1", True)
+    run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+
+def angled_espresso_port_2_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "three_group_espresso", 0.22)
+    run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("sync")
+    run_skill("move_to", "single_portafilter_angled", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("sync")
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_2", True)
+    input()
+    run_skill("grab_tool", "single_portafilter_angled")#run_skill("mount_machine", "three_group_espresso", "angled_portafilter_2", True)
+    input()
+    run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_2", True)
+    run_skill("move_to", "single_portafilter_angled", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def test(**params):
     run_skill("set_speed_factor", 100)
@@ -5746,12 +5820,12 @@ SEQUENCES = {
     "angled_return_cleaned_espresso_pitcher_port_1": lambda: angled_return_cleaned_espresso_pitcher(port="port_1"),
     "angled_return_cleaned_espresso_pitcher_port_2": lambda: angled_return_cleaned_espresso_pitcher(port="port_2"),
     "angled_return_cleaned_espresso_pitcher_port_3": lambda: angled_return_cleaned_espresso_pitcher(port="port_3"),
-    "angled_unmount_p1": lambda: angled_unmount(port="port_1"),
-    "angled_unmount_p2": lambda: angled_unmount(port="port_2"),
-    "angled_unmount_p3": lambda: angled_unmount(port="port_3"),
-    "angled_mount_p1": lambda: angled_mount(port="port_1"),
-    "angled_mount_p2": lambda: angled_mount(port="port_2"),
-    "angled_mount_p3": lambda: angled_mount(port="port_3"),
+    "angled_unmount_p1": lambda: angled_unmount(port="angled_portafilter_1"),
+    "angled_unmount_p2": lambda: angled_unmount(port="angled_portafilter_2"),
+    "angled_unmount_p3": lambda: angled_unmount(port="angled_portafilter_3"),
+    "angled_mount_p1": lambda: angled_mount(port="angled_portafilter_1"),
+    "angled_mount_p2": lambda: angled_mount(port="angled_portafilter_2"),
+    "angled_mount_p3": lambda: angled_mount(port="angled_portafilter_3"),
     "angled_get_hot_water": lambda: angled_get_hot_water(),
     "angled_with_hot_water": lambda: angled_with_hot_water(),
     "angled_clean_port_1": lambda: angled_clean_portafilter(port="port_1"),
@@ -5839,6 +5913,10 @@ SEQUENCES = {
     "show_version_info": lambda: show_version_info(),
     "switch_version": lambda: switch_version(),
     "robot_arm_test": lambda: robot_arm_test(),
+    "espresso_port_1_training": lambda: espresso_port_1_training(),
+    "espresso_port_2_training": lambda: espresso_port_2_training(),
+    "angled_espresso_port_1_training": lambda: angled_espresso_port_1_training(),
+    "angled_espresso_port_2_training": lambda: angled_espresso_port_2_training(),
 }
 
 # ------------------------------------------------------------------
