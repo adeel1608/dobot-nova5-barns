@@ -340,8 +340,10 @@ ESPRESSO_PORTAFILTER_GRIPPER = {
 }
 
 ESPRESSO_MOVEMENT_OFFSETS = {
-    'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount
+    'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
+    'portafilter_clear_down_angled': (1.25, -1.25, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
     'portafilter_clear_up': (0, 0, 5, 0, 0, 0),      # Move up to fix portafilter during mount
+    'portafilter_clear_up_angled': (0, 0, 7.5, 0, 0, 0),      # Move up to fix portafilter during mount
     'hot_water_move': (-35, 0, 0, 0, 0, 0),          # Move for hot water positioning
     'hot_water_retreat': (-150, 0, 0, 0, 0, 0),      # Retreat after hot water
     'port_3_retreat': (-20, 0, 0, 0, 0, 0),          # Additional retreat for port 3

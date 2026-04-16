@@ -623,12 +623,14 @@ class robot_motion(Node):
 
         log = self.get_logger()
         rot_thresh_deg = 0.1 if target_tf.strip().lower() == "three_group_espresso" else 2.0
-        trans_thresh_mm = 0.0001 if target_tf.strip().lower() == "three_group_espresso" else 0.001
+        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "three_group_espresso" else 0.001
         rot_thresh_deg = 0.1 if target_tf.strip().lower() == "left_steam_wand" else 2.0
-        trans_thresh_mm = 0.0001 if target_tf.strip().lower() == "left_steam_wand" else 0.001
+        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "left_steam_wand" else 0.001
+        rot_thresh_deg = 0.45 if target_tf.strip().lower() == "espresso_grinder" else 2.0
+        trans_thresh_m = 0.00020 if target_tf.strip().lower() == "espresso_grinder" else 0.001
         num_samples = required_samples + 5
 
-        log.info(f"[GMP] {target_tf}: trans_thresh={trans_thresh_mm:.6f} m, "
+        log.info(f"[GMP] {target_tf}: trans_thresh={trans_thresh_m:.6f} m, "
                 f"rot_thresh={rot_thresh_deg:.4f} deg, num_samples={num_samples}")
 
         dl = {
@@ -649,7 +651,7 @@ class robot_motion(Node):
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=acq_timeout,
-                trans_thresh=trans_thresh_mm,
+                trans_thresh=trans_thresh_m,
                 rot_thresh=rot_thresh_deg,
                 num_samples=num_samples,
             )
