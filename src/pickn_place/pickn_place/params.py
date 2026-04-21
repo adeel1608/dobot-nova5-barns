@@ -342,7 +342,9 @@ ESPRESSO_PORTAFILTER_GRIPPER = {
 ESPRESSO_MOVEMENT_OFFSETS = {
     'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
     'portafilter_clear_down_angled': (1.25, -1.25, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
-    'portafilter_clear_up': (0, 0, 5, 0, 0, 0),      # Move up to fix portafilter during mount
+    # Default Z (mm). testing_v1 learns per-port Z from first live unmount (ceil of Z drop
+    # arc -> post-tension) and mount() uses that cache when set.
+    'portafilter_clear_up': (0, 0, 7.5, 0, 0, 0),
     'portafilter_clear_up_angled': (0, 0, 7.5, 0, 0, 0),      # Move up to fix portafilter during mount
     'hot_water_move': (-35, 0, 0, 0, 0, 0),          # Move for hot water positioning
     'hot_water_retreat': (-150, 0, 0, 0, 0, 0),      # Retreat after hot water
@@ -384,6 +386,13 @@ PULL_ESPRESSO_PARAMS = {
         'portafilter_number':         "angled_portafilter_1",
         'group_number':         "group_1",
         'move_back':   (-5.932289,-9.177162,-138.612458,-46.645501,-94.418543,0.008893),
+    },
+    # Angled single / second station: tune joints on-robot if needed (seeded from port_2 move_back).
+    'angled_portafilter_2': {
+        'home':        ( 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379),
+        'portafilter_number':         "angled_portafilter_2",
+        'group_number':         "group_2",
+        'move_back':   (88.717612,-29.575282,-135.766406,-12.283250,-5.212680,0.014052),
     },
 }
 

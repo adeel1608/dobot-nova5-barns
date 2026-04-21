@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import time
+import math
 import argparse
 import signal
 import atexit
@@ -73,7 +74,24 @@ run_skill_old, robot_motion_class = _get_local_run_skill()
 
 import rclpy
 from rclpy.node import Node
-from dobot_msgs_v3.srv import ServoJ
+from dobot_msgs_v3.srv import (
+    ServoJ,
+    InverseSolution,
+    PositiveSolution,
+    GetPose,
+    GetAngle,
+    StartDrag,
+    StopDrag,
+    SetGripperPosition,
+    GetGripperPosition,
+    ClearError,
+    DisableRobot,
+    EnableRobot,
+    ModbusClose,
+    ModbusCreate,
+    SetHoldRegs,
+    CP,
+)
 import re
 
 # Global persistent motion node (more efficient approach)
@@ -89,7 +107,11 @@ def get_motion_node():
     global _global_motion_node, _rclpy_initialized
     
     if not _rclpy_initialized:
-        rclpy.init(args=None)
+        # rclpy may already be initialized elsewhere in this process (e.g. by a
+        # different module / previous sequence). Calling init() twice raises:
+        # "Context.init() must only be called once".
+        if not rclpy.ok():
+            rclpy.init(args=None)
         _rclpy_initialized = True
     
     if _global_motion_node is None:
@@ -1527,11 +1549,52 @@ _mount_runtime_cache: Dict[str, Dict[str, Tuple[float, ...]]] = {}
 _machine_approach_pose_cache: Dict[str, Tuple[float, ...]] = {}
 _machine_mount_pose_cache: Dict[str, Tuple[float, ...]] = {}
 
+# After grab_tool on unmount: first live pass caches joint pose; later passes replay with gotoJ_deg.
+_unmount_post_grab_joints_cache: Dict[str, Tuple[float, ...]] = {}
+
 
 _gripper_log = logging.getLogger(__name__)
 
 _GRIPPER_OPEN_MAX_POS = 20
 _GRIPPER_OPEN_RETRIES = 3
+
+# Acceptable gripper position after a correct close on the portafilter (Dobot
+# decoded value from register 2002). Center ~146; allow small variation.
+_PORTAFILTER_GRIP_POS_MIN = 137
+_PORTAFILTER_GRIP_POS_MAX = 147
+
+# After release_tension on uncached unmount grab: Link6 Z from current_pose (mm).
+_UNMOUNT_POST_TENSION_Z_TARGET_MM = 200.0
+_UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM = 138.0
+_UNMOUNT_POST_TENSION_Z_TOL_MM = 3.0
+
+# Live unmount (no _port_angle_cache): Z drop after arc -> after tension sets clear_up Z (mm) for mount.
+_portafilter_clear_up_z_mm_by_port: Dict[str, float] = {}
+
+
+def _portafilter_clear_up_offset(port: str) -> Tuple[float, float, float, float, float, float]:
+    """Use per-port learned Z from last live unmount, else params default."""
+    z = _portafilter_clear_up_z_mm_by_port.get(str(port))
+    if z is not None:
+        return (0.0, 0.0, float(z), 0.0, 0.0, 0.0)
+    base = ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up"]
+    return tuple(float(x) for x in base)
+
+
+def _portafilter_clear_up_angled_offset(port: str) -> Tuple[float, float, float, float, float, float]:
+    """Angled mount clear-up: learned Z from last live angled unmount, else params default."""
+    z = _portafilter_clear_up_z_mm_by_port.get(str(port))
+    base = ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"]
+    if z is not None:
+        return (float(base[0]), float(base[1]), float(z), float(base[3]), float(base[4]), float(base[5]))
+    return tuple(float(x) for x in base)
+
+
+def _angled_unmount_grab_tool_name(port: str) -> str:
+    """Portafilter tool frame for angled unmount grab (per robot teach)."""
+    if str(port) == "angled_portafilter_2":
+        return "single_portafilter_angled"
+    return "double_portafilter_angled"
 
 
 def _open_gripper_with_verify(speed=255, force=255):
@@ -1568,6 +1631,8 @@ def invalidate_port_cache():
     _mount_runtime_cache.clear()
     _machine_approach_pose_cache.clear()
     _machine_mount_pose_cache.clear()
+    _unmount_post_grab_joints_cache.clear()
+    _portafilter_clear_up_z_mm_by_port.clear()
 
 
 def _is_valid_angles(angles: Any) -> bool:
@@ -1712,36 +1777,144 @@ def unmount(**params) -> bool:
     # OLD live call kept for rollback:
     # if not ok(run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])):
     #     return False
-    if not _run_cached_machine_mount(
-        f"unmount:{port}:mount:{port_params['portafilter_number']}",
-        "three_group_espresso",
-        port_params['portafilter_number'],
-    ):
-        return False
+    # if not _run_cached_machine_mount(
+    #     f"unmount:{port}:mount:{port_params['portafilter_number']}",
+    #     "three_group_espresso",
+    #     port_params['portafilter_number'],
+    # ):
+    #     return False
 
-    run_skill("sync")
+    grab_cache_key = f"unmount:post_grab:{port}"
+    cached_grab_joints = _unmount_post_grab_joints_cache.get(grab_cache_key)
+    if _is_valid_angles(cached_grab_joints):
+        if not ok(run_skill("gotoJ_deg", *cached_grab_joints)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+            return False
+        # if not ok(run_skill("release_tension")):
+        #     return False
+        # run_skill("sync")
+    else:
+        def _close_and_verify_grip():
+            """Close gripper and return (gripped_ok, reported_position)."""
+            node = get_motion_node()
+            success, pos = node.set_gripper_position(speed=255, position=255, force=255)
+            if not success:
+                return False, None
+            ok_reading = (
+                pos is not None
+                and _PORTAFILTER_GRIP_POS_MIN <= pos <= _PORTAFILTER_GRIP_POS_MAX
+            )
+            return ok_reading, pos
 
-    if not ok(run_skill("set_gripper_position", 255, 255, 255)):
-        return False
+        def _grab_then_close():
+            """Perform grab_tool + close + read. Returns (gripped_ok, pos)."""
+            run_skill("sync")
+            if not ok(run_skill("grab_tool", "double_portafilter")):
+                return False, None
+            run_skill("sync")
+            return _close_and_verify_grip()
 
-    if not ok(run_skill("release_tension")):
-        return False
+        gripped, pos = _grab_then_close()
 
-    run_skill("sync")
+        # Attempt 2: nudge -5 mm in Z and re-close.
+        if not gripped:
+            _gripper_log.warning(
+                f"[PORTAFILTER-GRIP] attempt 1 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"nudging down 5 mm and retrying close"
+            )
+            if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+                return False
+            gripped, pos = _close_and_verify_grip()
+
+        # Attempt 3: nudge +10 mm in Z and re-close.
+        if not gripped:
+            _gripper_log.warning(
+                f"[PORTAFILTER-GRIP] attempt 2 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"nudging up 10 mm and retrying close"
+            )
+            if not ok(run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)):
+                return False
+            gripped, pos = _close_and_verify_grip()
+
+        # Attempt 4: full recovery — open gripper, re-run cached approach, re-grab.
+        if not gripped:
+            _gripper_log.warning(
+                f"[PORTAFILTER-GRIP] attempt 3 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"opening gripper and re-running approach"
+            )
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if port in ('port_1', 'port_3'):
+                if not _run_cached_machine_approach(
+                    f"unmount:{port}:approach:{port_params['portafilter_number']}",
+                    "three_group_espresso",
+                    port_params['portafilter_number'],
+                ):
+                    return False
+            gripped, pos = _grab_then_close()
+
+        if not gripped:
+            _gripper_log.error(
+                f"[PORTAFILTER-GRIP] FINAL FAIL pos={pos} "
+                f"(wanted in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"aborting unmount for {port}"
+            )
+            return False
+
+        _gripper_log.info(f"[PORTAFILTER-GRIP] gripped OK, pos={pos}")
+
+        if not ok(run_skill("release_tension")):
+            return False
+        run_skill("sync")
+        run_skill("enforce_rxry")
+        run_skill("sync")
+
+        # Z height check (current_pose is mm per manipulate_node_v4.current_pose).
+        z_lo = _UNMOUNT_POST_TENSION_Z_TARGET_MM - _UNMOUNT_POST_TENSION_Z_TOL_MM
+        z_hi = _UNMOUNT_POST_TENSION_Z_TARGET_MM + _UNMOUNT_POST_TENSION_Z_TOL_MM
+        pose_z = run_skill("current_pose")
+        if not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3:
+            return False
+        z_mm = float(pose_z[2])
+        if not (z_lo <= z_mm <= z_hi):
+            dz = (_UNMOUNT_POST_TENSION_Z_TARGET_MM - z_mm)/1.5
+            _gripper_log.warning(
+                f"[UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
+                f"moveEE_movJ dz={dz:.2f} mm"
+            )
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if not ok(run_skill("moveEE_movJ", -0.5, 0, dz, 0, 0, 0)):
+                return False
+            if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+                return False
+            run_skill("sync")
+            if not ok(run_skill("release_tension")):
+                return False            
+            run_skill("sync")
+        angles = run_skill("current_angles")
+        if not ok(angles) or not _is_valid_angles(angles):
+            return False
+        _unmount_post_grab_joints_cache[grab_cache_key] = tuple(angles)
+        run_skill("sync")
 
     if not ok(run_skill("enforce_rxry")):
         return False
 
     run_skill("sync")
 
-    if not ok(run_skill("move_portafilter_arc_movJ", -40.0)):
-        return False
-
-    if not ok(run_skill("release_tension")):
+    if not ok(run_skill("move_portafilter_arc_movJ", -39.0)):
         return False
 
     cached = _port_angle_cache.get(port)
     if cached:
+        if not ok(run_skill("release_tension")):
+            return False
         mount_pose = cached['mount']
         below_pose = cached['below']
         if not _is_valid_angles(below_pose):
@@ -1751,8 +1924,30 @@ def unmount(**params) -> bool:
         if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
             return False
     else:
+        pose_after_arc = run_skill("current_pose")
+        if not ok(pose_after_arc) or not isinstance(pose_after_arc, (tuple, list)) or len(pose_after_arc) < 3:
+            return False
+        z_after_arc_mm = float(pose_after_arc[2])
+
+        if not ok(run_skill("release_tension")):
+            return False
+
         run_skill("sync")
         mount_pose = run_skill("current_angles")
+        pose_after_tension = run_skill("current_pose")
+        if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
+            return False
+        z_after_tension_mm = float(pose_after_tension[2])
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm
+        if dz_drop_mm > 0.0:
+            learned_clear_up_z = float(math.ceil(dz_drop_mm))
+        else:
+            learned_clear_up_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up"][2])
+        _portafilter_clear_up_z_mm_by_port[str(port)] = learned_clear_up_z
+        _gripper_log.info(
+            f"[CLEAR-UP-Z] port={port} z_arc={z_after_arc_mm:.2f} z_after_tension={z_after_tension_mm:.2f} "
+            f"drop={dz_drop_mm:.2f} mm -> portafilter_clear_up z={learned_clear_up_z} mm"
+        )
         if not _is_valid_angles(mount_pose):
             return False
         if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down'])):
@@ -2020,7 +2215,7 @@ def mount(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *mount_pose)):
         return False
 
-    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up'])):
+    if not ok(run_skill("moveEE_movJ", *_portafilter_clear_up_offset(port))):
         return False
 
     if not ok(run_skill("enforce_rxry")):
@@ -2028,7 +2223,7 @@ def mount(**params) -> bool:
 
     run_skill("sync")
 
-    if not ok(run_skill("move_portafilter_arc_movJ", 42.0)):
+    if not ok(run_skill("move_portafilter_arc_movJ", 43.0)):
         return False
 
     if not _open_gripper_with_verify():
@@ -2897,6 +3092,12 @@ def angled_invalidate_port_cache():
     angled__mount_runtime_cache.clear()
     _machine_approach_pose_cache.clear()
     _machine_mount_pose_cache.clear()
+    for _k in list(_unmount_post_grab_joints_cache.keys()):
+        if str(_k).startswith("angled_unmount:"):
+            del _unmount_post_grab_joints_cache[_k]
+    for _k in list(_portafilter_clear_up_z_mm_by_port.keys()):
+        if str(_k).startswith("angled_portafilter"):
+            del _portafilter_clear_up_z_mm_by_port[_k]
     # OLD / remove if you want later:
     # angled_grinder_mount_pose_cached.clear()
 
@@ -2916,9 +3117,9 @@ def angled__normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> 
 
         if 'single' in espresso_key_lower:
             return {
-                "port": "angled_portafilter_1",
+                "port": "angled_portafilter_2",
                 "positioning_time": 1.2,
-                "portafilter_tool": "double_portafilter_angled",
+                "portafilter_tool": "single_portafilter_angled",
             }
         elif 'double' in espresso_key_lower:
             return {
@@ -2932,9 +3133,9 @@ def angled__normalize_espresso_shot(espresso_dict: Optional[Dict[str, Any]]) -> 
                 shots = float(value)
                 if shots <= 1.0:
                     return {
-                        "port": "angled_portafilter_1",
+                        "port": "angled_portafilter_2",
                         "positioning_time": 1.2,
-                        "portafilter_tool": "double_portafilter_angled",
+                        "portafilter_tool": "single_portafilter_angled",
                     }
                 else:
                     return {
@@ -2958,6 +3159,11 @@ def angled_unmount(**params) -> bool:
     espresso_dict = params.get("espresso")
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+    grab_tool_name = (
+        params.get("portafilter_tool")
+        or (shot_cfg.get("portafilter_tool") if shot_cfg else None)
+        or _angled_unmount_grab_tool_name(port)
+    )
 
     if not port:
         return False
@@ -2968,73 +3174,176 @@ def angled_unmount(**params) -> bool:
 
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
-    if port in ('angled_portafilter_1'):
+    if port in ('angled_portafilter_1',):
         if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
             return False
-    else:
-        run_skill("sync")
-        if not ok(run_skill("approach_tool", "double_portafilter_angled")):
-            return False
+    # else:
+    #     run_skill("sync")
+    #     if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
+    #         return False
 
-    if port in ('angled_portafilter_1'):
-        # OLD live call kept for rollback:
-        # if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
-        #     return False
+    if port in ('angled_portafilter_1', 'angled_portafilter_2'):
         if not _run_cached_machine_approach(
             f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
             "three_group_espresso",
             port_params['portafilter_number'],
         ):
             return False
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("mount_machine", "three_group_espresso", port_params['portafilter_number'])):
-    #     return False
-    # if not _run_cached_machine_mount(
-    #     f"angled_unmount:{port}:mount:{port_params['portafilter_number']}",
-    #     "three_group_espresso",
-    #     port_params['portafilter_number'],
-    # ):
-    #     return False
-    grab_tool_cache_key = f"angled_unmount:{port}:grab_tool:double_portafilter_angled"
-    cached_grab_pose = _machine_mount_pose_cache.get(grab_tool_cache_key)
-    if _is_valid_angles(cached_grab_pose):
-        if not ok(run_skill("gotoJ_deg", *cached_grab_pose)):
+
+    grab_cache_key = f"angled_unmount:post_grab:{port}"
+    cached_grab_joints = _unmount_post_grab_joints_cache.get(grab_cache_key)
+    if _is_valid_angles(cached_grab_joints):
+        if not ok(run_skill("gotoJ_deg", *cached_grab_joints)):
+            return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255, 255, 255)):
             return False
     else:
-        run_skill("sync")
-        if not ok(run_skill("grab_tool", "double_portafilter_angled")):
+        def _close_and_verify_grip_angled():
+            node = get_motion_node()
+            success, pos = node.set_gripper_position(speed=255, position=255, force=255)
+            if not success:
+                return False, None
+            ok_reading = (
+                pos is not None
+                and _PORTAFILTER_GRIP_POS_MIN <= pos <= _PORTAFILTER_GRIP_POS_MAX
+            )
+            return ok_reading, pos
+
+        def _grab_then_close_angled():
+            run_skill("sync")
+            if not ok(run_skill("grab_tool", grab_tool_name)):
+                return False, None
+            run_skill("sync")
+            return _close_and_verify_grip_angled()
+
+        gripped, pos = _grab_then_close_angled()
+
+        if not gripped:
+            _gripper_log.warning(
+                f"[ANGLED-PORTAFILTER-GRIP] attempt 1 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"nudging down 5 mm and retrying close"
+            )
+            if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+                return False
+            gripped, pos = _close_and_verify_grip_angled()
+
+        if not gripped:
+            _gripper_log.warning(
+                f"[ANGLED-PORTAFILTER-GRIP] attempt 2 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"nudging up 10 mm and retrying close"
+            )
+            if not ok(run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)):
+                return False
+            gripped, pos = _close_and_verify_grip_angled()
+
+        if not gripped:
+            _gripper_log.warning(
+                f"[ANGLED-PORTAFILTER-GRIP] attempt 3 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"opening gripper and re-running approach"
+            )
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if port in ('angled_portafilter_1', 'angled_portafilter_2'):
+                if not _run_cached_machine_approach(
+                    f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
+                    "three_group_espresso",
+                    port_params['portafilter_number'],
+                ):
+                    return False
+            gripped, pos = _grab_then_close_angled()
+
+        if not gripped:
+            _gripper_log.error(
+                f"[ANGLED-PORTAFILTER-GRIP] FINAL FAIL port={port} pos_read={pos}; aborting unmount"
+            )
+            return False
+
+        _gripper_log.info(f"[ANGLED-PORTAFILTER-GRIP] gripped OK, pos={pos}")
+
+        if not ok(run_skill("release_tension")):
             return False
         run_skill("sync")
-        captured_grab_pose = run_skill("current_angles")
-        if not _is_valid_angles(captured_grab_pose):
+        run_skill("enforce_rxry")
+        run_skill("sync")
+
+        z_tgt = _UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM
+        z_lo = z_tgt - _UNMOUNT_POST_TENSION_Z_TOL_MM
+        z_hi = z_tgt + _UNMOUNT_POST_TENSION_Z_TOL_MM
+        pose_z = run_skill("current_pose")
+        if not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3:
             return False
-        _machine_mount_pose_cache[grab_tool_cache_key] = tuple(captured_grab_pose)
+        z_mm = float(pose_z[2])
+        if not (z_lo <= z_mm <= z_hi):
+            dz = (z_tgt - z_mm) / 1.5
+            _gripper_log.warning(
+                f"[ANGLED-UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
+                f"moveEE_movJ dz={dz:.2f} mm"
+            )
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+            if not ok(run_skill("moveEE_movJ", -0.5, 0, dz, 0, 0, 0)):
+                return False
+            if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+                return False
+            run_skill("sync")
+            if not ok(run_skill("release_tension")):
+                return False
+            run_skill("sync")
+
+        angles = run_skill("current_angles")
+        if not ok(angles) or not _is_valid_angles(angles):
+            return False
+        _unmount_post_grab_joints_cache[grab_cache_key] = tuple(angles)
+        run_skill("sync")
+
+    if not ok(run_skill("enforce_rxry")):
+        return False
 
     run_skill("sync")
-    if not ok(run_skill("set_gripper_position", 255, 255, 255)):
-        return False
-    run_skill("sync")
-    if not ok(run_skill("release_tension")):
-        return False
-    run_skill("sync")
+
     if not ok(run_skill("move_portafilter_arc_tool_angled", -37.0)):
-        return False
-    run_skill("sync")
-    if not ok(run_skill("release_tension")):
         return False
 
     cached = angled__port_angle_cache.get(port)
     if cached:
+        if not ok(run_skill("release_tension")):
+            return False
         mount_pose = cached['angled_mount']
         below_pose = cached['below']
+        if not angled__is_valid_angles(below_pose):
+            return False
         if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
             return False
     else:
-        run_skill("sync")
+        pose_after_arc = run_skill("current_pose")
+        if not ok(pose_after_arc) or not isinstance(pose_after_arc, (tuple, list)) or len(pose_after_arc) < 3:
+            return False
+        z_after_arc_mm = float(pose_after_arc[2])
+
         if not ok(run_skill("release_tension")):
             return False
+
         run_skill("sync")
         mount_pose = run_skill("current_angles")
+        pose_after_tension = run_skill("current_pose")
+        if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
+            return False
+        z_after_tension_mm = float(pose_after_tension[2])
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm
+        base_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"][2])
+        if dz_drop_mm > 0.0:
+            learned_clear_up_z = float(math.ceil(dz_drop_mm))
+        else:
+            learned_clear_up_z = base_z
+        _portafilter_clear_up_z_mm_by_port[str(port)] = learned_clear_up_z
+        _gripper_log.info(
+            f"[ANGLED-CLEAR-UP-Z] port={port} z_arc={z_after_arc_mm:.2f} z_after_tension={z_after_tension_mm:.2f} "
+            f"drop={dz_drop_mm:.2f} mm -> portafilter_clear_up_angled z={learned_clear_up_z} mm"
+        )
         if not angled__is_valid_angles(mount_pose):
             return False
         if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
@@ -3050,22 +3359,11 @@ def angled_unmount(**params) -> bool:
     angled_mount_espresso_port = tuple(mount_pose)
     angled_below_espresso_port = tuple(below_pose)
 
-    if port in ('angled_portafilter_1'):
+    if port in ('angled_portafilter_1',):
         if not ok(run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)):
             return False
     else:
         run_skill("sync")
-        # if not ok(run_skill("approach_tool", "double_portafilter_angled")):
-        #     return False
-
-    # if not ok(run_skill("gotoJ_deg", *port_params['move_back'])):
-    #     return False
-
-    # if port in ('port_2', 'port_3'):
-    #     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav1'])):
-    #         return False
-    #     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_PARAMS['nav2'])):
-    #         return False
 
     return True
 
@@ -3082,10 +3380,10 @@ def angled_grinder(**params) -> bool:
         positioning_time = (shot_cfg.get("positioning_time") if shot_cfg else 2.4)
     portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter_angled")
 
-    if not port or portafilter_tool != "double_portafilter_angled":
+    if not port or portafilter_tool not in ("double_portafilter_angled", "single_portafilter_angled"):
         return False
 
-    if port in ('port_1', 'angled_portafilter_1'):
+    if port in ('port_1', 'angled_portafilter_1', 'angled_portafilter_2'):
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
             return False
 
@@ -3107,11 +3405,6 @@ def angled_grinder(**params) -> bool:
             return False
         # run_skill("sync")
     else:
-        # OLD live steps kept for rollback:
-        # if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
-        #     return False
-        # if not ok(run_skill("moveEE", 0, 0, 20, 0, 0, 0)):
-        #     return False
         if not _run_cached_machine_mount(
             f"angled_grinder:{port}:mount:grinder",
             "espresso_grinder",
@@ -3119,10 +3412,6 @@ def angled_grinder(**params) -> bool:
         ):
             return False
 
-        if not ok(run_skill("moveEE", 0, 0, 20, 0, 0, 0)):
-            return False
-
-        # run_skill("sync")
         grinder_mount_pose = run_skill("current_angles")
         if not angled__is_valid_angles(grinder_mount_pose):
             return False
@@ -3182,11 +3471,13 @@ def angled_grinder(**params) -> bool:
     return True
 
 def angled_single_grinder(**params) -> bool:
-    params["portafilter_tool"] = "double_portafilter_angled"
+    params.setdefault("portafilter_tool", "single_portafilter_angled")
+    params.setdefault("port", "angled_portafilter_2")
     return angled_grinder(**params)
 
 def angled_double_grinder(**params) -> bool:
-    params["portafilter_tool"] = "double_portafilter_angled"
+    params.setdefault("portafilter_tool", "double_portafilter_angled")
+    params.setdefault("port", "angled_portafilter_1")
     return angled_grinder(**params)
 
 
@@ -3198,7 +3489,7 @@ def angled_tamper(**params) -> bool:
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
     portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter_angled")
 
-    if portafilter_tool not in ('double_portafilter_angled', 'double_portafilter_angled'):
+    if portafilter_tool not in ("double_portafilter_angled", "single_portafilter_angled"):
         return False
 
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
@@ -3252,11 +3543,11 @@ def angled_tamper(**params) -> bool:
     return True
 
 def angled_single_tamper(**params) -> bool:
-    params["portafilter_tool"] = "double_portafilter_angled"
+    params.setdefault("portafilter_tool", "single_portafilter_angled")
     return angled_tamper(**params)
 
 def angled_double_tamper(**params) -> bool:
-    params["portafilter_tool"] = "double_portafilter_angled"
+    params.setdefault("portafilter_tool", "double_portafilter_angled")
     return angled_tamper(**params)
 
 
@@ -3300,7 +3591,9 @@ def angled_mount(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *mount_pose)):
         return False
-    if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_up_angled'])):
+    if not ok(run_skill("moveEE_movJ", *_portafilter_clear_up_angled_offset(port))):
+        return False
+    if not ok(run_skill("enforce_rxry")):
         return False
     run_skill("sync")
     if not ok(run_skill("move_portafilter_arc_tool_angled", 41.0)):
@@ -4133,7 +4426,7 @@ def invalidate_cleaning_cache():
 def _is_valid_angles(angles: Any) -> bool:
     return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
 
-def _capture_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
+def _capture_and_cache_current_angles(cache_list: List[Tuple[float, ...]]) -> bool:
     angles = run_skill("current_angles")
     if not _is_valid_angles(angles):
         return False
@@ -4187,19 +4480,19 @@ def clean_portafilter(**params) -> bool:
         hard_capture: List[Tuple[float, ...]] = []
         if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _capture_and_cache_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -30, -2.5, 0, 0)):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _capture_and_cache_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, 0, 0, 0, 0)):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _capture_and_cache_current_angles(hard_capture):
             return False
         if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_hard'])):
             return False
-        if not _capture_current_angles(hard_capture):
+        if not _capture_and_cache_current_angles(hard_capture):
             return False
         _hard_brush_clean_cache[port] = hard_capture
 
@@ -4225,19 +4518,19 @@ def clean_portafilter(**params) -> bool:
         soft_capture: List[Tuple[float, ...]] = []
         if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _capture_and_cache_current_angles(soft_capture):
             return False
         if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _capture_and_cache_current_angles(soft_capture):
             return False
         if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _capture_and_cache_current_angles(soft_capture):
             return False
         if not ok(run_skill("moveEE_movJ", *CLEANING_PARAMS['retreat_soft'])):
             return False
-        if not _capture_current_angles(soft_capture):
+        if not _capture_and_cache_current_angles(soft_capture):
             return False
         _soft_brush_clean_cache[port] = soft_capture
 
@@ -5357,6 +5650,221 @@ def place_slush(**params) -> bool:
     return True
 
 '''
+automation calls
+'''
+def call_tamper(**params):
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_tamper.py"
+    ]
+
+    if "calibration_ms" in params:
+        command += ["--calibration_ms", str(params["calibration_ms"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Tamper failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+    
+def call_coffee_machine(**params):
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_coffee_machine.py"
+    ]
+
+    if "coffee_type" in params:
+        command += ["--coffee_type", str(params["coffee_type"])]
+
+    if "slot_number" in params:
+        command += ["--slot_number", str(params["slot_number"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Coffee failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_hot_water(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_coffee_hot_water.py"
+    ]
+
+    if "calibration" in params:
+        command += ["--calibration", str(params["calibration"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Hot water failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_coffee_purge(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_coffee_purge.py"
+    ]
+
+    if "slot_number" in params:
+        command += ["--slot_number", str(params["slot_number"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Purge failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_frother(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_frother.py"
+    ]
+
+    # command type: init / froth / clean / status
+    if "command" in params:
+        command.append(params["command"])
+
+    if "temp" in params:
+        command += ["--temp", str(params["temp"])]
+
+    if "init_time" in params:
+        command += ["--init-time", str(params["init_time"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Frother failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_grinder(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_grinder.py"
+    ]
+
+    if "shots_number" in params:
+        command += ["--shots_number", str(params["shots_number"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Grinder failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_ice(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_ice.py"
+    ]
+
+    if "weight" in params:
+        command += ["--weight", str(params["weight"])]
+
+    if "no_calibration" in params and params["no_calibration"]:
+        command.append("--no-calibration")
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Ice failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_milk_syrup(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_milks_syrups_v3.py"
+    ]
+
+    if "device" in params:
+        command.append(params["device"])  # milk / syrup / rinse / purge
+
+    if "motor" in params:
+        command += ["--motor", str(params["motor"])]
+
+    if "amount" in params:
+        command += ["--amount", str(params["amount"])]
+
+    if "seconds" in params:
+        command += ["--seconds", str(params["seconds"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Milk/Syrup failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+
+def call_slush(**params):
+    import subprocess
+
+    command = [
+        "python3",
+        "/home/adeel/Downloads/barns_low_level-main/Test_Machines/test_slush.py"
+    ]
+
+    if "type" in params:
+        command += ["--type", params["type"]]
+
+    if "weight" in params:
+        command += ["--weight", str(params["weight"])]
+
+    if "difference" in params:
+        command += ["--difference", str(params["difference"])]
+
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        print("Slush failed")
+        print(result.stderr)
+        return False
+
+    print(result.stdout)
+    return True
+'''
 RECIPES
 '''
 def espresso(**params):
@@ -6091,8 +6599,10 @@ def angled_espresso_port_2_training(**params):
     run_skill("get_machine_position", "three_group_espresso")#42.507626,8.389988,-122.460335,-74.151726,-59.384083,4.208460
     input()
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
+    run_skill("moveEE_movJ", 0, 0, -100, 0, 0, 0)
     run_skill("sync")
-    run_skill("move_to", "single_portafilter_angled", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("move_to", "single_portafilter_angled", 0.32)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
+    run_skill("moveEE_movJ", 0, 0, -100, 0, 0, 0)
     run_skill("sync")
     run_skill("approach_tool", "single_portafilter_angled")#run_skill("approach_machine", "three_group_espresso", "angled_portafilter_2", True)
     input()
@@ -6103,7 +6613,52 @@ def angled_espresso_port_2_training(**params):
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def test(**params):
-    run_skill("approach_machine", "three_group_espresso", "portafilter_1")
+    timings = []
+
+    for outer_idx in range(3):
+        get_machine_position()
+
+        for inner_idx in range(3):
+            start = time.perf_counter()
+
+            unmount(port="port_1")
+            clean_portafilter(port="port_1")
+
+            # 🔥 --- PARALLEL BLOCK 1 ---
+            t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
+            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
+            t3 = threading.Thread(target=grinder, kwargs={"portafilter_tool": "double_portafilter"})
+
+            t1.start()
+            # t2.start()
+            t3.start()
+
+            t1.join()
+            # t2.join()
+            t3.join()
+            # 🔥 ------------------------
+
+            # 🔥 --- PARALLEL BLOCK 2 ---
+            t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
+            t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_1"})
+
+            t4.start()
+            t5.start()
+
+            t4.join()
+            t5.join()
+            # 🔥 ------------------------
+
+            tamper(portafilter_tool="double_portafilter")
+            mount(port="port_1")
+
+            # call_coffee_machine(coffee_type=2, slot_number=1)
+
+            end = time.perf_counter()
+            timings.append(end - start)
+
+    print("Done")
+    return timings
     # run_skill("set_speed_factor", 100)
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)
     # run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
@@ -6132,22 +6687,51 @@ def test(**params):
     # run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
-def test_arm1(times=1, **params):
-     for i in range(times):
-        stage = (i % 4) + 1
-        stage_params = PLACE_PAPER_CUP_PARAMS[f"stage_{stage}"]
-        home(position="south_west")
-        run_skill("gotoJ_deg",191.646150,74.117401,-112.223690,-142.814608,11.629319,0.888704)
-        run_skill("gotoJ_deg",191.667596,49.107588,-70.637578,-159.483294,11.665208,0.983008) #run_skill("moveEE_movJ", 10, 100, 0, 0, 0, 0)
-        run_skill("sync")
-        run_skill("set_gripper_position", 255, 165, 255)
-        run_skill("moveEE_movJ", 0, 0, -200, 0, 0, 0)
-        run_skill("gotoJ_deg", *stage_params["pose"])
-        run_skill("sync")
-        run_skill("set_gripper_position", 25, 100, 255)
-        run_skill("set_gripper_position", 255, 0, 255)
-        run_skill("moveEE", *PAPER_CUP_MOVEMENT_OFFSETS["place_up"])
-        run_skill("gotoJ_deg", *stage_params["stage_home"])
+def test_arm1(**params):
+    # run_skill("gotoJ_deg",22.282209,-37.865238,-134.210388,8.984907,-65.109528,-7.302969)
+    run_skill("gotoJ_deg", -157.717791,-37.865238,-134.210388,8.984907,-65.109528,-7.302969)
+    run_skill("sync")
+    run_skill("set_speed_factor", 10)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 20)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 30)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 40)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 50)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 60)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 70)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+    run_skill("set_speed_factor", 80)
+    run_skill("move_portafilter_arc_tool_angled", -37.0)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", 37.0)
+    run_skill("sync")
+
 
     
     
@@ -6910,7 +7494,216 @@ SEQUENCES = {
     "espresso_port_2_training": lambda: espresso_port_2_training(),
     "angled_espresso_port_1_training": lambda: angled_espresso_port_1_training(),
     "angled_espresso_port_2_training": lambda: angled_espresso_port_2_training(),
+    "tamper_3500": lambda: call_tamper(calibration_ms=2075),
+    "coffee_single": lambda: call_coffee_machine(coffee_type=1, slot_number=2),
+    "coffee_double": lambda: call_coffee_machine(coffee_type=2, slot_number=1),
+    "hot_water": lambda: call_hot_water(calibration=2),
+    "coffee_purge_single": lambda: call_coffee_purge(slot_number=2),
+    "coffee_purge_double": lambda: call_coffee_purge(slot_number=1),
+    "grind_single": lambda: call_grinder(shots_number=1),
+    "grind_double": lambda: call_grinder(shots_number=2),
+    "ice_small": lambda: call_ice(weight=80),
+    "ice_large": lambda: call_ice(weight=150),
+    "slush": lambda: call_slush(type="slush_2", weight=150, difference=25),
+    "milk": lambda: call_milk_syrup(device="milk", motor=8, amount=50),
+    "syrup": lambda: call_milk_syrup(device="syrup", motor=7, amount=20),
+    "froth": lambda: call_frother(command="froth", temp=70),
+    "frother_clean": lambda: call_frother(command="clean"),
 }
+
+# ------------------------------------------------------------------
+#  Dobot kinematics / bringup tools (same behavior as ~/kinemtaics_solutions.py)
+#  Invoked from the main CLI; options 1-10 are only inside this submenu.
+# ------------------------------------------------------------------
+def _print_kinematics_srv_response(res):
+    try:
+        fields = res._fields_and_field_types
+    except AttributeError:
+        fields = {slot: None for slot in res.__slots__}
+    print("Service response:")
+    for field in fields:
+        val = getattr(res, field)
+        if isinstance(val, (float, int)):
+            print(f"  {field}={val:.6f}")
+        else:
+            print(f"  {field}={val}")
+
+
+def run_kinematics_tools_menu():
+    """Interactive 1-10 menu mirroring kinemtaics_solutions.py; returns to sequence CLI on q."""
+    if not rclpy.ok():
+        rclpy.init(args=None)
+
+    knode = rclpy.create_node("kinematics_tools")
+    try:
+        services = {
+            "inverse": knode.create_client(InverseSolution, "/dobot_bringup_v3/srv/InverseSolution"),
+            "forward": knode.create_client(PositiveSolution, "/dobot_bringup_v3/srv/PositiveSolution"),
+            "pose": knode.create_client(GetPose, "/dobot_bringup_v3/srv/GetPose"),
+            "angle": knode.create_client(GetAngle, "/dobot_bringup_v3/srv/GetAngle"),
+            "start_drag": knode.create_client(StartDrag, "/dobot_bringup_v3/srv/StartDrag"),
+            "stop_drag": knode.create_client(StopDrag, "/dobot_bringup_v3/srv/StopDrag"),
+            "set_gripper": knode.create_client(SetGripperPosition, "/dobot_bringup_v3/srv/SetGripperPosition"),
+            "get_gripper": knode.create_client(GetGripperPosition, "/dobot_bringup_v3/srv/GetGripperPosition"),
+            "clear_error": knode.create_client(ClearError, "/dobot_bringup_v3/srv/ClearError"),
+            "disable_robot": knode.create_client(DisableRobot, "/dobot_bringup_v3/srv/DisableRobot"),
+            "enable_robot": knode.create_client(EnableRobot, "/dobot_bringup_v3/srv/EnableRobot"),
+            "modbus_close": knode.create_client(ModbusClose, "/dobot_bringup_v3/srv/ModbusClose"),
+            "modbus_create": knode.create_client(ModbusCreate, "/dobot_bringup_v3/srv/ModbusCreate"),
+            "set_hold_regs": knode.create_client(SetHoldRegs, "/dobot_bringup_v3/srv/SetHoldRegs"),
+            "cp": knode.create_client(CP, "/dobot_bringup_v3/srv/CP"),
+        }
+
+        service_wait_sec = 10.0
+        for name, cli in services.items():
+            knode.get_logger().info(f"Waiting for {name} service...")
+            if not cli.wait_for_service(timeout_sec=service_wait_sec):
+                knode.get_logger().warn(
+                    f"Service '{name}' not ready after {service_wait_sec}s (calls may fail)."
+                )
+
+        menu = [
+            "1. Inverse Kinematics",
+            "2. Forward Kinematics",
+            "3. Get Current Pose",
+            "4. Get Current Angles",
+            "5. Start Drag",
+            "6. Stop Drag",
+            "7. Open Gripper",
+            "8. Close Gripper",
+            "9. Get Gripper Position",
+            "10. Initialize",
+            "Q. Back to sequence menu",
+        ]
+
+        def call(name, req):
+            future = services[name].call_async(req)
+            rclpy.spin_until_future_complete(knode, future, timeout_sec=30.0)
+            if future.done() and future.result() is not None:
+                _print_kinematics_srv_response(future.result())
+            else:
+                print("Service call failed.")
+
+        while True:
+            print("\nSelect mode (kinemtaics_solutions.py):")
+            for item in menu:
+                print(item)
+            choice = input("Enter choice: ").strip().lower()
+
+            if choice in ("q", "quit", "exit", "back"):
+                print("Returning to sequence menu.\n")
+                break
+
+            if choice in ("1", "inverse", "i"):
+                vals = input("Enter x,y,z,rx,ry,rz: ").split(",")
+                if len(vals) != 6:
+                    print("Please enter 6 comma-separated values.")
+                    continue
+                try:
+                    req = InverseSolution.Request(
+                        x=float(vals[0]),
+                        y=float(vals[1]),
+                        z=float(vals[2]),
+                        rx=float(vals[3]),
+                        ry=float(vals[4]),
+                        rz=float(vals[5]),
+                    )
+                except ValueError:
+                    print("Invalid numeric input.")
+                    continue
+                call("inverse", req)
+
+            elif choice in ("2", "forward", "f"):
+                vals = input("Enter j1,j2,j3,j4,j5,j6: ").split(",")
+                if len(vals) != 6:
+                    print("Please enter 6 comma-separated values.")
+                    continue
+                try:
+                    req = PositiveSolution.Request(
+                        j1=float(vals[0]),
+                        j2=float(vals[1]),
+                        j3=float(vals[2]),
+                        j4=float(vals[3]),
+                        j5=float(vals[4]),
+                        j6=float(vals[5]),
+                    )
+                except ValueError:
+                    print("Invalid numeric input.")
+                    continue
+                call("forward", req)
+
+            elif choice in ("3", "pose", "p"):
+                gp = GetPose.Request()
+                gp.user = 0
+                gp.tool = 0
+                call("pose", gp)
+
+            elif choice in ("4", "angle", "a"):
+                call("angle", GetAngle.Request())
+
+            elif choice in ("5", "start drag", "sd"):
+                call("start_drag", StartDrag.Request())
+
+            elif choice in ("6", "stop drag", "td"):
+                call("stop_drag", StopDrag.Request())
+
+            elif choice in ("7", "open gripper", "og"):
+                call(
+                    "set_gripper",
+                    SetGripperPosition.Request(position=0, speed=255, force=255),
+                )
+
+            elif choice in ("8", "close gripper", "cg"):
+                call(
+                    "set_gripper",
+                    SetGripperPosition.Request(position=255, speed=255, force=255),
+                )
+
+            elif choice in ("9", "get gripper", "gg"):
+                call("get_gripper", GetGripperPosition.Request())
+
+            elif choice in ("10", "initialize", "init"):
+                print("Initializing sequence...")
+                call("clear_error", ClearError.Request())
+                time.sleep(0.1)
+                call("disable_robot", DisableRobot.Request())
+                time.sleep(0.1)
+                call("enable_robot", EnableRobot.Request(load=2.0))
+                time.sleep(0.1)
+                call("start_drag", StartDrag.Request())
+                time.sleep(0.1)
+                call("stop_drag", StopDrag.Request())
+                time.sleep(0.1)
+                call("modbus_close", ModbusClose.Request(index=0))
+                time.sleep(0.1)
+                call(
+                    "modbus_create",
+                    ModbusCreate.Request(ip="127.0.0.1", port=60000, slave_id=9, is_rtu=1),
+                )
+                time.sleep(0.1)
+                call(
+                    "set_hold_regs",
+                    SetHoldRegs.Request(
+                        index=0, addr=1000, count=3, val_tab="0,0,0", val_type="int"
+                    ),
+                )
+                time.sleep(0.1)
+                call(
+                    "set_hold_regs",
+                    SetHoldRegs.Request(
+                        index=0, addr=1000, count=3, val_tab="256,0,0", val_type="int"
+                    ),
+                )
+                time.sleep(0.1)
+                call("cp", CP.Request(r=100))
+                time.sleep(0.1)
+                print("Initialization complete.")
+
+            else:
+                print("Invalid choice, please try again.")
+    finally:
+        knode.destroy_node()
+
 
 # ------------------------------------------------------------------
 #  CLI – interactive menu that keeps prompting until you quit
@@ -6932,6 +7725,7 @@ def _main():
     print("🔧  Pick-and-Place Interactive Menu")
     print(f"📌 Currently using: {USE_VERSION.upper()} ({robot_motion_class.__name__})")
     print("Type sequence name to run, 'list' to show all, 'q' to quit.")
+    print("Type 'kin' or 'kinematics' for Dobot tools menu (options 1-10, same as kinemtaics_solutions.py).")
     print("For solution: solution(j1,j2,j3,j4,j5,j6,x,y,z,rx,ry,rz)\n")
 
     try:
@@ -6943,11 +7737,20 @@ def _main():
                 print("Bye!")
                 break
 
+            if choice.lower() in ("kin", "kinematics", "ktools"):
+                try:
+                    run_kinematics_tools_menu()
+                except KeyboardInterrupt:
+                    print("\nInterrupted. Returning to sequence menu.\n")
+                except Exception as e:
+                    print(f"\nKinematics menu error: {e}\n")
+                continue
+
             if choice.lower() in ("list", "help", "ls", "l"):
                 print("\nAvailable sequences:")
                 for name in SEQUENCES:
                     print(f"  • {name}")
-                print()
+                print("Also: kin / kinematics -> Dobot service menu (options 1-10).\n")
                 continue
 
             # Check if it's a function call with parameters (e.g., solution(...))

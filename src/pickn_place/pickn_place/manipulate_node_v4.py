@@ -3426,7 +3426,7 @@ class robot_motion(Node):
         self,
         arc_size_deg: float = 30.0,
         axis: str = "z",
-        tcp_table: str = "{0,0,287.5,-17.5,0,0}",
+        tcp_table: str = "{0,0,275.0,-17.5,0,0}",
     ) -> bool:
         """
         1) Configure TCP via SetTool (tool index 1, tcp_table)
