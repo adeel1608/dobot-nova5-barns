@@ -3158,7 +3158,7 @@ def angled_unmount(**params) -> bool:
 
     espresso_dict = params.get("espresso")
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
-    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+    port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_2")
     grab_tool_name = (
         params.get("portafilter_tool")
         or (shot_cfg.get("portafilter_tool") if shot_cfg else None)
@@ -3174,15 +3174,15 @@ def angled_unmount(**params) -> bool:
 
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
-    if port in ('angled_portafilter_1',):
-        if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
-            return False
+    # if port in ('angled_portafilter_1',):
+    #     if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
+    #         return False
     # else:
     #     run_skill("sync")
     #     if not ok(run_skill("approach_machine", "three_group_espresso", port_params['portafilter_number'])):
     #         return False
 
-    if port in ('angled_portafilter_1', 'angled_portafilter_2'):
+    if port in ('angled_portafilter_2'):
         if not _run_cached_machine_approach(
             f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
             "three_group_espresso",
@@ -3225,7 +3225,7 @@ def angled_unmount(**params) -> bool:
                 f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
                 f"nudging down 5 mm and retrying close"
             )
-            if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+            if not ok(run_skill("moveEE_movJ", 1.5, 0, -4.77, 0, 0, 0)):
                 return False
             gripped, pos = _close_and_verify_grip_angled()
 
@@ -3235,7 +3235,7 @@ def angled_unmount(**params) -> bool:
                 f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
                 f"nudging up 10 mm and retrying close"
             )
-            if not ok(run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)):
+            if not ok(run_skill("moveEE_movJ", -3.01, 0, 9.54, 0, 0, 0)):
                 return False
             gripped, pos = _close_and_verify_grip_angled()
 
@@ -3247,7 +3247,7 @@ def angled_unmount(**params) -> bool:
             )
             if not ok(run_skill("set_gripper_position", 255, 0, 255)):
                 return False
-            if port in ('angled_portafilter_1', 'angled_portafilter_2'):
+            if port in ('angled_portafilter_2'):
                 if not _run_cached_machine_approach(
                     f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
                     "three_group_espresso",
@@ -3267,7 +3267,7 @@ def angled_unmount(**params) -> bool:
         if not ok(run_skill("release_tension")):
             return False
         run_skill("sync")
-        run_skill("enforce_rxry")
+        run_skill("enforce_rxry_angled")
         run_skill("sync")
 
         z_tgt = _UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM
@@ -3278,14 +3278,15 @@ def angled_unmount(**params) -> bool:
             return False
         z_mm = float(pose_z[2])
         if not (z_lo <= z_mm <= z_hi):
-            dz = (z_tgt - z_mm) / 1.5
+            dz = (z_tgt - z_mm) / 1.25
+            dx = -0.315298*dz
             _gripper_log.warning(
                 f"[ANGLED-UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
-                f"moveEE_movJ dz={dz:.2f} mm"
+                f"moveEE_movJ dz={dz:.2f} mm, dx={dx:.2f} mm"
             )
-            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+            if not ok(run_skill("set_gripper_position", 255, 100, 255)):
                 return False
-            if not ok(run_skill("moveEE_movJ", -0.5, 0, dz, 0, 0, 0)):
+            if not ok(run_skill("moveEE_movJ", dx, 0, dz, 0, 0, 0)):
                 return False
             if not ok(run_skill("set_gripper_position", 255, 255, 255)):
                 return False
@@ -3300,13 +3301,15 @@ def angled_unmount(**params) -> bool:
         _unmount_post_grab_joints_cache[grab_cache_key] = tuple(angles)
         run_skill("sync")
 
-    if not ok(run_skill("enforce_rxry")):
+    if not ok(run_skill("enforce_rxry_angled")):
         return False
 
     run_skill("sync")
 
-    if not ok(run_skill("move_portafilter_arc_tool_angled", -37.0)):
+    if not ok(run_skill("move_portafilter_arc_tool_angled", -39.0)):
         return False
+    
+    run_skill("sync")
 
     cached = angled__port_angle_cache.get(port)
     if cached:
@@ -3363,7 +3366,11 @@ def angled_unmount(**params) -> bool:
         if not ok(run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)):
             return False
     else:
-        run_skill("sync")
+        run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
+        run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
+        run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
+        run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+        run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
     return True
 
@@ -3393,7 +3400,7 @@ def angled_grinder(**params) -> bool:
     if not _run_cached_machine_approach(
         f"angled_grinder:{port}:approach:grinder",
         "espresso_grinder",
-        "grinder",
+        "angled_grinder",
     ):
         return False
 
@@ -3408,7 +3415,7 @@ def angled_grinder(**params) -> bool:
         if not _run_cached_machine_mount(
             f"angled_grinder:{port}:mount:grinder",
             "espresso_grinder",
-            "grinder",
+            "angled_grinder",
         ):
             return False
 
@@ -3423,7 +3430,7 @@ def angled_grinder(**params) -> bool:
     if not _run_cached_machine_approach(
         f"angled_grinder:{port}:approach:tamper",
         "espresso_grinder",
-        "tamper",
+        "angled_tamper",
     ):
         return False
     run_skill("sync")
@@ -3435,7 +3442,7 @@ def angled_grinder(**params) -> bool:
     if not _run_cached_machine_mount(
         f"angled_grinder:{port}:mount:grinder:final",
         "espresso_grinder",
-        "grinder",
+        "angled_grinder",
     ):
         return False
 
@@ -3445,7 +3452,7 @@ def angled_grinder(**params) -> bool:
     if not _run_cached_machine_mount(
         f"angled_grinder:{port}:mount:tamper",
         "espresso_grinder",
-        "tamper",
+        "angled_tamper",
     ):
         return False
 
@@ -3523,7 +3530,7 @@ def angled_tamper(**params) -> bool:
     if not _run_cached_machine_mount(
         f"angled_tamper:{portafilter_tool}:mount:grinder",
         "espresso_grinder",
-        "grinder",
+        "angled_grinder",
     ):
         return False
 
@@ -3533,7 +3540,7 @@ def angled_tamper(**params) -> bool:
     if not _run_cached_machine_approach(
         f"angled_tamper:{portafilter_tool}:approach:grinder",
         "espresso_grinder",
-        "grinder",
+        "angled_grinder",
     ):
         return False
 
@@ -3576,6 +3583,11 @@ def angled_mount(**params) -> bool:
     #     return False
     # if not ok(run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)):
     #     return False
+    run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
+    run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
+    run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
     runtime_cached = angled__mount_runtime_cache.get(port)
     if runtime_cached:
         below_pose = runtime_cached.get('below')
@@ -3593,10 +3605,10 @@ def angled_mount(**params) -> bool:
         return False
     if not ok(run_skill("moveEE_movJ", *_portafilter_clear_up_angled_offset(port))):
         return False
-    if not ok(run_skill("enforce_rxry")):
-        return False
-    run_skill("sync")
-    if not ok(run_skill("move_portafilter_arc_tool_angled", 41.0)):
+    # if not ok(run_skill("enforce_rxry_angled")):
+    #     return False
+    # run_skill("sync")
+    if not ok(run_skill("move_portafilter_arc_tool_angled", 43.0)):
         return False
     run_skill("sync")
     if not _open_gripper_with_verify():
@@ -3614,8 +3626,8 @@ def angled_mount(**params) -> bool:
     #         return False
     # if not ok(run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)):
     #     return False
-    # if not ok(run_skill("gotoJ_deg", *port_params['home'])):
-    #     return False
+    if not ok(run_skill("gotoJ_deg", *port_params['home'])):
+        return False
 
     return True
 
@@ -6612,6 +6624,31 @@ def angled_espresso_port_2_training(**params):
     run_skill("move_to", "single_portafilter_angled", 0.22)#run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
     run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
+def angled_grinder_training(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "espresso_grinder", 0.22)
+    run_skill("get_machine_position", "espresso_grinder")
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    run_skill("gotoJ_deg", -37.955273,-73.296745,-105.604561,15.800714,-86.329605,-2.033083)#angled_grinder - approach
+    input()
+    run_skill("gotoJ_deg", -38.635151,-77.742249,-77.560051,-7.811272,-86.984062,-1.820310)#angled_grinder - mount
+    input()
+    run_skill("gotoJ_deg", -38.643422,-70.657534,-70.963554,-38.126536,-86.680101,-1.819383)#angled_tamper - approach
+    input()
+    run_skill("gotoJ_deg", -38.635151,-77.742249,-77.560051,-7.811272,-86.984062,-1.820310)#angled_tamper - mount
+    input()
+    run_skill("gotoJ_deg", -38.634125,-83.270256,-73.245041,-6.598258,-86.987930,-1.820723)
+    input()
+    run_skill("gotoJ_deg", -38.635151,-77.742249,-77.560051,-7.811272,-86.984062,-1.820310)
+    input()
+    run_skill("gotoJ_deg", -37.955273,-73.296745,-105.604561,15.800714,-86.329605,-2.033083)
+    input()
+    run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    input()
+
 def test(**params):
     timings = []
 
@@ -6688,52 +6725,93 @@ def test(**params):
     # run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def test_arm1(**params):
-    # run_skill("gotoJ_deg",22.282209,-37.865238,-134.210388,8.984907,-65.109528,-7.302969)
-    run_skill("gotoJ_deg", -157.717791,-37.865238,-134.210388,8.984907,-65.109528,-7.302969)
-    run_skill("sync")
-    run_skill("set_speed_factor", 10)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 20)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 30)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 40)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 50)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 60)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 70)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
-    run_skill("set_speed_factor", 80)
-    run_skill("move_portafilter_arc_tool_angled", -37.0)
-    run_skill("sync")
-    run_skill("move_portafilter_arc_tool_angled", 37.0)
-    run_skill("sync")
+    timings = []
 
+    for outer_idx in range(10):
+        get_machine_position()
 
-    
+        for inner_idx in range(0):
+            start = time.perf_counter()
+
+            angled_unmount(port="angled_portafilter_2")
+            # clean_portafilter(port="port_1")
+
+            # # 🔥 --- PARALLEL BLOCK 1 ---
+            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
+            # # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
+            t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
+
+            # t1.start()
+            # # t2.start()
+            t3.start()
+
+            # t1.join()
+            # # t2.join()
+            t3.join()
+            # # 🔥 ------------------------
+
+            # # 🔥 --- PARALLEL BLOCK 2 ---
+            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
+            # t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_1"})
+
+            # t4.start()
+            # t5.start()
+
+            # t4.join()
+            # t5.join()
+            # # 🔥 ------------------------
+
+            angled_tamper(portafilter_tool="single_portafilter_angled")
+            angled_mount(port="angled_portafilter_2")
+
+            # call_coffee_machine(coffee_type=2, slot_number=1)
+
+            end = time.perf_counter()
+            timings.append(end - start)
+
+    print("Done")
+    return timings
+
+def test_angle(**params):
+    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    run_skill("set_gripper_position", 255, 0, 255)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "espresso_grinder", 0.22)
+    run_skill("get_machine_position", "espresso_grinder")
+    input()
+    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
+    run_skill("set_gripper_position", 255, 255, 255)
+    run_skill("approach_machine", "espresso_grinder", "angled_grinder")
+    input()
+    run_skill("mount_machine", "espresso_grinder", "angled_grinder")
+    input()
+    run_skill("approach_machine", "espresso_grinder", "angled_tamper")
+    input()
+    run_skill("mount_machine", "espresso_grinder", "angled_tamper")
+    input()
+    # for i in range(75):
+    #     # run_skill("set_speed_factor", 100)
+    #     # run_skill("sync")
+    #     # run_skill("gotoJ_deg", -38.635151,-77.742249,-77.560051,-7.811272,-86.984062,-1.820310)
+    #     # run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
+    #     # run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
+    #     # run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    #     # run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    #     # # run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
+    #     # # run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
+    #     # # run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
+    #     # # run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
+    #     # run_skill("approach_machine", "espresso_grinder", "grinder")
+    #     # input()
+    #     # run_skill("mount_machine", "espresso_grinder", "grinder")
+    #     # input()
+    #     # run_skill("approach_machine", "espresso_grinder", "tamper")
+    #     # input()
+    #     # run_skill("mount_machine", "espresso_grinder", "tamper")
+    #     # input()
+    #     run_skill("moveEE", -1, -1, 0, 0, 0, 0)
+
     
 import time
 import csv
@@ -7474,6 +7552,7 @@ SEQUENCES = {
     "test": lambda: test(),
     "test_arm2": lambda: test_arm2(),
     "test_arm1": lambda: test_arm1(),
+    "test_angle": lambda: test_angle(),
     "milk_1": lambda: milk_1(),
     "milk_2": lambda: milk_2(),
     "milk_3": lambda: milk_3(),

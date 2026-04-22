@@ -1087,7 +1087,7 @@ class robot_motion(Node):
         import rclpy
 
         # ── 1) fixed offset from Link6 origin → portafilter_link origin (m)
-        d_rel = np.array([0.0, 0.0, 0.2825])
+        d_rel = np.array([0.0, 0.0, 0.2875])
 
         retry_pause = 0.25
         max_attempts = 20
@@ -1200,6 +1200,181 @@ class robot_motion(Node):
             return False
         
         self.get_logger().info("enforce_rxry(): Completed successfully.")
+        return True
+
+    def enforce_rxry_angled(self) -> bool:
+        """
+        Keep the attached tool origin fixed in world space while forcing
+        Link6 to a known-good grasp orientation.
+
+        Tool definition:
+            0.0, 0.0, 275.0, -17.5, 0.0, 0.0
+
+        Known-good pose orientation:
+            Rx = 74.452705
+            Ry = 0.328027
+            Rz = 84.781235
+
+        Uses MovJ to move the flange while compensating XYZ so the tool origin
+        stays in the same world position.
+        """
+        from tf_transformations import euler_matrix
+        from dobot_msgs_v3.srv import GetPose, MovJ
+        import numpy as np
+        import time
+        import rclpy
+
+        retry_pause = 0.25
+        max_attempts = 20
+
+        # Tool origin offset from Link6 origin (m)
+        # For preserving the tool origin position, only the translation is used here.
+        d_rel = np.array([0.0, 0.0, 0.2750], dtype=float)
+
+        # Known-good target orientation
+        rx_t = 74.452705
+        ry_t = 0.328027
+        rz_t = 84.781235
+
+        # Get current pose
+        gp_req = GetPose.Request()
+        gp_req.user = 0
+        gp_req.tool = 0
+
+        resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(
+                f"enforce_rxry_angled(): GetPose attempt {attempt}/{max_attempts}"
+            )
+
+            future = self.get_pose_cli.call_async(gp_req)
+            start = self.get_clock().now().nanoseconds * 1e-9
+
+            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
+                rclpy.spin_once(self, timeout_sec=0.01)
+                if future.done():
+                    try:
+                        result = future.result()
+                        if result is not None and hasattr(result, "pose"):
+                            resp = result
+                            break
+                    except Exception:
+                        pass
+
+            if resp is not None:
+                break
+
+            self.get_logger().warn(
+                "enforce_rxry_angled(): GetPose failed or timed out, retrying..."
+            )
+            time.sleep(retry_pause)
+
+        if resp is None or not hasattr(resp, "pose"):
+            self.get_logger().error(
+                "enforce_rxry_angled(): Failed to retrieve pose after retries."
+            )
+            return False
+
+        parts = resp.pose.strip("{}").split(",")
+        if len(parts) < 6:
+            self.get_logger().error(
+                f"enforce_rxry_angled(): Invalid pose string: {resp.pose}"
+            )
+            return False
+
+        try:
+            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = [float(p) for p in parts[:6]]
+        except Exception as e:
+            self.get_logger().error(
+                f"enforce_rxry_angled(): Failed parsing pose: {e}"
+            )
+            return False
+
+        # Current Link6 pose
+        p_link6 = np.array([tx_mm, ty_mm, tz_mm], dtype=float) * 1e-3
+        R6_curr = euler_matrix(*np.radians([rx_curr, ry_curr, rz_curr]))[:3, :3]
+
+        # Current world position of tool origin
+        p_tool_world = p_link6 + R6_curr.dot(d_rel)
+
+        # Desired Link6 rotation
+        R6_goal = euler_matrix(*np.radians([rx_t, ry_t, rz_t]))[:3, :3]
+
+        # Solve for new Link6 origin so tool origin stays fixed
+        p6_goal = p_tool_world - R6_goal.dot(d_rel)
+
+        x_goal_mm = float(p6_goal[0] * 1000.0)
+        y_goal_mm = float(p6_goal[1] * 1000.0)
+        z_goal_mm = float(p6_goal[2] * 1000.0)
+
+        self.get_logger().info(
+            "enforce_rxry_angled(): current pose = "
+            f"{tx_mm:.3f}, {ty_mm:.3f}, {tz_mm:.3f}, "
+            f"{rx_curr:.6f}, {ry_curr:.6f}, {rz_curr:.6f}"
+        )
+        self.get_logger().info(
+            "enforce_rxry_angled(): target pose = "
+            f"{x_goal_mm:.3f}, {y_goal_mm:.3f}, {z_goal_mm:.3f}, "
+            f"{rx_t:.6f}, {ry_t:.6f}, {rz_t:.6f}"
+        )
+
+        # Create MovJ client if needed
+        self.movj_cli = getattr(
+            self,
+            "movj_cli",
+            self.create_client(MovJ, "/dobot_bringup_v3/srv/MovJ")
+        )
+
+        movj_req = MovJ.Request()
+        movj_req.x = x_goal_mm
+        movj_req.y = y_goal_mm
+        movj_req.z = z_goal_mm
+        movj_req.rx = rx_t
+        movj_req.ry = ry_t
+        movj_req.rz = rz_t
+        movj_req.param_value = ["SpeedJ=100,AccJ=100"]
+
+        movj_resp = None
+        for attempt in range(1, max_attempts + 1):
+            self.get_logger().info(
+                f"enforce_rxry_angled(): MovJ attempt {attempt}/{max_attempts}"
+            )
+
+            if not self.movj_cli.wait_for_service(timeout_sec=2.0):
+                self.get_logger().warn(
+                    "enforce_rxry_angled(): MovJ service unavailable, retrying..."
+                )
+                time.sleep(retry_pause)
+                continue
+
+            movj_future = self.movj_cli.call_async(movj_req)
+            start = self.get_clock().now().nanoseconds * 1e-9
+
+            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
+                rclpy.spin_once(self, timeout_sec=0.01)
+                if movj_future.done():
+                    try:
+                        movj_resp = movj_future.result()
+                        break
+                    except Exception:
+                        movj_resp = None
+                        break
+
+            if movj_resp is not None:
+                break
+
+            self.get_logger().warn(
+                "enforce_rxry_angled(): MovJ failed or timed out, retrying..."
+            )
+            time.sleep(retry_pause)
+
+        if movj_resp is None:
+            self.get_logger().error(
+                "enforce_rxry_angled(): Failed to execute MovJ after retries."
+            )
+            return False
+
+        self.get_logger().info("enforce_rxry_angled(): Completed successfully.")
         return True
 
     def _get_link6_pose_with_retries(self, max_attempts: int = 3) -> tuple | None:
