@@ -952,8 +952,11 @@ def place_paper_cup_arm1(**params) -> bool:
     elif stage == "2":
         if not ok(home(position="south_west")):
             return False
-    elif stage in ("3", "4"):
+    elif stage == "4":
         if not ok(home(position="south")):
+            return False
+    elif stage == "3":
+        if not ok(home(position="south_west")):
             return False
 
     if 'pose' not in stage_params:
@@ -1013,27 +1016,27 @@ def grab_paper_cup_arm2(**params) -> bool:
 
     size_cfg = {
         "7oz": {
-            "home": "south_east",
-            "grip": 150,
+            "home": "north_east",
+            "grip": 155,
             "up_down_z": 200,
-            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
-            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
+            "pose1": (-52.257668,-36.013535,-91.807312,127.588043,52.159515,180.128571),
+            "pose2": (-52.257133,-24.955849,-72.251076,96.955688,52.174652,180.158661),
             "visitfix":(0,0,-2,0,0,0),
         },
         "9oz": {
             "home": "south_east",
             "grip": 150,
             "up_down_z": 200,
-            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
+            "pose1": (-108.257324,-43.628250,-75.009590,118.425400,108.173233,179.912598),
             "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
             "visitfix":(0,0,-2,0,0,0),
         },
         "12oz": {
-            "home": "south_east",
-            "grip": 150,
+            "home": "east",
+            "grip": 135,
             "up_down_z": 200,
-            "pose1": (-112.017731, -22.482094, -73.845047, 96.120773, 111.934937, 179.931488),
-            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
+            "pose1": (-82.175354,-30.120581,-95.428894,125.354034,82.074257,180.017426),
+            "pose2": (-82.176834,-21.495697,-80.396042,101.693619,82.088623,180.036987),
             "visitfix":(0,0,-2,0,0,0),
         },
     }
@@ -1048,10 +1051,10 @@ def grab_paper_cup_arm2(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *cfg["pose2"])):
         return False
-    if not ok(run_skill("moveEE_movJ", *cfg["visitfix"])):
-        return False
-    # if not ok(run_skill("sync")):
+    # if not ok(run_skill("moveEE_movJ", *cfg["visitfix"])):
     #     return False
+    if not ok(run_skill("sync")):
+        return False
 
     attempt_count = 0
     while attempt_count < 15:
@@ -1077,6 +1080,8 @@ def grab_paper_cup_arm2(**params) -> bool:
             return False
 
     if not ok(home(position=cfg["home"])):
+        return False
+    if not ok(home(position="north_east")):
         return False
     return True
 
@@ -1266,7 +1271,7 @@ def place_paper_cup_sauces(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['sauces_station']['position3'])):
         return False
     run_skill("sync")
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
+    if not ok(run_skill("set_gripper_position", 255, 90, 255)):
         return False
     cup_detected = detect_cup_gripper()
     if not cup_detected:
@@ -1312,12 +1317,12 @@ def place_paper_cup_milk(**params) -> bool:
     
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position1'])):
         return False
-    if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2'])):
-        return False
+    # if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2'])):
+    #     return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position3'])):
         return False
     run_skill("sync")
-    if not ok(run_skill("set_gripper_position", GRIPPER_FULL, GRIPPER_OPEN)):
+    if not ok(run_skill("set_gripper_position", 255, 90, 255)):
         return False
     cup_detected = detect_cup_gripper()
     if not cup_detected:
@@ -1340,16 +1345,16 @@ def pick_paper_cup_milk(**params) -> bool:
     if cup_size not in valid_sizes:
         return False
     
-    gripper_position = 145
+    gripper_position = 140
     cup_detected = detect_cup_gripper()
-    if not cup_detected:
-        return False
+    # if not cup_detected:
+    #     return False
     if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
-    if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2'])):
-        return False
+    # if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position2'])):
+    #     return False
     if not ok(run_skill("gotoJ_deg", *PAPER_CUPS_STATION_PARAMS['milk_station']['position1'])):
         return False
     return True
@@ -1560,8 +1565,8 @@ _GRIPPER_OPEN_RETRIES = 3
 
 # Acceptable gripper position after a correct close on the portafilter (Dobot
 # decoded value from register 2002). Center ~146; allow small variation.
-_PORTAFILTER_GRIP_POS_MIN = 137
-_PORTAFILTER_GRIP_POS_MAX = 147
+_PORTAFILTER_GRIP_POS_MIN = 135
+_PORTAFILTER_GRIP_POS_MAX = 150
 
 # After release_tension on uncached unmount grab: Link6 Z from current_pose (mm).
 _UNMOUNT_POST_TENSION_Z_TARGET_MM = 200.0
@@ -1825,7 +1830,7 @@ def unmount(**params) -> bool:
                 f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
                 f"nudging down 5 mm and retrying close"
             )
-            if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+            if not ok(run_skill("moveEE_movJ", 0, 0, -2.5, 0, 0, 0)):
                 return False
             gripped, pos = _close_and_verify_grip()
 
@@ -1836,7 +1841,7 @@ def unmount(**params) -> bool:
                 f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
                 f"nudging up 10 mm and retrying close"
             )
-            if not ok(run_skill("moveEE_movJ", 0, 0, 10, 0, 0, 0)):
+            if not ok(run_skill("moveEE_movJ", 0, 0, 5, 0, 0, 0)):
                 return False
             gripped, pos = _close_and_verify_grip()
 
@@ -1887,7 +1892,7 @@ def unmount(**params) -> bool:
                 f"[UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
                 f"moveEE_movJ dz={dz:.2f} mm"
             )
-            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+            if not ok(run_skill("set_gripper_position", 255, 100, 255)):
                 return False
             if not ok(run_skill("moveEE_movJ", -0.5, 0, dz, 0, 0, 0)):
                 return False
@@ -1938,7 +1943,7 @@ def unmount(**params) -> bool:
         if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
             return False
         z_after_tension_mm = float(pose_after_tension[2])
-        dz_drop_mm = z_after_arc_mm - z_after_tension_mm
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 0.1
         if dz_drop_mm > 0.0:
             learned_clear_up_z = float(math.ceil(dz_drop_mm))
         else:
@@ -3336,7 +3341,7 @@ def angled_unmount(**params) -> bool:
         if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
             return False
         z_after_tension_mm = float(pose_after_tension[2])
-        dz_drop_mm = z_after_arc_mm - z_after_tension_mm
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 1.0
         base_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"][2])
         if dz_drop_mm > 0.0:
             learned_clear_up_z = float(math.ceil(dz_drop_mm))
@@ -3456,24 +3461,24 @@ def angled_grinder(**params) -> bool:
     ):
         return False
 
-    run_skill("sync")
-    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
-        return False
+    # run_skill("sync")
+    # if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+    #     return False
 
-    cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
-    if angled__is_valid_angles(cached_tool_pick_pose):
-        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
-            return False
-    else:
-        if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
-            return False
-        tool_pick_pose = run_skill("current_angles")
-        if not angled__is_valid_angles(tool_pick_pose):
-            return False
-        angled__tool_pick_pose_cache[portafilter_tool] = tuple(tool_pick_pose)
+    # cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
+    # if angled__is_valid_angles(cached_tool_pick_pose):
+    #     if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+    #         return False
+    # else:
+    #     if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
+    #         return False
+    #     tool_pick_pose = run_skill("current_angles")
+    #     if not angled__is_valid_angles(tool_pick_pose):
+    #         return False
+    #     angled__tool_pick_pose_cache[portafilter_tool] = tuple(tool_pick_pose)
 
-    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
-        return False
+    # if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+    #     return False
 
     return True
 
@@ -3499,28 +3504,28 @@ def angled_tamper(**params) -> bool:
     if portafilter_tool not in ("double_portafilter_angled", "single_portafilter_angled"):
         return False
 
-    if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
-        return False
+    # if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
+    #     return False
 
-    cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
-    if angled__is_valid_angles(cached_tool_pick_pose):
-        if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
-            return False
-        run_skill("sync")
-        if not ok(run_skill("approach_tool", portafilter_tool)):
-            return False
-    else:
-        if not ok(run_skill("move_to", portafilter_tool, 0.22)):
-            return False
-        run_skill("sync")
-        if not ok(run_skill("approach_tool", portafilter_tool)):
-            return False
-    run_skill("sync")
-    if not ok(run_skill("grab_tool", portafilter_tool)):
-        return False
-    run_skill("sync")
-    if not ok(run_skill("set_gripper_position", 255,255,255)):
-        return False
+    # cached_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
+    # if angled__is_valid_angles(cached_tool_pick_pose):
+    #     if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
+    #         return False
+    #     run_skill("sync")
+    #     if not ok(run_skill("approach_tool", portafilter_tool)):
+    #         return False
+    # else:
+    #     if not ok(run_skill("move_to", portafilter_tool, 0.22)):
+    #         return False
+    #     run_skill("sync")
+    #     if not ok(run_skill("approach_tool", portafilter_tool)):
+    #         return False
+    # run_skill("sync")
+    # if not ok(run_skill("grab_tool", portafilter_tool)):
+    #     return False
+    # run_skill("sync")
+    # if not ok(run_skill("set_gripper_position", 255,255,255)):
+    #     return False
     if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
         return False
 
@@ -3608,7 +3613,7 @@ def angled_mount(**params) -> bool:
     # if not ok(run_skill("enforce_rxry_angled")):
     #     return False
     # run_skill("sync")
-    if not ok(run_skill("move_portafilter_arc_tool_angled", 43.0)):
+    if not ok(run_skill("move_portafilter_arc_tool_angled", 42.5)):
         return False
     run_skill("sync")
     if not _open_gripper_with_verify():
@@ -6652,7 +6657,7 @@ def angled_grinder_training(**params):
 def test(**params):
     timings = []
 
-    for outer_idx in range(3):
+    for outer_idx in range(1):
         get_machine_position()
 
         for inner_idx in range(3):
@@ -6689,48 +6694,21 @@ def test(**params):
             tamper(portafilter_tool="double_portafilter")
             mount(port="port_1")
 
-            # call_coffee_machine(coffee_type=2, slot_number=1)
+            call_coffee_machine(coffee_type=2, slot_number=1)
 
             end = time.perf_counter()
             timings.append(end - start)
 
     print("Done")
     return timings
-    # run_skill("set_speed_factor", 100)
-    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
-    # run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
-    # run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1")
-    # run_skill("mount_machine", "three_group_espresso", "angled_portafilter_1")
-    # run_skill("sync")
-    # run_skill("set_gripper_position", 255, 255, 255)
-    # run_skill("release_tension")
-    # run_skill("sync")
-    # run_skill("move_portafilter_arc_tool_angled", -30.0)
-    # run_skill("sync")
-    # run_skill("release_tension")
-    # run_skill("moveEE_movJ", 0, 0, -35, 0, 0, 0)
-    # run_skill("gotoJ_deg", 21.025970,-35.053665,-120.579857,-22.205154,-26.415905,-2.560618)
-    # run_skill("gotoJ_deg", -5.932289,-9.177162,-138.612458,-46.645501,-94.418543,0.008893)
-    # clean_portafilter()
-    # angled_grinder()
-    # angled_tamper()
-    ####
-    # run_skill("moveEE_movJ", 0, 0, 45, 0, 0, 0)
-    # run_skill("move_portafilter_arc_tool_angled", 30.0)
-    # run_skill("sync")
-    # run_skill("set_gripper_position", 255,0,255)
-    # run_skill("sync")
-    # run_skill("approach_machine", "three_group_espresso", "angled_portafilter_1")
-    # run_skill("gotoJ_deg", 8.629592,-2.545630,-124.964149,-77.018211,-61.934883,12.157166)
-    # run_skill("gotoJ_deg", *ESPRESSO_HOME)
 
 def test_arm1(**params):
     timings = []
 
-    for outer_idx in range(10):
+    for outer_idx in range(1):
         get_machine_position()
 
-        for inner_idx in range(0):
+        for inner_idx in range(3):
             start = time.perf_counter()
 
             angled_unmount(port="angled_portafilter_2")
@@ -6773,44 +6751,35 @@ def test_arm1(**params):
     return timings
 
 def test_angle(**params):
-    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
-    run_skill("set_gripper_position", 255, 0, 255)
-    for i in range(5):
-        time.sleep(1.0)
-        run_skill("move_to", "espresso_grinder", 0.22)
-    run_skill("get_machine_position", "espresso_grinder")
-    input()
-    run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)
-    run_skill("set_gripper_position", 255, 255, 255)
-    run_skill("approach_machine", "espresso_grinder", "angled_grinder")
-    input()
-    run_skill("mount_machine", "espresso_grinder", "angled_grinder")
-    input()
-    run_skill("approach_machine", "espresso_grinder", "angled_tamper")
-    input()
-    run_skill("mount_machine", "espresso_grinder", "angled_tamper")
-    input()
-    # for i in range(75):
-    #     # run_skill("set_speed_factor", 100)
-    #     # run_skill("sync")
-    #     # run_skill("gotoJ_deg", -38.635151,-77.742249,-77.560051,-7.811272,-86.984062,-1.820310)
-    #     # run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
-    #     # run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
-    #     # run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    #     # run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    #     # # run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    #     # # run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
-    #     # # run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
-    #     # # run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
-    #     # run_skill("approach_machine", "espresso_grinder", "grinder")
-    #     # input()
-    #     # run_skill("mount_machine", "espresso_grinder", "grinder")
-    #     # input()
-    #     # run_skill("approach_machine", "espresso_grinder", "tamper")
-    #     # input()
-    #     # run_skill("mount_machine", "espresso_grinder", "tamper")
-    #     # input()
-    #     run_skill("moveEE", -1, -1, 0, 0, 0, 0)
+    # grab_paper_cup_arm2(size="9oz")
+    # place_paper_cup_sauces(cup_size="9oz")
+    # pick_paper_cup_sauces(cup_size="9oz")
+    # place_paper_cup_arm2(position={'cup_position': 1})
+    # # ------------------------------------------------------------
+    grab_paper_cup_arm2(size="9oz")
+    place_paper_cup_milk(cup_size="9oz")
+    pick_paper_cup_milk(cup_size="9oz")
+    place_paper_cup_arm2(position={'cup_position': 2})
+    # # ------------------------------------------------------------
+    # grab_paper_cup_arm2(size="9oz")
+    # place_paper_cup_sauces(cup_size="9oz")
+    # pick_paper_cup_sauces(cup_size="9oz")
+    # place_paper_cup_milk(cup_size="9oz")
+    # pick_paper_cup_milk(cup_size="9oz")
+    # place_paper_cup_arm2(position={'cup_position': 3})
+    # # ------------------------------------------------------------
+    # grab_paper_cup_arm2(size="9oz")
+    # place_paper_cup_milk(cup_size="9oz")
+    # pick_paper_cup_milk(cup_size="9oz")
+    # place_paper_cup_sauces(cup_size="9oz")
+    # pick_paper_cup_sauces(cup_size="9oz")
+    # place_paper_cup_arm2(position={'cup_position': 4})
+    # run_skill("gotoJ_deg", -53.585015,-63.419602,-92.050609,-24.290683,-143.503328,0.153389)
+
+    grab_paper_cup_arm2(size="12oz")
+    place_paper_cup_milk(cup_size="12oz")
+    pick_paper_cup_milk(cup_size="12oz")
+    place_paper_cup_arm2(position={'cup_position': 1})
 
     
 import time
@@ -6840,7 +6809,6 @@ OUT_DIR = Path.home() / "robot_timing_logs"
 
 def now_ms() -> float:
     return time.perf_counter() * 1000.0
-
 
 def summarize(values, label, skip_first=False):
     if skip_first and len(values) > 1:
@@ -6890,7 +6858,6 @@ def summarize(values, label, skip_first=False):
         "outliers_3sigma": len(outliers),
     }
 
-
 def print_chunk_stats(values, label, chunk_size=10):
     if not values:
         return
@@ -6905,7 +6872,6 @@ def print_chunk_stats(values, label, chunk_size=10):
             f"std={statistics.pstdev(block) if len(block) > 1 else 0.0:.3f}"
         )
 
-
 def safe_run_skill(skill_name, *args):
     t0 = now_ms()
     ok = True
@@ -6918,14 +6884,12 @@ def safe_run_skill(skill_name, *args):
     t1 = now_ms()
     return ok, (t1 - t0), err
 
-
 def go_to_start():
     ok, dt, err = safe_run_skill("gotoJ_deg", *START_JOINTS)
     print(f"gotoJ_deg to start: {dt:.3f} ms")
     if not ok:
         print(f"ERROR in gotoJ_deg: {err}")
     return ok
-
 
 def warmup():
     print("\n--- Warm-up ---")
@@ -6935,7 +6899,6 @@ def warmup():
     safe_run_skill("set_gripper_position", *GRIPPER_CLOSE)
     safe_run_skill("gotoJ_deg", *START_JOINTS)
     print("Warm-up done.")
-
 
 def run_motion_series(motion_name, dx_mm, repeats, writer):
     """
@@ -6983,7 +6946,6 @@ def run_motion_series(motion_name, dx_mm, repeats, writer):
     summarize(timings, f"{motion_name} step={dx_mm} mm", skip_first=True)
     print_chunk_stats(timings, f"{motion_name} step={dx_mm} mm", chunk_size=min(10, max(1, len(timings) // 5 or 1)))
     return timings
-
 
 def run_gripper_series(cycles, writer):
     print(f"\n--- Testing gripper: {cycles} open/close cycles ---")
@@ -7061,7 +7023,6 @@ def run_gripper_series(cycles, writer):
     summarize(cycle_times, "Gripper open+close cycle", skip_first=True)
 
     return open_times, close_times, cycle_times
-
 
 def test_arm2(**params) -> bool:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -7212,17 +7173,16 @@ def robot_arm_test(**params):
 
     return True
 
-
 def hello(**params):
     start_time = time.perf_counter()
-    for i in range(1):
+    for i in range(3):
         run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
         for i in range(1):
             run_skill("gotoJ_deg", 210.743909,27.533575,-145.620954,39.206884,-92.263737,14.811911) #P109
             run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
             run_skill("gotoJ_deg", 164.649656,15.710394,-137.946233,38.069673,-92.976630,10.570545) #P110
             run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
-        for i in range(1):
+        for i in range(3):
             run_skill("gotoJ_deg", 202.423675,31.972815,-130.894621,27.789850,-128.921782,10.127392) #P111
             run_skill("gotoJ_deg", 163.461313,31.625278,-130.333863,28.158369,-70.999501,10.265249) #P112
         run_skill("gotoJ_deg", 180.145874,31.742138,-120.866173,19.811152,-92.696129,10.536575) #P108
@@ -7277,10 +7237,24 @@ SEQUENCES = {
     "grab_paper_cup_7oz": lambda: grab_paper_cup(size="7oz"),
     "grab_paper_cup_9oz": lambda: grab_paper_cup(size="9oz"),
     "grab_paper_cup_12oz": lambda: grab_paper_cup(size="12oz"),
+    "grab_paper_cup_arm1_7oz": lambda: grab_paper_cup_arm1(size="7oz"),
+    "grab_paper_cup_arm1_9oz": lambda: grab_paper_cup_arm1(size="9oz"),
+    "grab_paper_cup_arm1_12oz": lambda: grab_paper_cup_arm1(size="12oz"),
+    "grab_paper_cup_arm2_7oz": lambda: grab_paper_cup_arm2(size="7oz"),
+    "grab_paper_cup_arm2_9oz": lambda: grab_paper_cup_arm2(size="9oz"),
+    "grab_paper_cup_arm2_12oz": lambda: grab_paper_cup_arm2(size="12oz"),
     "place_paper_cup_stage_1": lambda: place_paper_cup(position={'cup_position': 1}),
     "place_paper_cup_stage_2": lambda: place_paper_cup(position={'cup_position': 2}),
     "place_paper_cup_stage_3": lambda: place_paper_cup(position={'cup_position': 3}),
     "place_paper_cup_stage_4": lambda: place_paper_cup(position={'cup_position': 4}),
+    "place_paper_cup_arm1_stage_1": lambda: place_paper_cup_arm1(position={'cup_position': 1}),
+    "place_paper_cup_arm1_stage_2": lambda: place_paper_cup_arm1(position={'cup_position': 2}),
+    "place_paper_cup_arm1_stage_3": lambda: place_paper_cup_arm1(position={'cup_position': 3}),
+    "place_paper_cup_arm1_stage_4": lambda: place_paper_cup_arm1(position={'cup_position': 4}),
+    "place_paper_cup_arm2_stage_1": lambda: place_paper_cup_arm2(position={'cup_position': 1}),
+    "place_paper_cup_arm2_stage_2": lambda: place_paper_cup_arm2(position={'cup_position': 2}),
+    "place_paper_cup_arm2_stage_3": lambda: place_paper_cup_arm2(position={'cup_position': 3}),
+    "place_paper_cup_arm2_stage_4": lambda: place_paper_cup_arm2(position={'cup_position': 4}),
     # Dispense paper cup (grab + place combined) - all size and stage combinations
     "dispense_paper_cup_7oz_stage_1": lambda: dispense_paper_cup_station(size="7oz", position={'cup_position': 1}),
     "dispense_paper_cup_7oz_stage_2": lambda: dispense_paper_cup_station(size="7oz", position={'cup_position': 2}),
@@ -7294,7 +7268,30 @@ SEQUENCES = {
     "dispense_paper_cup_12oz_stage_2": lambda: dispense_paper_cup_station(size="12oz", position={'cup_position': 2}),
     "dispense_paper_cup_12oz_stage_3": lambda: dispense_paper_cup_station(size="12oz", position={'cup_position': 3}),
     "dispense_paper_cup_12oz_stage_4": lambda: dispense_paper_cup_station(size="12oz", position={'cup_position': 4}),
-    
+    "dispense_paper_cup_arm1_7oz_stage_1": lambda: dispense_paper_arm1_cup_station(size="7oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm1_7oz_stage_2": lambda: dispense_paper_arm1_cup_station(size="7oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm1_7oz_stage_3": lambda: dispense_paper_arm1_cup_station(size="7oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm1_7oz_stage_4": lambda: dispense_paper_arm1_cup_station(size="7oz", position={'cup_position': 4}),
+    "dispense_paper_cup_arm1_9oz_stage_1": lambda: dispense_paper_arm1_cup_station(size="9oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm1_9oz_stage_2": lambda: dispense_paper_arm1_cup_station(size="9oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm1_9oz_stage_3": lambda: dispense_paper_arm1_cup_station(size="9oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm1_9oz_stage_4": lambda: dispense_paper_arm1_cup_station(size="9oz", position={'cup_position': 4}),
+    "dispense_paper_cup_arm1_12oz_stage_1": lambda: dispense_paper_arm1_cup_station(size="12oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm1_12oz_stage_2": lambda: dispense_paper_arm1_cup_station(size="12oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm1_12oz_stage_3": lambda: dispense_paper_arm1_cup_station(size="12oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm1_12oz_stage_4": lambda: dispense_paper_arm1_cup_station(size="12oz", position={'cup_position': 4}),
+    "dispense_paper_cup_arm2_7oz_stage_1": lambda: dispense_paper_arm2_cup_station(size="7oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm2_7oz_stage_2": lambda: dispense_paper_arm2_cup_station(size="7oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm2_7oz_stage_3": lambda: dispense_paper_arm2_cup_station(size="7oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm2_7oz_stage_4": lambda: dispense_paper_arm2_cup_station(size="7oz", position={'cup_position': 4}),
+    "dispense_paper_cup_arm2_9oz_stage_1": lambda: dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm2_9oz_stage_2": lambda: dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm2_9oz_stage_3": lambda: dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm2_9oz_stage_4": lambda: dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 4}),
+    "dispense_paper_cup_arm2_12oz_stage_1": lambda: dispense_paper_arm2_cup_station(size="12oz", position={'cup_position': 1}),
+    "dispense_paper_cup_arm2_12oz_stage_2": lambda: dispense_paper_arm2_cup_station(size="12oz", position={'cup_position': 2}),
+    "dispense_paper_cup_arm2_12oz_stage_3": lambda: dispense_paper_arm2_cup_station(size="12oz", position={'cup_position': 3}),
+    "dispense_paper_cup_arm2_12oz_stage_4": lambda: dispense_paper_arm2_cup_station(size="12oz", position={'cup_position': 4}),
     # ═══════════════════════════════════════════════════════════════
     # 🧊 PLASTIC CUP & ICE OPERATIONS
     # ═══════════════════════════════════════════════════════════════

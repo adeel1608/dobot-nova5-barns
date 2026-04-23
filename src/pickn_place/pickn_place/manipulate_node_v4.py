@@ -1217,6 +1217,10 @@ class robot_motion(Node):
 
         Uses MovJ to move the flange while compensating XYZ so the tool origin
         stays in the same world position.
+
+        Tolerances:
+            Position: 1 mm
+            Rotation: 0.1 deg
         """
         from tf_transformations import euler_matrix
         from dobot_msgs_v3.srv import GetPose, MovJ
@@ -1226,6 +1230,10 @@ class robot_motion(Node):
 
         retry_pause = 0.25
         max_attempts = 20
+
+        # Tolerances
+        pos_tol_m = 0.001   # 1 mm
+        rot_tol_deg = 0.1   # 0.1 degree
 
         # Tool origin offset from Link6 origin (m)
         # For preserving the tool origin position, only the translation is used here.
@@ -1303,6 +1311,31 @@ class robot_motion(Node):
         # Solve for new Link6 origin so tool origin stays fixed
         p6_goal = p_tool_world - R6_goal.dot(d_rel)
 
+        # Check tolerance against target Link6 pose
+        pos_error_m = np.linalg.norm(p6_goal - p_link6)
+
+        rot_error = np.array([
+            abs(rx_curr - rx_t),
+            abs(ry_curr - ry_t),
+            abs(rz_curr - rz_t)
+        ], dtype=float)
+
+        # Handle angle wrap-around
+        rot_error = np.minimum(rot_error, 360.0 - rot_error)
+        max_rot_error_deg = float(np.max(rot_error))
+
+        self.get_logger().info(
+            "enforce_rxry_angled(): errors -> "
+            f"position={pos_error_m * 1000.0:.3f} mm, "
+            f"rotation=[{rot_error[0]:.6f}, {rot_error[1]:.6f}, {rot_error[2]:.6f}] deg"
+        )
+
+        if pos_error_m <= pos_tol_m and np.all(rot_error <= rot_tol_deg):
+            self.get_logger().info(
+                "enforce_rxry_angled(): Pose already within tolerance, skipping move."
+            )
+            return True
+
         x_goal_mm = float(p6_goal[0] * 1000.0)
         y_goal_mm = float(p6_goal[1] * 1000.0)
         z_goal_mm = float(p6_goal[2] * 1000.0)
@@ -1374,9 +1407,11 @@ class robot_motion(Node):
             )
             return False
 
-        self.get_logger().info("enforce_rxry_angled(): Completed successfully.")
+        self.get_logger().info(
+            "enforce_rxry_angled(): Completed successfully."
+        )
         return True
-
+    
     def _get_link6_pose_with_retries(self, max_attempts: int = 3) -> tuple | None:
         """Get current Link6 pose with retry logic."""
         if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):

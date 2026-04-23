@@ -341,7 +341,7 @@ ESPRESSO_PORTAFILTER_GRIPPER = {
 
 ESPRESSO_MOVEMENT_OFFSETS = {
     'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
-    'portafilter_clear_down_angled': (1.25, -1.25, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
+    'portafilter_clear_down_angled': (-1, 1, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
     # Default Z (mm). testing_v1 learns per-port Z from first live unmount (ceil of Z drop
     # arc -> post-tension) and mount() uses that cache when set.
     'portafilter_clear_up': (0, 0, 7.5, 0, 0, 0),
@@ -639,7 +639,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
-    'pickup_hot_water_down': (0, 100, 30, 0, 0, 0),     # Move down to pickup cup from station
+    'pickup_hot_water_down': (0, 85, 30, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────
@@ -677,7 +677,7 @@ PAPER_CUPS_NAVIGATION_PARAMS = {
 PLACE_PAPER_CUP_PARAMS = {
     'stage_1': {
         'twist':        (  66,   0,   0,   0,    0,    0),
-        'pose':         (143.124736,-49.011046,-131.961019,1.450719,-36.804551,-0.410724),
+        'pose':         (145.519331,-49.122599,-134.451153,4.085635,-34.410026,-0.449189),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -687,7 +687,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_2': {
         'twist':        (  76,   0,   0,   0,    0,    0),
-        'pose':         (154.109817,-50.383447,-117.491155,-11.470211,-25.821872,-0.600735),
+        'pose':         (156.205423,-50.021970,-119.582491,-9.684561,-23.724585,-0.666733),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -697,7 +697,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_3': {
         'twist':        (  82,   0,   0,   0,    0,    0),
-        'pose':         (160.521276,-55.378845,-97.891073,-25.884111,-19.420150,-0.799664),
+        'pose':         (162.248889,-54.806036,-99.772471,-24.494967,-17.686915,-0.892773),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -707,7 +707,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_4': {
         'twist':        (  86,   0,   0,   0,    0,    0),
-        'pose':         (164.537400,-64.400606,-72.277886,-42.277243,-15.423310,-1.003312),
+        'pose':         (165.969198,-63.656202,-74.239775,-40.954808,-13.978733,-1.122057),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -736,9 +736,9 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_hot_water_4':     (174.428, -60.166, -83.684, -33.228, -5.521, -2.896),  # Stage 4 pickup position
     },
     'milk_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position1':    (-53.585015,-63.419602,-92.050609,-24.290683,-143.503328,0.153389),  # First position at milk station
         'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
-        'position3':    (-38.663202,-74.192391,-67.777961,-37.829308,-128.602018,0.077164),  # Third position at milk station (place/pick)
+        'position3':    (-38.663084,-72.984283,-68.457681,-38.357017,-128.600485,0.078250),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
