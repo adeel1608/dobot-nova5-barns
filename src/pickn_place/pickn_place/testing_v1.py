@@ -4593,15 +4593,15 @@ def angled_clean_portafilter(**params) -> bool:
             return False
     else:
         hard_capture: List[Tuple[float, ...]] = []
-        if not ok(run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, -20.0, -20.0, -17.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -30, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, 0, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
@@ -4631,11 +4631,11 @@ def angled_clean_portafilter(**params) -> bool:
             return False
     else:
         soft_capture: List[Tuple[float, ...]] = []
-        if not ok(run_skill("moveEE_movJ", 0, 0, 100, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, 50, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, -20.0, -20.0, -17.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -30, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
