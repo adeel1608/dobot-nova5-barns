@@ -341,7 +341,7 @@ ESPRESSO_PORTAFILTER_GRIPPER = {
 
 ESPRESSO_MOVEMENT_OFFSETS = {
     'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
-    'portafilter_clear_down_angled': (-1, 1, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
+    'portafilter_clear_down_angled': (1.25, -1.25, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
     # Default Z (mm). testing_v1 learns per-port Z from first live unmount (ceil of Z drop
     # arc -> post-tension) and mount() uses that cache when set.
     'portafilter_clear_up': (0, 0, 7.5, 0, 0, 0),

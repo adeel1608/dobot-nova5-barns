@@ -1033,7 +1033,7 @@ def grab_paper_arm2_cup_station(**params) -> bool:
         },
         "12oz": {
             "home": "east",
-            "grip": 135,
+            "grip": 139,
             "up_down_z": 200,
             "pose1": (-82.175354,-30.120581,-95.428894,125.354034,82.074257,180.017426),
             "pose2": (-82.176834,-21.495697,-80.396042,101.693619,82.088623,180.036987),
@@ -1294,11 +1294,11 @@ def pick_paper_cup_sauces(**params) -> bool:
     if cup_size not in valid_sizes:
         return False
     
-    gripper_position = 145
+    gripper_position = 140
     cup_detected = detect_cup_gripper()
     if not cup_detected:
         return False
-    if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
+    if not ok(run_skill("moveEE", -1,0,0,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
@@ -1347,9 +1347,9 @@ def pick_paper_cup_milk(**params) -> bool:
     
     gripper_position = 140
     cup_detected = detect_cup_gripper()
-    # if not cup_detected:
-    #     return False
-    if not ok(run_skill("moveEE", 0,0,5,0,0,0)):
+    if not cup_detected:
+        return False
+    if not ok(run_skill("moveEE", -1,0,-5,0,0,0)):
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
@@ -3487,7 +3487,7 @@ def angled_tamper(**params) -> bool:
 
     espresso_dict = params.get("espresso")
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
-    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "double_portafilter_angled")
+    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
 
     if portafilter_tool not in ("double_portafilter_angled", "single_portafilter_angled"):
         return False
@@ -4571,11 +4571,11 @@ def angled_clean_portafilter(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", -35.223076, -2.939468, -128.314575, -47.896400, -73.999352, 1.973845)):
         return False
 
-    if not ok(run_skill("approach_machine", "portafilter_cleaner", "hard_brush")):
+    if not ok(run_skill("approach_machine", "portafilter_cleaner", "angled_hard_brush")):
         return False
     if not ok(run_skill("gotoJ_deg", *CLEANING_PARAMS['hard_brush_adjust'])):
         return False
-    if not ok(run_skill("mount_machine", "portafilter_cleaner", "hard_brush")):
+    if not ok(run_skill("mount_machine", "portafilter_cleaner", "angled_hard_brush")):
         return False
 
     if hard_cached:
@@ -4611,9 +4611,9 @@ def angled_clean_portafilter(**params) -> bool:
             return False
         angled__hard_brush_clean_cache[port] = hard_capture
 
-    if not ok(run_skill("approach_machine", "portafilter_cleaner", "soft_brush")):
+    if not ok(run_skill("approach_machine", "portafilter_cleaner", "angled_soft_brush")):
         return False
-    if not ok(run_skill("mount_machine", "portafilter_cleaner", "soft_brush")):
+    if not ok(run_skill("mount_machine", "portafilter_cleaner", "angled_soft_brush")):
         return False
 
     if soft_cached:
@@ -6619,6 +6619,29 @@ def angled_grinder_training(**params):
     run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
     input()
 
+def angled_cleaner_training(**params):
+    home(position="east")
+    run_skill("gotoJ_deg", -54.471272,-22.616722,-132.696136,-55.483162,-49.198364,24.286514)
+    for i in range(5):
+        time.sleep(1.0)
+        run_skill("move_to", "portafilter_cleaner", 0.22)
+    run_skill("get_machine_position", "portafilter_cleaner")
+    input()
+    home(position="east")
+    run_skill("gotoJ_deg", -35.223076, -2.939468, -128.314575, -47.896400, -73.999352, 1.973845)
+    run_skill("gotoJ_deg", -75.2280066975024, -0.45636946506625187, -126.99544702752844, -56.18573222959352, -77.38542785813024, -1.305376569915049)
+    #run_skill("approach_machine", "portafilter_cleaner", "angled_hard_brush")
+    input()
+    run_skill("gotoJ_deg", -102.563631,-4.349989,-116.815596,-58.573670,-102.493498,-149.923394)
+    run_skill("gotoJ_deg", -92.144516,-15.545860,-116.165016,-62.150635,-91.587204,-179.165939)
+    #run_skill("mount_machine", "portafilter_cleaner", "angled_hard_brush")
+    input()
+    run_skill("gotoJ_deg", -75.22800768895691, -0.456370203882616, -126.9954452304246, -56.18573675081598, -77.38543183310222, -178.80755111776034)
+    # run_skill("approach_machine", "portafilter_cleaner", "angled_soft_brush")
+    input()
+    run_skill("gotoJ_deg", -79.643417,-13.190117,-118.912910,-63.592567,-83.353699,-179.155838)
+    # run_skill("mount_machine", "portafilter_cleaner", "angled_soft_brush")
+
 def test(**params):
     timings = []
 
@@ -6646,20 +6669,20 @@ def test(**params):
             # 🔥 ------------------------
 
             # 🔥 --- PARALLEL BLOCK 2 ---
-            t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
+            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
             t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_1"})
 
-            t4.start()
+            # t4.start()
             t5.start()
 
-            t4.join()
+            # t4.join()
             t5.join()
             # 🔥 ------------------------
 
             tamper(portafilter_tool="double_portafilter")
             mount(port="port_1")
 
-            call_coffee_machine(coffee_type=2, slot_number=1)
+            # call_coffee_machine(coffee_type=2, slot_number=1)
 
             end = time.perf_counter()
             timings.append(end - start)
@@ -6677,20 +6700,20 @@ def test_arm1(**params):
             start = time.perf_counter()
 
             angled_unmount(port="angled_portafilter_2")
-            # clean_portafilter(port="port_1")
+            angled_clean_portafilter(port="angled_portafilter_2")
 
             # # 🔥 --- PARALLEL BLOCK 1 ---
             # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
             # # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
-            t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
+            # t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
 
             # t1.start()
             # # t2.start()
-            t3.start()
+            # t3.start()
 
             # t1.join()
             # # t2.join()
-            t3.join()
+            # t3.join()
             # # 🔥 ------------------------
 
             # # 🔥 --- PARALLEL BLOCK 2 ---
@@ -6704,7 +6727,7 @@ def test_arm1(**params):
             # t5.join()
             # # 🔥 ------------------------
 
-            angled_tamper(portafilter_tool="single_portafilter_angled")
+            # angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
 
             # call_coffee_machine(coffee_type=2, slot_number=1)
@@ -6716,36 +6739,13 @@ def test_arm1(**params):
     return timings
 
 def test_angle(**params):
-    # grab_paper_arm2_cup_station(size="9oz")
-    # place_paper_cup_sauces(cup_size="9oz")
-    # pick_paper_cup_sauces(cup_size="9oz")
-    # place_paper__arm2_cup_station(position={'cup_position': 1})
-    # # ------------------------------------------------------------
-    grab_paper_arm2_cup_station(size="9oz")
-    place_paper_cup_milk(cup_size="9oz")
-    pick_paper_cup_milk(cup_size="9oz")
-    place_paper__arm2_cup_station(position={'cup_position': 2})
-    # # ------------------------------------------------------------
-    # grab_paper_arm2_cup_station(size="9oz")
-    # place_paper_cup_sauces(cup_size="9oz")
-    # pick_paper_cup_sauces(cup_size="9oz")
-    # place_paper_cup_milk(cup_size="9oz")
-    # pick_paper_cup_milk(cup_size="9oz")
-    # place_paper__arm2_cup_station(position={'cup_position': 3})
-    # # ------------------------------------------------------------
-    # grab_paper_arm2_cup_station(size="9oz")
-    # place_paper_cup_milk(cup_size="9oz")
-    # pick_paper_cup_milk(cup_size="9oz")
-    # place_paper_cup_sauces(cup_size="9oz")
-    # pick_paper_cup_sauces(cup_size="9oz")
-    # place_paper__arm2_cup_station(position={'cup_position': 4})
-    # run_skill("gotoJ_deg", -53.585015,-63.419602,-92.050609,-24.290683,-143.503328,0.153389)
-
-    grab_paper_arm2_cup_station(size="12oz")
-    place_paper_cup_milk(cup_size="12oz")
-    pick_paper_cup_milk(cup_size="12oz")
-    place_paper__arm2_cup_station(position={'cup_position': 1})
-
+    run_skill("approach_machine", "portafilter_cleaner", "angled_hard_brush")
+    run_skill("sync")
+    run_skill("current_angles")
+    run_skill("sync")
+    run_skill("approach_machine", "portafilter_cleaner", "angled_soft_brush")
+    run_skill("sync")
+    run_skill("current_angles")
     
 import time
 import csv
@@ -7450,6 +7450,7 @@ SEQUENCES = {
     "angled_clean_port_3": lambda: angled_clean_portafilter(port="port_3"),
     "angled_clean": lambda: angled_clean_portafilter(port="port_2"),
     "angled_espresso_training": lambda: angled_espresso_training(),
+    "angled_cleaner_training": lambda: angled_cleaner_training(),
     # ═══════════════════════════════════════════════════════════════
     # 🥛 MILK FROTHING OPERATIONS
     # ═══════════════════════════════════════════════════════════════
