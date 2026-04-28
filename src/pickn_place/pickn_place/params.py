@@ -480,8 +480,8 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
-    '9oz':  0.1866666667 * 0.55,
-    '12oz': 0.1866666667 * 0.55,
+    '9oz':  0.1866666667 * 0.25,
+    '12oz': 0.1866666667 * 0.25,
     'default': 0.1866666667 * 0.0,
 }
 
@@ -604,6 +604,7 @@ PLASTIC_CUPS_PARAMS = {
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
         'position2':    (46.241162,-70.803957,-82.605716,-26.237127,-43.687160,-0.302443),  # Second ice position (dispense)
+        'position3':    (75.700497,-63.768081,-121.659449,6.578546,-14.212625,-1.138122),  # Third ice position (approach)
     },
     'staging': {
         # Staging positions for placing plastic cups
@@ -639,7 +640,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
-    'pickup_hot_water_down': (0, 85, 30, 0, 0, 0),     # Move down to pickup cup from station
+    'pickup_hot_water_down': (0, 90, 20, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────

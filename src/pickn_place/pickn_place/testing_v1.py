@@ -250,11 +250,6 @@ This module provides functions for robot positioning, machine calibration,
 and system diagnostics for the BARNS coffee automation system.
 """
 
-import logging
-import subprocess
-import time
-from typing import Dict, Any, Union
-
 _log = logging.getLogger(__name__)
 # from oms_v1.params import (
 #     HOME_ANGLES, ESPRESSO_HOME, ESPRESSO_GRINDER_HOME,
@@ -457,7 +452,6 @@ def check_saved_data() -> Dict[str, Any]:
     """
     Check and display currently saved machine position data.
     """
-    import os
     import yaml
     from ament_index_python.packages import get_package_share_directory
 
@@ -643,8 +637,6 @@ paper cups in the BARNS coffee automation system, including size-based handling
 and staging area management.
 """
 
-import time
-from typing import Dict, Any, Optional
 # from oms_v1.params import (
 #     GRAB_PAPER_CUP_PARAMS, PLACE_PAPER_CUP_PARAMS,
 #     PAPER_CUPS_NAVIGATION_PARAMS, PAPER_CUPS_STATION_PARAMS,
@@ -1511,9 +1503,6 @@ This module provides comprehensive functions for managing the complete espresso
 workflow including portafilter handling, grinding, tamping, mounting, and milk operations.
 """
 
-import logging
-import time
-from typing import Dict, Any, Optional, Tuple
 # from oms_v1.manipulate_node import run_skill, init_motion_node
 # from oms_v1.params import (
 #     PULL_ESPRESSO_PARAMS,
@@ -1892,7 +1881,7 @@ def unmount(**params) -> bool:
                 f"[UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
                 f"moveEE_movJ dz={dz:.2f} mm"
             )
-            if not ok(run_skill("set_gripper_position", 255, 100, 255)):
+            if not ok(run_skill("set_gripper_position", 25, 100, 25)):
                 return False
             if not ok(run_skill("moveEE_movJ", -0.25, 0, dz, 0, 0, 0)):
                 return False
@@ -2672,7 +2661,7 @@ def return_espresso_pitcher(**params) -> bool:
                 _pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         run_skill("sync")
 
@@ -2716,7 +2705,7 @@ def return_espresso_pitcher(**params) -> bool:
                 _pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         run_skill("sync")
 
@@ -2760,7 +2749,7 @@ def return_espresso_pitcher(**params) -> bool:
                 _pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         run_skill("sync")
 
@@ -2868,7 +2857,7 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             if all(_is_valid_angles(w) for w in waypoints):
                 _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         # OLD live call kept for rollback:
@@ -2913,7 +2902,7 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             if all(_is_valid_angles(w) for w in waypoints):
                 _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
 
     elif port == 'port_3':
@@ -2957,7 +2946,7 @@ def return_cleaned_espresso_pitcher(**params) -> bool:
             if all(_is_valid_angles(w) for w in waypoints):
                 _pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         # OLD live call kept for rollback:
@@ -3282,7 +3271,7 @@ def angled_unmount(**params) -> bool:
                 f"[ANGLED-UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
                 f"moveEE_movJ dz={dz:.2f} mm, dx={dx:.2f} mm"
             )
-            if not ok(run_skill("set_gripper_position", 255, 100, 255)):
+            if not ok(run_skill("set_gripper_position", 25, 100, 25)):
                 return False
             if not ok(run_skill("moveEE_movJ", dx, 0, dz, 0, 0, 0)):
                 return False
@@ -4015,7 +4004,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
                 angled__pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         if cached and cached.get('retreat'):
@@ -4058,7 +4047,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
                 angled__pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
 
@@ -4102,7 +4091,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
                 angled__pitcher_return_cache.setdefault(port, {})['mount'] = tuple(mount_angles)
 
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         if cached and cached.get('retreat'):
@@ -4207,7 +4196,7 @@ def angled_return_cleaned_espresso_pitcher(**params) -> bool:
             if all(angled__is_valid_angles(w) for w in waypoints):
                 angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         # OLD live call kept for rollback:
@@ -4252,7 +4241,7 @@ def angled_return_cleaned_espresso_pitcher(**params) -> bool:
             if all(angled__is_valid_angles(w) for w in waypoints):
                 angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
 
     elif port == 'port_3':
@@ -4297,7 +4286,7 @@ def angled_return_cleaned_espresso_pitcher(**params) -> bool:
             if all(angled__is_valid_angles(w) for w in waypoints):
                 angled__pitcher_clean_cache[port] = [tuple(w) for w in waypoints]
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 25,0,255)):
+        if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
         # run_skill("sync")
         # OLD live call kept for rollback:
@@ -4391,7 +4380,6 @@ coffee automation system, including hard brush and soft brush cleaning sequences
 with precise positioning and error handling.
 """
 
-from typing import Dict, Any, List, Tuple
 # from oms_v1.manipulate_node import run_skill
 # from oms_v1.params import (
 #     ESPRESSO_GRINDER_HOME, CLEANING_PARAMS, DEFAULT_PORT,
@@ -4597,11 +4585,11 @@ def angled_clean_portafilter(**params) -> bool:
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -30, -2.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, 0, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
@@ -4635,7 +4623,7 @@ def angled_clean_portafilter(**params) -> bool:
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -30, -2.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
@@ -4684,6 +4672,12 @@ _return_frother_cache: Dict[str, Tuple[float, ...]] = {}
 _get_frother_position_done: bool = False
 _milk_frother_position_done: bool = False
 _pick_frother_cache: Dict[str, Tuple[float, ...]] = {}
+_go_home_with_ice_cache: Dict[str, Tuple[float, ...]] = {}
+_place_plastic_cup_station_cache: Dict[str, Tuple[float, ...]] = {}
+_pick_plastic_cup_station_cache: Dict[str, Tuple[float, ...]] = {}
+_place_plastic_cup_sauces_cache: Optional[Tuple[float, ...]] = None
+_pick_plastic_cup_sauces_cache: Dict[str, Tuple[float, ...]] = {}
+_pick_plastic_cup_milk_cache: Dict[str, Tuple[float, ...]] = {}
 
 
 def invalidate_milk_frothing_cache():
@@ -5105,7 +5099,6 @@ def invalidate_plastic_cup_cache():
     _go_home_with_ice_cache.clear()
     _place_plastic_cup_station_cache.clear()
     _pick_plastic_cup_station_cache.clear()
-    global _place_plastic_cup_sauces_cache
     _place_plastic_cup_sauces_cache = None
     _pick_plastic_cup_sauces_cache.clear()
     _pick_plastic_cup_milk_cache.clear()
@@ -5243,7 +5236,7 @@ def go_home_with_ice(**params) -> bool:
             return False
         # run_skill("sync")
     else:
-        if not ok(run_skill("moveEE_movJ", -3, 0, 0, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", -10, 0, 0, 0, 0, 0)):
             return False
         retreat_pose = _capture_current_angles()
         if not _is_valid_angles(retreat_pose):
@@ -5255,7 +5248,9 @@ def go_home_with_ice(**params) -> bool:
         return False
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_position)):
         return False
-    run_skill("sync")
+    # run_skill("sync")
+    if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position3'])):
+        return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['ice_positions']['position1'])):
         return False
     if not home(position="north"):
@@ -5298,7 +5293,9 @@ def place_plastic_cup_station(**params) -> bool:
     if not ok(stage_result):
         return False
     run_skill("sync")
-    if not ok(run_skill("set_gripper_position", GRIPPER_RELEASE, GRIPPER_OPEN)):
+    if not ok(run_skill("set_gripper_position", 25, 100, 25)):
+        return False
+    if not ok(run_skill("set_gripper_position", 255, 0, 255)):
         return False
     run_skill("sync")
     run_skill("set_speed_factor", SPEED_FAST)
@@ -5397,13 +5394,13 @@ def place_plastic_cup_sauces(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position2'])):
         return False
-    run_skill("sync")
+    # run_skill("sync")
 
     global _place_plastic_cup_sauces_cache
     if _is_valid_angles(_place_plastic_cup_sauces_cache):
         if not ok(run_skill("gotoJ_deg", *_place_plastic_cup_sauces_cache)):
             return False
-        # run_skill("sync")
+        run_skill("sync")
     else:
         if not ok(run_skill("moveEE", -5, 0, 0, 0, 0, 0)):
             return False
@@ -5441,7 +5438,7 @@ def pick_plastic_cup_sauces(**params) -> bool:
             return False
         # run_skill("sync")
     else:
-        if not ok(run_skill("moveEE", 0, 0, 5, 0, 0, 0)):
+        if not ok(run_skill("moveEE", 0, 0, 1, 0, 0, 0)):
             return False
         lift_pose = _capture_current_angles()
         if not _is_valid_angles(lift_pose):
@@ -5450,7 +5447,7 @@ def pick_plastic_cup_sauces(**params) -> bool:
 
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
-    run_skill("sync")
+    # run_skill("sync")
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['sauces_station']['position1'])):
         return False
     return True
@@ -5501,7 +5498,7 @@ def pick_plastic_cup_milk(**params) -> bool:
             return False
         # run_skill("sync")
     else:
-        if not ok(run_skill("moveEE", 0, 0, 5, 0, 0, 0)):
+        if not ok(run_skill("moveEE", -5, 0, 1, 0, 0, 0)):
             return False
         lift_pose = _capture_current_angles()
         if not _is_valid_angles(lift_pose):
@@ -5510,7 +5507,7 @@ def pick_plastic_cup_milk(**params) -> bool:
 
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, gripper_positions[cup_size])):
         return False
-    run_skill("sync")
+    # run_skill("sync")
     if not ok(run_skill("gotoJ_deg", *PLASTIC_CUPS_PARAMS['milk_station']['position1'])):
         return False
     return True
@@ -5676,7 +5673,6 @@ def call_coffee_machine(**params):
     return True
 
 def call_hot_water(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5697,7 +5693,6 @@ def call_hot_water(**params):
     return True
 
 def call_coffee_purge(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5718,7 +5713,6 @@ def call_coffee_purge(**params):
     return True
 
 def call_frother(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5746,7 +5740,6 @@ def call_frother(**params):
     return True
 
 def call_grinder(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5767,7 +5760,6 @@ def call_grinder(**params):
     return True
 
 def call_ice(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5791,7 +5783,6 @@ def call_ice(**params):
     return True
 
 def call_milk_syrup(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -5821,7 +5812,6 @@ def call_milk_syrup(**params):
     return True
 
 def call_slush(**params):
-    import subprocess
 
     command = [
         "python3",
@@ -6739,17 +6729,93 @@ def test_arm1(**params):
     return timings
 
 def test_angle(**params):
-    run_skill("approach_machine", "portafilter_cleaner", "angled_hard_brush")
+    timings = []
+
+    for i in range(1):
+        get_machine_position()
+
+        for j in range(3):
+            # loop 1 timing
+            t0 = time.perf_counter()
+
+            run_skill("sync")
+            unmount(port="port_1")
+            clean_portafilter(port="port_1")
+            mount(port="port_1")
+            run_skill("sync")
+
+            loop1_time = time.perf_counter() - t0
+
+            # loop 2 timing
+            t0 = time.perf_counter()
+
+            run_skill("sync")
+            angled_unmount(port="angled_portafilter_2")
+            angled_clean_portafilter(port="angled_portafilter_2")
+            angled_mount(port="angled_portafilter_2")
+            run_skill("sync")
+
+            loop2_time = time.perf_counter() - t0
+
+            timings.append({
+                "outer_loop": i,
+                "inner_loop": j,
+                "loop_1_seconds": loop1_time,
+                "loop_2_seconds": loop2_time,
+            })
+
+            print(
+                f"i={i}, j={j} | "
+                f"loop 1: {loop1_time:.3f}s | "
+                f"loop 2: {loop2_time:.3f}s"
+            )
+
+    return timings
+
+def test_plastic_cup(**params):
+    timings = []
+    invalidate_plastic_cup_cache()
     run_skill("sync")
-    run_skill("current_angles")
+    #loop 1
+    t0 = time.perf_counter()
     run_skill("sync")
-    run_skill("approach_machine", "portafilter_cleaner", "angled_soft_brush")
+    dispense_plastic_cup(cup_size="12oz")
+    go_to_ice(cup_size="12oz")  
+    call_ice(weight=100) 
+    go_home_with_ice(position={'cup_position': 1})
+    place_plastic_cup_milk(cups={'cup_C12': 1.0})
+    call_milk_syrup(device="milk", motor=19, amount=50)
+    pick_plastic_cup_milk(cups={'cup_C12': 1.0})
+    place_plastic_cup_sauces(cups={'cup_C12': 1.0})
+    call_milk_syrup(device="syrup", motor=9, amount=50)
+    pick_plastic_cup_sauces(cups={'cup_C12': 1.0})
+    place_plastic_cup_station(position={'cup_position': 1}, cups={'cup_C12': 1.0})
     run_skill("sync")
-    run_skill("current_angles")
-    
-import time
+    loop1_time = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    run_skill("sync")
+    #loop 2
+    dispense_plastic_cup(cup_size="12oz")
+    go_to_ice(cup_size="12oz")  
+    call_ice(weight=100) 
+    go_home_with_ice(position={'cup_position': 1})
+    place_plastic_cup_milk(cups={'cup_C12': 1.0})
+    call_milk_syrup(device="milk", motor=19, amount=50)
+    pick_plastic_cup_milk(cups={'cup_C12': 1.0})
+    place_plastic_cup_sauces(cups={'cup_C12': 1.0})
+    call_milk_syrup(device="syrup", motor=9, amount=50)
+    pick_plastic_cup_sauces(cups={'cup_C12': 1.0})
+    place_plastic_cup_station(position={'cup_position': 2}, cups={'cup_C12': 1.0})
+    run_skill("sync")
+    loop2_time = time.perf_counter() - t0
+    timings.append({
+        "loop_1_seconds": loop1_time,
+        "loop_2_seconds": loop2_time,
+    })
+    print(f"loop 1: {loop1_time:.3f}s | loop 2: {loop2_time:.3f}s")
+    return timings
+
 import csv
-import math
 import statistics
 from pathlib import Path
 
@@ -7513,6 +7579,7 @@ SEQUENCES = {
     "espresso_training": lambda: espresso_training(),
     "milk_training": lambda: milk_training(),
     "test": lambda: test(),
+    "test_plastic_cup": lambda: test_plastic_cup(),
     "test_arm2": lambda: test_arm2(),
     "test_arm1": lambda: test_arm1(),
     "test_angle": lambda: test_angle(),
