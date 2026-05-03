@@ -626,6 +626,8 @@ class robot_motion(Node):
         trans_thresh_m = 0.0001 if target_tf.strip().lower() == "three_group_espresso" else 0.001
         rot_thresh_deg = 0.1 if target_tf.strip().lower() == "left_steam_wand" else 2.0
         trans_thresh_m = 0.0001 if target_tf.strip().lower() == "left_steam_wand" else 0.001
+        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "milk_frother_2" else 2.0
+        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "milk_frother_2" else 0.001
         rot_thresh_deg = 0.45 if target_tf.strip().lower() == "espresso_grinder" else 2.0
         trans_thresh_m = 0.00020 if target_tf.strip().lower() == "espresso_grinder" else 0.001
         num_samples = required_samples + 5

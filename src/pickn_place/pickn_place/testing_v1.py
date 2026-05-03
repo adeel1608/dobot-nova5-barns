@@ -856,7 +856,7 @@ def grab_paper_cup_arm1(**params) -> bool:
             "grip": 165,
             "up_down_z": 200,
             "pose1": (181.710022,-5.584718,-88.052513,-93.715889,1.744494,7.348929),
-            "pose2": (181.717385, -14.366071, -40.523831, -133.004464, 1.727064, 7.890433),
+            "pose2": (181.232376,-15.066946,-40.633915,-135.281052,1.234581,10.979085),
         },
         "12oz": {
             "home": "south_west",
@@ -906,6 +906,9 @@ def grab_paper_cup_arm1(**params) -> bool:
     if not ok(home(position=cfg["home"])):
         return False
     return True
+    # run_skill("set_gripper_position", 255, 0, 255)
+    # run_skill("moveEE_movJ", 0, 0, -0.25, 0, 0, 0)
+    # run_skill("set_gripper_position", 255, 165, 255)
 
 def place_paper_cup_arm1(**params) -> bool:
     """
@@ -1020,16 +1023,16 @@ def grab_paper_arm2_cup_station(**params) -> bool:
             "grip": 150,
             "up_down_z": 200,
             "pose1": (-108.257324,-43.628250,-75.009590,118.425400,108.173233,179.912598),
-            "pose2": (-108.248451, -36.156578, -52.017170, 87.966026, 108.182373, 179.927673),
-            "visitfix":(0,0,-2,0,0,0),
+            "pose2": (-108.522827,-34.824387,-55.117859,89.734695,108.454109,179.928329),
+            "visitfix":(0,8.5,-4.75,0,0,0),
         },
         "12oz": {
             "home": "east",
             "grip": 139,
             "up_down_z": 200,
             "pose1": (-82.175354,-30.120581,-95.428894,125.354034,82.074257,180.017426),
-            "pose2": (-82.176834,-21.495697,-80.396042,101.693619,82.088623,180.036987),
-            "visitfix":(0,0,-2,0,0,0),
+            "pose2": (-82.143822,-21.311819,-81.286293,102.399956,82.054932,180.037231),
+            "visitfix":(0,0,-1.5,0,0,0),
         },
     }
 
@@ -1043,8 +1046,8 @@ def grab_paper_arm2_cup_station(**params) -> bool:
         return False
     if not ok(run_skill("gotoJ_deg", *cfg["pose2"])):
         return False
-    # if not ok(run_skill("moveEE_movJ", *cfg["visitfix"])):
-    #     return False
+    if not ok(run_skill("moveEE_movJ", *cfg["visitfix"])):
+        return False
     if not ok(run_skill("sync")):
         return False
 
@@ -1053,12 +1056,12 @@ def grab_paper_arm2_cup_station(**params) -> bool:
         if attempt_count > 0:
             if not ok(run_skill("set_gripper_position", 255, 0, 255)):
                 return False
-            if not ok(run_skill("moveEE_movJ", 0, 0, cfg["up_down_z"], 0, 0, 0)):
+            if not ok(run_skill("moveEE", 0, 0, cfg["up_down_z"], 0, 0, 0)):
                 return False
 
         if not ok(run_skill("set_gripper_position", 255, cfg["grip"], 255)):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -cfg["up_down_z"], 0, 0, 0)):
+        if not ok(run_skill("moveEE", 0, 0, -cfg["up_down_z"], 0, 0, 0)):
             return False
 
         cup_detected = detect_cup_gripper()
@@ -1076,6 +1079,10 @@ def grab_paper_arm2_cup_station(**params) -> bool:
     if not ok(home(position="north_east")):
         return False
     return True
+    # run_skill("gotoJ_deg", -82.176834,-21.495697,-80.396042,101.693619,82.088623,180.036987)
+    # run_skill("set_gripper_position", 255, 0, 255)
+    # run_skill("moveEE_movJ", 0, 1, -1, 0, 0, 0)
+    # run_skill("set_gripper_position", 255, 139, 255)
 
 def place_paper__arm2_cup_station(**params) -> bool:
     """
@@ -1398,7 +1405,7 @@ def pick_cup_for_hot_water(**params) -> bool:
             return False
     else:
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 255,125,255)):
+        if not ok(run_skill("set_gripper_position", 255,130,255)):
             return False
     
     run_skill("sync")
@@ -3323,7 +3330,7 @@ def angled_unmount(**params) -> bool:
         if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
             return False
         z_after_tension_mm = float(pose_after_tension[2])
-        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 1.0
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 5.0
         base_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"][2])
         if dz_drop_mm > 0.0:
             learned_clear_up_z = float(math.ceil(dz_drop_mm))
@@ -3502,6 +3509,8 @@ def angled_tamper(**params) -> bool:
         return False
     run_skill("sync")
     if not ok(run_skill("set_gripper_position", 255,255,255)):
+        return False
+    if not ok(run_skill("moveEE", 0, 0, -5, 0, 0, 0)):
         return False
     if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
         return False
@@ -4585,11 +4594,11 @@ def angled_clean_portafilter(**params) -> bool:
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -37.5, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -7.5, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(hard_capture):
             return False
@@ -4623,11 +4632,11 @@ def angled_clean_portafilter(**params) -> bool:
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -35, -2.5, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -37.5, -2.5, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
-        if not ok(run_skill("moveEE_movJ", 0, 0, -5, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0, 0, -7.5, 0, 0, 0)):
             return False
         if not angled_cleaning_capture_current_angles(soft_capture):
             return False
@@ -4920,9 +4929,9 @@ def mount_frother(**params) -> bool:
 
     milk_data = params.get('milk') or params.get('ingredients', {}).get('milk', {}) or {}
     try:
-        volume_ml = float(next(iter(milk_data.values()), 0)) if isinstance(milk_data, dict) else float(milk_data or 0)
+        volume_ml = float(next(iter(milk_data.values()), 150)) if isinstance(milk_data, dict) else float(milk_data or 150)
     except (TypeError, ValueError):
-        volume_ml = 0.0
+        volume_ml = 150.0
 
     factor = MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE.get(
         cup_size,
@@ -4930,7 +4939,7 @@ def mount_frother(**params) -> bool:
     )
     z_adjustment = factor * volume_ml
 
-    if not ok(run_skill("moveEE_movJ", 12.5, 12.5, -z_adjustment, 0, 0, 0)):
+    if not ok(run_skill("moveEE_movJ", 12.5, 12.5, -z_adjustment, 7.5, 0, 0)):
         return False
 
     return True
@@ -4945,10 +4954,10 @@ def unmount_and_swirl_milk(**params) -> bool:
 
     time.sleep(MILK_FROTHING_DELAYS['swirl_delay'])
 
-    if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
+    if not ok(run_skill("gotoJ_deg", -42.145525,-86.603679,-32.009425,-57.409276,-74.353990,2.000000)): # if not ok(run_skill("approach_machine", "left_steam_wand", "deep_froth")):
         return False
 
-    run_skill("sync")
+    # run_skill("sync")
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['swirl'])
 
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['swirling']['intermediate1'])):
@@ -5069,7 +5078,7 @@ def return_frother(**params) -> bool:
         return False
     if not ok(run_skill("gotoEE", *cached_lift)):
         return False
-    if not ok(run_skill("moveEE", 0, 0, -150, 0, 0, 0)):
+    if not ok(run_skill("moveEE", 0, 0, -145, 0, 0, 0)):
         return False
     time.sleep(0.5)
     if not ok(run_skill("set_gripper_position", 75, 165, 255)):
@@ -6133,93 +6142,540 @@ def multi_espresso(**params):
     except Exception as e:
         return False
 
-def milk(**params):
-    """
-    Complete milk frothing and pouring sequence.
-    
-    Workflow:
-    1. Get frother position and pick up frother
-    2. Mount frother to steam wand
-    3. Froth milk for specified duration
-    4. Pour frothed milk at positions 1, 2, 3, 4
-    5. Return frother and clean steam wand
-    
-    Args:
-        duration (float): Frothing duration in seconds (default: 10)
-        position (dict): Position dictionary with 'cup_position' key (1-4), e.g., {'cup_position': 1.0}
-                        Note: This parameter is ignored as the function loops through all positions 1-4
-    
-    Returns:
-        bool: True if milk preparation completed successfully, False otherwise
-    """
-    duration = params.get("duration", 10)
-    
-    print(f"🥛 Starting milk preparation sequence (duration: {duration}s, pouring at positions 1-4)...")
-    
+def milk_frothing(**params):
+    import time
+    import json
+    import logging
+    import traceback
+    from datetime import datetime
+
+    # -----------------------------
+    # Config
+    # -----------------------------
+    run_id = params.get("run_id", f"milk_frothing_{int(time.time())}")
+    cup_size = params.get("cup_size", "9oz")
+    cups_per_batch = params.get("cups_per_batch", 4)
+    froth_temp = params.get("froth_temp", 60)
+
+    # Safer than the original while True by default.
+    # Set repeat_forever=True to match the original infinite loop behavior.
+    repeat_forever = params.get("repeat_forever", False)
+    max_batches = params.get("max_batches", 1)
+
+    interactive = params.get("interactive", True)
+    dry_run = params.get("dry_run", False)
+    fun_logs = params.get("fun_logs", True)
+    log_file = params.get("log_file", f"{run_id}.log")
+
+    milk_dose_1 = params.get("milk_dose_1", 20)
+    milk_dose_2 = params.get("milk_dose_2", 20)
+    pitcher_milk_amount = params.get("pitcher_milk_amount", 150)
+
+    total_milk_per_cup = milk_dose_1 + milk_dose_2 + pitcher_milk_amount
+
+    # -----------------------------
+    # Logger setup
+    # -----------------------------
+    logger = logging.getLogger(run_id)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if not logger.handlers:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        logger.addHandler(file_handler)
+
+    # -----------------------------
+    # Local state
+    # -----------------------------
+    events = []
+    batch_summaries = []
+    event_counter = 0
+    last_step = None
+
+    # -----------------------------
+    # Internal helpers
+    # -----------------------------
+    def now_iso():
+        return datetime.now().isoformat(timespec="seconds")
+
+    def robot_say(message, mood="robot"):
+        if not fun_logs:
+            return
+
+        icons = {
+            "robot": "🤖",
+            "start": "🚀",
+            "cup": "🥤",
+            "milk": "🥛",
+            "froth": "🫧",
+            "pour": "☕",
+            "clean": "🧼",
+            "done": "✅",
+            "warning": "⚠️",
+            "error": "💥",
+            "sync": "🔄",
+            "stats": "📊",
+        }
+
+        print(f"{icons.get(mood, '🤖')} {message}")
+
+    def log_event(event_name, level="info", **data):
+        nonlocal event_counter
+
+        event_counter += 1
+
+        event = {
+            "event_index": event_counter,
+            "timestamp": now_iso(),
+            "run_id": run_id,
+            "event": event_name,
+            **data,
+        }
+
+        events.append(event)
+
+        line = json.dumps(event, default=str)
+
+        if level == "warning":
+            logger.warning(line)
+        elif level == "error":
+            logger.error(line)
+        else:
+            logger.info(line)
+
+        return event
+
+    def validate_config():
+        if not isinstance(cups_per_batch, int) or cups_per_batch <= 0:
+            raise ValueError(f"cups_per_batch must be a positive integer. Got: {cups_per_batch}")
+
+        if not isinstance(froth_temp, (int, float)):
+            raise ValueError(f"froth_temp must be numeric. Got: {froth_temp}")
+
+        if froth_temp < 40:
+            log_event(
+                "low_froth_temperature_warning",
+                level="warning",
+                froth_temp=froth_temp,
+                message="Froth temperature is unusually low.",
+            )
+            robot_say(f"Froth temp looks low: {froth_temp}°C", "warning")
+
+        if froth_temp > 75:
+            log_event(
+                "high_froth_temperature_warning",
+                level="warning",
+                froth_temp=froth_temp,
+                message="Froth temperature is unusually high.",
+            )
+            robot_say(f"Froth temp looks high: {froth_temp}°C", "warning")
+
+        if total_milk_per_cup <= 0:
+            raise ValueError(f"Total milk amount must be positive. Got: {total_milk_per_cup}")
+
+        if dry_run:
+            robot_say("Dry run enabled: robot actions will be logged but not executed.", "warning")
+
+    def timed_step(step_name, fn, *args, **kwargs):
+        nonlocal last_step
+
+        last_step = step_name
+        start = time.perf_counter()
+
+        log_event(
+            "step_started",
+            step=step_name,
+            args=[str(arg) for arg in args],
+            kwargs=kwargs,
+            dry_run=dry_run,
+        )
+
+        robot_say(f"Starting: {step_name}", "robot")
+
+        try:
+            if dry_run:
+                result = None
+                time.sleep(params.get("dry_run_step_delay", 0.05))
+            else:
+                result = fn(*args, **kwargs)
+
+            duration_sec = time.perf_counter() - start
+
+            log_event(
+                "step_completed",
+                step=step_name,
+                duration_sec=round(duration_sec, 3),
+            )
+
+            return result
+
+        except Exception as exc:
+            duration_sec = time.perf_counter() - start
+
+            log_event(
+                "step_failed",
+                level="error",
+                step=step_name,
+                duration_sec=round(duration_sec, 3),
+                error_type=type(exc).__name__,
+                error=str(exc),
+                traceback=traceback.format_exc(),
+            )
+
+            robot_say(f"Failed at step: {step_name}", "error")
+            raise
+
+    def print_cup_summary(cup_summary):
+        robot_say(
+            (
+                f"Cup {cup_summary['cup_number']}/{cups_per_batch} finished "
+                f"in {cup_summary['duration_sec']}s "
+                f"| position={cup_summary['cup_position']} "
+                f"| milk={cup_summary['milk_total_amount']} "
+                f"| temp={cup_summary['froth_temp']}°C"
+            ),
+            "done",
+        )
+
+    def print_batch_summary(batch_summary):
+        robot_say("Batch summary", "stats")
+
+        print("\n========== MILK FROTHING BATCH SUMMARY ==========")
+        print(f"Run ID: {run_id}")
+        print(f"Log file: {log_file}")
+        print(f"Cup size: {cup_size}")
+        print(f"Cups completed: {len(batch_summary['cups'])}")
+        print(f"Batch duration: {batch_summary['duration_sec']}s")
+        print(f"Total milk used: {batch_summary['total_milk_used']}")
+
+        print("\nPer cup:")
+        for cup in batch_summary["cups"]:
+            print(
+                f"  Cup {cup['cup_number']} "
+                f"| position {cup['cup_position']} "
+                f"| {cup['duration_sec']}s "
+                f"| milk {cup['milk_total_amount']} "
+                f"| temp {cup['froth_temp']}°C"
+            )
+
+        print("=================================================\n")
+
+    # -----------------------------
+    # Main function execution
+    # -----------------------------
+    validate_config()
+
+    function_start = time.perf_counter()
+
+    log_event(
+        "function_started",
+        cup_size=cup_size,
+        cups_per_batch=cups_per_batch,
+        froth_temp=froth_temp,
+        repeat_forever=repeat_forever,
+        max_batches=max_batches,
+        interactive=interactive,
+        dry_run=dry_run,
+        milk_dose_1=milk_dose_1,
+        milk_dose_2=milk_dose_2,
+        pitcher_milk_amount=pitcher_milk_amount,
+        total_milk_per_cup=total_milk_per_cup,
+    )
+
+    robot_say(f"Milk frothing mission started: {run_id}", "start")
+
     try:
-        # Step 1: Get frother position
-        print("📍 Getting frother position...")
-        if not get_frother_position():
-            print("[ERROR] Failed to get frother position")
-            return False
-        
-        # Step 2: Pick up frother
-        print("🤏 Picking up frother...")
-        if not pick_frother():
-            print("[ERROR] Failed to pick frother")
-            return False
+        timed_step("get frother position", get_frother_position)
 
-        # Step 3: Place frother at milk station
-        print("📍 Placing frother at milk station...")
-        if not place_frother_milk_station():
-            print("[ERROR] Failed to place frother at milk station")
-            return False
-        
-        # Step 4: Pick frother from milk station
-        print("🤏 Picking frother from milk station...")
-        if not pick_frother_milk_station():
-            print("[ERROR] Failed to pick frother from milk station")
-            return False
+        batch_number = 0
 
-        run_skill("sync")
+        while repeat_forever or batch_number < max_batches:
+            batch_number += 1
+            batch_start = time.perf_counter()
+            cup_summaries = []
 
-        # Step 5: Mount frother to steam wand
-        print("🔧 Mounting frother to steam wand...")
-        if not mount_frother():
-            print("[ERROR] Failed to mount frother")
-            return False
-        
-        # Step 6: Unmount and swirl milk
-        print("🥛 Unmounting and swirling milk...")
-        if not unmount_and_swirl_milk():
-            print("[ERROR] Failed to unmount and swirl milk")
-            return False
+            log_event(
+                "batch_started",
+                batch_number=batch_number,
+                cups_per_batch=cups_per_batch,
+            )
 
-        # Step 7: Pour milk at positions 1, 2, 3, 4
-        for cup_position in [1, 2, 3, 4]:
-            print(f"🥛 Pouring milk at position {cup_position}...")
-            if not pour_milk(position={'cup_position': cup_position}):
-                print(f"[ERROR] Failed to pour milk at position {cup_position}")
-                return False
-        
-        # Step 8: Clean frother
-        print("🧹 Cleaning frother...")
-        if not clean_milk_pitcher():
-            print("[ERROR] Failed to clean frother")
-            return False
-        
-        # Step 10: Return frother
-        print("🔄 Returning frother...")
-        if not return_frother():
-            print("[ERROR] Failed to return frother")
-            return False
-        
-        print("✅ Milk preparation completed successfully for all positions!")
-        return True
-        
-    except Exception as e:
-        print(f"[ERROR] Milk preparation failed with exception: {e}")
-        return False
+            robot_say(f"Starting batch {batch_number}", "start")
+
+            for i in range(cups_per_batch):
+                cup_number = i + 1
+                cup_position = i + 1
+                cup_start = time.perf_counter()
+
+                print(f"i: {i}")
+
+                log_event(
+                    "cup_started",
+                    batch_number=batch_number,
+                    cup_number=cup_number,
+                    cup_position=cup_position,
+                    cup_size=cup_size,
+                )
+
+                robot_say(
+                    f"Preparing cup {cup_number}/{cups_per_batch} at position {cup_position}",
+                    "cup",
+                )
+
+                timed_step(
+                    "grab paper cup from arm2 cup station",
+                    grab_paper_arm2_cup_station,
+                    size=cup_size,
+                )
+
+                timed_step(
+                    "place paper cup at milk station",
+                    place_paper_cup_milk,
+                    cup_size=cup_size,
+                )
+
+                timed_step(
+                    "milk dose 1",
+                    call_milk_syrup,
+                    device="milk",
+                    motor=20,
+                    amount=milk_dose_1,
+                )
+
+                timed_step(
+                    "pick paper cup from milk station",
+                    pick_paper_cup_milk,
+                    cup_size=cup_size,
+                )
+
+                timed_step(
+                    "place paper cup at sauces station",
+                    place_paper_cup_sauces,
+                    cup_size=cup_size,
+                )
+
+                timed_step(
+                    "sync",
+                    run_skill,
+                    "sync",
+                )
+
+                timed_step(
+                    "milk dose 2",
+                    call_milk_syrup,
+                    device="milk",
+                    motor=23,
+                    amount=milk_dose_2,
+                )
+
+                timed_step(
+                    "pick paper cup from sauces station",
+                    pick_paper_cup_sauces,
+                    cup_size=cup_size,
+                )
+
+                timed_step(
+                    "place paper cup at arm2 cup station",
+                    place_paper__arm2_cup_station,
+                    position={"cup_position": cup_position},
+                )
+
+                timed_step(
+                    "pick frother",
+                    pick_frother,
+                )
+
+                timed_step(
+                    "place frother at milk station",
+                    place_frother_milk_station,
+                )
+
+                timed_step(
+                    "fill milk pitcher",
+                    call_milk_syrup,
+                    device="milk",
+                    motor=20,
+                    amount=pitcher_milk_amount,
+                )
+
+                timed_step(
+                    "pick frother from milk station",
+                    pick_frother_milk_station,
+                )
+
+                timed_step(
+                    "mount frother",
+                    mount_frother,
+                )
+
+                timed_step(
+                    "froth milk",
+                    call_frother,
+                    command="froth",
+                    temp=froth_temp,
+                )
+
+                timed_step(
+                    "unmount and swirl milk",
+                    unmount_and_swirl_milk,
+                )
+
+                timed_step(
+                    "pour milk into cup at cup station",
+                    pour_milk_cup_station,
+                    position={"cup_position": cup_position},
+                )
+
+                timed_step(
+                    "clean milk pitcher",
+                    clean_milk_pitcher,
+                )
+
+                timed_step(
+                    "return frother",
+                    return_frother,
+                )
+
+                cup_duration = time.perf_counter() - cup_start
+
+                cup_summary = {
+                    "batch_number": batch_number,
+                    "cup_number": cup_number,
+                    "cup_position": cup_position,
+                    "cup_size": cup_size,
+                    "duration_sec": round(cup_duration, 3),
+                    "milk_dose_1": milk_dose_1,
+                    "milk_dose_2": milk_dose_2,
+                    "pitcher_milk_amount": pitcher_milk_amount,
+                    "milk_total_amount": total_milk_per_cup,
+                    "froth_temp": froth_temp,
+                }
+
+                cup_summaries.append(cup_summary)
+
+                log_event(
+                    "cup_completed",
+                    **cup_summary,
+                )
+
+                print_cup_summary(cup_summary)
+
+                if interactive:
+                    input(f"Finished iteration {cup_number}/{cups_per_batch}. Press Enter to continue...")
+
+            batch_duration = time.perf_counter() - batch_start
+
+            batch_summary = {
+                "run_id": run_id,
+                "batch_number": batch_number,
+                "duration_sec": round(batch_duration, 3),
+                "cups": cup_summaries,
+                "cups_completed": len(cup_summaries),
+                "total_milk_used": total_milk_per_cup * len(cup_summaries),
+                "average_cup_duration_sec": round(
+                    sum(cup["duration_sec"] for cup in cup_summaries) / len(cup_summaries),
+                    3,
+                ),
+                "fastest_cup_sec": min(cup["duration_sec"] for cup in cup_summaries),
+                "slowest_cup_sec": max(cup["duration_sec"] for cup in cup_summaries),
+            }
+
+            batch_summaries.append(batch_summary)
+
+            log_event(
+                "batch_completed",
+                **batch_summary,
+            )
+
+            print_batch_summary(batch_summary)
+
+        total_duration = time.perf_counter() - function_start
+
+        final_summary = {
+            "run_id": run_id,
+            "status": "completed",
+            "duration_sec": round(total_duration, 3),
+            "batches_completed": len(batch_summaries),
+            "cups_completed": sum(batch["cups_completed"] for batch in batch_summaries),
+            "total_milk_used": sum(batch["total_milk_used"] for batch in batch_summaries),
+            "log_file": log_file,
+            "events_recorded": len(events),
+            "batches": batch_summaries,
+        }
+
+        log_event(
+            "function_completed",
+            **final_summary,
+        )
+
+        robot_say("Milk frothing mission complete.", "done")
+
+        return final_summary
+
+    except KeyboardInterrupt:
+        total_duration = time.perf_counter() - function_start
+
+        interrupted_summary = {
+            "run_id": run_id,
+            "status": "interrupted",
+            "duration_sec": round(total_duration, 3),
+            "last_step": last_step,
+            "log_file": log_file,
+            "events_recorded": len(events),
+            "batches": batch_summaries,
+        }
+
+        log_event(
+            "function_interrupted",
+            level="warning",
+            **interrupted_summary,
+        )
+
+        robot_say("Milk frothing mission interrupted by operator.", "warning")
+
+        return interrupted_summary
+
+    except Exception as exc:
+        total_duration = time.perf_counter() - function_start
+
+        failure_summary = {
+            "run_id": run_id,
+            "status": "failed",
+            "duration_sec": round(total_duration, 3),
+            "last_step": last_step,
+            "error_type": type(exc).__name__,
+            "error": str(exc),
+            "log_file": log_file,
+            "events_recorded": len(events),
+            "batches": batch_summaries,
+        }
+
+        log_event(
+            "function_failed",
+            level="error",
+            **failure_summary,
+        )
+
+        robot_say(f"Milk frothing mission failed at: {last_step}", "error")
+
+        raise
+    # input()
+    # pick_frother()
+    # place_frother_milk_station()
+    # call_milk_syrup(device="milk", motor=20, amount=200)
+    # pick_frother_milk_station()
+    # mount_frother()
+    # input()
+    # call_frother(command="froth", temp=60)
+    # input()
+    # unmount_and_swirl_milk()
+    # input()
+    # pour_milk_cup_station(position={'cup_position': 1})
+    # clean_milk_pitcher()
+    # return_frother()
+
 
 def milk_1(**params):
     """Pour milk at cup position 1 - simplified raw commands"""
@@ -6646,33 +7102,33 @@ def test(**params):
 
             # 🔥 --- PARALLEL BLOCK 1 ---
             t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
-            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
+            t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
             t3 = threading.Thread(target=grinder, kwargs={"portafilter_tool": "double_portafilter"})
 
             t1.start()
-            # t2.start()
+            t2.start()
             t3.start()
 
-            t1.join()
+            # t1.join()
             # t2.join()
             t3.join()
             # 🔥 ------------------------
 
             # 🔥 --- PARALLEL BLOCK 2 ---
-            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
+            t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
             t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_1"})
 
-            # t4.start()
+            t4.start()
             t5.start()
 
-            # t4.join()
+            t4.join()
             t5.join()
             # 🔥 ------------------------
 
             tamper(portafilter_tool="double_portafilter")
             mount(port="port_1")
 
-            # call_coffee_machine(coffee_type=2, slot_number=1)
+            call_coffee_machine(coffee_type=2, slot_number=1)
 
             end = time.perf_counter()
             timings.append(end - start)
@@ -6684,31 +7140,33 @@ def test_arm1(**params):
     timings = []
 
     for outer_idx in range(1):
+        print(f"outer_idx: {outer_idx}")
         get_machine_position()
 
-        for inner_idx in range(3):
+        for inner_idx in range(100):
+            print(f"inner_idx: {inner_idx}")
             start = time.perf_counter()
 
             angled_unmount(port="angled_portafilter_2")
             angled_clean_portafilter(port="angled_portafilter_2")
 
             # # 🔥 --- PARALLEL BLOCK 1 ---
-            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
-            # # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
+            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 2})
+            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 1})
             # t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
 
             # t1.start()
-            # # t2.start()
+            # t2.start()
             # t3.start()
 
             # t1.join()
-            # # t2.join()
+            # t2.join()
             # t3.join()
             # # 🔥 ------------------------
 
             # # 🔥 --- PARALLEL BLOCK 2 ---
-            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
-            # t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_1"})
+            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 1750})
+            # t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_2"})
 
             # t4.start()
             # t5.start()
@@ -6720,10 +7178,13 @@ def test_arm1(**params):
             # angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
 
-            # call_coffee_machine(coffee_type=2, slot_number=1)
+            call_coffee_machine(coffee_type=1, slot_number=2)
 
             end = time.perf_counter()
             timings.append(end - start)
+            for i in range(1, 16):
+                print(f"Timer: {i}")
+                time.sleep(1)
 
     print("Done")
     return timings
@@ -6814,6 +7275,20 @@ def test_plastic_cup(**params):
     })
     print(f"loop 1: {loop1_time:.3f}s | loop 2: {loop2_time:.3f}s")
     return timings
+
+def test_paper_cup(**params):
+    # for i in range(1):
+    #     print(f"i: {i}")
+    #     dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 1})
+    #     print(f"i: {i}")
+    #     dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 2})
+    #     print(f"i: {i}")
+    #     dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 3})
+    #     print(f"i: {i}")
+    #     dispense_paper_arm2_cup_station(size="9oz", position={'cup_position': 4})
+    #     print(f"i: {i}")
+
+    run_skill("approach_machine", "left_steam_wand", "deep_froth")
 
 import csv
 import statistics
@@ -7259,7 +7734,7 @@ SEQUENCES = {
     "espresso": lambda: espresso(),
     "americano": lambda: americano(),
     "multi_espresso": lambda: multi_espresso(),
-    "milk": lambda: milk(),
+    "milk_frothing": lambda: milk_frothing(),
     "slushie": lambda: slushie(),
     
     # ═══════════════════════════════════════════════════════════════
@@ -7580,6 +8055,7 @@ SEQUENCES = {
     "milk_training": lambda: milk_training(),
     "test": lambda: test(),
     "test_plastic_cup": lambda: test_plastic_cup(),
+    "test_paper_cup": lambda: test_paper_cup(),
     "test_arm2": lambda: test_arm2(),
     "test_arm1": lambda: test_arm1(),
     "test_angle": lambda: test_angle(),
