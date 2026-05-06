@@ -3368,7 +3368,7 @@ def angled_unmount(**params) -> bool:
         below_pose = cached['below']
         if not angled__is_valid_angles(below_pose):
             return False
-        if not ok(run_skill("moveEE_movJ", 0.0, 0.5, -30, 0, 0, 0)):
+        if not ok(run_skill("moveEE_movJ", 0.0, 0.0, -30, 0, 0, 0)):
             return False
     else:
         pose_after_arc = run_skill("current_pose")
@@ -3529,7 +3529,9 @@ def angled_tamper(**params) -> bool:
 
     espresso_dict = params.get("espresso")
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
-    portafilter_tool = params.get("portafilter_tool") or (shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled")
+    portafilter_tool = params.get("portafilter_tool") or (
+        shot_cfg.get("portafilter_tool") if shot_cfg else "single_portafilter_angled"
+    )
 
     if portafilter_tool not in ("double_portafilter_angled", "single_portafilter_angled"):
         return False
@@ -3542,8 +3544,6 @@ def angled_tamper(**params) -> bool:
         if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
             return False
         run_skill("sync")
-        # if not ok(run_skill("approach_tool", portafilter_tool)):
-        #     return False
     else:
         if not ok(run_skill("move_to", portafilter_tool, 0.22)):
             return False
@@ -3551,31 +3551,114 @@ def angled_tamper(**params) -> bool:
         if not ok(run_skill("approach_tool", portafilter_tool)):
             return False
 
+    def _close_and_verify_grip_angled():
+        node = get_motion_node()
+        success, pos = node.set_gripper_position(speed=255, position=255, force=255)
+        if not success:
+            return False, None
+
+        ok_reading = (
+            pos is not None
+            and 139 <= pos <= 143
+        )
+        return ok_reading, pos
+
+    def _grab_then_close_angled():
+        run_skill("sync")
+
+        if not ok(run_skill("grab_tool", portafilter_tool)):
+            return False, None
+
+        run_skill("sync")
+        return _close_and_verify_grip_angled()
+
+    used_uncached_post_grab = False
+
     post_grab_pose = _angled_tamper_post_grab_joints_cache.get(portafilter_tool)
 
     if angled__is_valid_angles(post_grab_pose):
         if not ok(run_skill("gotoJ_deg", *post_grab_pose)):
             return False
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 255,255,255)):
-            return False   
+        if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+            return False
         run_skill("sync")
+
     else:
-        run_skill("sync")
-        if not ok(run_skill("grab_tool", portafilter_tool)):
+        used_uncached_post_grab = True
+
+        gripped, pos = _grab_then_close_angled()
+
+        if not gripped:
+            _gripper_log.warning(
+                f"[ANGLED-TAMPER-GRIP] attempt 1 pos={pos} "
+                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"opening gripper and re-running tool approach"
+            )
+
+            if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                return False
+
+            run_skill("sync")
+
+            retry_tool_pick_pose = angled__tool_pick_pose_cache.get(portafilter_tool)
+            if angled__is_valid_angles(retry_tool_pick_pose):
+                if not ok(run_skill("gotoJ_deg", *retry_tool_pick_pose)):
+                    return False
+                run_skill("sync")
+            else:
+                if not ok(run_skill("move_to", portafilter_tool, 0.22)):
+                    return False
+                run_skill("sync")
+
+            if not ok(run_skill("approach_tool", portafilter_tool)):
+                return False
+
+            run_skill("sync")
+
+            gripped, pos = _grab_then_close_angled()
+
+        if not gripped:
+            _gripper_log.error(
+                f"[ANGLED-TAMPER-GRIP] FINAL FAIL tool={portafilter_tool} "
+                f"pos_read={pos}; aborting angled_tamper"
+            )
             return False
+
+        _gripper_log.info(f"[ANGLED-TAMPER-GRIP] gripped OK, pos={pos}")
+
         run_skill("sync")
-        if not ok(run_skill("set_gripper_position", 255,255,255)):
-            return False
-        run_skill("sync")
+
         post_grab_angles = run_skill("current_angles")
         if not angled__is_valid_angles(post_grab_angles):
             return False
+
         _angled_tamper_post_grab_joints_cache[portafilter_tool] = tuple(post_grab_angles)
 
     if not ok(run_skill("moveEE", 0, 0, -5, 0, 0, 0)):
         return False
-    run_skill("release_tension")
+
+    if not ok(run_skill("release_tension")):
+        return False
+
+    if used_uncached_post_grab:
+        gripped_after_tension, pos_after_tension = _close_and_verify_grip_angled()
+
+        if not gripped_after_tension:
+            _gripper_log.error(
+                f"[ANGLED-TAMPER-GRIP] after release_tension pos={pos_after_tension} "
+                f"outside [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]; "
+                f"aborting angled_tamper"
+            )
+            return False
+
+        _gripper_log.info(
+            f"[ANGLED-TAMPER-GRIP] after release_tension gripped OK, "
+            f"pos={pos_after_tension}"
+        )
+
+        run_skill("sync")
+
     if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
         return False
 
@@ -7239,14 +7322,14 @@ def test_both_port(**params):
             # loop 1 timing
             t0 = time.perf_counter()
 
-            run_skill("sync")
-            unmount(port="port_1")
-            clean_portafilter(port="port_1")
-            grinder(portafilter_tool="double_portafilter")
-            return_cleaned_espresso_pitcher(port="port_1")
-            tamper(portafilter_tool="double_portafilter")
-            mount(port="port_1")
-            run_skill("sync")
+            # run_skill("sync")
+            # unmount(port="port_1")
+            # clean_portafilter(port="port_1")
+            # grinder(portafilter_tool="double_portafilter")
+            # return_cleaned_espresso_pitcher(port="port_1")
+            # tamper(portafilter_tool="double_portafilter")
+            # mount(port="port_1")
+            # run_skill("sync")
 
             loop1_time = time.perf_counter() - t0
 
@@ -7258,6 +7341,7 @@ def test_both_port(**params):
             angled_clean_portafilter(port="angled_portafilter_2")
             angled_grinder(portafilter_tool="single_portafilter_angled")
             angled_return_cleaned_espresso_pitcher(port="port_2")
+            call_tamper(calibration_ms=2000)
             angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
             run_skill("sync")
