@@ -2516,8 +2516,8 @@ class robot_motion(Node):
                 target_tf,
                 max_wait=25.0,
                 trans_thresh=0.0005,
-                rot_thresh=1,
-                num_samples=6,
+                rot_thresh=1.0,
+                num_samples=9,
             )
         finally:
             with contextlib.suppress(Exception):

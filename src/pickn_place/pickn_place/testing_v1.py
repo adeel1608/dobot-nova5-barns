@@ -281,7 +281,6 @@ def _calibrate_marker(marker_name, prep_fn, ok):
     _log.error(f"[CALIBRATION] {marker_name} failed after {MAX_CALIBRATION_RETRIES} attempts")
     return False
 
-
 def home(**params) -> bool:
     """
     Move robot to a predefined home position.
@@ -301,7 +300,6 @@ def home(**params) -> bool:
         return False
 
     return True
-
 
 def return_back_to_home() -> bool:
     """
@@ -369,7 +367,6 @@ def return_back_to_home() -> bool:
         return False
 
     return True
-
 
 def get_machine_position(**params) -> bool:
     """
@@ -447,7 +444,6 @@ def get_machine_position(**params) -> bool:
 
     return True
 
-
 def check_saved_data() -> Dict[str, Any]:
     """
     Check and display currently saved machine position data.
@@ -471,14 +467,12 @@ def check_saved_data() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def check_aruco_status(**params) -> bool:
     """
     Check current ArUco marker detection status and help diagnose calibration issues.
     """
     check_saved_data()
     return True
-
 
 def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0):
     """
@@ -527,7 +521,6 @@ def solution(j1, j2, j3, j4, j5, j6, x=0.0, y=0.0, z=0.0, rx=0.0, ry=0.0, rz=0.0
 
     return inv_result
 
-
 def solution_interactive(*params):
     """
     Interactive wrapper for solution function that prompts for input.
@@ -562,28 +555,23 @@ def solution_interactive(*params):
         print("\nCancelled")
         return None
 
-
 def open_gripper(**params):
     run_skill("sync")
     run_skill("set_gripper_position", 255, 0, 255)
     return True
-
 
 def close_gripper(**params):
     run_skill("sync")
     run_skill("set_gripper_position", 255, 255, 255)
     return True
 
-
 def toggle_drag_mode(**params):
     run_skill("toggle_drag_mode")
     return True
 
-
 _RESET_SSH_HOST = "192.168.200.254"
 _RESET_SSH_USER = "qss"
 _RESET_SSH_PASS = "123"
-
 
 def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
     """Run kubectl rollout restart on the NUC via SSH. Returns True on success."""
@@ -617,11 +605,9 @@ def _run_kubectl_rollout_restart_on_nuc(deployment: str) -> bool:
         _log.error("reset_robot: SSH to %s timed out (check network)", _RESET_SSH_HOST)
         return False
 
-
 def reset_robot1(**params):
     """Restart robot1 deployment via kubectl on NUC (qss@192.168.200.254)."""
     return _run_kubectl_rollout_restart_on_nuc("robot1")
-
 
 def reset_robot2(**params):
     """Restart robot2 deployment via kubectl on NUC (qss@192.168.200.254)."""
@@ -1579,6 +1565,21 @@ _angled_tamper_post_grab_joints_cache: Dict[str, Tuple[float, ...]] = {}
 _portafilter_arc_cmd_by_port: Dict[str, float] = {}
 _portafilter_mount_arc_cmd_by_port: Dict[str, float] = {}
 
+# Angled per-port learned arc commands.
+# First uncached angled_unmount calculates these from current_pose RZ.
+# Later cached angled_unmount and angled_mount reuse them.
+angled__portafilter_arc_cmd_by_port: Dict[str, float] = {}
+angled__portafilter_mount_arc_cmd_by_port: Dict[str, float] = {}
+
+# From measured angled data:
+# after enforce_rxry_angled rz ~= 84.781235
+# after arc -37.0 rz ~= 47.781235
+_ANGLED_PORTAFILTER_ARC_TARGET_RZ = 48.0
+
+# Current angled mount hardcode was 42.5 while measured unmount delta was 37.0.
+# So mount return arc = arc_delta + 5.5.
+_ANGLED_PORTAFILTER_MOUNT_ARC_EXTRA = 3.5
+
 def _portafilter_clear_up_offset(port: str) -> Tuple[float, float, float, float, float, float]:
     """Use per-port learned Z from last live unmount, else params default."""
     z = _portafilter_clear_up_z_mm_by_port.get(str(port))
@@ -1586,7 +1587,6 @@ def _portafilter_clear_up_offset(port: str) -> Tuple[float, float, float, float,
         return (0.0, 0.0, float(z), 0.0, 0.0, 0.0)
     base = ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up"]
     return tuple(float(x) for x in base)
-
 
 def _portafilter_clear_up_angled_offset(port: str) -> Tuple[float, float, float, float, float, float]:
     """Angled mount clear-up: learned Z from last live angled unmount, else params default."""
@@ -1596,13 +1596,11 @@ def _portafilter_clear_up_angled_offset(port: str) -> Tuple[float, float, float,
         return (float(base[0]), float(base[1]), float(z), float(base[3]), float(base[4]), float(base[5]))
     return tuple(float(x) for x in base)
 
-
 def _angled_unmount_grab_tool_name(port: str) -> str:
     """Portafilter tool frame for angled unmount grab (per robot teach)."""
     if str(port) == "angled_portafilter_2":
         return "single_portafilter_angled"
     return "double_portafilter_angled"
-
 
 def _open_gripper_with_verify(speed=255, force=255):
     """Send gripper-open (position 0) and verify it actually reached a low position.
@@ -1626,7 +1624,6 @@ def _open_gripper_with_verify(speed=255, force=255):
         time.sleep(0.3)
     _gripper_log.error(f"[GRIPPER-OPEN] failed to open after {_GRIPPER_OPEN_RETRIES} attempts")
     return False
-
 
 def invalidate_port_cache():
     _port_angle_cache.clear()
@@ -1875,7 +1872,7 @@ def unmount(**params) -> bool:
             return False
         z_mm = float(pose_z[2])
         if not (z_lo <= z_mm <= z_hi):
-            dz = (_UNMOUNT_POST_TENSION_Z_TARGET_MM - z_mm)/1.25
+            dz = (_UNMOUNT_POST_TENSION_Z_TARGET_MM - z_mm)/1.0
             _gripper_log.warning(
                 f"[UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
                 f"moveEE_movJ dz={dz:.2f} mm"
@@ -1920,7 +1917,7 @@ def unmount(**params) -> bool:
 
         arc_delta = current_rz - desired_rz
         arc_cmd = -arc_delta
-        arc_delta_mount = arc_delta + 2.5
+        arc_delta_mount = arc_delta + 3.5
 
         _portafilter_arc_cmd_by_port[str(port)] = float(arc_cmd)
         _portafilter_mount_arc_cmd_by_port[str(port)] = float(arc_delta_mount)
@@ -2250,6 +2247,8 @@ def mount(**params) -> bool:
 
     if not ok(run_skill("move_portafilter_arc_movJ", arc_delta_mount)):
         return False
+    run_skill("sync")
+    run_skill("release_tension")
 
     if not _open_gripper_with_verify():
         return False
@@ -3114,6 +3113,8 @@ def angled_invalidate_port_cache():
     _machine_mount_pose_cache.clear()
     _tamper_post_grab_joints_cache.clear()
     _angled_tamper_post_grab_joints_cache.clear()
+    angled__portafilter_arc_cmd_by_port.clear()
+    angled__portafilter_mount_arc_cmd_by_port.clear()
     for _k in list(_unmount_post_grab_joints_cache.keys()):
         if str(_k).startswith("angled_unmount:"):
             del _unmount_post_grab_joints_cache[_k]
@@ -3280,8 +3281,8 @@ def angled_unmount(**params) -> bool:
 
         if not ok(run_skill("release_tension")):
             return False
-        run_skill("sync")
-        run_skill("enforce_rxry_angled")
+        # run_skill("sync")
+        # run_skill("enforce_rxry_angled")
         run_skill("sync")
 
         z_tgt = _UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM
@@ -3292,7 +3293,7 @@ def angled_unmount(**params) -> bool:
             return False
         z_mm = float(pose_z[2])
         if not (z_lo <= z_mm <= z_hi):
-            dz = (z_tgt - z_mm) / 1.25
+            dz = (z_tgt - z_mm) / 1.0
             dx = -0.315298*dz
             _gripper_log.warning(
                 f"[ANGLED-UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
@@ -3315,25 +3316,59 @@ def angled_unmount(**params) -> bool:
         _unmount_post_grab_joints_cache[grab_cache_key] = tuple(angles)
         run_skill("sync")
 
-    if not ok(run_skill("enforce_rxry_angled")):
-        return False
+    # if not ok(run_skill("enforce_rxry_angled")):
+    #     return False
 
     run_skill("sync")
 
-    if not ok(run_skill("move_portafilter_arc_tool_angled", -39.0)):
-        return False
-    
+    cached_port_angle = angled__port_angle_cache.get(port)
+
+    if cached_port_angle:
+        arc_cmd = angled__portafilter_arc_cmd_by_port.get(str(port))
+        if arc_cmd is None:
+            return False
+
+        if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd)):
+            return False
+
+    else:
+        pose_before_arc = run_skill("current_pose")
+        if (
+            not ok(pose_before_arc)
+            or not isinstance(pose_before_arc, (tuple, list))
+            or len(pose_before_arc) < 6
+        ):
+            return False
+
+        current_rz = float(pose_before_arc[5])
+        desired_rz = _ANGLED_PORTAFILTER_ARC_TARGET_RZ
+
+        arc_delta = current_rz - desired_rz
+        arc_cmd = -arc_delta
+        arc_delta_mount = arc_delta + _ANGLED_PORTAFILTER_MOUNT_ARC_EXTRA
+
+        angled__portafilter_arc_cmd_by_port[str(port)] = float(arc_cmd)
+        angled__portafilter_mount_arc_cmd_by_port[str(port)] = float(arc_delta_mount)
+
+        _gripper_log.info(
+            f"[ANGLED-PORTAFILTER-ARC] port={port} current_rz={current_rz:.3f}, "
+            f"desired_rz={desired_rz:.3f}, arc_cmd={arc_cmd:.3f}, "
+            f"mount_arc_cmd={arc_delta_mount:.3f}"
+        )
+
+        if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd)):
+            return False
+            
+
     run_skill("sync")
 
     cached = angled__port_angle_cache.get(port)
     if cached:
-        if not ok(run_skill("release_tension")):
-            return False
         mount_pose = cached['angled_mount']
         below_pose = cached['below']
         if not angled__is_valid_angles(below_pose):
             return False
-        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
+        if not ok(run_skill("moveEE_movJ", 0.0, 0.5, -30, 0, 0, 0)):
             return False
     else:
         pose_after_arc = run_skill("current_pose")
@@ -3341,8 +3376,8 @@ def angled_unmount(**params) -> bool:
             return False
         z_after_arc_mm = float(pose_after_arc[2])
 
-        if not ok(run_skill("release_tension")):
-            return False
+        # if not ok(run_skill("release_tension")):
+        #     return False
 
         run_skill("sync")
         mount_pose = run_skill("current_angles")
@@ -3350,7 +3385,7 @@ def angled_unmount(**params) -> bool:
         if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
             return False
         z_after_tension_mm = float(pose_after_tension[2])
-        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 5.0
+        dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 1.0
         base_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"][2])
         if dz_drop_mm > 0.0:
             learned_clear_up_z = float(math.ceil(dz_drop_mm))
@@ -3363,8 +3398,10 @@ def angled_unmount(**params) -> bool:
         )
         if not angled__is_valid_angles(mount_pose):
             return False
-        if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
+        if not ok(run_skill("moveEE_movJ", 0.0, 0.5, -30, 0, 0, 0)):
             return False
+        # if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
+        #     return False
         below_pose = run_skill("current_angles")
         if not angled__is_valid_angles(below_pose):
             return False
@@ -3403,9 +3440,6 @@ def angled_grinder(**params) -> bool:
         if not ok(run_skill("gotoJ_deg", *ESPRESSO_GRINDER_HOME)):
             return False
 
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("approach_machine", "espresso_grinder", "grinder")):
-    #     return False
     if not _run_cached_machine_approach(
         f"angled_grinder:{port}:approach:grinder",
         "espresso_grinder",
@@ -3419,7 +3453,6 @@ def angled_grinder(**params) -> bool:
     if angled__is_valid_angles(cached_grinder_mount_pose):
         if not ok(run_skill("gotoJ_deg", *cached_grinder_mount_pose)):
             return False
-        # run_skill("sync")
     else:
         if not _run_cached_machine_mount(
             f"angled_grinder:{port}:mount:grinder",
@@ -3433,9 +3466,6 @@ def angled_grinder(**params) -> bool:
             return False
         angled__grinder_post_mount_cache[grinder_cache_key] = tuple(grinder_mount_pose)
 
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("approach_machine", "espresso_grinder", "tamper")):
-    #     return False
     if not _run_cached_machine_approach(
         f"angled_grinder:{port}:approach:tamper",
         "espresso_grinder",
@@ -3445,9 +3475,6 @@ def angled_grinder(**params) -> bool:
     run_skill("sync")
     time.sleep(positioning_time)
 
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("mount_machine", "espresso_grinder", "grinder")):
-    #     return False
     if not _run_cached_machine_mount(
         f"angled_grinder:{port}:mount:grinder:final",
         "espresso_grinder",
@@ -3455,9 +3482,6 @@ def angled_grinder(**params) -> bool:
     ):
         return False
 
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("mount_machine", "espresso_grinder", "tamper")):
-    #     return False
     if not _run_cached_machine_mount(
         f"angled_grinder:{port}:mount:tamper",
         "espresso_grinder",
@@ -3476,6 +3500,9 @@ def angled_grinder(**params) -> bool:
     else:
         if not ok(run_skill("moveEE_movJ", -50, 50, 50, 15, 0, 0)):
             return False
+        if not ok(run_skill("approach_tool", portafilter_tool)):
+            return False
+        run_skill("sync")
         tool_pick_pose = run_skill("current_angles")
         if not angled__is_valid_angles(tool_pick_pose):
             return False
@@ -3515,8 +3542,8 @@ def angled_tamper(**params) -> bool:
         if not ok(run_skill("gotoJ_deg", *cached_tool_pick_pose)):
             return False
         run_skill("sync")
-        if not ok(run_skill("approach_tool", portafilter_tool)):
-            return False
+        # if not ok(run_skill("approach_tool", portafilter_tool)):
+        #     return False
     else:
         if not ok(run_skill("move_to", portafilter_tool, 0.22)):
             return False
@@ -3524,25 +3551,31 @@ def angled_tamper(**params) -> bool:
         if not ok(run_skill("approach_tool", portafilter_tool)):
             return False
 
-    post_grab_pose = angled__tamper_post_grab_joints_cache.get(portafilter_tool)
+    post_grab_pose = _angled_tamper_post_grab_joints_cache.get(portafilter_tool)
 
     if angled__is_valid_angles(post_grab_pose):
         if not ok(run_skill("gotoJ_deg", *post_grab_pose)):
             return False
+        run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,255,255)):
+            return False   
         run_skill("sync")
     else:
         run_skill("sync")
         if not ok(run_skill("grab_tool", portafilter_tool)):
             return False
         run_skill("sync")
+        if not ok(run_skill("set_gripper_position", 255,255,255)):
+            return False
+        run_skill("sync")
         post_grab_angles = run_skill("current_angles")
         if not angled__is_valid_angles(post_grab_angles):
             return False
-        angled__tamper_post_grab_joints_cache[portafilter_tool] = tuple(post_grab_angles)
+        _angled_tamper_post_grab_joints_cache[portafilter_tool] = tuple(post_grab_angles)
 
-
-    if not ok(run_skill("set_gripper_position", 255,255,255)):
+    if not ok(run_skill("moveEE", 0, 0, -5, 0, 0, 0)):
         return False
+    run_skill("release_tension")
     if not ok(run_skill("moveEE", 0, 0, 40, 0, 0, 0)):
         return False
 
@@ -3572,7 +3605,6 @@ def angled_single_tamper(**params) -> bool:
 def angled_double_tamper(**params) -> bool:
     params.setdefault("portafilter_tool", "double_portafilter_angled")
     return angled_tamper(**params)
-
 
 def angled_mount(**params) -> bool:
     global angled_below_espresso_port, angled_mount_espresso_port
@@ -3609,21 +3641,34 @@ def angled_mount(**params) -> bool:
         return False
     if not angled__is_valid_angles(mount_pose):
         return False
+    run_skill("sync")
     if not ok(run_skill("gotoJ_deg", *mount_pose)):
         return False
     if not ok(run_skill("moveEE_movJ", *_portafilter_clear_up_angled_offset(port))):
         return False
-    if not ok(run_skill("move_portafilter_arc_tool_angled", 42.5)):
+    arc_delta_mount = angled__portafilter_mount_arc_cmd_by_port.get(str(port))
+    if arc_delta_mount is None:
         return False
+
+    if not ok(run_skill("move_portafilter_arc_tool_angled", arc_delta_mount)):
+        return False
+    run_skill("sync")
+    run_skill("release_tension")
     run_skill("sync")
     if not _open_gripper_with_verify():
         return False
     run_skill("sync")
+    if port in ('angled_portafilter_2'):
+        if not _run_cached_machine_approach(
+            f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
+            "three_group_espresso",
+            port_params['portafilter_number'],
+        ):
+            return False
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
 
     return True
-
 
 def angled_grab_espresso_pitcher(**params) -> bool:
     """
@@ -3647,9 +3692,6 @@ def angled_grab_espresso_pitcher(**params) -> bool:
             return False
         run_skill("sync")
     else:
-        # OLD live call kept for rollback:
-        # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
-        #     return False
         if not _run_cached_machine_approach(
             f"angled_grab_pitcher:{port}:approach:pick_pitcher_2",
             "three_group_espresso",
@@ -3667,14 +3709,9 @@ def angled_grab_espresso_pitcher(**params) -> bool:
         if cached and cached.get('approach') and cached.get('mount'):
             if not ok(run_skill("gotoJ_deg", *cached['approach'])):
                 return False
-            # run_skill("sync")
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_grab_pitcher:{port}:approach:pick_pitcher_1",
                 "three_group_espresso",
@@ -3686,9 +3723,6 @@ def angled_grab_espresso_pitcher(**params) -> bool:
             if angled__is_valid_angles(approach_angles):
                 angled__pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
 
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_mount(
                 f"angled_grab_pitcher:{port}:mount:pick_pitcher_1",
                 "three_group_espresso",
@@ -3708,11 +3742,7 @@ def angled_grab_espresso_pitcher(**params) -> bool:
         if cached and cached.get('mount'):
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
-            #     return False
             if not _run_cached_machine_mount(
                 f"angled_grab_pitcher:{port}:mount:pick_pitcher_2",
                 "three_group_espresso",
@@ -3731,14 +3761,9 @@ def angled_grab_espresso_pitcher(**params) -> bool:
         if cached and cached.get('approach') and cached.get('mount'):
             if not ok(run_skill("gotoJ_deg", *cached['approach'])):
                 return False
-            # run_skill("sync")
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_grab_pitcher:{port}:approach:pick_pitcher_3",
                 "three_group_espresso",
@@ -3750,9 +3775,6 @@ def angled_grab_espresso_pitcher(**params) -> bool:
             if angled__is_valid_angles(approach_angles):
                 angled__pitcher_pick_cache.setdefault(port, {})['approach'] = tuple(approach_angles)
 
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_mount(
                 f"angled_grab_pitcher:{port}:mount:pick_pitcher_3",
                 "three_group_espresso",
@@ -3772,7 +3794,6 @@ def angled_grab_espresso_pitcher(**params) -> bool:
         return False
 
     return True
-
 
 def angled_pick_espresso_pitcher(**params) -> bool:
     """
@@ -3797,11 +3818,7 @@ def angled_pick_espresso_pitcher(**params) -> bool:
         if cached and cached.get('retreat'):
             if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_pick_pitcher:{port}:retreat:pick_pitcher_1",
                 "three_group_espresso",
@@ -3817,11 +3834,7 @@ def angled_pick_espresso_pitcher(**params) -> bool:
         if cached and cached.get('retreat'):
             if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_pick_pitcher:{port}:retreat:pick_pitcher_2",
                 "three_group_espresso",
@@ -3837,11 +3850,7 @@ def angled_pick_espresso_pitcher(**params) -> bool:
         if cached and cached.get('retreat'):
             if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_pick_pitcher:{port}:retreat:pick_pitcher_3",
                 "three_group_espresso",
@@ -3936,13 +3945,11 @@ def angled_pour_espresso_pitcher_cup_station(**params) -> bool:
         return False
 
     run_skill("gotoJ_deg", 103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716)
-    # run_skill("sync")
 
     if not ok(run_skill("gotoJ_deg", *ESPRESSO_PITCHER_PARAMS['home'])):
         return False
 
     return True
-
 
 def angled_get_hot_water(**params) -> bool:
     def ok(r):
@@ -3982,7 +3989,6 @@ def angled_with_hot_water(**params) -> bool:
 
     return True
 
-
 def angled_return_espresso_pitcher(**params) -> bool:
     global angled_approach_pitcher, angled_pick_pitcher
 
@@ -4002,11 +4008,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
         if cached and cached.get('approach'):
             if not ok(run_skill("gotoJ_deg", *cached['approach'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_return_pitcher:{port}:approach:pick_pitcher_1",
                 "three_group_espresso",
@@ -4021,11 +4023,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
         if cached and cached.get('mount'):
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_mount(
                 f"angled_return_pitcher:{port}:mount:pick_pitcher_1",
                 "three_group_espresso",
@@ -4040,15 +4038,10 @@ def angled_return_espresso_pitcher(**params) -> bool:
         run_skill("sync")
         if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
-        # run_skill("sync")
         if cached and cached.get('retreat'):
             if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_1")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_return_pitcher:{port}:retreat:pick_pitcher_1",
                 "three_group_espresso",
@@ -4062,13 +4055,27 @@ def angled_return_espresso_pitcher(**params) -> bool:
 
     elif port == 'port_2':
         if cached and cached.get('mount'):
+            pick_cached = angled__pitcher_pick_cache.get(port)
+            pick_retreat = pick_cached.get('retreat') if pick_cached else None
+
+            if not angled__is_valid_angles(pick_retreat):
+                return False
+
+            if not ok(run_skill("gotoJ_deg", *pick_retreat)):
+                return False
+
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_2")):
-            #     return False
+            pick_cached = angled__pitcher_pick_cache.get(port)
+            pick_retreat = pick_cached.get('retreat') if pick_cached else None
+
+            if not angled__is_valid_angles(pick_retreat):
+                return False
+
+            if not ok(run_skill("gotoJ_deg", *pick_retreat)):
+                return False
+
             if not _run_cached_machine_mount(
                 f"angled_return_pitcher:{port}:mount:pick_pitcher_2",
                 "three_group_espresso",
@@ -4083,17 +4090,12 @@ def angled_return_espresso_pitcher(**params) -> bool:
         run_skill("sync")
         if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
-        # run_skill("sync")
 
     elif port == 'port_3':
         if cached and cached.get('approach'):
             if not ok(run_skill("gotoJ_deg", *cached['approach'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_return_pitcher:{port}:approach:pick_pitcher_3",
                 "three_group_espresso",
@@ -4108,11 +4110,7 @@ def angled_return_espresso_pitcher(**params) -> bool:
         if cached and cached.get('mount'):
             if not ok(run_skill("gotoJ_deg", *cached['mount'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("mount_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_mount(
                 f"angled_return_pitcher:{port}:mount:pick_pitcher_3",
                 "three_group_espresso",
@@ -4127,15 +4125,10 @@ def angled_return_espresso_pitcher(**params) -> bool:
         run_skill("sync")
         if not ok(run_skill("set_gripper_position", 35,0,255)):
             return False
-        # run_skill("sync")
         if cached and cached.get('retreat'):
             if not ok(run_skill("gotoJ_deg", *cached['retreat'])):
                 return False
-            # run_skill("sync")
         else:
-            # OLD live call kept for rollback:
-            # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_3")):
-            #     return False
             if not _run_cached_machine_approach(
                 f"angled_return_pitcher:{port}:retreat:pick_pitcher_3",
                 "three_group_espresso",
@@ -4147,9 +4140,6 @@ def angled_return_espresso_pitcher(**params) -> bool:
             if angled__is_valid_angles(retreat_angles):
                 angled__pitcher_return_cache.setdefault(port, {})['retreat'] = tuple(retreat_angles)
 
-    # OLD live call kept for rollback:
-    # if not ok(run_skill("approach_machine", "three_group_espresso", "pick_pitcher_2")):
-    #     return False
     if not _run_cached_machine_approach(
         f"angled_return_pitcher:{port}:final_approach:pick_pitcher_2",
         "three_group_espresso",
@@ -4161,7 +4151,6 @@ def angled_return_espresso_pitcher(**params) -> bool:
         return False
 
     return True
-
 
 def angled_return_cleaned_espresso_pitcher(**params) -> bool:
     def ok(r):
@@ -4753,13 +4742,11 @@ def invalidate_milk_frothing_cache():
 def _is_valid_angles(angles: Any) -> bool:
     return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
 
-
 def _capture_current_angles() -> Optional[Tuple[float, ...]]:
     angles = run_skill("current_angles")
     if not _is_valid_angles(angles):
         return None
     return tuple(angles)
-
 
 def _capture_current_position() -> Optional[Tuple[float, ...]]:
     position = run_skill("current_pose")
@@ -4767,14 +4754,11 @@ def _capture_current_position() -> Optional[Tuple[float, ...]]:
         return None
     return tuple(position)
 
-
 def _is_valid_position(position: Any) -> bool:
     return bool(position) and isinstance(position, (tuple, list)) and len(position) == 6
 
-
 def _cache_key_from_z_adjustment(z_adjustment: float) -> str:
     return f"{round(float(z_adjustment), 3):.3f}"
-
 
 def get_frother_position(**params) -> bool:
     """
@@ -4856,7 +4840,6 @@ def get_frother_position(**params) -> bool:
 
     return True
 
-
 def pick_frother(**params) -> bool:
     """
     Pick up the milk frother for milk frothing operations.
@@ -4879,7 +4862,6 @@ def pick_frother(**params) -> bool:
     if not ok(run_skill("set_gripper_position", GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS['secure'])):
         return False
     return True
-
 
 def place_frother_milk_station(**params) -> bool:
     def ok(r):
@@ -4924,7 +4906,6 @@ def place_frother_milk_station(**params) -> bool:
         return False
     return True
 
-
 def pick_frother_milk_station(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -4951,7 +4932,6 @@ def pick_frother_milk_station(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *MILK_FROTHING_PARAMS['milk_station']['pick_retreat2'])):
         return False
     return True
-
 
 def mount_frother(**params) -> bool:
     """
@@ -4991,7 +4971,6 @@ def mount_frother(**params) -> bool:
 
     return True
 
-
 def unmount_and_swirl_milk(**params) -> bool:
     """
     Swirl frothed milk in a circular motion for latte art preparation.
@@ -5024,7 +5003,6 @@ def unmount_and_swirl_milk(**params) -> bool:
     )
 
     return True
-
 
 def pour_milk_cup_station(**params) -> bool:
     def ok(r):
@@ -5074,7 +5052,6 @@ def pour_milk_cup_station(**params) -> bool:
     run_skill("set_speed_factor", MILK_FROTHER_SPEEDS['return'])
     return True
 
-
 def clean_milk_pitcher(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -5101,7 +5078,6 @@ def clean_milk_pitcher(**params) -> bool:
         _clean_milk_pitcher_cache = clean_pose
 
     return True
-
 
 def return_frother(**params) -> bool:
     """
@@ -5159,17 +5135,14 @@ def invalidate_plastic_cup_cache():
     _pick_plastic_cup_sauces_cache.clear()
     _pick_plastic_cup_milk_cache.clear()
 
-
 def _is_valid_angles(angles: Any) -> bool:
     return bool(angles) and isinstance(angles, (tuple, list)) and len(angles) == 6
-
 
 def _capture_current_angles() -> Optional[Tuple[float, ...]]:
     angles = run_skill("current_angles")
     if not _is_valid_angles(angles):
         return None
     return tuple(angles)
-
 
 def _normalize_plastic_cup_size(cups_dict: Any) -> str:
     # if not cups_dict:
@@ -5204,7 +5177,6 @@ def _normalize_plastic_cup_size(cups_dict: Any) -> str:
 
     # from oms_v1.params import DEFAULT_PLASTIC_CUP_SIZE
     # return DEFAULT_PLASTIC_CUP_SIZE
-
 
 def dispense_plastic_cup(**params) -> bool:
     cups_dict = _extract_cups_dict(params)
@@ -5257,7 +5229,6 @@ def dispense_plastic_cup(**params) -> bool:
     _set_cup_dispensed()
     return True
 
-
 def go_to_ice(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -5276,7 +5247,6 @@ def go_to_ice(**params) -> bool:
         return False
     # run_skill("sync")
     return True
-
 
 def go_home_with_ice(**params) -> bool:
     def ok(r):
@@ -5313,7 +5283,6 @@ def go_home_with_ice(**params) -> bool:
         return False
     _set_cup_dispensed()
     return True
-
 
 def place_plastic_cup_station(**params) -> bool:
     def ok(r):
@@ -5372,7 +5341,6 @@ def place_plastic_cup_station(**params) -> bool:
     if not home(position="east"):
         return False
     return True
-
 
 def pick_plastic_cup_station(**params) -> bool:
     def ok(r):
@@ -5433,7 +5401,6 @@ def pick_plastic_cup_station(**params) -> bool:
         return False
     return True
 
-
 def place_plastic_cup_sauces(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -5473,7 +5440,6 @@ def place_plastic_cup_sauces(**params) -> bool:
         return False
     return True
 
-
 def pick_plastic_cup_sauces(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -5508,7 +5474,6 @@ def pick_plastic_cup_sauces(**params) -> bool:
         return False
     return True
 
-
 def place_plastic_cup_milk(**params) -> bool:
     def ok(r):
         return r not in (False, None)
@@ -5532,7 +5497,6 @@ def place_plastic_cup_milk(**params) -> bool:
     if not detect_cup_gripper():
         return False
     return True
-
 
 def pick_plastic_cup_milk(**params) -> bool:
     def ok(r):
@@ -6723,7 +6687,6 @@ def milk_frothing(**params):
     # clean_milk_pitcher()
     # return_frother()
 
-
 def milk_1(**params):
     """Pour milk at cup position 1 - simplified raw commands"""
     run_skill("gotoJ_deg", -96.038133,-16.779600,-104.255018,-62.483484,-81.154254,-37.125368)  # stage1 position
@@ -7141,7 +7104,7 @@ def test(**params):
     for outer_idx in range(1):
         get_machine_position()
 
-        for inner_idx in range(2):
+        for inner_idx in range(1):
             start = time.perf_counter()
             pos = float(inner_idx%4 + 1)
 
@@ -7155,7 +7118,7 @@ def test(**params):
 
             t1.start()
             t2.start()
-            input()
+            # input()
             t3.start()
 
             # t1.join()
@@ -7177,17 +7140,17 @@ def test(**params):
             tamper(portafilter_tool="double_portafilter")
             mount(port="port_1")
 
-            t6 = threading.Thread(target=call_coffee_machine, kwargs={"coffee_type": 2, "slot_number": 1})
+            # t6 = threading.Thread(target=call_coffee_machine, kwargs={"coffee_type": 2, "slot_number": 1})
             t7 = threading.Thread(target=dispense_paper_arm1_cup_station, kwargs={"size": "7oz", "position": {'cup_position': pos}})
 
-            t6.start()
+            # t6.start()
             t7.start()
 
             
             t7.join()
 
             grab_espresso_pitcher(port="port_1")
-            t6.join()
+            # t6.join()
             pick_espresso_pitcher(port="port_1")
             pour_espresso_pitcher_cup_station(position={'cup_position': pos})
             return_espresso_pitcher(port="port_1")
@@ -7205,68 +7168,83 @@ def test_arm1(**params):
     timings = []
 
     for outer_idx in range(1):
-        print(f"outer_idx: {outer_idx}")
         get_machine_position()
 
-        for inner_idx in range(100):
-            print(f"inner_idx: {inner_idx}")
+        for inner_idx in range(4):
             start = time.perf_counter()
+            pos = float(inner_idx%4 + 1)
 
             angled_unmount(port="angled_portafilter_2")
-            angled_clean_portafilter(port="angled_portafilter_2")
+            angled_clean_portafilter(port="port_2")
 
-            # # 🔥 --- PARALLEL BLOCK 1 ---
-            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 2})
-            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 1})
-            # t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
+            # 🔥 --- PARALLEL BLOCK 1 ---
+            t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 2})
+            t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 1})
+            t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
 
-            # t1.start()
-            # t2.start()
-            # t3.start()
+            t1.start()
+            t2.start()
+            t3.start()
 
             # t1.join()
             # t2.join()
-            # t3.join()
-            # # 🔥 ------------------------
+            t3.join()
+            # 🔥 ------------------------
 
-            # # 🔥 --- PARALLEL BLOCK 2 ---
-            # t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 1750})
-            # t5 = threading.Thread(target=return_cleaned_espresso_pitcher, kwargs={"port": "port_2"})
+            # 🔥 --- PARALLEL BLOCK 2 ---
+            t4 = threading.Thread(target=call_tamper, kwargs={"calibration_ms": 2000})
+            t5 = threading.Thread(target=angled_return_cleaned_espresso_pitcher, kwargs={"port": "port_2"})
 
-            # t4.start()
-            # t5.start()
+            t4.start()
+            t5.start()
 
-            # t4.join()
-            # t5.join()
-            # # 🔥 ------------------------
+            t4.join()
+            t5.join()
+            # 🔥 ------------------------
 
-            # angled_tamper(portafilter_tool="single_portafilter_angled")
+            angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
 
-            call_coffee_machine(coffee_type=1, slot_number=2)
+            t6 = threading.Thread(target=call_coffee_machine, kwargs={"coffee_type": 1, "slot_number": 2})
+            t7 = threading.Thread(target=dispense_paper_arm1_cup_station, kwargs={"size": "7oz", "position": {'cup_position': pos}})
+
+            t6.start()
+            t7.start()
+
+            
+            t7.join()
+
+            angled_grab_espresso_pitcher(port="port_2")
+            t6.join()
+            angled_pick_espresso_pitcher(port="port_2")
+            angled_pour_espresso_pitcher_cup_station(position={'cup_position': pos})
+            angled_return_espresso_pitcher(port="port_2")
+
+            if pos == 1.0 or pos == 2.0 or pos == 3.0 or pos == 4.0:
+                input()
 
             end = time.perf_counter()
             timings.append(end - start)
-            for i in range(1, 16):
-                print(f"Timer: {i}")
-                time.sleep(1)
 
     print("Done")
     return timings
 
-def test_angle(**params):
+def test_both_port(**params):
     timings = []
 
-    for i in range(1):
+    for i in range(7):
         get_machine_position()
 
-        for j in range(3):
+        for j in range(7):
             # loop 1 timing
             t0 = time.perf_counter()
 
             run_skill("sync")
             unmount(port="port_1")
             clean_portafilter(port="port_1")
+            grinder(portafilter_tool="double_portafilter")
+            return_cleaned_espresso_pitcher(port="port_1")
+            tamper(portafilter_tool="double_portafilter")
             mount(port="port_1")
             run_skill("sync")
 
@@ -7278,6 +7256,9 @@ def test_angle(**params):
             run_skill("sync")
             angled_unmount(port="angled_portafilter_2")
             angled_clean_portafilter(port="angled_portafilter_2")
+            angled_grinder(portafilter_tool="single_portafilter_angled")
+            angled_return_cleaned_espresso_pitcher(port="port_2")
+            angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
             run_skill("sync")
 
@@ -7342,14 +7323,25 @@ def test_plastic_cup(**params):
     return timings
 
 def test_paper_cup(**params):
-    for i in range(5):
-        get_machine_position()
-        for j in range(5):
-            unmount(port="port_1")
-            clean_portafilter(port="port_1")
-            grinder(portafilter_tool="double_portafilter")
-            tamper(portafilter_tool="double_portafilter")
-            mount(port="port_1")
+    # for i in range(5):
+    #     get_machine_position()
+    #     for j in range(5):
+    #         unmount(port="port_1")
+    #         clean_portafilter(port="port_1")
+    #         grinder(portafilter_tool="double_portafilter")
+    #         tamper(portafilter_tool="double_portafilter")
+    #         mount(port="port_1")
+    run_skill("enforce_rxry_angled")
+    input()
+    i = 1
+    while True:
+        run_skill("move_portafilter_arc_tool_angled", -1.0)   
+        print(f"iteration {i}")
+        input()
+        i += 1
+
+    
+        
 
 import csv
 import statistics
@@ -8119,7 +8111,7 @@ SEQUENCES = {
     "test_paper_cup": lambda: test_paper_cup(),
     "test_arm2": lambda: test_arm2(),
     "test_arm1": lambda: test_arm1(),
-    "test_angle": lambda: test_angle(),
+    "test_both_port": lambda: test_both_port(),
     "milk_1": lambda: milk_1(),
     "milk_2": lambda: milk_2(),
     "milk_3": lambda: milk_3(),

@@ -22,7 +22,7 @@ from transformations import quaternion_from_matrix
 from collections import deque
 
 # ---- Constants ---------------------------------------------------------------
-DEFAULT_VISUALIZE       = False
+DEFAULT_VISUALIZE       = True
 DEFAULT_SAMPLE_WINDOW   = 6
 DEFAULT_LOG_INTERVAL    = 5.0
 DEPTH_MEDIAN_HALF       = 1      # 3x3 median patch for depth sampling
