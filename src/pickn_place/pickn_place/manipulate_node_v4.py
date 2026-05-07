@@ -943,7 +943,7 @@ class robot_motion(Node):
         if not wait_finish:
             return True, position
 
-        identical_required = 3                    # how many consecutive identical reads
+        identical_required = 5                    # how many consecutive identical reads
         consecutive_ok     = 0
         latest_reading     = None
         start_time         = time.monotonic()

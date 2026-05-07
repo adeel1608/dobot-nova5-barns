@@ -120,20 +120,44 @@ def get_motion_node():
     
     return _global_motion_node
 
+_DATA_RETURN_SKILLS = ("current_angles", "current_pose", "get_machine_position")
+
 def run_skill(fn_name: str, *args):
     """
     Efficient run_skill that reuses a persistent motion node.
     Falls back to old approach if there are issues.
+
+    Skills like set_gripper_position return a tuple (success, payload). The
+    raw tuple is truthy even when success is False, which used to bypass
+    every `if not ok(run_skill(...))` check downstream and let sequences
+    keep marching past a failed gripper command. Unwrap such returns to a
+    bool here so a single source of truth handles failure detection, and
+    keep data-returning skills (current_angles, current_pose,
+    get_machine_position) returning their raw payload.
     """
     try:
         motion_node = get_motion_node()
         fn = getattr(motion_node, fn_name)
-        ok = fn(*args)
-        if not ok:
+        result = fn(*args)
+
+        if fn_name in _DATA_RETURN_SKILLS:
+            if result is None or result is False:
+                motion_node.get_logger().error(f"{fn_name}{args} failed – aborting")
+                cleanup_motion_node()
+                raise RuntimeError(f"Skill {fn_name} failed")
+            return result
+
+        if isinstance(result, tuple):
+            success = result[0] if len(result) > 0 else False
+        else:
+            success = result
+
+        if success is False or success is None:
             motion_node.get_logger().error(f"{fn_name}{args} failed – aborting")
             cleanup_motion_node()
             raise RuntimeError(f"Skill {fn_name} failed")
-        return ok
+
+        return success
     except Exception as e:
         print(f"Error with persistent node approach: {e}")
         print("Falling back to old run_skill approach...")
@@ -381,7 +405,6 @@ def get_machine_position(**params) -> bool:
 
     def ok(r):
         return r not in (False, None)
-
     invalidate_port_cache()
     invalidate_cleaning_cache()
     angled_invalidate_cleaning_cache()
@@ -1552,8 +1575,8 @@ _PORTAFILTER_GRIP_POS_MAX = 150
 
 # After release_tension on uncached unmount grab: Link6 Z from current_pose (mm).
 _UNMOUNT_POST_TENSION_Z_TARGET_MM = 200.0
-_UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM = 138.0
-_UNMOUNT_POST_TENSION_Z_TOL_MM = 3.0
+_UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM = 140.0
+_UNMOUNT_POST_TENSION_Z_TOL_MM = 5.0
 
 # Live unmount (no _port_angle_cache): Z drop after arc -> after tension sets clear_up Z (mm) for mount.
 _portafilter_clear_up_z_mm_by_port: Dict[str, float] = {}
@@ -1570,6 +1593,7 @@ _portafilter_mount_arc_cmd_by_port: Dict[str, float] = {}
 # Later cached angled_unmount and angled_mount reuse them.
 angled__portafilter_arc_cmd_by_port: Dict[str, float] = {}
 angled__portafilter_mount_arc_cmd_by_port: Dict[str, float] = {}
+angled__portafilter_arc_cmd_by_port_2: Dict[str, float] = {}
 
 # From measured angled data:
 # after enforce_rxry_angled rz ~= 84.781235
@@ -1578,7 +1602,7 @@ _ANGLED_PORTAFILTER_ARC_TARGET_RZ = 48.0
 
 # Current angled mount hardcode was 42.5 while measured unmount delta was 37.0.
 # So mount return arc = arc_delta + 5.5.
-_ANGLED_PORTAFILTER_MOUNT_ARC_EXTRA = 3.5
+_ANGLED_PORTAFILTER_MOUNT_ARC_EXTRA = 2.5
 
 def _portafilter_clear_up_offset(port: str) -> Tuple[float, float, float, float, float, float]:
     """Use per-port learned Z from last live unmount, else params default."""
@@ -3115,6 +3139,7 @@ def angled_invalidate_port_cache():
     _angled_tamper_post_grab_joints_cache.clear()
     angled__portafilter_arc_cmd_by_port.clear()
     angled__portafilter_mount_arc_cmd_by_port.clear()
+    angled__portafilter_arc_cmd_by_port_2.clear()
     for _k in list(_unmount_post_grab_joints_cache.keys()):
         if str(_k).startswith("angled_unmount:"):
             del _unmount_post_grab_joints_cache[_k]
@@ -3197,7 +3222,7 @@ def angled_unmount(**params) -> bool:
     if not ok(run_skill("gotoJ_deg", *port_params['home'])):
         return False
 
-    if port in ('angled_portafilter_2'):
+    if port == 'angled_portafilter_2':
         if not _run_cached_machine_approach(
             f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
             "three_group_espresso",
@@ -3207,129 +3232,250 @@ def angled_unmount(**params) -> bool:
 
     grab_cache_key = f"angled_unmount:post_grab:{port}"
     cached_grab_joints = _unmount_post_grab_joints_cache.get(grab_cache_key)
+
     if _is_valid_angles(cached_grab_joints):
         if not ok(run_skill("gotoJ_deg", *cached_grab_joints)):
             return False
+
         run_skill("sync")
+
         if not ok(run_skill("set_gripper_position", 255, 255, 255)):
             return False
+
     else:
+        ANGLED_UNMOUNT_GRIP_POS_MIN = 138
+        ANGLED_UNMOUNT_GRIP_POS_MAX = 143
+        ANGLED_UNMOUNT_GRIP_RETRIES = 15
+
+        def trace_grip(msg: str):
+            print(f"[ANGLED-UNMOUNT-GRIP] {msg}", flush=True)
+
         def _close_and_verify_grip_angled():
             node = get_motion_node()
             success, pos = node.set_gripper_position(speed=255, position=255, force=255)
             if not success:
                 return False, None
+
             ok_reading = (
                 pos is not None
-                and _PORTAFILTER_GRIP_POS_MIN <= pos <= _PORTAFILTER_GRIP_POS_MAX
+                and ANGLED_UNMOUNT_GRIP_POS_MIN <= pos <= ANGLED_UNMOUNT_GRIP_POS_MAX
             )
             return ok_reading, pos
 
         def _grab_then_close_angled():
             run_skill("sync")
+
             if not ok(run_skill("grab_tool", grab_tool_name)):
                 return False, None
+
             run_skill("sync")
             return _close_and_verify_grip_angled()
 
-        gripped, pos = _grab_then_close_angled()
-
-        if not gripped:
-            _gripper_log.warning(
-                f"[ANGLED-PORTAFILTER-GRIP] attempt 1 pos={pos} "
-                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
-                f"nudging down 5 mm and retrying close"
-            )
-            if not ok(run_skill("moveEE_movJ", 1.5, 0, -4.77, 0, 0, 0)):
-                return False
-            gripped, pos = _close_and_verify_grip_angled()
-
-        if not gripped:
-            _gripper_log.warning(
-                f"[ANGLED-PORTAFILTER-GRIP] attempt 2 pos={pos} "
-                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
-                f"nudging up 10 mm and retrying close"
-            )
-            if not ok(run_skill("moveEE_movJ", -3.01, 0, 9.54, 0, 0, 0)):
-                return False
-            gripped, pos = _close_and_verify_grip_angled()
-
-        if not gripped:
-            _gripper_log.warning(
-                f"[ANGLED-PORTAFILTER-GRIP] attempt 3 pos={pos} "
-                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
-                f"opening gripper and re-running approach"
-            )
+        def _rerun_approach_for_retry(attempt_idx: int) -> bool:
+            trace_grip(f"full routine attempt {attempt_idx}: open gripper START")
             if not ok(run_skill("set_gripper_position", 255, 0, 255)):
+                trace_grip(f"full routine attempt {attempt_idx}: FAIL open gripper")
                 return False
-            if port in ('angled_portafilter_2'):
+            trace_grip(f"full routine attempt {attempt_idx}: open gripper DONE")
+
+            run_skill("sync")
+            trace_grip(f"full routine attempt {attempt_idx}: sync after open DONE")
+
+            if port == 'angled_portafilter_2':
+                trace_grip(
+                    f"full routine attempt {attempt_idx}: re-run cached machine approach START "
+                    f"target={port_params['portafilter_number']}"
+                )
+
                 if not _run_cached_machine_approach(
                     f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
                     "three_group_espresso",
                     port_params['portafilter_number'],
                 ):
+                    trace_grip(f"full routine attempt {attempt_idx}: FAIL cached machine approach")
                     return False
+
+                trace_grip(f"full routine attempt {attempt_idx}: re-run cached machine approach DONE")
+            else:
+                trace_grip(
+                    f"full routine attempt {attempt_idx}: machine approach SKIPPED for port={port}"
+                )
+
+            return True
+
+        routine_success = False
+        final_pos = None
+        final_angles = None
+
+        # attempt 0 = first try, attempts 1..15 = retries
+        for attempt_idx in range(0, ANGLED_UNMOUNT_GRIP_RETRIES + 1):
+            display_attempt = attempt_idx + 1
+            total_attempts = ANGLED_UNMOUNT_GRIP_RETRIES + 1
+
+            trace_grip(
+                f"full routine attempt {display_attempt}/{total_attempts} START "
+                f"tool={grab_tool_name}, port={port}, "
+                f"target_pos=[{ANGLED_UNMOUNT_GRIP_POS_MIN}, {ANGLED_UNMOUNT_GRIP_POS_MAX}]"
+            )
+
+            if attempt_idx > 0:
+                if not _rerun_approach_for_retry(display_attempt):
+                    return False
+
+            trace_grip(f"full routine attempt {display_attempt}: grab_then_close START")
             gripped, pos = _grab_then_close_angled()
-
-        if not gripped:
-            _gripper_log.error(
-                f"[ANGLED-PORTAFILTER-GRIP] FINAL FAIL port={port} pos_read={pos}; aborting unmount"
+            trace_grip(
+                f"full routine attempt {display_attempt}: grab_then_close RESULT "
+                f"gripped={gripped}, pos={pos}"
             )
-            return False
 
-        _gripper_log.info(f"[ANGLED-PORTAFILTER-GRIP] gripped OK, pos={pos}")
+            if not gripped:
+                _gripper_log.warning(
+                    f"[ANGLED-PORTAFILTER-GRIP] full routine attempt "
+                    f"{display_attempt}/{total_attempts} failed at initial grip "
+                    f"pos={pos} "
+                    f"(want in [{ANGLED_UNMOUNT_GRIP_POS_MIN}, {ANGLED_UNMOUNT_GRIP_POS_MAX}]); "
+                    f"will retry whole grab routine"
+                )
+                continue
 
-        if not ok(run_skill("release_tension")):
-            return False
-        # run_skill("sync")
-        # run_skill("enforce_rxry_angled")
-        run_skill("sync")
-
-        z_tgt = _UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM
-        z_lo = z_tgt - _UNMOUNT_POST_TENSION_Z_TOL_MM
-        z_hi = z_tgt + _UNMOUNT_POST_TENSION_Z_TOL_MM
-        pose_z = run_skill("current_pose")
-        if not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3:
-            return False
-        z_mm = float(pose_z[2])
-        if not (z_lo <= z_mm <= z_hi):
-            dz = (z_tgt - z_mm) / 1.0
-            dx = -0.315298*dz
-            _gripper_log.warning(
-                f"[ANGLED-UNMOUNT-Z] after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
-                f"moveEE_movJ dz={dz:.2f} mm, dx={dx:.2f} mm"
+            trace_grip(
+                f"full routine attempt {display_attempt}: initial grip OK pos={pos}; "
+                f"release_tension START"
             )
-            if not ok(run_skill("set_gripper_position", 25, 100, 25)):
-                return False
-            if not ok(run_skill("moveEE_movJ", dx, 0, dz, 0, 0, 0)):
-                return False
-            if not ok(run_skill("set_gripper_position", 255, 255, 255)):
-                return False
-            run_skill("sync")
+
             if not ok(run_skill("release_tension")):
+                trace_grip(f"full routine attempt {display_attempt}: FAIL release_tension")
                 return False
+
             run_skill("sync")
+            trace_grip(f"full routine attempt {display_attempt}: release_tension DONE")
 
-        angles = run_skill("current_angles")
-        if not ok(angles) or not _is_valid_angles(angles):
+            z_tgt = _UNMOUNT_POST_TENSION_Z_TARGET_ANGL_MM
+            z_lo = z_tgt - _UNMOUNT_POST_TENSION_Z_TOL_MM
+            z_hi = z_tgt + _UNMOUNT_POST_TENSION_Z_TOL_MM
+
+            pose_z = run_skill("current_pose")
+            if not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3:
+                trace_grip(f"full routine attempt {display_attempt}: FAIL current_pose for Z check")
+                return False
+
+            z_mm = float(pose_z[2])
+
+            trace_grip(
+                f"full routine attempt {display_attempt}: Z check "
+                f"z={z_mm:.2f}, target={z_tgt:.2f}, range=[{z_lo:.2f}, {z_hi:.2f}]"
+            )
+
+            if not (z_lo <= z_mm <= z_hi):
+                dz = (z_tgt - z_mm) / 1.0
+                dx = -0.315298 * dz
+
+                _gripper_log.warning(
+                    f"[ANGLED-UNMOUNT-Z] attempt={display_attempt} "
+                    f"after release_tension z={z_mm:.2f} mm outside [{z_lo:.1f}, {z_hi:.1f}]; "
+                    f"moveEE_movJ dz={dz:.2f} mm, dx={dx:.2f} mm"
+                )
+
+                trace_grip(
+                    f"full routine attempt {display_attempt}: Z correction START "
+                    f"dx={dx:.2f}, dz={dz:.2f}"
+                )
+
+                if not ok(run_skill("set_gripper_position", 25, 100, 25)):
+                    trace_grip(f"full routine attempt {display_attempt}: FAIL loosen gripper before Z correction")
+                    return False
+
+                if not ok(run_skill("moveEE_movJ", dx, 0, dz, 0, 0, 0)):
+                    trace_grip(f"full routine attempt {display_attempt}: FAIL moveEE_movJ Z correction")
+                    return False
+
+                if not ok(run_skill("set_gripper_position", 255, 255, 255)):
+                    trace_grip(f"full routine attempt {display_attempt}: FAIL re-close gripper after Z correction")
+                    return False
+
+                run_skill("sync")
+
+                if not ok(run_skill("release_tension")):
+                    trace_grip(f"full routine attempt {display_attempt}: FAIL release_tension after Z correction")
+                    return False
+
+                run_skill("sync")
+                trace_grip(f"full routine attempt {display_attempt}: Z correction DONE")
+            else:
+                trace_grip(f"full routine attempt {display_attempt}: Z correction SKIPPED")
+
+            trace_grip(
+                f"full routine attempt {display_attempt}: final post-release grip verify START"
+            )
+
+            final_gripped, final_pos = _close_and_verify_grip_angled()
+
+            trace_grip(
+                f"full routine attempt {display_attempt}: final post-release grip verify RESULT "
+                f"gripped={final_gripped}, pos={final_pos}"
+            )
+
+            if not final_gripped:
+                _gripper_log.warning(
+                    f"[ANGLED-PORTAFILTER-GRIP] full routine attempt "
+                    f"{display_attempt}/{total_attempts} failed at final post-release verify "
+                    f"pos={final_pos} "
+                    f"(want in [{ANGLED_UNMOUNT_GRIP_POS_MIN}, {ANGLED_UNMOUNT_GRIP_POS_MAX}]); "
+                    f"retrying whole grab routine"
+                )
+                continue
+
+            angles = run_skill("current_angles")
+            if not ok(angles) or not _is_valid_angles(angles):
+                trace_grip(f"full routine attempt {display_attempt}: FAIL current_angles after final verify")
+                return False
+
+            final_angles = tuple(angles)
+            routine_success = True
+
+            trace_grip(
+                f"full routine attempt {display_attempt}: SUCCESS final_pos={final_pos}; "
+                f"ready to cache post-grab joints"
+            )
+
+            break
+
+        if not routine_success:
+            trace_grip(
+                f"FINAL FAIL after {ANGLED_UNMOUNT_GRIP_RETRIES + 1} full routine attempts: "
+                f"tool={grab_tool_name}, port={port}, last_pos={final_pos}"
+            )
+
+            _gripper_log.error(
+                f"[ANGLED-PORTAFILTER-GRIP] FINAL FAIL after "
+                f"{ANGLED_UNMOUNT_GRIP_RETRIES + 1} full routine attempts "
+                f"port={port} tool={grab_tool_name} last_pos={final_pos}; "
+                f"aborting angled_unmount before caching"
+            )
             return False
-        _unmount_post_grab_joints_cache[grab_cache_key] = tuple(angles)
-        run_skill("sync")
 
-    # if not ok(run_skill("enforce_rxry_angled")):
-    #     return False
+        _unmount_post_grab_joints_cache[grab_cache_key] = final_angles
+
+        trace_grip(
+            f"CACHED post-grab joints for key={grab_cache_key}, final_pos={final_pos}"
+        )
+
+        run_skill("sync")
 
     run_skill("sync")
 
     cached_port_angle = angled__port_angle_cache.get(port)
 
     if cached_port_angle:
-        arc_cmd = angled__portafilter_arc_cmd_by_port.get(str(port))
-        if arc_cmd is None:
+        arc_cmd_by_2 = angled__portafilter_arc_cmd_by_port_2.get(str(port))
+        if arc_cmd_by_2 is None:
             return False
 
-        if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd)):
-            return False
+        for i in range(2):
+            if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd_by_2)):
+                return False
+        run_skill("sync")
 
     else:
         pose_before_arc = run_skill("current_pose")
@@ -3345,10 +3491,12 @@ def angled_unmount(**params) -> bool:
 
         arc_delta = current_rz - desired_rz
         arc_cmd = -arc_delta
+        arc_cmd_by_2 = arc_cmd / 2
         arc_delta_mount = arc_delta + _ANGLED_PORTAFILTER_MOUNT_ARC_EXTRA
 
         angled__portafilter_arc_cmd_by_port[str(port)] = float(arc_cmd)
         angled__portafilter_mount_arc_cmd_by_port[str(port)] = float(arc_delta_mount)
+        angled__portafilter_arc_cmd_by_port_2[str(port)] = float(arc_cmd_by_2)
 
         _gripper_log.info(
             f"[ANGLED-PORTAFILTER-ARC] port={port} current_rz={current_rz:.3f}, "
@@ -3356,66 +3504,100 @@ def angled_unmount(**params) -> bool:
             f"mount_arc_cmd={arc_delta_mount:.3f}"
         )
 
-        if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd)):
+        for i in range(2):
+            if not ok(run_skill("move_portafilter_arc_tool_angled", arc_cmd_by_2)):
+                return False
+        run_skill("sync")
+        if not ok(run_skill("moveJ_deg", 0, 0, 0, 0, 0, 1)):
             return False
-            
+        run_skill("sync")
 
-    run_skill("sync")
+    # run_skill("sync")
 
     cached = angled__port_angle_cache.get(port)
+
     if cached:
         mount_pose = cached['angled_mount']
         below_pose = cached['below']
+
         if not angled__is_valid_angles(below_pose):
             return False
-        if not ok(run_skill("moveEE_movJ", 0.0, 0.0, -30, 0, 0, 0)):
+
+        if not ok(run_skill("set_speed_factor", 25)):
             return False
+
+        if not ok(run_skill("moveEE_movJ", 0.5, -4.0, -30, 0, 0, 0)):
+            return False
+
+        if not ok(run_skill("set_speed_factor", 100)):
+            return False
+
     else:
         pose_after_arc = run_skill("current_pose")
         if not ok(pose_after_arc) or not isinstance(pose_after_arc, (tuple, list)) or len(pose_after_arc) < 3:
             return False
+
         z_after_arc_mm = float(pose_after_arc[2])
 
-        # if not ok(run_skill("release_tension")):
-        #     return False
-
         run_skill("sync")
+
         mount_pose = run_skill("current_angles")
+
         pose_after_tension = run_skill("current_pose")
         if not ok(pose_after_tension) or not isinstance(pose_after_tension, (tuple, list)) or len(pose_after_tension) < 3:
             return False
+
         z_after_tension_mm = float(pose_after_tension[2])
         dz_drop_mm = z_after_arc_mm - z_after_tension_mm + 1.0
+
         base_z = float(ESPRESSO_MOVEMENT_OFFSETS["portafilter_clear_up_angled"][2])
+
         if dz_drop_mm > 0.0:
             learned_clear_up_z = float(math.ceil(dz_drop_mm))
         else:
             learned_clear_up_z = base_z
+
         _portafilter_clear_up_z_mm_by_port[str(port)] = learned_clear_up_z
+
         _gripper_log.info(
-            f"[ANGLED-CLEAR-UP-Z] port={port} z_arc={z_after_arc_mm:.2f} z_after_tension={z_after_tension_mm:.2f} "
+            f"[ANGLED-CLEAR-UP-Z] port={port} z_arc={z_after_arc_mm:.2f} "
+            f"z_after_tension={z_after_tension_mm:.2f} "
             f"drop={dz_drop_mm:.2f} mm -> portafilter_clear_up_angled z={learned_clear_up_z} mm"
         )
+
         if not angled__is_valid_angles(mount_pose):
             return False
-        if not ok(run_skill("moveEE_movJ", 0.0, 0.5, -30, 0, 0, 0)):
+
+        run_skill("set_speed_factor", 25)
+
+        if not ok(run_skill("moveEE_movJ", 0.5, -4.0, -30, 0, 0, 0)):
             return False
-        # if not ok(run_skill("moveEE_movJ", *ESPRESSO_MOVEMENT_OFFSETS['portafilter_clear_down_angled'])):
-        #     return False
+
+        run_skill("set_speed_factor", 100)
+
         below_pose = run_skill("current_angles")
         if not angled__is_valid_angles(below_pose):
             return False
+
         mount_pose = tuple(mount_pose)
         below_pose = tuple(below_pose)
-        angled__port_angle_cache[port] = {'angled_mount': mount_pose, 'below': below_pose}
 
-    angled__mount_runtime_cache[port] = {'angled_mount': tuple(mount_pose), 'below': tuple(below_pose)}
+        angled__port_angle_cache[port] = {
+            'angled_mount': mount_pose,
+            'below': below_pose,
+        }
+
+    angled__mount_runtime_cache[port] = {
+        'angled_mount': tuple(mount_pose),
+        'below': tuple(below_pose),
+    }
+
     angled_mount_espresso_port = tuple(mount_pose)
     angled_below_espresso_port = tuple(below_pose)
 
-    run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
-    run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
-    run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
+    run_skill("gotoJ_deg", 41.352814, -59.951000, -116.487274, 72.716667, -14.247798, -75.843781)
+    run_skill("gotoJ_deg", 59.183862, -61.661050, -115.736025, 72.719532, -13.555987, -74.867439)
+    run_skill("gotoJ_deg", 56.791147, -36.511041, -128.165316, -14.824074, -33.131641, -0.433359)
     run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
     run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
 
@@ -3548,8 +3730,15 @@ def angled_tamper(**params) -> bool:
         if not ok(run_skill("move_to", portafilter_tool, 0.22)):
             return False
         run_skill("sync")
+
         if not ok(run_skill("approach_tool", portafilter_tool)):
             return False
+
+    # Local tolerance for angled tamper grip.
+    # Your latest code was actually checking 139..143, so keep that explicit.
+    ANGLED_TAMPER_GRIP_POS_MIN = 139
+    ANGLED_TAMPER_GRIP_POS_MAX = 143
+    ANGLED_TAMPER_GRIP_RETRIES = 5
 
     def _close_and_verify_grip_angled():
         node = get_motion_node()
@@ -3559,7 +3748,7 @@ def angled_tamper(**params) -> bool:
 
         ok_reading = (
             pos is not None
-            and 139 <= pos <= 143
+            and ANGLED_TAMPER_GRIP_POS_MIN <= pos <= ANGLED_TAMPER_GRIP_POS_MAX
         )
         return ok_reading, pos
 
@@ -3579,9 +3768,12 @@ def angled_tamper(**params) -> bool:
     if angled__is_valid_angles(post_grab_pose):
         if not ok(run_skill("gotoJ_deg", *post_grab_pose)):
             return False
+
         run_skill("sync")
+
         if not ok(run_skill("set_gripper_position", 255, 255, 255)):
             return False
+
         run_skill("sync")
 
     else:
@@ -3589,10 +3781,13 @@ def angled_tamper(**params) -> bool:
 
         gripped, pos = _grab_then_close_angled()
 
-        if not gripped:
+        for attempt in range(1, ANGLED_TAMPER_GRIP_RETRIES + 1):
+            if gripped:
+                break
+
             _gripper_log.warning(
-                f"[ANGLED-TAMPER-GRIP] attempt 1 pos={pos} "
-                f"(want in [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]); "
+                f"[ANGLED-TAMPER-GRIP] attempt {attempt} pos={pos} "
+                f"(want in [{ANGLED_TAMPER_GRIP_POS_MIN}, {ANGLED_TAMPER_GRIP_POS_MAX}]); "
                 f"opening gripper and re-running tool approach"
             )
 
@@ -3635,19 +3830,20 @@ def angled_tamper(**params) -> bool:
 
         _angled_tamper_post_grab_joints_cache[portafilter_tool] = tuple(post_grab_angles)
 
-    if not ok(run_skill("moveEE", 0, 0, -5, 0, 0, 0)):
+    if not ok(run_skill("moveEE", 0, 0, -2.5, 0, 0, 0)):
         return False
 
     if not ok(run_skill("release_tension")):
         return False
 
+    # Only verify after release_tension on uncached/live grab path.
     if used_uncached_post_grab:
         gripped_after_tension, pos_after_tension = _close_and_verify_grip_angled()
 
         if not gripped_after_tension:
             _gripper_log.error(
                 f"[ANGLED-TAMPER-GRIP] after release_tension pos={pos_after_tension} "
-                f"outside [{_PORTAFILTER_GRIP_POS_MIN}, {_PORTAFILTER_GRIP_POS_MAX}]; "
+                f"outside [{ANGLED_TAMPER_GRIP_POS_MIN}, {ANGLED_TAMPER_GRIP_POS_MAX}]; "
                 f"aborting angled_tamper"
             )
             return False
@@ -3689,68 +3885,188 @@ def angled_double_tamper(**params) -> bool:
     params.setdefault("portafilter_tool", "double_portafilter_angled")
     return angled_tamper(**params)
 
+ANGLED_MOUNT_DEBUG = True
 def angled_mount(**params) -> bool:
     global angled_below_espresso_port, angled_mount_espresso_port
 
     def ok(r):
         return r not in (False, None)
 
+    debug_enabled = globals().get("ANGLED_MOUNT_DEBUG", True)
+
+    def trace(msg: str):
+        if debug_enabled:
+            print(f"[ANGLED-MOUNT] {msg}", flush=True)
+
+    trace("START")
+
     espresso_dict = params.get("espresso")
+    trace(f"espresso_dict={espresso_dict}")
+
     shot_cfg = angled__normalize_espresso_shot(espresso_dict)
+    trace(f"shot_cfg={shot_cfg}")
+
     port = params.get("port") or (shot_cfg.get("port") if shot_cfg else "angled_portafilter_1")
+    trace(f"resolved port={port}")
 
     if not port:
+        trace("FAIL: port is empty")
         return False
 
     port_params = PULL_ESPRESSO_PARAMS.get(str(port))
+    trace(f"port_params exists={bool(port_params)}")
+
     if not port_params:
+        trace(f"FAIL: missing PULL_ESPRESSO_PARAMS for port={port}")
         return False
 
-    run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)
-    run_skill("gotoJ_deg", 56.791147,-36.511041,-128.165316,-14.824074,-33.131641,-0.433359)
-    run_skill("gotoJ_deg", 59.183862,-61.661050,-115.736025,72.719532,-13.555987,-74.867439)
-    run_skill("gotoJ_deg", 41.352814,-59.951000,-116.487274,72.716667,-14.247798,-75.843781)
+    trace("nav waypoint 1 START")
+    if not ok(run_skill("gotoJ_deg", -32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)):
+        trace("FAIL: nav waypoint 1")
+        return False
+    trace("nav waypoint 1 DONE")
+
+    trace("nav waypoint 2 START")
+    if not ok(run_skill("gotoJ_deg", 57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360)):
+        trace("FAIL: nav waypoint 2")
+        return False
+    trace("nav waypoint 2 DONE")
+
+    trace("nav waypoint 3 START")
+    if not ok(run_skill("gotoJ_deg", 56.791147, -36.511041, -128.165316, -14.824074, -33.131641, -0.433359)):
+        trace("FAIL: nav waypoint 3")
+        return False
+    trace("nav waypoint 3 DONE")
+
+    trace("nav waypoint 4 START")
+    if not ok(run_skill("gotoJ_deg", 59.183862, -61.661050, -115.736025, 72.719532, -13.555987, -74.867439)):
+        trace("FAIL: nav waypoint 4")
+        return False
+    trace("nav waypoint 4 DONE")
+
+    trace("nav waypoint 5 START")
+    if not ok(run_skill("gotoJ_deg", 41.352814, -59.951000, -116.487274, 72.716667, -14.247798, -75.843781)):
+        trace("FAIL: nav waypoint 5")
+        return False
+    trace("nav waypoint 5 DONE")
+
+    trace("checking angled__mount_runtime_cache")
     runtime_cached = angled__mount_runtime_cache.get(port)
+
     if runtime_cached:
-        below_pose = runtime_cached.get('below')
-        mount_pose = runtime_cached.get('angled_mount')
+        trace("runtime cache FOUND")
+        below_pose = runtime_cached.get("below")
+        mount_pose = runtime_cached.get("angled_mount")
     else:
+        trace("runtime cache MISSING; using global angled poses")
         below_pose = angled_below_espresso_port
         mount_pose = angled_mount_espresso_port
+
+    trace(f"below_pose={below_pose}")
+    trace(f"below_pose valid={angled__is_valid_angles(below_pose)}")
+
     if not angled__is_valid_angles(below_pose):
-        return False
-    if not ok(run_skill("gotoJ_deg", *below_pose)):
-        return False
-    if not angled__is_valid_angles(mount_pose):
-        return False
-    run_skill("sync")
-    if not ok(run_skill("gotoJ_deg", *mount_pose)):
-        return False
-    if not ok(run_skill("moveEE_movJ", *_portafilter_clear_up_angled_offset(port))):
-        return False
-    arc_delta_mount = angled__portafilter_mount_arc_cmd_by_port.get(str(port))
-    if arc_delta_mount is None:
+        trace("FAIL: invalid below_pose")
         return False
 
+    trace("goto below_pose START")
+    if not ok(run_skill("gotoJ_deg", *below_pose)):
+        trace("FAIL: goto below_pose")
+        return False
+    trace("goto below_pose DONE")
+
+    trace(f"mount_pose={mount_pose}")
+    trace(f"mount_pose valid={angled__is_valid_angles(mount_pose)}")
+
+    if not angled__is_valid_angles(mount_pose):
+        trace("FAIL: invalid mount_pose")
+        return False
+
+    trace("sync before slow mount START")
+    run_skill("sync")
+    trace("sync before slow mount DONE")
+
+    trace("set_speed_factor 25 START")
+    if not ok(run_skill("set_speed_factor", 25)):
+        trace("FAIL: set_speed_factor 25")
+        return False
+    trace("set_speed_factor 25 DONE")
+
+    trace("goto mount_pose START")
+    if not ok(run_skill("gotoJ_deg", *mount_pose)):
+        trace("FAIL: goto mount_pose")
+        return False
+    trace("goto mount_pose DONE")
+
+    trace("sync after mount_pose START")
+    run_skill("sync")
+    trace("sync after mount_pose DONE")
+
+    trace("set_speed_factor 100 START")
+    if not ok(run_skill("set_speed_factor", 100)):
+        trace("FAIL: set_speed_factor 100 before arc")
+        return False
+    trace("set_speed_factor 100 DONE")
+
+    trace("reading arc_delta_mount START")
+    arc_delta_mount = angled__portafilter_mount_arc_cmd_by_port.get(str(port))
+    trace(f"arc_delta_mount={arc_delta_mount}")
+
+    if arc_delta_mount is None:
+        trace(f"FAIL: missing arc_delta_mount for port={port}")
+        return False
+
+    trace("move_portafilter_arc_tool_angled START")
     if not ok(run_skill("move_portafilter_arc_tool_angled", arc_delta_mount)):
+        trace("FAIL: move_portafilter_arc_tool_angled")
         return False
+    trace("move_portafilter_arc_tool_angled DONE")
+
+    trace("sync after arc START")
     run_skill("sync")
-    run_skill("release_tension")
+    trace("sync after arc DONE")
+
+    trace("release_tension START")
+    if not ok(run_skill("release_tension")):
+        trace("FAIL: release_tension")
+        return False
+    trace("release_tension DONE")
+
+    trace("sync after release_tension START")
     run_skill("sync")
+    trace("sync after release_tension DONE")
+
+    trace("_open_gripper_with_verify START")
     if not _open_gripper_with_verify():
+        trace("FAIL: _open_gripper_with_verify")
         return False
+    trace("_open_gripper_with_verify DONE")
+
+    trace("sync after gripper open START")
     run_skill("sync")
-    if port in ('angled_portafilter_2'):
+    trace("sync after gripper open DONE")
+
+    trace(f"checking final machine approach condition for port={port}")
+    if port in ("angled_portafilter_2",):
+        trace("final machine approach START")
         if not _run_cached_machine_approach(
             f"angled_unmount:{port}:approach:{port_params['portafilter_number']}",
             "three_group_espresso",
-            port_params['portafilter_number'],
+            port_params["portafilter_number"],
         ):
+            trace("FAIL: final machine approach")
             return False
-    if not ok(run_skill("gotoJ_deg", *port_params['home'])):
-        return False
+        trace("final machine approach DONE")
+    else:
+        trace("final machine approach SKIPPED")
 
+    trace("goto port home START")
+    if not ok(run_skill("gotoJ_deg", *port_params["home"])):
+        trace("FAIL: goto port home")
+        return False
+    trace("goto port home DONE")
+
+    trace("SUCCESS")
     return True
 
 def angled_grab_espresso_pitcher(**params) -> bool:
@@ -7187,7 +7503,7 @@ def test(**params):
     for outer_idx in range(1):
         get_machine_position()
 
-        for inner_idx in range(1):
+        for inner_idx in range(10):
             start = time.perf_counter()
             pos = float(inner_idx%4 + 1)
 
@@ -7195,12 +7511,12 @@ def test(**params):
             clean_portafilter(port="port_1")
 
             # 🔥 --- PARALLEL BLOCK 1 ---
-            t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
-            t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
+            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 1})
+            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 2})
             t3 = threading.Thread(target=grinder, kwargs={"portafilter_tool": "double_portafilter"})
 
-            t1.start()
-            t2.start()
+            # t1.start()
+            # t2.start()
             # input()
             t3.start()
 
@@ -7250,10 +7566,10 @@ def test(**params):
 def test_arm1(**params):
     timings = []
 
-    for outer_idx in range(1):
+    for outer_idx in range(3):
         get_machine_position()
 
-        for inner_idx in range(4):
+        for inner_idx in range(3):
             start = time.perf_counter()
             pos = float(inner_idx%4 + 1)
 
@@ -7261,12 +7577,12 @@ def test_arm1(**params):
             angled_clean_portafilter(port="port_2")
 
             # 🔥 --- PARALLEL BLOCK 1 ---
-            t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 2})
-            t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 1})
+            # t1 = threading.Thread(target=call_coffee_purge, kwargs={"slot_number": 2})
+            # t2 = threading.Thread(target=call_grinder, kwargs={"shots_number": 1})
             t3 = threading.Thread(target=angled_grinder, kwargs={"portafilter_tool": "single_portafilter_angled"})
 
-            t1.start()
-            t2.start()
+            # t1.start()
+            # t2.start()
             t3.start()
 
             # t1.join()
@@ -7288,23 +7604,25 @@ def test_arm1(**params):
             angled_tamper(portafilter_tool="single_portafilter_angled")
             angled_mount(port="angled_portafilter_2")
 
-            t6 = threading.Thread(target=call_coffee_machine, kwargs={"coffee_type": 1, "slot_number": 2})
-            t7 = threading.Thread(target=dispense_paper_arm1_cup_station, kwargs={"size": "7oz", "position": {'cup_position': pos}})
+            # t6 = threading.Thread(target=call_coffee_machine, kwargs={"coffee_type": 1, "slot_number": 2})
+            # t7 = threading.Thread(target=dispense_paper_arm1_cup_station, kwargs={"size": "7oz", "position": {'cup_position': pos}})
 
-            t6.start()
-            t7.start()
+            # # t6.start()
+            # t7.start()
 
             
-            t7.join()
+            # t7.join()
 
-            angled_grab_espresso_pitcher(port="port_2")
-            t6.join()
-            angled_pick_espresso_pitcher(port="port_2")
-            angled_pour_espresso_pitcher_cup_station(position={'cup_position': pos})
-            angled_return_espresso_pitcher(port="port_2")
+            # angled_grab_espresso_pitcher(port="port_2")
+            # # t6.join()
+            # angled_pick_espresso_pitcher(port="port_2")
+            # angled_pour_espresso_pitcher_cup_station(position={'cup_position': pos})
+            # angled_return_espresso_pitcher(port="port_2")
 
-            if pos == 1.0 or pos == 2.0 or pos == 3.0 or pos == 4.0:
-                input()
+            # if pos == 4.0:
+            #     input()
+
+            run_skill("sync")
 
             end = time.perf_counter()
             timings.append(end - start)
@@ -7315,51 +7633,141 @@ def test_arm1(**params):
 def test_both_port(**params):
     timings = []
 
-    for i in range(7):
+    outer_total = 7
+    inner_total = 7
+    total_planned_iterations = outer_total * inner_total
+
+    attempted_iterations = 0
+    completed_iterations = 0
+    failed_iterations = 0
+
+    def _run_sequence(label_steps, iteration_number):
+        for step_number, (step_label, step_fn) in enumerate(label_steps, start=1):
+            print(
+                f"[ITER {iteration_number}/{total_planned_iterations}] "
+                f"starting step {step_number}/{len(label_steps)}: {step_label}"
+            )
+
+            result = step_fn()
+
+            if result is False or result is None:
+                print(
+                    f"[ITER {iteration_number}/{total_planned_iterations}] "
+                    f"step {step_label!r} failed; aborting iteration"
+                )
+                return False, step_label
+
+        return True, None
+
+    for i in range(outer_total):
         get_machine_position()
 
-        for j in range(7):
+        for j in range(inner_total):
+            attempted_iterations += 1
+            current_iteration = attempted_iterations
+
+            print(
+                f"\n[ITERATION START] "
+                f"iteration={current_iteration}/{total_planned_iterations}, "
+                f"i={i}, j={j}, "
+                f"completed={completed_iterations}, failed={failed_iterations}"
+            )
+
             # loop 1 timing
             t0 = time.perf_counter()
 
-            # run_skill("sync")
-            # unmount(port="port_1")
-            # clean_portafilter(port="port_1")
-            # grinder(portafilter_tool="double_portafilter")
-            # return_cleaned_espresso_pitcher(port="port_1")
-            # tamper(portafilter_tool="double_portafilter")
-            # mount(port="port_1")
-            # run_skill("sync")
+            # loop1_steps = [
+            #     ("sync", lambda: run_skill("sync")),
+            #     ("unmount", lambda: unmount(port="port_1")),
+            #     ("clean_portafilter", lambda: clean_portafilter(port="port_1")),
+            #     ("grinder", lambda: grinder(portafilter_tool="double_portafilter")),
+            #     ("return_cleaned_espresso_pitcher",
+            #      lambda: return_cleaned_espresso_pitcher(port="port_1")),
+            #     ("tamper", lambda: tamper(portafilter_tool="double_portafilter")),
+            #     ("mount", lambda: mount(port="port_1")),
+            #     ("sync_end", lambda: run_skill("sync")),
+            # ]
+            # loop1_ok, loop1_failed_step = _run_sequence(loop1_steps, current_iteration)
 
             loop1_time = time.perf_counter() - t0
 
             # loop 2 timing
             t0 = time.perf_counter()
 
-            run_skill("sync")
-            angled_unmount(port="angled_portafilter_2")
-            angled_clean_portafilter(port="angled_portafilter_2")
-            angled_grinder(portafilter_tool="single_portafilter_angled")
-            angled_return_cleaned_espresso_pitcher(port="port_2")
-            call_tamper(calibration_ms=2000)
-            angled_tamper(portafilter_tool="single_portafilter_angled")
-            angled_mount(port="angled_portafilter_2")
-            run_skill("sync")
+            loop2_steps = [
+                ("sync", lambda: run_skill("sync")),
+                ("angled_unmount", lambda: angled_unmount(port="angled_portafilter_2")),
+                ("angled_clean_portafilter",
+                 lambda: angled_clean_portafilter(port="angled_portafilter_2")),
+                ("angled_grinder",
+                 lambda: angled_grinder(portafilter_tool="single_portafilter_angled")),
+                # ("angled_return_cleaned_espresso_pitcher",
+                #  lambda: angled_return_cleaned_espresso_pitcher(port="port_2")),
+                ("call_tamper", lambda: call_tamper(calibration_ms=2000)),
+                ("angled_tamper",
+                 lambda: angled_tamper(portafilter_tool="single_portafilter_angled")),
+                ("angled_mount", lambda: angled_mount(port="angled_portafilter_2")),
+                ("sync_end", lambda: run_skill("sync")),
+            ]
+
+            loop2_ok, loop2_failed_step = _run_sequence(
+                loop2_steps,
+                current_iteration
+            )
 
             loop2_time = time.perf_counter() - t0
 
+            if loop2_ok:
+                completed_iterations += 1
+            else:
+                failed_iterations += 1
+
             timings.append({
+                "iteration": current_iteration,
+                "total_planned_iterations": total_planned_iterations,
+                "completed_iterations": completed_iterations,
+                "failed_iterations": failed_iterations,
                 "outer_loop": i,
                 "inner_loop": j,
                 "loop_1_seconds": loop1_time,
                 "loop_2_seconds": loop2_time,
+                "loop_2_ok": loop2_ok,
+                "loop_2_failed_step": loop2_failed_step,
             })
 
+            status = "OK" if loop2_ok else f"FAIL@{loop2_failed_step}"
+
             print(
+                f"[ITERATION END] "
+                f"iteration={current_iteration}/{total_planned_iterations}, "
                 f"i={i}, j={j} | "
                 f"loop 1: {loop1_time:.3f}s | "
-                f"loop 2: {loop2_time:.3f}s"
+                f"loop 2: {loop2_time:.3f}s | "
+                f"status={status} | "
+                f"completed={completed_iterations}, "
+                f"failed={failed_iterations}"
             )
+
+            if not loop2_ok:
+                print(
+                    f"[test_both_port] aborting outer/inner loops at "
+                    f"i={i}, j={j}, "
+                    f"iteration={current_iteration}/{total_planned_iterations}"
+                )
+                print(
+                    f"[SUMMARY] attempted={attempted_iterations}, "
+                    f"completed={completed_iterations}, "
+                    f"failed={failed_iterations}, "
+                    f"remaining={total_planned_iterations - attempted_iterations}"
+                )
+                return timings
+
+    print(
+        f"[SUMMARY] attempted={attempted_iterations}, "
+        f"completed={completed_iterations}, "
+        f"failed={failed_iterations}, "
+        f"remaining=0"
+    )
 
     return timings
 
@@ -7407,22 +7815,21 @@ def test_plastic_cup(**params):
     return timings
 
 def test_paper_cup(**params):
-    # for i in range(5):
-    #     get_machine_position()
-    #     for j in range(5):
-    #         unmount(port="port_1")
-    #         clean_portafilter(port="port_1")
-    #         grinder(portafilter_tool="double_portafilter")
-    #         tamper(portafilter_tool="double_portafilter")
-    #         mount(port="port_1")
-    run_skill("enforce_rxry_angled")
-    input()
-    i = 1
-    while True:
-        run_skill("move_portafilter_arc_tool_angled", -1.0)   
-        print(f"iteration {i}")
-        input()
-        i += 1
+    run_skill("gotoJ_deg", -160.082268,-37.525959,-134.136169,7.954679,-70.319756,-5.921233)
+    run_skill("sync")
+    run_skill("move_portafilter_arc_tool_angled", -8.2)
+    run_skill("move_portafilter_arc_tool_angled", -8.2)
+    run_skill("move_portafilter_arc_tool_angled", -8.2)
+    run_skill("move_portafilter_arc_tool_angled", -8.2)
+    run_skill("move_portafilter_arc_tool_angled", -8.2)
+    run_skill("moveJ_deg", 0, 0, 0, 0, 0, 1)
+    run_skill("move_portafilter_arc_tool_angled", 8.2)
+    run_skill("move_portafilter_arc_tool_angled", 8.2)
+    run_skill("move_portafilter_arc_tool_angled", 8.2)
+    run_skill("move_portafilter_arc_tool_angled", 8.2)
+    run_skill("move_portafilter_arc_tool_angled", 8.2)
+    run_skill("sync")
+
 
     
         
