@@ -3368,7 +3368,7 @@ def angled_unmount(**params) -> bool:
             )
 
             if not (z_lo <= z_mm <= z_hi):
-                dz = (z_tgt - z_mm) / 1.0
+                dz = (z_tgt - z_mm) / 2.5
                 dx = -0.315298 * dz
 
                 _gripper_log.warning(
@@ -7633,8 +7633,8 @@ def test_arm1(**params):
 def test_both_port(**params):
     timings = []
 
-    outer_total = 7
-    inner_total = 7
+    outer_total = 1
+    inner_total = 2
     total_planned_iterations = outer_total * inner_total
 
     attempted_iterations = 0

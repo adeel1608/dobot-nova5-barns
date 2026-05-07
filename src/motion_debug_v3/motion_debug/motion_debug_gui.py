@@ -29,12 +29,16 @@ from dobot_msgs_v3.srv import (
     DisableRobot,
     EnableRobot,
     GetErrorID,
+    GetGripperPosition,
     JointMovJ,
+    ModbusClose,
+    ModbusCreate,
     MoveJog,
     MovL,
-    PayLoad,
     ResetRobot,
     RobotMode,
+    SetGripperPosition,
+    SetHoldRegs,
     SetTool,
     SpeedFactor,
     SpeedJ,
@@ -71,6 +75,17 @@ DEFAULT_SPEED_VALUES = {
     'acc_l': 50,
 }
 ZERO_TOOL_TCP_VALUES = [0.0] * 6
+DEFAULT_INIT_LOAD_KG = 2.0
+GRIPPER_INDEX = 0
+GRIPPER_OPEN_POSITION = 0
+# V3 gripper examples supplied for this robot use 255 as the normal close target.
+GRIPPER_CLOSE_POSITION = 255
+GRIPPER_SPEED = 255
+GRIPPER_FORCE = 255
+GRIPPER_MODBUS_IP = '127.0.0.1'
+GRIPPER_MODBUS_PORT = 60000
+GRIPPER_MODBUS_SLAVE_ID = 9
+GRIPPER_MODBUS_IS_RTU = 1
 # V3 compatibility: service namespace changed from /dobot_bringup_ros2/srv to /dobot_bringup_v3/srv.
 SERVICE_ROOT = '/dobot_bringup_v3/srv'
 STALE_DATA_SEC = 1.5
@@ -203,6 +218,7 @@ class MotionSnapshot:
     action_text: str = 'Ready'
     busy_action: str | None = None
     ee_load_kg: float | None = None
+    gripper_position: int | None = None
     tool_tcp_values: list[float] = field(default_factory=lambda: [0.0] * 6)
     speed_values: dict[str, int] = field(default_factory=lambda: dict(DEFAULT_SPEED_VALUES))
     joints_deg: dict[str, float] = field(
@@ -306,14 +322,14 @@ class MotionDebugNode(Node):
         self._tool_client = self.create_client(Tool, f'{SERVICE_ROOT}/Tool')
         self._robot_mode_client = self.create_client(RobotMode, f'{SERVICE_ROOT}/RobotMode')
         self._get_error_id_client = self.create_client(GetErrorID, f'{SERVICE_ROOT}/GetErrorID')
-        # V3 compatibility: on this V3 stack, /PayLoad maps to dashboard PayLoad(...).
-        # /SetPayload maps to SetPayLoad(...) and your controller returned -10000 for it.
-        self._payload_client = self.create_client(PayLoad, f'{SERVICE_ROOT}/PayLoad')
-
-        # V3 compatibility: your dobot_msgs_v3.zip exposes SetTool(index, table).
-        # V4 used SetTool(index, value), so only the request field name changes.
+        # V3 compatibility: your V3 SetTool service uses SetTool(index, table).
         self._set_tool_client = self.create_client(SetTool, f'{SERVICE_ROOT}/SetTool')
-
+        # V3 compatibility: these gripper/init services are present in your V3 bringup.
+        self._set_gripper_position_client = self.create_client(SetGripperPosition, f'{SERVICE_ROOT}/SetGripperPosition')
+        self._get_gripper_position_client = self.create_client(GetGripperPosition, f'{SERVICE_ROOT}/GetGripperPosition')
+        self._modbus_close_client = self.create_client(ModbusClose, f'{SERVICE_ROOT}/ModbusClose')
+        self._modbus_create_client = self.create_client(ModbusCreate, f'{SERVICE_ROOT}/ModbusCreate')
+        self._set_hold_regs_client = self.create_client(SetHoldRegs, f'{SERVICE_ROOT}/SetHoldRegs')
         self._cp_client = self.create_client(CP, f'{SERVICE_ROOT}/CP')
         self._speed_factor_client = self.create_client(SpeedFactor, f'{SERVICE_ROOT}/SpeedFactor')
         # V3 compatibility: V4 VelJ/VelL services are named SpeedJ/SpeedL in V3.
@@ -343,6 +359,7 @@ class MotionDebugNode(Node):
                 action_text=self._snapshot.action_text,
                 busy_action=self._snapshot.busy_action,
                 ee_load_kg=self._snapshot.ee_load_kg,
+                gripper_position=self._snapshot.gripper_position,
                 tool_tcp_values=list(self._snapshot.tool_tcp_values),
                 speed_values=dict(self._snapshot.speed_values),
                 joints_deg=dict(self._snapshot.joints_deg),
@@ -542,23 +559,133 @@ class MotionDebugNode(Node):
             return self._script_goal_progress_ratio_threshold * 100.0
 
     def set_ee_load(self, load_kg: float) -> None:
-        request = PayLoad.Request()
-
-        # V3 compatibility:
-        # V4 SetPayload used fields: load, x, y, z
-        # Your V3 PayLoad uses fields: weight, inertia
-        # Your /SetPayload service called dashboard SetPayLoad(...) and returned -10000,
-        # so use /PayLoad instead.
-        request.weight = load_kg
-        request.inertia = 0.0
-
+        # V3 compatibility: this robot applies the EnableRobot(load=...) payload
+        # only after a disable/enable cycle, so Set EE Load intentionally sends:
+        # DisableRobot -> wait 2 sec -> EnableRobot(load=<typed kg>).
         self._send_simple_service(
-            self._payload_client,
-            request,
-            f'Set EE Load to {load_kg:.2f} kg',
-            f'{SERVICE_ROOT}/PayLoad',
-            on_success=lambda: self._mark_ee_load(load_kg),
+            self._disable_robot_client,
+            DisableRobot.Request(),
+            f'Set EE Load {load_kg:.2f} kg: Disable Robot',
+            f'{SERVICE_ROOT}/DisableRobot',
+            on_success=lambda load=load_kg: self._enable_robot_with_load_after_delay(load),
         )
+
+
+    def _enable_robot_with_load_after_delay(self, load_kg: float) -> None:
+        delay_sec = 2.0
+
+        print(
+            f"[Set EE Load] Disable complete. "
+            f"Waiting {delay_sec:.1f}s before EnableRobot..."
+        )
+
+        timer_ref = None
+
+        def _enable_once():
+            nonlocal timer_ref
+
+            if timer_ref is not None:
+                timer_ref.cancel()
+                self.destroy_timer(timer_ref)
+
+            self._enable_robot_with_load(
+                load_kg,
+                f'Set EE Load {load_kg:.2f} kg: Enable Robot',
+                on_success=lambda applied_load=load_kg: self._mark_ee_load(applied_load),
+            )
+
+        timer_ref = self.create_timer(delay_sec, _enable_once)
+
+    def initialize_robot(self, load_kg: float = DEFAULT_INIT_LOAD_KG) -> None:
+        # V3 compatibility: mirrors the initialization sequence used by your
+        # working helper script: clear/disable/enable, drag toggle, Modbus gripper
+        # setup, and CP=100.
+        steps = [
+            ('Clear Error', self._clear_error_client, ClearError.Request(), f'{SERVICE_ROOT}/ClearError', None),
+            ('Disable Robot', self._disable_robot_client, DisableRobot.Request(), f'{SERVICE_ROOT}/DisableRobot', None),
+            (
+                f'Enable Robot load={load_kg:.2f}',
+                self._enable_robot_client,
+                self._build_enable_robot_request(load_kg),
+                f'{SERVICE_ROOT}/EnableRobot',
+                lambda load=load_kg: self._mark_ee_load(load),
+            ),
+            ('Start Drag', self._start_drag_client, StartDrag.Request(), f'{SERVICE_ROOT}/StartDrag', self._mark_drag_enabled),
+            ('Stop Drag', self._stop_drag_client, StopDrag.Request(), f'{SERVICE_ROOT}/StopDrag', self._mark_drag_disabled),
+            (
+                f'Modbus Close index={GRIPPER_INDEX}',
+                self._modbus_close_client,
+                self._build_modbus_close_request(),
+                f'{SERVICE_ROOT}/ModbusClose',
+                None,
+            ),
+            (
+                'Modbus Create gripper',
+                self._modbus_create_client,
+                self._build_modbus_create_request(),
+                f'{SERVICE_ROOT}/ModbusCreate',
+                None,
+            ),
+            (
+                'Gripper reset registers',
+                self._set_hold_regs_client,
+                self._build_set_hold_regs_request('0,0,0', val_type='int'),
+                f'{SERVICE_ROOT}/SetHoldRegs',
+                None,
+            ),
+            (
+                'Gripper activate registers',
+                self._set_hold_regs_client,
+                self._build_set_hold_regs_request('256,0,0', val_type='int'),
+                f'{SERVICE_ROOT}/SetHoldRegs',
+                None,
+            ),
+            ('Set CP to 100%', self._cp_client, self._build_cp_request(100), f'{SERVICE_ROOT}/CP', None),
+        ]
+
+        self._send_service_sequence(
+            'Initialise',
+            steps,
+            delay_after_each_sec=1.0,
+        )
+
+    def open_gripper(self) -> None:
+        self.set_gripper_position(GRIPPER_OPEN_POSITION, 'Open Gripper')
+
+    def close_gripper(self, position: int = GRIPPER_CLOSE_POSITION) -> None:
+        self.set_gripper_position(position, f'Close Gripper to {position}')
+
+    def set_gripper_position(self, position: int, action_name: str | None = None) -> None:
+        request = SetGripperPosition.Request()
+        # V3 compatibility: SetGripperPosition has an index field in your .srv;
+        # the CLI examples omit it because Python/ROS default it to 0. Set it
+        # explicitly here so the GUI always uses the intended gripper.
+        request.index = GRIPPER_INDEX
+        request.position = max(0, min(255, int(position)))
+        request.speed = GRIPPER_SPEED
+        request.force = GRIPPER_FORCE
+        self._send_simple_service(
+            self._set_gripper_position_client,
+            request,
+            action_name or f'Set Gripper Position {request.position}',
+            f'{SERVICE_ROOT}/SetGripperPosition',
+            on_success=lambda gripper_position=request.position: self._mark_gripper_position(gripper_position),
+        )
+
+    def get_gripper_position(self) -> None:
+        request = GetGripperPosition.Request()
+        # V3 compatibility: GetGripperPosition has index only and returns position.
+        request.index = GRIPPER_INDEX
+        action_call = self._describe_service_call('Get Gripper Current Value', f'{SERVICE_ROOT}/GetGripperPosition', request)
+        if not self._get_gripper_position_client.service_is_ready():
+            self._log_event('service', f'{action_call}: service is not ready')
+            self._set_action_text(f'{action_call}: service is not ready.')
+            return
+
+        self._log_event('service', f'dispatch {action_call}')
+        self._set_busy_action(action_call)
+        future = self._get_gripper_position_client.call_async(request)
+        future.add_done_callback(lambda done_future, action_call_text=action_call: self._finish_get_gripper_position_call(action_call_text, done_future))
 
     def set_tool_tcp(self, values: list[float]) -> None:
         self._send_tool_tcp(values, 'Set Tool')
@@ -571,13 +698,9 @@ class MotionDebugNode(Node):
     ) -> bool:
         request = SetTool.Request()
         request.index = 1
-
-        # V3 compatibility:
-        # V4 field name: value
-        # Your V3 field name: table
-        # Dashboard command format becomes: SetTool(1,{x,y,z,rx,ry,rz})
+        # V3 compatibility: V4 SetTool used request.value; your V3 SetTool uses
+        # request.table and sends dashboard command SetTool(index,{x,y,z,rx,ry,rz}).
         request.table = '{' + ','.join(f'{value:.3f}' for value in values) + '}'
-
         return self._send_simple_service(
             self._set_tool_client,
             request,
@@ -1659,8 +1782,9 @@ class MotionDebugNode(Node):
             response = future.result()
             res = getattr(response, 'res', 0)
             robot_return = self._clean_text(getattr(response, 'robot_return', ''))
-            # V3 dashboard services return 0 on success.
-            # Negative values like -10000 are failures, not ok.
+            response_message = self._clean_text(getattr(response, 'message', ''))
+            # V3 dashboard services return 0 on success. Negative values like
+            # -10000 are failures and must not be reported as ok.
             if res != 0:
                 message = f'{action_call}: failed ({res})'
                 script_result_text = f'FAILED ({res})'
@@ -1668,10 +1792,11 @@ class MotionDebugNode(Node):
                 message = f'{action_call}: ok'
                 should_run_success = on_success is not None
                 script_result_text = 'SENT'
-            if robot_return:
-                message = f'{message} | {robot_return}'
+            extra_text = robot_return or response_message
+            if extra_text:
+                message = f'{message} | {extra_text}'
                 if script_result_text != 'SENT':
-                    script_result_text = f'{script_result_text} | {robot_return}'
+                    script_result_text = f'{script_result_text} | {extra_text}'
         except Exception as exc:  # pragma: no cover - defensive UI path
             message = f'{action_call}: {exc}'
             script_result_text = f'ERROR | {exc}'
@@ -1690,11 +1815,99 @@ class MotionDebugNode(Node):
             on_complete()
         self._dispatch_queued_service_if_ready()
 
-    def _build_enable_robot_request(self) -> EnableRobot.Request:
+    def _finish_get_gripper_position_call(self, action_call: str, future) -> None:
+        try:
+            response = future.result()
+            position = int(getattr(response, 'position'))
+            self._mark_gripper_position(position)
+            message = f'{action_call}: {position}'
+        except Exception as exc:  # pragma: no cover - defensive UI path
+            message = f'{action_call}: {exc}'
+
+        with self._lock:
+            self._snapshot.busy_action = None
+            self._snapshot.action_text = message
+        self._log_event('service', message)
+        self._dispatch_queued_service_if_ready()
+
+    def _send_service_sequence(
+        self,
+        sequence_name: str,
+        steps: list[tuple[str, object, object, str, object]],
+        step_index: int = 0,
+        delay_after_each_sec: float = 0.0,
+    ) -> None:
+        if step_index >= len(steps):
+            self._set_action_text(f'{sequence_name}: complete; check log for any failed step.')
+            self._log_event('service', f'{sequence_name}: complete; check log for any failed step')
+            return
+
+        label, client, request, service_name, step_success = steps[step_index]
+
+        def mark_step_success() -> None:
+            if step_success is not None:
+                step_success()
+
+        def run_next_step() -> None:
+            next_step_index = step_index + 1
+
+            if next_step_index >= len(steps):
+                self._send_service_sequence(
+                    sequence_name,
+                    steps,
+                    next_step_index,
+                    delay_after_each_sec=delay_after_each_sec,
+                )
+                return
+
+            if delay_after_each_sec <= 0.0:
+                self._send_service_sequence(
+                    sequence_name,
+                    steps,
+                    next_step_index,
+                    delay_after_each_sec=delay_after_each_sec,
+                )
+                return
+
+            self._set_action_text(
+                f'{sequence_name}: waiting {delay_after_each_sec:.1f}s before next step...'
+            )
+
+            timer_ref = None
+
+            def _continue_once():
+                nonlocal timer_ref
+
+                if timer_ref is not None:
+                    timer_ref.cancel()
+                    self.destroy_timer(timer_ref)
+
+                self._send_service_sequence(
+                    sequence_name,
+                    steps,
+                    next_step_index,
+                    delay_after_each_sec=delay_after_each_sec,
+                )
+
+            timer_ref = self.create_timer(delay_after_each_sec, _continue_once)
+
+        self._send_simple_service(
+            client,
+            request,
+            f'{sequence_name}: {label}',
+            service_name,
+            on_success=mark_step_success,
+            on_complete=run_next_step,
+            allow_local_queue=False,
+        )
+
+    def _build_enable_robot_request(self, load_kg: float | None = None) -> EnableRobot.Request:
         request = EnableRobot.Request()
         # V3 compatibility: V4 EnableRobot accepted an empty request; V3 requires load.
-        snapshot = self.snapshot()
-        request.load = float(snapshot.ee_load_kg) if snapshot.ee_load_kg is not None else 0.0
+        if load_kg is None:
+            snapshot = self.snapshot()
+            load_kg = float(snapshot.ee_load_kg) if snapshot.ee_load_kg is not None else 0.0
+        request.load = float(load_kg)
         return request
 
     def _build_stop_jog_request(self) -> MoveJog.Request:
@@ -1750,16 +1963,51 @@ class MotionDebugNode(Node):
         self._enable_robot_with_defaults()
 
     def _enable_robot_with_defaults(self) -> None:
+        self._enable_robot_with_load(None, 'Enable Robot')
+
+    def _enable_robot_with_load(self, load_kg: float | None, action_name: str, on_success=None) -> None:
         self._send_simple_service(
             self._enable_robot_client,
-            self._build_enable_robot_request(),
-            'Enable Robot',
+            self._build_enable_robot_request(load_kg),
+            action_name,
             f'{SERVICE_ROOT}/EnableRobot',
+            on_success=on_success,
         )
+
+    def _build_modbus_close_request(self) -> ModbusClose.Request:
+        request = ModbusClose.Request()
+        request.index = GRIPPER_INDEX
+        return request
+
+    def _build_modbus_create_request(self) -> ModbusCreate.Request:
+        request = ModbusCreate.Request()
+        request.ip = GRIPPER_MODBUS_IP
+        request.port = GRIPPER_MODBUS_PORT
+        request.slave_id = GRIPPER_MODBUS_SLAVE_ID
+        request.is_rtu = GRIPPER_MODBUS_IS_RTU
+        return request
+
+    def _build_set_hold_regs_request(self, val_tab: str, val_type: str = 'int') -> SetHoldRegs.Request:
+        request = SetHoldRegs.Request()
+        request.index = GRIPPER_INDEX
+        request.addr = 1000
+        request.count = 3
+        request.val_tab = val_tab
+        request.val_type = val_type
+        return request
+
+    def _build_cp_request(self, value: int) -> CP.Request:
+        request = CP.Request()
+        request.r = int(value)
+        return request
 
     def _mark_ee_load(self, load_kg: float) -> None:
         with self._lock:
             self._snapshot.ee_load_kg = load_kg
+
+    def _mark_gripper_position(self, position: int) -> None:
+        with self._lock:
+            self._snapshot.gripper_position = int(position)
 
     def _mark_tool_tcp(self, values: list[float]) -> None:
         with self._lock:
@@ -1850,6 +2098,9 @@ class MotionDebugNode(Node):
         snapshot = self.snapshot()
         controller_ready = snapshot.enabled is True or snapshot.controller_mode_code in {5, 7, 11}
         if not snapshot.connected or not controller_ready:
+            return
+
+        if snapshot.busy_action is not None:
             return
 
         if not self._set_tool_client.service_is_ready():
@@ -2115,7 +2366,7 @@ class MotionDebugApp:
         self.node = node
         self.root = tk.Tk()
         self.root.title('DOBOT Motion Debug')
-        self.root.geometry('1280x1120')
+        self.root.geometry('980x1120')
         self.root.minsize(900, 940)
         self.root.configure(bg='#f3f6fb')
         self.root.protocol('WM_DELETE_WINDOW', self._on_close)
@@ -2148,174 +2399,11 @@ class MotionDebugApp:
         outer = ttk.Frame(self.root, padding=16)
         outer.pack(fill=tk.BOTH, expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.columnconfigure(1, weight=0, minsize=360)
-        outer.rowconfigure(14, weight=1)
-
-        self.script_frame = ttk.LabelFrame(outer, text='Scripts')
-        self.script_frame.grid(row=0, column=1, rowspan=15, sticky='nsew', padx=(16, 0))
-        self.script_frame.columnconfigure(0, weight=1)
-        self.script_frame.columnconfigure(1, weight=0)
-
-        ttk.Label(self.script_frame, text='Name').grid(row=0, column=0, sticky='w')
-        self.script_name_entry = ttk.Entry(self.script_frame, textvariable=self.script_name_input_var, width=21)
-        self.script_name_entry.grid(row=1, column=0, sticky='ew', padx=(0, 6), pady=(2, 6))
-        self.script_create_button = ttk.Button(
-            self.script_frame,
-            text='Create',
-            command=self._create_script_from_entry,
-        )
-        self.script_create_button.grid(row=1, column=1, sticky='ew', pady=(2, 6))
-
-        ttk.Label(self.script_frame, text='Open').grid(row=2, column=0, sticky='w')
-        self.script_open_combo = ttk.Combobox(
-            self.script_frame,
-            textvariable=self.script_open_var,
-            state='readonly',
-            width=21,
-        )
-        self.script_open_combo.grid(row=3, column=0, sticky='ew', padx=(0, 6), pady=(2, 6))
-        self.script_open_button = ttk.Button(
-            self.script_frame,
-            text='Open',
-            command=self._open_selected_script,
-        )
-        self.script_open_button.grid(row=3, column=1, sticky='ew', pady=(2, 6))
-        self.script_open_editor_button = ttk.Button(
-            self.script_frame,
-            text='Open in Editor',
-            command=self._open_script_in_editor,
-        )
-        self.script_open_editor_button.grid(row=4, column=1, sticky='ew', pady=(0, 6))
-
-        ttk.Label(
-            self.script_frame,
-            textvariable=self.script_status_var,
-            justify=tk.LEFT,
-            wraplength=300,
-        ).grid(row=4, column=0, sticky='w', pady=(0, 6))
-
-        self.script_add_actions_frame = ttk.Frame(self.script_frame)
-        self.script_add_actions_frame.grid(row=7, column=0, columnspan=2, sticky='ew', pady=(0, 6))
-        self.script_add_actions_frame.columnconfigure(0, weight=1, uniform='script_add_buttons')
-        self.script_add_actions_frame.columnconfigure(1, weight=1, uniform='script_add_buttons')
-
-        self.script_add_point_button = ttk.Button(
-            self.script_add_actions_frame,
-            text='Add Last Movement',
-            command=self._add_last_motion_point_to_script,
-            width=18,
-        )
-        self.script_add_point_button.grid(row=0, column=0, sticky='ew', padx=(0, 3))
-
-        self.script_add_position_button = ttk.Button(
-            self.script_add_actions_frame,
-            text='Add Joint Position',
-            command=self._add_current_joint_position_to_script,
-            width=18,
-        )
-        self.script_add_position_button.grid(row=0, column=1, sticky='ew', padx=(3, 0))
-
-        self.script_delete_button = ttk.Button(
-            self.script_frame,
-            text='Delete',
-            command=self._delete_selected_script,
-        )
-        self.script_delete_button.grid(row=6, column=1, sticky='ew', pady=(0, 6))
-
-        self.script_run_button = tk.Button(
-            self.script_frame,
-            text='Run Script',
-            command=self._run_loaded_script,
-            bg='#eef1f6',
-            activebackground='#e3e7ee',
-            fg='#1f2937',
-            activeforeground='#1f2937',
-            disabledforeground='#7a8088',
-            relief=tk.RAISED,
-            bd=1,
-        )
-        self.script_run_button.grid(row=8, column=0, columnspan=2, sticky='ew')
-
-        self.script_goal_tolerance_frame = ttk.Frame(self.script_frame)
-        self.script_goal_tolerance_frame.grid(row=9, column=0, columnspan=2, sticky='ew', pady=(6, 0))
-        self.script_goal_tolerance_frame.columnconfigure(0, weight=1)
-        ttk.Label(self.script_goal_tolerance_frame, text='Goal Check Tolerance').grid(
-            row=0, column=0, sticky='w'
-        )
-        ttk.Label(
-            self.script_goal_tolerance_frame,
-            textvariable=self.script_goal_tolerance_label_var,
-            width=8,
-            anchor='e',
-        ).grid(row=0, column=1, sticky='e')
-        self.script_goal_tolerance_scale = tk.Scale(
-            self.script_goal_tolerance_frame,
-            from_=SCRIPT_GOAL_PROGRESS_RATIO_MIN_PERCENT,
-            to=SCRIPT_GOAL_PROGRESS_RATIO_MAX_PERCENT,
-            orient=tk.HORIZONTAL,
-            resolution=0.1,
-            showvalue=False,
-            sliderlength=18,
-            length=240,
-            highlightthickness=0,
-            bd=0,
-            command=self._on_script_goal_tolerance_change,
-        )
-        self.script_goal_tolerance_scale.set(self._script_goal_tolerance_percent)
-        self.script_goal_tolerance_scale.grid(row=1, column=0, columnspan=2, sticky='ew')
-
-        ttk.Label(self.script_frame, text='Script Datalog').grid(
-            row=11,
-            column=0,
-            columnspan=2,
-            sticky='w',
-            pady=(8, 4),
-        )
-        self.script_log_frame = ttk.Frame(self.script_frame)
-        self.script_log_frame.grid(row=12, column=0, columnspan=2, sticky='nsew')
-        self.script_log_frame.columnconfigure(0, weight=1)
-        self.script_log_frame.rowconfigure(0, weight=1)
-        self.script_frame.rowconfigure(12, weight=1)
-
-        self.script_log_text = tk.Text(
-            self.script_log_frame,
-            height=16,
-            width=46,
-            wrap=tk.WORD,
-            state=tk.DISABLED,
-            font=('TkFixedFont', 9),
-        )
-        self.script_log_text.grid(row=0, column=0, sticky='nsew')
-        self.script_log_scrollbar = ttk.Scrollbar(
-            self.script_log_frame,
-            orient=tk.VERTICAL,
-            command=self.script_log_text.yview,
-        )
-        self.script_log_scrollbar.grid(row=0, column=1, sticky='ns')
-        self.script_log_text.configure(yscrollcommand=self.script_log_scrollbar.set)
-        self.script_log_text.bind('<Button-1>', lambda _event: self.script_log_text.focus_set())
-        self.script_log_text.bind('<Control-c>', self._copy_script_datalog)
-        self.script_log_text.bind('<<Copy>>', self._copy_script_datalog)
-        self.script_log_actions_frame = ttk.Frame(self.script_frame)
-        self.script_log_actions_frame.grid(row=13, column=0, columnspan=2, sticky='e', pady=(6, 0))
-        self.script_copy_log_button = ttk.Button(
-            self.script_log_actions_frame,
-            text='Copy Datalog',
-            command=self._copy_script_datalog,
-            width=12,
-        )
-        self.script_copy_log_button.grid(row=0, column=0, padx=(0, 6))
-        self.script_clear_log_button = ttk.Button(
-            self.script_log_actions_frame,
-            text='Clear Datalog',
-            command=self._clear_script_datalog,
-            width=12,
-        )
-        self.script_clear_log_button.grid(row=0, column=1)
-
-        self._ensure_script_dir()
-        self._refresh_script_options()
-        self._refresh_script_datalog()
+        # Scripts/catalog panel removed for the simplified control UI.
+        # The script backend methods are left in the file, but no script widgets
+        # are created or refreshed.
+        self._script_panel_enabled = False
+        outer.rowconfigure(15, weight=1)
 
         ttk.Label(outer, text='Robot Status', font=('TkDefaultFont', 14, 'bold')).grid(
             row=0, column=0, sticky='w'
@@ -2345,24 +2433,30 @@ class MotionDebugApp:
         self.debug_frame.columnconfigure(0, weight=1)
         self.debug_frame.columnconfigure(1, weight=1)
         self.debug_frame.columnconfigure(2, weight=1)
+        self.debug_frame.columnconfigure(3, weight=1)
 
         self.clear_error_button = ttk.Button(self.debug_frame, text='Clear Error', command=self.node.clear_error)
-        self.clear_error_button.grid(row=0, column=0, sticky='ew', padx=(0, 8))
+        self.clear_error_button.grid(row=0, column=0, sticky='ew', padx=(0, 6))
 
         self.enable_button = ttk.Button(self.debug_frame, text='Enable Robot', command=self.node.toggle_enable)
-        self.enable_button.grid(row=0, column=1, sticky='ew', padx=4)
+        self.enable_button.grid(row=0, column=1, sticky='ew', padx=3)
 
         self.drag_button = ttk.Button(self.debug_frame, text='Enable Drag', command=self.node.toggle_drag)
-        self.drag_button.grid(row=0, column=2, sticky='ew', padx=(8, 0))
+        self.drag_button.grid(row=0, column=2, sticky='ew', padx=3)
+
+        self.initialize_button = ttk.Button(self.debug_frame, text='Initialise', command=self._initialize_robot_from_entry)
+        self.initialize_button.grid(row=0, column=3, sticky='ew', padx=(6, 0))
 
         ttk.Label(self.debug_frame, textvariable=self.error_var).grid(
-            row=1, column=0, columnspan=3, sticky='w', pady=(4, 0)
+            row=1, column=0, columnspan=4, sticky='w', pady=(4, 0)
         )
 
         self.ee_load_var = tk.StringVar(value='EE Load: Not set')
         self.tool_tcp_var = tk.StringVar(value='Offset TCP: 0,0,0,0,0,0')
-        self.ee_load_input_var = tk.StringVar(value='0.0')
+        self.ee_load_input_var = tk.StringVar(value=f'{DEFAULT_INIT_LOAD_KG:.1f}')
         self.tool_tcp_input_var = tk.StringVar(value='0,0,0,0,0,0')
+        self.gripper_position_input_var = tk.StringVar(value=str(GRIPPER_CLOSE_POSITION))
+        self.gripper_position_var = tk.StringVar(value='Gripper: unknown')
         self.ee_load_frame = ttk.Frame(outer)
         self.ee_load_frame.grid(row=4, column=0, sticky='ew', pady=(0, 4))
         self.ee_load_frame.columnconfigure(4, weight=1)
@@ -2383,6 +2477,45 @@ class MotionDebugApp:
         ttk.Label(self.ee_load_frame, textvariable=self.tool_tcp_var).grid(
             row=1, column=3, columnspan=3, sticky='w', pady=(4, 0)
         )
+
+        self.gripper_frame = ttk.LabelFrame(outer, text='Gripper')
+        self.gripper_frame.grid(row=5, column=0, sticky='ew', pady=(6, 4))
+        self.gripper_frame.columnconfigure(6, weight=1)
+        self.gripper_open_button = ttk.Button(
+            self.gripper_frame,
+            text='Gripper Open',
+            command=self.node.open_gripper,
+        )
+        self.gripper_open_button.grid(row=0, column=0, sticky='ew', padx=(8, 4), pady=8)
+        self.gripper_close_button = ttk.Button(
+            self.gripper_frame,
+            text=f'Gripper Close ({GRIPPER_CLOSE_POSITION})',
+            command=self.node.close_gripper,
+        )
+        self.gripper_close_button.grid(row=0, column=1, sticky='ew', padx=4, pady=8)
+        ttk.Label(self.gripper_frame, text='Close value 0-255').grid(row=0, column=2, sticky='w', padx=(12, 4))
+        self.gripper_position_entry = ttk.Entry(
+            self.gripper_frame,
+            textvariable=self.gripper_position_input_var,
+            width=8,
+        )
+        self.gripper_position_entry.grid(row=0, column=3, sticky='w', padx=4, pady=8)
+        self.gripper_close_value_button = ttk.Button(
+            self.gripper_frame,
+            text='Close to Value',
+            command=self._close_gripper_to_entry,
+        )
+        self.gripper_close_value_button.grid(row=0, column=4, sticky='ew', padx=4, pady=8)
+        self.gripper_get_button = ttk.Button(
+            self.gripper_frame,
+            text='Get Current Value',
+            command=self.node.get_gripper_position,
+        )
+        self.gripper_get_button.grid(row=0, column=5, sticky='ew', padx=4, pady=8)
+        ttk.Label(self.gripper_frame, textvariable=self.gripper_position_var).grid(
+            row=0, column=6, sticky='w', padx=(12, 8), pady=8
+        )
+
         ttk.Label(
             outer,
             textvariable=self.action_var,
@@ -2390,16 +2523,16 @@ class MotionDebugApp:
             wraplength=920,
             justify=tk.LEFT,
         ).grid(
-            row=5, column=0, sticky='w', pady=(6, 0)
+            row=6, column=0, sticky='w', pady=(6, 0)
         )
 
-        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=6, column=0, sticky='ew', pady=10)
+        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=7, column=0, sticky='ew', pady=10)
 
         ttk.Label(outer, text='Speed Status', font=('TkDefaultFont', 14, 'bold')).grid(
-            row=7, column=0, sticky='w', pady=(4, 6)
+            row=8, column=0, sticky='w', pady=(4, 6)
         )
         speed_frame = ttk.Frame(outer)
-        speed_frame.grid(row=8, column=0, sticky='ew')
+        speed_frame.grid(row=9, column=0, sticky='ew')
         speed_frame.columnconfigure(0, weight=1)
         self.speed_rows = {}
         for row_index, (key, label, unit, low, high) in enumerate(SPEED_FIELDS):
@@ -2415,10 +2548,10 @@ class MotionDebugApp:
             row.grid(row=row_index, column=0, sticky='ew', pady=4)
             self.speed_rows[key] = row
 
-        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=9, column=0, sticky='ew', pady=12)
+        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=10, column=0, sticky='ew', pady=12)
 
         self.joint_header = ttk.Frame(outer)
-        self.joint_header.grid(row=10, column=0, sticky='ew')
+        self.joint_header.grid(row=11, column=0, sticky='ew')
         self.joint_header.columnconfigure(2, minsize=350)
         ttk.Label(self.joint_header, text='Joint Status', font=('TkDefaultFont', 14, 'bold')).grid(
             row=0, column=0, sticky='w'
@@ -2450,7 +2583,7 @@ class MotionDebugApp:
         self.joint_target_go_button.grid(row=0, column=3, sticky='w')
 
         joint_frame = ttk.Frame(outer)
-        joint_frame.grid(row=11, column=0, sticky='ew', pady=(6, 0))
+        joint_frame.grid(row=12, column=0, sticky='ew', pady=(6, 0))
         joint_frame.columnconfigure(0, weight=1)
         self.joint_rows = {}
         for row_index, name in enumerate(JOINT_NAMES):
@@ -2467,10 +2600,10 @@ class MotionDebugApp:
             row.grid(row=row_index, column=0, sticky='ew', pady=4)
             self.joint_rows[name] = row
 
-        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=12, column=0, sticky='ew', pady=12)
+        ttk.Separator(outer, orient=tk.HORIZONTAL).grid(row=13, column=0, sticky='ew', pady=12)
 
         self.tcp_header = ttk.Frame(outer)
-        self.tcp_header.grid(row=13, column=0, sticky='ew')
+        self.tcp_header.grid(row=14, column=0, sticky='ew')
         self.tcp_header.columnconfigure(2, minsize=350)
         ttk.Label(self.tcp_header, text='TCP Status', font=('TkDefaultFont', 14, 'bold')).grid(
             row=0, column=0, sticky='w'
@@ -2513,7 +2646,7 @@ class MotionDebugApp:
         self.use_tool_button.grid(row=0, column=4, sticky='w', padx=(8, 0))
 
         tcp_frame = ttk.Frame(outer)
-        tcp_frame.grid(row=14, column=0, sticky='ew', pady=(6, 0))
+        tcp_frame.grid(row=15, column=0, sticky='ew', pady=(6, 0))
         tcp_frame.columnconfigure(0, weight=1)
         self.tcp_rows = {}
         for row_index, (field_name, label, unit, limits) in enumerate(TCP_FIELDS):
@@ -2678,18 +2811,44 @@ class MotionDebugApp:
             return '0'
         return formatted or '0'
 
-    def _set_ee_load_from_entry(self) -> None:
+    def _parse_ee_load_from_entry(self) -> float | None:
         try:
             load_kg = float(self.ee_load_input_var.get().strip())
         except ValueError:
             self.node._set_action_text('EE Load must be a valid number in kilograms.')
-            return
+            return None
 
         if load_kg < 0.0:
             self.node._set_action_text('EE Load must be zero or greater.')
+            return None
+        return load_kg
+
+    def _set_ee_load_from_entry(self) -> None:
+        load_kg = self._parse_ee_load_from_entry()
+        if load_kg is None:
+            return
+        self.node.set_ee_load(load_kg)
+
+    def _initialize_robot_from_entry(self) -> None:
+        load_kg = self._parse_ee_load_from_entry()
+        if load_kg is None:
+            return
+        self.node.initialize_robot(load_kg)
+
+    def _close_gripper_to_entry(self) -> None:
+        raw_text = self.gripper_position_input_var.get().strip()
+        try:
+            position = int(round(float(raw_text)))
+        except ValueError:
+            self.node._set_action_text('Gripper close value must be a number from 0 to 255.')
             return
 
-        self.node.set_ee_load(load_kg)
+        if not 0 <= position <= 255:
+            self.node._set_action_text('Gripper close value must be from 0 to 255.')
+            return
+
+        self.gripper_position_input_var.set(str(position))
+        self.node.close_gripper(position)
 
     def _set_tool_tcp_from_entry(self) -> None:
         values = self._parse_target_values(
@@ -2718,6 +2877,8 @@ class MotionDebugApp:
         self._update_script_status_text()
 
     def _refresh_script_datalog(self, force: bool = False) -> None:
+        if not self._script_panel_enabled:
+            return
         log_version, log_lines = self.node.get_script_command_log()
         if not force and log_version == self._last_script_log_version:
             return
@@ -3302,6 +3463,10 @@ class MotionDebugApp:
             self.ee_load_var.set('EE Load: Not set')
         else:
             self.ee_load_var.set(f'EE Load: {snapshot.ee_load_kg:.2f} kg')
+        if snapshot.gripper_position is None:
+            self.gripper_position_var.set('Gripper: unknown')
+        else:
+            self.gripper_position_var.set(f'Gripper: {snapshot.gripper_position}')
         self.tool_tcp_var.set(
             'Offset TCP: ' + ','.join(self._format_target_value(value) for value in snapshot.tool_tcp_values)
         )
@@ -3318,7 +3483,8 @@ class MotionDebugApp:
             self._sync_tcp_entry_to_targets()
 
         self._update_buttons(snapshot)
-        self._refresh_script_datalog()
+        if self._script_panel_enabled:
+            self._refresh_script_datalog()
 
         speed_controls_enabled = snapshot.connected and not snapshot.busy_action
         for key, row in self.speed_rows.items():
@@ -3348,7 +3514,7 @@ class MotionDebugApp:
         )
 
     def _update_buttons(self, snapshot: MotionSnapshot) -> None:
-        script_running = self.node.is_script_running()
+        script_running = self.node.is_script_running() if self._script_panel_enabled else False
         buttons_enabled = snapshot.connected and not snapshot.busy_action and not script_running
         robot_should_disable = self.node._robot_should_disable(snapshot)
         override_available = self._override_available(snapshot)
@@ -3375,12 +3541,18 @@ class MotionDebugApp:
             text=drag_text,
             state=tk.NORMAL if drag_button_enabled else tk.DISABLED,
         )
+        self.initialize_button.configure(state=tk.NORMAL if buttons_enabled else tk.DISABLED)
 
         ee_load_controls_state = tk.NORMAL if buttons_enabled else tk.DISABLED
         self.ee_load_entry.configure(state=ee_load_controls_state)
         self.ee_load_button.configure(state=ee_load_controls_state)
         self.tool_tcp_entry.configure(state=ee_load_controls_state)
         self.tool_tcp_button.configure(state=ee_load_controls_state)
+        self.gripper_open_button.configure(state=ee_load_controls_state)
+        self.gripper_close_button.configure(state=ee_load_controls_state)
+        self.gripper_position_entry.configure(state=ee_load_controls_state)
+        self.gripper_close_value_button.configure(state=ee_load_controls_state)
+        self.gripper_get_button.configure(state=ee_load_controls_state)
 
         override_button_state = (
             tk.NORMAL if override_available and not snapshot.busy_action and not script_running else tk.DISABLED
@@ -3419,6 +3591,9 @@ class MotionDebugApp:
         self.joint_target_go_button.configure(state=joint_target_controls_state)
         self.tcp_target_entry.configure(state=tcp_target_controls_state)
         self.tcp_target_go_button.configure(state=tcp_target_controls_state)
+
+        if not self._script_panel_enabled:
+            return
 
         script_controls_idle = snapshot.busy_action is None and not script_running
         has_script_loaded = self._current_script_name is not None
