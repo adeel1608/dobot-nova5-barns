@@ -1093,7 +1093,7 @@ def grab_paper_arm2_cup_station(**params) -> bool:
     # run_skill("moveEE_movJ", 0, 1, -1, 0, 0, 0)
     # run_skill("set_gripper_position", 255, 139, 255)
 
-def place_paper__arm2_cup_station(**params) -> bool:
+def place_paper_arm2_cup_station(**params) -> bool:
     """
     Place a paper cup at specified staging area.
     """
@@ -1156,7 +1156,7 @@ def dispense_paper_arm2_cup_station(**params) -> bool:
     """
     if not grab_paper_arm2_cup_station(**params):
         return False
-    if not place_paper__arm2_cup_station(**params):
+    if not place_paper_arm2_cup_station(**params):
         return False
     return True
 
@@ -8301,10 +8301,10 @@ SEQUENCES = {
     "place_paper_cup_arm1_stage_2": lambda: place_paper_cup_arm1(position={'cup_position': 2}),
     "place_paper_cup_arm1_stage_3": lambda: place_paper_cup_arm1(position={'cup_position': 3}),
     "place_paper_cup_arm1_stage_4": lambda: place_paper_cup_arm1(position={'cup_position': 4}),
-    "place_paper__arm2_cup_station_stage_1": lambda: place_paper__arm2_cup_station(position={'cup_position': 1}),
-    "place_paper__arm2_cup_station_stage_2": lambda: place_paper__arm2_cup_station(position={'cup_position': 2}),
-    "place_paper__arm2_cup_station_stage_3": lambda: place_paper__arm2_cup_station(position={'cup_position': 3}),
-    "place_paper__arm2_cup_station_stage_4": lambda: place_paper__arm2_cup_station(position={'cup_position': 4}),
+    "place_paper_arm2_cup_station_stage_1": lambda: place_paper_arm2_cup_station(position={'cup_position': 1}),
+    "place_paper_arm2_cup_station_stage_2": lambda: place_paper_arm2_cup_station(position={'cup_position': 2}),
+    "place_paper_arm2_cup_station_stage_3": lambda: place_paper_arm2_cup_station(position={'cup_position': 3}),
+    "place_paper_arm2_cup_station_stage_4": lambda: place_paper_arm2_cup_station(position={'cup_position': 4}),
     # Dispense paper cup (grab + place combined) - all size and stage combinations
     "dispense_paper_cup_7oz_stage_1": lambda: dispense_paper_cup_station(size="7oz", position={'cup_position': 1}),
     "dispense_paper_cup_7oz_stage_2": lambda: dispense_paper_cup_station(size="7oz", position={'cup_position': 2}),
