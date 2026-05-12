@@ -46,6 +46,7 @@ COLCON_IGNORE
 # Test results
 .pytest_cache/
 *.xml
+!**/package.xml
 
 # Documentation
 *.pdf
