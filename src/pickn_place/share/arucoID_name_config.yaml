@@ -8,7 +8,7 @@ aruco_id:
   - id: 4
     name: calibration_tag_4
   - id: 11
-    name: single_portafilter
+    name: testing_portafilter
   - id: 12
     name: double_portafilter
   - id: 13
@@ -39,3 +39,5 @@ aruco_id:
     name: hybrid_dispenser
   - id: 41
     name: three_group_espresso
+  - id: 99
+    name: slush
