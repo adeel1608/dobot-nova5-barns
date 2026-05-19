@@ -2,6 +2,64 @@
 Changelog for package rqt_joint_trajectory_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+* [RQT_JTC] add unit tests for parse_joint_limits (backport `#2281 <https://github.com/ros-controls/ros2_controllers/issues/2281>`_) (`#2287 <https://github.com/ros-controls/ros2_controllers/issues/2287>`_)
+* Contributors: mergify[bot]
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+
+2.52.0 (2025-12-31)
+-------------------
+
+2.51.0 (2025-12-01)
+-------------------
+* fix issue of not listing new JTCs (backport `#1891 <https://github.com/ros-controls/ros2_controllers/issues/1891>`_) (`#1968 <https://github.com/ros-controls/ros2_controllers/issues/1968>`_)
+* Contributors: mergify[bot]
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+* fix rqt_joint_trajectory_controller for robots with namespace (backport `#1792 <https://github.com/ros-controls/ros2_controllers/issues/1792>`_) (`#1802 <https://github.com/ros-controls/ros2_controllers/issues/1802>`_)
+* Contributors: mergify[bot]
+
+2.48.0 (2025-07-02)
+-------------------
+
+2.47.0 (2025-06-07)
+-------------------
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+* Bump version of pre-commit hooks (backport `#1618 <https://github.com/ros-controls/ros2_controllers/issues/1618>`_) (`#1620 <https://github.com/ros-controls/ros2_controllers/issues/1620>`_)
+* Contributors: mergify[bot]
+
+2.43.0 (2025-03-17)
+-------------------
+* Update documentation of rqt_joint_trajectory_controller (backport `#1578 <https://github.com/ros-controls/ros2_controllers/issues/1578>`_) (`#1582 <https://github.com/ros-controls/ros2_controllers/issues/1582>`_)
+* Contributors: Aditya Pawar
+
 2.42.1 (2025-02-24)
 -------------------
 

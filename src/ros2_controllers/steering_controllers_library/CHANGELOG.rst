@@ -2,6 +2,70 @@
 Changelog for package steering_controllers_library
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+* Consistently add <cmath> include with define for windows (backport `#2193 <https://github.com/ros-controls/ros2_controllers/issues/2193>`_) (`#2194 <https://github.com/ros-controls/ros2_controllers/issues/2194>`_)
+* Contributors: mergify[bot]
+
+2.52.0 (2025-12-31)
+-------------------
+
+2.51.0 (2025-12-01)
+-------------------
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+
+2.48.0 (2025-07-02)
+-------------------
+* Fix SteeringOdometry calculation error (backport `#1777 <https://github.com/ros-controls/ros2_controllers/issues/1777>`_) (`#1778 <https://github.com/ros-controls/ros2_controllers/issues/1778>`_)
+* Contributors: mergify[bot]
+
+2.47.0 (2025-06-07)
+-------------------
+* Fix steering_controllers_library docs (backport `#1734 <https://github.com/ros-controls/ros2_controllers/issues/1734>`_) (`#1735 <https://github.com/ros-controls/ros2_controllers/issues/1735>`_)
+* Contributors: mergify[bot]
+
+2.46.0 (2025-05-17)
+-------------------
+* Simplify `on_set_chained_mode` avoiding cpplint warnings (backport `#1564 <https://github.com/ros-controls/ros2_controllers/issues/1564>`_) (`#1687 <https://github.com/ros-controls/ros2_controllers/issues/1687>`_)
+* Contributors: mergify[bot], Bhagyesh Agresar
+
+2.45.0 (2025-04-27)
+-------------------
+* Rename ackermann msg to controller state msg type (backport `#1662 <https://github.com/ros-controls/ros2_controllers/issues/1662>`_) (`#1663 <https://github.com/ros-controls/ros2_controllers/issues/1663>`_)
+* Fix preceeding->preceding typos (backport `#1655 <https://github.com/ros-controls/ros2_controllers/issues/1655>`_) (`#1657 <https://github.com/ros-controls/ros2_controllers/issues/1657>`_)
+* Contributors: mergify[bot]
+
+2.44.0 (2025-04-10)
+-------------------
+* Bump version of pre-commit hooks (backport `#1618 <https://github.com/ros-controls/ros2_controllers/issues/1618>`_) (`#1620 <https://github.com/ros-controls/ros2_controllers/issues/1620>`_)
+* Fix open-loop odometry in case of ref timeout (backport `#1454 <https://github.com/ros-controls/ros2_controllers/issues/1454>`_) (`#1460 <https://github.com/ros-controls/ros2_controllers/issues/1460>`_)
+* Contributors: mergify[bot]
+
+2.43.0 (2025-03-17)
+-------------------
+* Add Mecanum Drive Controller (backport `#512 <https://github.com/ros-controls/ros2_controllers/issues/512>`_, `#1444 <https://github.com/ros-controls/ros2_controllers/issues/1444>`_, `#1547 <https://github.com/ros-controls/ros2_controllers/issues/1547>`_) (`#1376 <https://github.com/ros-controls/ros2_controllers/issues/1376>`_)
+* Contributors: mergify[bot]
+
 2.42.1 (2025-02-24)
 -------------------
 

@@ -2,6 +2,59 @@
 Changelog for package diff_drive_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+* Fix the teardown of the diff_drive_controller test (backport `#2183 <https://github.com/ros-controls/ros2_controllers/issues/2183>`_) (`#2184 <https://github.com/ros-controls/ros2_controllers/issues/2184>`_)
+* docs: diff_drive_controller - complete wheel_separation_multiplier description and fix then→than typo (backport `#2108 <https://github.com/ros-controls/ros2_controllers/issues/2108>`_) (`#2119 <https://github.com/ros-controls/ros2_controllers/issues/2119>`_)
+* Contributors: mergify[bot]
+
+2.52.0 (2025-12-31)
+-------------------
+
+2.51.0 (2025-12-01)
+-------------------
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+* Update description of limit() function in speed_limiter (backport `#1793 <https://github.com/ros-controls/ros2_controllers/issues/1793>`_) (`#1794 <https://github.com/ros-controls/ros2_controllers/issues/1794>`_)
+* Contributors: mergify[bot]
+
+2.48.0 (2025-07-02)
+-------------------
+
+2.47.0 (2025-06-07)
+-------------------
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+
+2.43.0 (2025-03-17)
+-------------------
+
 2.42.1 (2025-02-24)
 -------------------
 

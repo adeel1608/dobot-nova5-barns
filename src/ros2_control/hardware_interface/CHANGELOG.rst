@@ -2,6 +2,44 @@
 Changelog for package hardware_interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.54.0 (2026-04-02)
+-------------------
+* Consistently add <cmath> include with define for windows (`#3061 <https://github.com/ros-controls/ros2_control/issues/3061>`_) (`#3065 <https://github.com/ros-controls/ros2_control/issues/3065>`_)
+* Contributors: mergify[bot]
+
+2.53.1 (2026-02-03)
+-------------------
+* Fixed issue with mock_components being linked even when not needed (`#2925 <https://github.com/ros-controls/ros2_control/issues/2925>`_)
+* Contributors: Ewoodss
+
+2.53.0 (2025-12-01)
+-------------------
+
+2.52.2 (2025-10-27)
+-------------------
+
+2.52.1 (2025-10-17)
+-------------------
+
+2.52.0 (2025-09-12)
+-------------------
+* Fix CMake install so overriding works (backport `#926 <https://github.com/ros-controls/ros2_control/issues/926>`_) (`#2480 <https://github.com/ros-controls/ros2_control/issues/2480>`_)
+* Contributors: mergify[bot]
+
+2.51.0 (2025-06-06)
+-------------------
+
+2.50.0 (2025-04-10)
+-------------------
+* Bump version of pre-commit hooks (backport `#2156 <https://github.com/ros-controls/ros2_control/issues/2156>`_) (`#2157 <https://github.com/ros-controls/ros2_control/issues/2157>`_)
+* [RM] Add error handling for missing `plugin` tags in URDF parsing (backport `#2138 <https://github.com/ros-controls/ros2_control/issues/2138>`_) (`#2145 <https://github.com/ros-controls/ros2_control/issues/2145>`_)
+* Contributors: mergify[bot]
+
+2.49.0 (2025-03-18)
+-------------------
+* Improve API/lifecycle docs (`#2081 <https://github.com/ros-controls/ros2_control/issues/2081>`_) (`#2085 <https://github.com/ros-controls/ros2_control/issues/2085>`_)
+* Contributors: mergify[bot]
+
 2.48.0 (2025-02-07)
 -------------------
 * Handle SIGINT properly in the controller manager (backport `#2014 <https://github.com/ros-controls/ros2_control/issues/2014>`_) (`#2040 <https://github.com/ros-controls/ros2_control/issues/2040>`_)

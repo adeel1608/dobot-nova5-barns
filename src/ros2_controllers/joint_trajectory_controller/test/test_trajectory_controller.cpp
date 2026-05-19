@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <stddef.h>
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES
+#endif
 
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <future>
 #include <limits>
 #include <memory>
@@ -396,6 +399,38 @@ TEST_P(TrajectoryControllerTestParameterized, state_topic_consistency)
   {
     EXPECT_EQ(n_joints, state->output.effort.size());
   }
+}
+
+TEST_F(TrajectoryControllerTest, time_from_start_populated)
+{
+  rclcpp::executors::SingleThreadedExecutor executor;
+  SetUpAndActivateTrajectoryController(executor, {});
+  subscribeToState(executor);
+
+  // schedule a single waypoint at 100ms:
+  builtin_interfaces::msg::Duration tfs;
+  tfs.sec = 0;
+  tfs.nanosec = 100000000;
+  publish(tfs, {INITIAL_POS_JOINTS}, rclcpp::Time(0));
+  traj_controller_->wait_for_trajectory(executor);
+
+  // update for 0.2s
+  updateController(rclcpp::Duration::from_seconds(0.2));
+  // give the publish timer one more spin
+  executor.spin_some();
+
+  auto state = getState();
+  ASSERT_TRUE(state);
+  // should be around 0.2s, but is 0.18s
+  EXPECT_EQ(state->reference.time_from_start.sec, 0u);
+  EXPECT_NEAR(state->reference.time_from_start.nanosec, 200000000u, 20000000u);
+  EXPECT_EQ(state->feedback.time_from_start.sec, 0u);
+  EXPECT_NEAR(state->feedback.time_from_start.nanosec, 200000000u, 20000000u);
+  // legacy
+  EXPECT_EQ(state->desired.time_from_start.sec, 0u);
+  EXPECT_NEAR(state->desired.time_from_start.nanosec, 200000000u, 20000000u);
+  EXPECT_EQ(state->actual.time_from_start.sec, 0u);
+  EXPECT_NEAR(state->actual.time_from_start.nanosec, 200000000u, 20000000u);
 }
 
 /**
@@ -1771,9 +1806,9 @@ TEST_P(TrajectoryControllerTestParameterized, test_hw_states_has_offset_first_co
   rclcpp::Parameter is_open_loop_parameters("open_loop_control", true);
 
   // set command values to NaN
-  std::vector<double> initial_pos_cmd{3, std::numeric_limits<double>::quiet_NaN()};
-  std::vector<double> initial_vel_cmd{3, std::numeric_limits<double>::quiet_NaN()};
-  std::vector<double> initial_acc_cmd{3, std::numeric_limits<double>::quiet_NaN()};
+  std::vector<double> initial_pos_cmd(3, std::numeric_limits<double>::quiet_NaN());
+  std::vector<double> initial_vel_cmd(3, std::numeric_limits<double>::quiet_NaN());
+  std::vector<double> initial_acc_cmd(3, std::numeric_limits<double>::quiet_NaN());
 
   SetUpAndActivateTrajectoryController(
     executor, {is_open_loop_parameters}, true, 0., 1., false, initial_pos_cmd, initial_vel_cmd,

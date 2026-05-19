@@ -68,15 +68,16 @@ class TestableAdmittanceController : public admittance_controller::AdmittanceCon
   FRIEND_TEST(AdmittanceControllerTest, check_interfaces);
   FRIEND_TEST(AdmittanceControllerTest, activate_success);
   FRIEND_TEST(AdmittanceControllerTest, receive_message_and_publish_updated_status);
+  FRIEND_TEST(AdmittanceControllerTest, check_frame_ids_in_controller_state);
 
 public:
   CallbackReturn on_init() override
   {
-    get_node()->declare_parameter("robot_description", rclcpp::ParameterType::PARAMETER_STRING);
-    get_node()->declare_parameter(
-      "robot_description_semantic", rclcpp::ParameterType::PARAMETER_STRING);
-    get_node()->set_parameter({"robot_description", robot_description_});
-    get_node()->set_parameter({"robot_description_semantic", robot_description_semantic_});
+    if (!get_node()->has_parameter("robot_description"))
+    {
+      get_node()->declare_parameter("robot_description", rclcpp::ParameterType::PARAMETER_STRING);
+      get_node()->set_parameter({"robot_description", robot_description_});
+    }
 
     return admittance_controller::AdmittanceController::on_init();
   }
@@ -104,8 +105,7 @@ public:
   }
 
 private:
-  const std::string robot_description_ = ros2_control_test_assets::valid_6d_robot_urdf;
-  const std::string robot_description_semantic_ = ros2_control_test_assets::valid_6d_robot_srdf;
+  std::string robot_description_ = ros2_control_test_assets::valid_6d_robot_urdf;
 };
 
 class AdmittanceControllerTest : public ::testing::Test
@@ -180,8 +180,9 @@ protected:
 
     for (auto i = 0u; i < joint_command_values_.size(); ++i)
     {
-      command_itfs_.emplace_back(hardware_interface::CommandInterface(
-        joint_names_[i], command_interface_types_[0], &joint_command_values_[i]));
+      command_itfs_.emplace_back(
+        hardware_interface::CommandInterface(
+          joint_names_[i], command_interface_types_[0], &joint_command_values_[i]));
       command_ifs.emplace_back(command_itfs_.back());
     }
 
@@ -195,8 +196,9 @@ protected:
 
     for (auto i = 0u; i < joint_state_values_.size(); ++i)
     {
-      state_itfs_.emplace_back(hardware_interface::StateInterface(
-        joint_names_[i], state_interface_types_[0], &joint_state_values_[i]));
+      state_itfs_.emplace_back(
+        hardware_interface::StateInterface(
+          joint_names_[i], state_interface_types_[0], &joint_state_values_[i]));
       state_ifs.emplace_back(state_itfs_.back());
     }
 
@@ -205,8 +207,9 @@ protected:
 
     for (auto i = 0u; i < fts_state_names_.size(); ++i)
     {
-      state_itfs_.emplace_back(hardware_interface::StateInterface(
-        ft_sensor_name_, fts_itf_names[i], &fts_state_values_[i]));
+      state_itfs_.emplace_back(
+        hardware_interface::StateInterface(
+          ft_sensor_name_, fts_itf_names[i], &fts_state_values_[i]));
       state_ifs.emplace_back(state_itfs_.back());
     }
 
@@ -367,8 +370,6 @@ protected:
   const std::string ik_base_frame_ = "base_link";
   const std::string ik_tip_frame_ = "tool0";
   const std::string ik_group_name_ = "arm";
-  //  const std::string robot_description_ = ros2_control_test_assets::valid_6d_robot_urdf;
-  //  const std::string robot_description_semantic_ = ros2_control_test_assets::valid_6d_robot_srdf;
 
   const std::string control_frame_ = "tool0";
   const std::string endeffector_frame_ = "endeffector_frame";

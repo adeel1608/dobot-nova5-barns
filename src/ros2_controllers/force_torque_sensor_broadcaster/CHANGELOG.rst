@@ -2,6 +2,61 @@
 Changelog for package force_torque_sensor_broadcaster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+
+2.52.0 (2025-12-31)
+-------------------
+* Remove export of wrench_transformer_node (backport `#2069 <https://github.com/ros-controls/ros2_controllers/issues/2069>`_) (`#2070 <https://github.com/ros-controls/ros2_controllers/issues/2070>`_)
+* Add support for positional target frame arguments for transform wrench node (backport `#2040 <https://github.com/ros-controls/ros2_controllers/issues/2040>`_) (`#2045 <https://github.com/ros-controls/ros2_controllers/issues/2045>`_)
+* Contributors: mergify[bot]
+
+2.51.0 (2025-12-01)
+-------------------
+* Add utility node for transform wrench messages for a list of frames (backport `#2021 <https://github.com/ros-controls/ros2_controllers/issues/2021>`_) (`#2030 <https://github.com/ros-controls/ros2_controllers/issues/2030>`_)
+* Contributors: mergify[bot]
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+* FTS: Don't make a temporary copy of semantic component (backport `#1902 <https://github.com/ros-controls/ros2_controllers/issues/1902>`_) (`#1903 <https://github.com/ros-controls/ros2_controllers/issues/1903>`_)
+* Contributors: mergify[bot]
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+
+2.48.0 (2025-07-02)
+-------------------
+
+2.47.0 (2025-06-07)
+-------------------
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+
+2.43.0 (2025-03-17)
+-------------------
+
 2.42.1 (2025-02-24)
 -------------------
 
