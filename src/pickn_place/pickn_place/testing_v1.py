@@ -5848,7 +5848,7 @@ def pick_plastic_cup_sauces(**params) -> bool:
         return False
 
     _check_and_clear_cup_dispensed()
-    gripper_positions = {"7oz": 140, "9oz": 140, "12oz": 140, "16oz": 130}
+    gripper_positions = {"7oz": 140, "9oz": 140, "12oz": 135, "16oz": 130}
     run_skill("set_speed_factor", SPEED_NORMAL)
     if not detect_cup_gripper():
         return False
@@ -5857,7 +5857,7 @@ def pick_plastic_cup_sauces(**params) -> bool:
     if _is_valid_angles(cached_lift):
         if not ok(run_skill("gotoJ_deg", *cached_lift)):
             return False
-        # run_skill("sync")
+        run_skill("sync")
     else:
         if not ok(run_skill("moveEE", 0, 0, 1, 0, 0, 0)):
             return False
