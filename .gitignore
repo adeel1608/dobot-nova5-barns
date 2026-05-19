@@ -1,21 +1,87 @@
-# ROS2 Build Artifacts
-build/
-install/
-log/
+# ============================================================
+# ROS 2 / colcon workspace artifacts
+# ============================================================
 
+/build/
+/install/
+/log/
+
+# Colcon metadata / test artifacts
+/test_results/
+Testing/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# ROS runtime/user-local files
+/.ros/
+rosbag2_*/
+*.db3
+*.mcap
+
+
+# ============================================================
+# CMake / native build artifacts
+# ============================================================
+
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Generated Makefiles from CMake
+Makefile
+
+# Native compiled objects/libraries/executables
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.dylib
+*.exe
+
+# Do NOT globally ignore *.so in ROS workspaces unless you are sure.
+# Some packages may intentionally ship shared libraries.
+# *.so
+
+
+# ============================================================
 # Python
+# ============================================================
+
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
 *.egg
 *.egg-info/
-dist/
 .eggs/
-*.manifest
-*.spec
+dist/
+build/
+pip-wheel-metadata/
 
-# IDE
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.tox/
+.nox/
+.ipynb_checkpoints/
+
+
+# ============================================================
+# IDE / editor
+# ============================================================
+
 .vscode/
 .idea/
 *.swp
@@ -26,38 +92,69 @@ dist/
 .pydevproject
 .settings/
 
-# OS
+
+# ============================================================
+# OS junk
+# ============================================================
+
 .DS_Store
 Thumbs.db
 *.bak
 *.tmp
 
-# ROS
-COLCON_IGNORE
 
-# Calibration data (optional - uncomment if you want to version control these)
-# src/pickn_place/share/machine_pose_data_memory.yaml
-# src/pickn_place/share/pose_data_memory.yaml
-# src/pickn_place/share/axab_calibration.yaml
+# ============================================================
+# Logs / temporary output
+# ============================================================
 
-# Compiled messages
-*.pyc
-
-# Test results
-.pytest_cache/
-*.xml
-!**/package.xml
-
-# Documentation
-*.pdf
-docs/_build/
-
-# Archives
-*.zip
-*.tar.gz
-*.rar
-
-# Temporary files
 *.log
 *.out
+*.err
 
+
+# ============================================================
+# Documentation build output
+# ============================================================
+
+docs/_build/
+site/
+
+# Do NOT ignore PDFs globally if you keep robot manuals/datasheets.
+# *.pdf
+
+
+# ============================================================
+# Archives
+# ============================================================
+
+*.zip
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+
+
+# ============================================================
+# Machine-specific calibration / local robot data
+# ============================================================
+
+src/pickn_place/share/machine_pose_data_memory.yaml
+src/pickn_place/share/pose_data_memory.yaml
+
+# ============================================================
+# Keep important ROS source/config files tracked
+# ============================================================
+
+# Do NOT add global ignores for these:
+# *.xml
+# *.yaml
+# *.yml
+# *.launch.py
+# *.urdf
+# *.xacro
+# *.srdf
+# *.sdf
+# *.world
+# *.rviz
+# *.gazebo
+# *.plugin
