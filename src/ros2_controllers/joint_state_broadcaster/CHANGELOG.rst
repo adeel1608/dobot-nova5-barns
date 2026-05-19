@@ -2,6 +2,62 @@
 Changelog for package joint_state_broadcaster
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+
+2.52.0 (2025-12-31)
+-------------------
+* Add parameter for deactivating dynamic_joint_states (backport `#2064 <https://github.com/ros-controls/ros2_controllers/issues/2064>`_) (`#2065 <https://github.com/ros-controls/ros2_controllers/issues/2065>`_)
+* Contributors: mergify[bot]
+
+2.51.0 (2025-12-01)
+-------------------
+* Use UnorderedElementsAreArray for JSB tests (`#1971 <https://github.com/ros-controls/ros2_controllers/issues/1971>`_)
+* Contributors: Christoph Fröhlich
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+* docs(joint_state_broadcaster): clarify /dynamic_joint_states contents (backport `#1865 <https://github.com/ros-controls/ros2_controllers/issues/1865>`_) (`#1870 <https://github.com/ros-controls/ros2_controllers/issues/1870>`_)
+* Contributors: mergify[bot]
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+
+2.48.0 (2025-07-02)
+-------------------
+* [Humble] [JSB] Add frame_id to the joint states message (`#1751 <https://github.com/ros-controls/ros2_controllers/issues/1751>`_)
+* Contributors: Sai Kishor Kothakota
+
+2.47.0 (2025-06-07)
+-------------------
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+
+2.43.0 (2025-03-17)
+-------------------
+
 2.42.1 (2025-02-24)
 -------------------
 

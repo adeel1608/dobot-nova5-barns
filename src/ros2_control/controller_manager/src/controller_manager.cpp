@@ -272,8 +272,9 @@ ControllerManager::ControllerManager(
 : rclcpp::Node(manager_node_name, namespace_, options),
   resource_manager_(std::make_unique<hardware_interface::ResourceManager>()),
   executor_(executor),
-  loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
-    kControllerInterfaceNamespace, kControllerInterfaceClassName)),
+  loader_(
+    std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
+      kControllerInterfaceNamespace, kControllerInterfaceClassName)),
   chainable_loader_(
     std::make_shared<pluginlib::ClassLoader<controller_interface::ChainableControllerInterface>>(
       kControllerInterfaceNamespace, kChainableControllerInterfaceClassName))
@@ -307,8 +308,9 @@ ControllerManager::ControllerManager(
 : rclcpp::Node(manager_node_name, namespace_, options),
   resource_manager_(std::move(resource_manager)),
   executor_(executor),
-  loader_(std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
-    kControllerInterfaceNamespace, kControllerInterfaceClassName)),
+  loader_(
+    std::make_shared<pluginlib::ClassLoader<controller_interface::ControllerInterface>>(
+      kControllerInterfaceNamespace, kControllerInterfaceClassName)),
   chainable_loader_(
     std::make_shared<pluginlib::ClassLoader<controller_interface::ChainableControllerInterface>>(
       kControllerInterfaceNamespace, kChainableControllerInterfaceClassName))
@@ -1576,6 +1578,7 @@ void ControllerManager::activate_controllers()
 {
   std::vector<ControllerSpec> & rt_controller_list =
     rt_controllers_wrapper_.update_and_get_used_by_rt_list();
+  std::vector<std::string> failed_controllers_command_interfaces;
   for (const auto & controller_name : activate_request_)
   {
     auto found_it = std::find_if(
@@ -1680,10 +1683,16 @@ void ControllerManager::activate_controllers()
     {
       RCLCPP_ERROR(
         get_logger(),
-        "After activation, controller '%s' is in state '%s' (%d), expected '%s' (%d).",
+        "After activation, controller '%s' is in state '%s' (%d), expected '%s' (%d). Releasing "
+        "interfaces!",
         controller->get_node()->get_name(), new_state.label().c_str(), new_state.id(),
         hardware_interface::lifecycle_state_names::ACTIVE,
         lifecycle_msgs::msg::State::PRIMARY_STATE_ACTIVE);
+      controller->release_interfaces();
+      failed_controllers_command_interfaces.insert(
+        failed_controllers_command_interfaces.end(), command_interface_names.begin(),
+        command_interface_names.end());
+      continue;
     }
 
     // if it is a chainable controller, make the reference interfaces available on activation
@@ -1691,6 +1700,18 @@ void ControllerManager::activate_controllers()
     {
       resource_manager_->make_controller_reference_interfaces_available(controller_name);
     }
+  }
+  // Now prepare and perform the stop interface switching as this is needed for exclusive
+  // interfaces
+  if (
+    !failed_controllers_command_interfaces.empty() &&
+    (!resource_manager_->prepare_command_mode_switch({}, failed_controllers_command_interfaces) ||
+     !resource_manager_->perform_command_mode_switch({}, failed_controllers_command_interfaces)))
+  {
+    RCLCPP_ERROR(
+      get_logger(),
+      "Error switching back the interfaces in the hardware when the controller activation "
+      "failed.");
   }
   // All controllers activated, switching done
   switch_params_.do_switch = false;
@@ -2318,8 +2339,9 @@ void ControllerManager::propagate_deactivation_of_chained_mode(
       {
         // controller that 'cmd_tf_name' belongs to
         ControllersListIterator following_ctrl_it;
-        if (command_interface_is_reference_interface_of_controller(
-              cmd_itf_name, controllers, following_ctrl_it))
+        if (
+          command_interface_is_reference_interface_of_controller(
+            cmd_itf_name, controllers, following_ctrl_it))
         {
           // currently iterated "controller" is preceding controller --> add following controller
           // with matching interface name to "from" chained mode list (if not already in it)

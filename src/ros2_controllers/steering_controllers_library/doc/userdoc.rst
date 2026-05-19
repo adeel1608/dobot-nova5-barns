@@ -10,7 +10,7 @@ steering_controllers_library
 .. _twist_msg: https://github.com/ros2/common_interfaces/blob/{DISTRO}/geometry_msgs/msg/TwistStamped.msg
 .. _tf_msg: https://github.com/ros2/geometry2/blob/{DISTRO}/tf2_msgs/msg/TFMessage.msg
 
-Library with shared functionalities for mobile robot controllers with steering drives, with so-called non-holonomic constraints.
+Library with shared functionalities for mobile robot controllers with steering drives (2 degrees of freedom), with so-called non-holonomic constraints.
 
 The library implements generic odometry and update methods and defines the main interfaces.
 
@@ -66,11 +66,11 @@ Command interfaces
 If parameter ``front_steering == true``
 
 - ``<front_wheels_names[i]>/position``     double, in rad
-- ``<rear_wheels_names[i]>/velocity``      double, in m/s
+- ``<rear_wheels_names[i]>/velocity``      double, in rad/s
 
 If parameter ``front_steering == false``
 
-- ``<front_wheels_names[i]>/velocity``     double, in m/s
+- ``<front_wheels_names[i]>/velocity``     double, in rad/s
 - ``<rear_wheels_names[i]>/position``      double, in rad
 
 State interfaces
@@ -84,11 +84,11 @@ Depending on the ``position_feedback``, different feedback types are expected
 If parameter ``front_steering == true``
 
 - ``<front_wheels_names[i]>/position``                  double, in rad
-- ``<rear_wheels_names[i]>/<TRACTION_FEEDBACK_TYPE>``   double, in m or m/s
+- ``<rear_wheels_names[i]>/<TRACTION_FEEDBACK_TYPE>``   double, in rad or rad/s
 
 If parameter ``front_steering == false``
 
-- ``<front_wheels_names[i]>/<TRACTION_FEEDBACK_TYPE>``  double, in m or m/s
+- ``<front_wheels_names[i]>/<TRACTION_FEEDBACK_TYPE>``  double, in rad or rad/s
 - ``<rear_wheels_names[i]>/position``                   double, in rad
 
 Subscribers

@@ -2,6 +2,62 @@
 Changelog for package admittance_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+
+2.52.1 (2026-03-11)
+-------------------
+* Check robot description validity in AdmittanceController (backport `#2009 <https://github.com/ros-controls/ros2_controllers/issues/2009>`_) (`#2112 <https://github.com/ros-controls/ros2_controllers/issues/2112>`_)
+* Contributors: mergify[bot]
+
+2.52.0 (2025-12-31)
+-------------------
+
+2.51.0 (2025-12-01)
+-------------------
+
+2.50.2 (2025-10-17)
+-------------------
+
+2.50.1 (2025-10-02)
+-------------------
+
+2.50.0 (2025-09-12)
+-------------------
+* Fix temporary copies of other semantic components (backport `#1905 <https://github.com/ros-controls/ros2_controllers/issues/1905>`_) (`#1907 <https://github.com/ros-controls/ros2_controllers/issues/1907>`_)
+* Contributors: mergify[bot]
+
+2.49.1 (2025-07-31)
+-------------------
+* Fix `child_frame_id` in controller_state_msg (backport `#1601 <https://github.com/ros-controls/ros2_controllers/issues/1601>`_) (`#1834 <https://github.com/ros-controls/ros2_controllers/issues/1834>`_)
+* Contributors: mergify[bot]
+
+2.49.0 (2025-07-21)
+-------------------
+
+2.48.0 (2025-07-02)
+-------------------
+
+2.47.0 (2025-06-07)
+-------------------
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+* Bump version of pre-commit hooks (backport `#1618 <https://github.com/ros-controls/ros2_controllers/issues/1618>`_) (`#1620 <https://github.com/ros-controls/ros2_controllers/issues/1620>`_)
+* Contributors: mergify[bot]
+
+2.43.0 (2025-03-17)
+-------------------
+
 2.42.1 (2025-02-24)
 -------------------
 * Cleanup dependencies (add `angles`, rm `filters`) (backport `#1555 <https://github.com/ros-controls/ros2_controllers/issues/1555>`_) (`#1556 <https://github.com/ros-controls/ros2_controllers/issues/1556>`_)

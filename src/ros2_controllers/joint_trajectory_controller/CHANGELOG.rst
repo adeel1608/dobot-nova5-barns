@@ -2,6 +2,87 @@
 Changelog for package joint_trajectory_controller
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+2.53.1 (2026-04-22)
+-------------------
+
+2.53.0 (2026-04-02)
+-------------------
+* GPL custom validator: Use tl_expected from libexpected-dev instead (backport `#2212 <https://github.com/ros-controls/ros2_controllers/issues/2212>`_) (`#2238 <https://github.com/ros-controls/ros2_controllers/issues/2238>`_)
+* Contributors: mergify[bot]
+
+2.52.1 (2026-03-11)
+-------------------
+* Consistently add <cmath> include with define for windows (backport `#2193 <https://github.com/ros-controls/ros2_controllers/issues/2193>`_) (`#2194 <https://github.com/ros-controls/ros2_controllers/issues/2194>`_)
+* Contributors: mergify[bot]
+
+2.52.0 (2025-12-31)
+-------------------
+* Fill point_before_trajectory with same information as trajectory (backport `#2043 <https://github.com/ros-controls/ros2_controllers/issues/2043>`_) (`#2049 <https://github.com/ros-controls/ros2_controllers/issues/2049>`_)
+* Contributors: mergify[bot]
+
+2.51.0 (2025-12-01)
+-------------------
+* Add missing dependency rclcpp_action (backport `#1992 <https://github.com/ros-controls/ros2_controllers/issues/1992>`_) (`#1993 <https://github.com/ros-controls/ros2_controllers/issues/1993>`_)
+* Fix JTC state_msg (`#1985 <https://github.com/ros-controls/ros2_controllers/issues/1985>`_)
+* Fix integer literal in logging macro (`#1984 <https://github.com/ros-controls/ros2_controllers/issues/1984>`_)
+* :memo: Remove wrong information about trajectory replacement (backport `#1979 <https://github.com/ros-controls/ros2_controllers/issues/1979>`_) (`#1980 <https://github.com/ros-controls/ros2_controllers/issues/1980>`_)
+* Contributors: Christoph Fröhlich, mergify[bot]
+
+2.50.2 (2025-10-17)
+-------------------
+* Fix JTC crashing when shutdown while executing (backport `#1960 <https://github.com/ros-controls/ros2_controllers/issues/1960>`_) (`#1961 <https://github.com/ros-controls/ros2_controllers/issues/1961>`_)
+* Contributors: mergify[bot]
+
+2.50.1 (2025-10-02)
+-------------------
+* Remove wrong and unnecessary docstrings (backport `#1912 <https://github.com/ros-controls/ros2_controllers/issues/1912>`_) (`#1923 <https://github.com/ros-controls/ros2_controllers/issues/1923>`_)
+* Use auto dependency management for windows workflow (backport `#1917 <https://github.com/ros-controls/ros2_controllers/issues/1917>`_) (`#1921 <https://github.com/ros-controls/ros2_controllers/issues/1921>`_)
+* Contributors: mergify[bot]
+
+2.50.0 (2025-09-12)
+-------------------
+* Preallocate `std::vector` variables for interfaces (backport `#1893 <https://github.com/ros-controls/ros2_controllers/issues/1893>`_) (`#1898 <https://github.com/ros-controls/ros2_controllers/issues/1898>`_)
+* Reset JTC PID's to zero on_activate() (backport `#1840 <https://github.com/ros-controls/ros2_controllers/issues/1840>`_) (`#1843 <https://github.com/ros-controls/ros2_controllers/issues/1843>`_)
+* Contributors: mergify[bot]
+
+2.49.1 (2025-07-31)
+-------------------
+
+2.49.0 (2025-07-21)
+-------------------
+* Fix format (`#1821 <https://github.com/ros-controls/ros2_controllers/issues/1821>`_)
+* [JTC] added time_from_start to action feedback (`#1755 <https://github.com/ros-controls/ros2_controllers/issues/1755>`_)
+* Contributors: Bence Magyar, Michael Wrock
+
+2.48.0 (2025-07-02)
+-------------------
+* Fix atomic variables in JTC (backport `#1749 <https://github.com/ros-controls/ros2_controllers/issues/1749>`_) (`#1765 <https://github.com/ros-controls/ros2_controllers/issues/1765>`_)
+* Contributors: mergify[bot]
+
+2.47.0 (2025-06-07)
+-------------------
+* JTC: Use std::atomic<bool> (backport `#1720 <https://github.com/ros-controls/ros2_controllers/issues/1720>`_) (`#1722 <https://github.com/ros-controls/ros2_controllers/issues/1722>`_)
+* Reset both sec and nanosec in time_from_start (backport `#1709 <https://github.com/ros-controls/ros2_controllers/issues/1709>`_) (`#1710 <https://github.com/ros-controls/ros2_controllers/issues/1710>`_)
+* Contributors: mergify[bot]
+
+2.46.0 (2025-05-17)
+-------------------
+
+2.45.0 (2025-04-27)
+-------------------
+
+2.44.0 (2025-04-10)
+-------------------
+* Bump version of pre-commit hooks (backport `#1618 <https://github.com/ros-controls/ros2_controllers/issues/1618>`_) (`#1620 <https://github.com/ros-controls/ros2_controllers/issues/1620>`_)
+* Replace RCLCPP\_*_STREAM macros with RCLCPP\_* (backport `#1600 <https://github.com/ros-controls/ros2_controllers/issues/1600>`_) (`#1602 <https://github.com/ros-controls/ros2_controllers/issues/1602>`_)
+* [jtc tests] avoid dangling ref of command / state interfaces (backport `#1596 <https://github.com/ros-controls/ros2_controllers/issues/1596>`_) (`#1597 <https://github.com/ros-controls/ros2_controllers/issues/1597>`_)
+* Contributors: mergify[bot]
+
+2.43.0 (2025-03-17)
+-------------------
+* Use constructor parameters instead of initializer list (backport `#1587 <https://github.com/ros-controls/ros2_controllers/issues/1587>`_) (`#1589 <https://github.com/ros-controls/ros2_controllers/issues/1589>`_)
+* Contributors: Felix Exner (fexner)
+
 2.42.1 (2025-02-24)
 -------------------
 

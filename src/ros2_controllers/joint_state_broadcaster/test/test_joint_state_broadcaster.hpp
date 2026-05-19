@@ -34,6 +34,7 @@ class FriendJointStateBroadcaster : public joint_state_broadcaster::JointStateBr
 {
   FRIEND_TEST(JointStateBroadcasterTest, ConfigureErrorTest);
   FRIEND_TEST(JointStateBroadcasterTest, ActivateEmptyTest);
+  FRIEND_TEST(JointStateBroadcasterTest, ActivateEmptyWithoutDynamicJointStatesPublisherTest);
   FRIEND_TEST(JointStateBroadcasterTest, ReactivateTheControllerWithDifferentInterfacesTest);
   FRIEND_TEST(JointStateBroadcasterTest, ActivateTestWithoutJointsParameter);
   FRIEND_TEST(JointStateBroadcasterTest, ActivateTestWithoutInterfacesParameter);
@@ -58,11 +59,12 @@ public:
 
   void SetUpStateBroadcaster(
     const std::vector<std::string> & joint_names = {},
-    const std::vector<std::string> & interfaces = {});
+    const std::vector<std::string> & interfaces = {},
+    const std::vector<rclcpp::Parameter> & parameter_overrides = {});
 
   void init_broadcaster_and_set_parameters(
-    const std::vector<std::string> & joint_names = {},
-    const std::vector<std::string> & interfaces = {});
+    const std::vector<std::string> & joint_names, const std::vector<std::string> & interfaces,
+    const std::vector<rclcpp::Parameter> & parameter_overrides = {});
 
   void assign_state_interfaces(
     const std::vector<std::string> & joint_names = {},
@@ -106,6 +108,7 @@ protected:
     joint_names_[0], custom_interface_name_, &custom_joint_value_};
 
   std::unique_ptr<FriendJointStateBroadcaster> state_broadcaster_;
+  std::string frame_id_ = "base_link";
 };
 
 #endif  // TEST_JOINT_STATE_BROADCASTER_HPP_

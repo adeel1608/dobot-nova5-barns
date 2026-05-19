@@ -10,3 +10,7 @@ GitHub Actions: [![Formatting (pre-commit))](https://github.com/ros-planning/mov
 - PR2
 - Fanuc M-10iA
 - Franka Emika Panda
+
+## Notes
+
+The benchmarking resources have been moved to https://github.com/ros-planning/moveit_benchmark_resources.
