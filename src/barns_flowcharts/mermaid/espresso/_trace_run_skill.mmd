@@ -1,0 +1,18 @@
+flowchart TD
+  N0(["START _trace_run_skill(**params)"])
+  N1{"IF globals().get('ESPRESSO_TRACE_DEBUG', True)?"}
+  N2["Robot call: print(f'(TRACE:(scope)) run_skill('(skill_name)') START args=(args)', flush=True)"]
+  N3["Robot call: result = run_skill(skill_name, *args)"]
+  N4{"IF globals().get('ESPRESSO_TRACE_DEBUG', True)?"}
+  N5["Robot call: print( f'(TRACE:(scope)) run_skill('(skill_name)') DONE result=(_trace_format_result(result))', flush=Tru..."]
+  N6(["RETURN result"])
+  N7(["END _trace_run_skill"])
+  N0 --> N1
+  N1 -- "yes" --> N2
+  N2 --> N3
+  N1 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N5 --> N6
+  N4 --> N6
+  N0 --> N7

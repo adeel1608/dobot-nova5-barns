@@ -1,0 +1,183 @@
+flowchart TD
+  N0(["START angled_pour_espresso_pitcher_cup_station(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N3{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_FLOW_POSES('cup..."}
+  N4(["RETURN _fail()"])
+  N5{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('inter')))?"}
+  N6(["RETURN _fail()"])
+  N7{"IF stage == 'stage_1'?"}
+  N8{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pos1')))?"}
+  N9(["RETURN _fail()"])
+  N10{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N11(["RETURN _fail()"])
+  N12{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', SPEED_SLOW_POURING))?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour1.1..."}
+  N15(["RETURN _fail()"])
+  N16{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour1.2..."}
+  N17(["RETURN _fail()"])
+  N18{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour1.3..."}
+  N19(["RETURN _fail()"])
+  N20{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', 100))?"}
+  N23(["RETURN _fail()"])
+  N24{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('neutral..."}
+  N25(["RETURN _fail()"])
+  N26{"IF stage == 'stage_2'?"}
+  N27{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pos2')))?"}
+  N28(["RETURN _fail()"])
+  N29{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N30(["RETURN _fail()"])
+  N31{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', SPEED_SLOW_POURING))?"}
+  N32(["RETURN _fail()"])
+  N33{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour2.1..."}
+  N34(["RETURN _fail()"])
+  N35{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour2.2..."}
+  N36(["RETURN _fail()"])
+  N37{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour2.3..."}
+  N38(["RETURN _fail()"])
+  N39{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N40(["RETURN _fail()"])
+  N41{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', 100))?"}
+  N42(["RETURN _fail()"])
+  N43{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('neutral..."}
+  N44(["RETURN _fail()"])
+  N45{"IF stage == 'stage_3'?"}
+  N46{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pos3')))?"}
+  N47(["RETURN _fail()"])
+  N48{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N49(["RETURN _fail()"])
+  N50{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', SPEED_SLOW_POURING))?"}
+  N51(["RETURN _fail()"])
+  N52{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour3.1..."}
+  N53(["RETURN _fail()"])
+  N54{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour3.2..."}
+  N55(["RETURN _fail()"])
+  N56{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour3.3..."}
+  N57(["RETURN _fail()"])
+  N58{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N59(["RETURN _fail()"])
+  N60{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', 100))?"}
+  N61(["RETURN _fail()"])
+  N62{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('neutral..."}
+  N63(["RETURN _fail()"])
+  N64{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pos4')))?"}
+  N65(["RETURN _fail()"])
+  N66{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N67(["RETURN _fail()"])
+  N68{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', SPEED_SLOW_POURING))?"}
+  N69(["RETURN _fail()"])
+  N70{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour4.1..."}
+  N71(["RETURN _fail()"])
+  N72{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour4.2..."}
+  N73(["RETURN _fail()"])
+  N74{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('pour4.3..."}
+  N75(["RETURN _fail()"])
+  N76{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'sync'))?"}
+  N77(["RETURN _fail()"])
+  N78{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'set_speed_factor', 100))?"}
+  N79(["RETURN _fail()"])
+  N80{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('neutral..."}
+  N81(["RETURN _fail()"])
+  N82{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('inter')))?"}
+  N83(["RETURN _fail()"])
+  N84{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_FLOW_POSES('cup..."}
+  N85(["RETURN _fail()"])
+  N86{"IF not ok(_trace_run_skill('angled_pour_espresso_pitcher_cup_station', 'gotoJ_deg', *ESPRESSO_PITCHER_PARAMS('home')))?"}
+  N87(["RETURN _fail()"])
+  N88(["RETURN True"])
+  N89(["END angled_pour_espresso_pitcher_cup_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N22 --> N24
+  N24 -- "yes" --> N25
+  N7 -- "no" --> N26
+  N26 -- "yes" --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 -- "yes" --> N32
+  N31 --> N33
+  N33 -- "yes" --> N34
+  N33 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N37 -- "yes" --> N38
+  N37 --> N39
+  N39 -- "yes" --> N40
+  N39 --> N41
+  N41 -- "yes" --> N42
+  N41 --> N43
+  N43 -- "yes" --> N44
+  N26 -- "no" --> N45
+  N45 -- "yes" --> N46
+  N46 -- "yes" --> N47
+  N46 --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N50 -- "yes" --> N51
+  N50 --> N52
+  N52 -- "yes" --> N53
+  N52 --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 -- "yes" --> N57
+  N56 --> N58
+  N58 -- "yes" --> N59
+  N58 --> N60
+  N60 -- "yes" --> N61
+  N60 --> N62
+  N62 -- "yes" --> N63
+  N45 -- "no" --> N64
+  N64 -- "yes" --> N65
+  N64 --> N66
+  N66 -- "yes" --> N67
+  N66 --> N68
+  N68 -- "yes" --> N69
+  N68 --> N70
+  N70 -- "yes" --> N71
+  N70 --> N72
+  N72 -- "yes" --> N73
+  N72 --> N74
+  N74 -- "yes" --> N75
+  N74 --> N76
+  N76 -- "yes" --> N77
+  N76 --> N78
+  N78 -- "yes" --> N79
+  N78 --> N80
+  N80 -- "yes" --> N81
+  N24 --> N82
+  N43 --> N82
+  N62 --> N82
+  N80 --> N82
+  N82 -- "yes" --> N83
+  N82 --> N84
+  N84 -- "yes" --> N85
+  N84 --> N86
+  N86 -- "yes" --> N87
+  N86 --> N88
+  N0 --> N89

@@ -1,0 +1,126 @@
+flowchart TD
+  N0(["START tamper(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = _normalize_espresso_shot(espresso_dict)"]
+  N4{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N5(["RETURN angled_tamper(**params)"])
+  N6["Parameter/normalization: portafilter_tool = ( params.get('portafilter_tool') or (shot_cfg.get('portafilter_tool') if ..."]
+  N7{"IF portafilter_tool not in ('single_portafilter', 'double_portafilter')?"}
+  N8(["RETURN _fail()"])
+  N9["Nested helper defined: _close_and_verify_grip()"]
+  N10["Nested helper defined: _move_to_tool_pick_pose()"]
+  N11["Nested helper defined: _grab_then_close_and_verify()"]
+  N12{"IF not ok(_trace_run_skill('tamper', 'gotoJ_deg', *ESPRESSO_GRINDER_HOME))?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not _move_to_tool_pick_pose()?"}
+  N15(["RETURN _fail()"])
+  N16["State/cache: post_grab_pose = _tamper_post_grab_joints_cache.get(portafilter_tool)"]
+  N17{"IF _is_valid_angles(post_grab_pose)?"}
+  N18{"IF not ok(_trace_run_skill('tamper', 'gotoJ_deg', *post_grab_pose))?"}
+  N19(["RETURN _fail()"])
+  N20{"IF not ok(_trace_run_skill('tamper', 'sync'))?"}
+  N21(["RETURN _fail()"])
+  N22["State/cache: gripped, pos = _close_and_verify_grip()"]
+  N23{"IF not gripped?"}
+  N24["Call: _gripper_log.warning( f'(TAMPER-GRIP) cached post-grab verification failed: ' f'tool=(portafilter_tool), pos=(p..."]
+  N25["Call: _tamper_post_grab_joints_cache.pop(portafilter_tool, None)"]
+  N26{"IF not ok(_trace_run_skill('tamper', 'set_gripper_position', 255, 0, 255))?"}
+  N27(["RETURN _fail()"])
+  N28{"IF not ok(_trace_run_skill('tamper', 'sync'))?"}
+  N29(["RETURN _fail()"])
+  N30{"IF not _is_valid_angles(post_grab_pose)?"}
+  N31["State/cache: gripped = False"]
+  N32{"LOOP attempt in range(1, TAMPER_GRIP_RETRIES + 1)"}
+  N33{"IF attempt > 1?"}
+  N34["Call: _gripper_log.warning( f'(TAMPER-GRIP) retry (attempt)/(TAMPER_GRIP_RETRIES): ' f'tool=(portafilter_tool), previ..."]
+  N35{"IF not ok(_trace_run_skill('tamper', 'set_gripper_position', 255, 0, 255))?"}
+  N36(["RETURN _fail()"])
+  N37{"IF not ok(_trace_run_skill('tamper', 'sync'))?"}
+  N38(["RETURN _fail()"])
+  N39{"IF not _move_to_tool_pick_pose()?"}
+  N40(["RETURN _fail()"])
+  N41["State/cache: gripped, pos = _grab_then_close_and_verify()"]
+  N42{"IF gripped?"}
+  N43["BREAK"]
+  N44{"IF not gripped?"}
+  N45(["RETURN _fail()"])
+  N46["State/cache: post_grab_angles = _trace_run_skill('tamper', 'current_angles')"]
+  N47{"IF not _is_valid_angles(post_grab_angles)?"}
+  N48(["RETURN _fail()"])
+  N49["State/cache: _tamper_post_grab_joints_cache(portafilter_tool) = tuple(post_grab_angles)"]
+  N50{"IF not ok(_trace_run_skill('tamper', 'moveEE', 0, 0, 40, 0, 0, 0))?"}
+  N51(["RETURN _fail()"])
+  N52{"IF not _run_cached_machine_mount( f'tamper:(portafilter_tool):mount:grinder', 'espresso_grinder', 'grinder', )?"}
+  N53(["RETURN _fail()"])
+  N54{"IF not _run_cached_machine_approach( f'tamper:(portafilter_tool):approach:grinder', 'espresso_grinder', 'grinder', )?"}
+  N55(["RETURN _fail()"])
+  N56{"IF not ok(_trace_run_skill('tamper', 'gotoJ_deg', *ESPRESSO_GRINDER_HOME))?"}
+  N57(["RETURN _fail()"])
+  N58(["RETURN True"])
+  N59(["END tamper"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 --> N10
+  N10 --> N11
+  N11 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 --> N17
+  N17 -- "yes" --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 --> N23
+  N23 -- "yes" --> N24
+  N24 --> N25
+  N25 --> N26
+  N26 -- "yes" --> N27
+  N26 --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N23 --> N30
+  N17 --> N30
+  N30 -- "yes" --> N31
+  N31 --> N32
+  N32 -- "iterate" --> N33
+  N33 -- "yes" --> N34
+  N34 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N37 -- "yes" --> N38
+  N37 --> N39
+  N39 -- "yes" --> N40
+  N39 --> N41
+  N33 --> N41
+  N41 --> N42
+  N42 -- "yes" --> N43
+  N43 -- "next/retry" --> N32
+  N42 -- "next/retry" --> N32
+  N32 --> N44
+  N44 -- "yes" --> N45
+  N44 --> N46
+  N46 --> N47
+  N47 -- "yes" --> N48
+  N47 --> N49
+  N49 --> N50
+  N30 --> N50
+  N50 -- "yes" --> N51
+  N50 --> N52
+  N52 -- "yes" --> N53
+  N52 --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 -- "yes" --> N57
+  N56 --> N58
+  N0 --> N59

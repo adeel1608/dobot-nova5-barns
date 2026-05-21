@@ -1,0 +1,43 @@
+flowchart TD
+  N0(["START pick_frother_milk_station(**params)"])
+  N1["Call: _trace_step('pick_frother_milk_station', 'START')"]
+  N2["Nested helper defined: ok()"]
+  N3{"IF not ok(run_skill('set_gripper_position', 255, 255, 255))?"}
+  N4(["RETURN False"])
+  N5{"IF _is_valid_angles(_pick_frother_milk_station_cache)?"}
+  N6{"IF not ok(run_skill('gotoJ_deg', *_pick_frother_milk_station_cache))?"}
+  N7(["RETURN False"])
+  N8["Robot call: run_skill('sync')"]
+  N9{"IF not ok(run_skill('moveEE_movJ', *MILK_FROTHER_MOVEMENT_OFFSETS('lift_after_pick')))?"}
+  N10(["RETURN False"])
+  N11["State/cache: lift_pose = _capture_current_angles()"]
+  N12{"IF not _is_valid_angles(lift_pose)?"}
+  N13(["RETURN False"])
+  N14["State/cache: _pick_frother_milk_station_cache = lift_pose"]
+  N15{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('pick_retreat1')))?"}
+  N16(["RETURN False"])
+  N17{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('pick_retreat2')))?"}
+  N18(["RETURN False"])
+  N19(["RETURN True"])
+  N20(["END pick_frother_milk_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 -- "yes" --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N5 -- "no" --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N8 --> N15
+  N14 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N17 -- "yes" --> N18
+  N17 --> N19
+  N0 --> N20

@@ -1,0 +1,170 @@
+flowchart TD
+  N0(["START angled_mount(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Nested helper defined: trace()"]
+  N3["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N4["Parameter/normalization: shot_cfg = angled__normalize_espresso_shot(espresso_dict)"]
+  N5["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'angled_portafilter_1')"]
+  N6{"IF not port?"}
+  N7(["RETURN _fail()"])
+  N8{"IF not port_params?"}
+  N9(["RETURN _fail()"])
+  N10{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *ESPRESSO_GRINDER_HOME))?"}
+  N11(["RETURN _fail()"])
+  N12{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *ESPRESSO_GRINDER_PARAMS('nav1')))?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *ESPRESSO_ANGLED_TRANSFER_POSES('grinder_entry')))?"}
+  N15(["RETURN _fail()"])
+  N16{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *ESPRESSO_ANGLED_TRANSFER_POSES('machine_exit_2')))?"}
+  N17(["RETURN _fail()"])
+  N18{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *ESPRESSO_ANGLED_TRANSFER_POSES('machine_exit_1')))?"}
+  N19(["RETURN _fail()"])
+  N20["Call: trace('checking angled__mount_runtime_cache')"]
+  N21["State/cache: runtime_cached = angled__mount_runtime_cache.get(port)"]
+  N22{"IF runtime_cached?"}
+  N23["Call: trace('runtime cache FOUND')"]
+  N24["State/cache: below_pose = runtime_cached.get('below')"]
+  N25["State/cache: mount_pose = runtime_cached.get('angled_mount')"]
+  N26["Call: trace('runtime cache MISSING; using global angled poses')"]
+  N27{"IF not angled__is_valid_angles(below_pose)?"}
+  N28(["RETURN _fail()"])
+  N29{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *below_pose))?"}
+  N30(["RETURN _fail()"])
+  N31["Call: trace(f'mount_pose=(mount_pose)')"]
+  N32["Call: trace(f'mount_pose valid=(angled__is_valid_angles(mount_pose))')"]
+  N33{"IF not angled__is_valid_angles(mount_pose)?"}
+  N34["Call: trace('FAIL: invalid mount_pose')"]
+  N35(["RETURN _fail()"])
+  N36["Call: trace('sync before slow mount START')"]
+  N37{"IF not ok(_trace_run_skill('angled_mount', 'sync'))?"}
+  N38(["RETURN _fail()"])
+  N39["Call: trace('sync before slow mount DONE')"]
+  N40{"IF not ok(_trace_run_skill('angled_mount', 'set_speed_factor', 25))?"}
+  N41(["RETURN _fail()"])
+  N42["Call: trace('goto mount_pose START')"]
+  N43{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *mount_pose))?"}
+  N44["Call: trace('FAIL: goto mount_pose')"]
+  N45(["RETURN _fail()"])
+  N46["Call: trace('goto mount_pose DONE')"]
+  N47["Call: trace('sync after mount_pose START')"]
+  N48{"IF not ok(_trace_run_skill('angled_mount', 'sync'))?"}
+  N49(["RETURN _fail()"])
+  N50["Call: trace('sync after mount_pose DONE')"]
+  N51{"IF not ok(_trace_run_skill('angled_mount', 'set_speed_factor', 100))?"}
+  N52(["RETURN _fail()"])
+  N53["Call: arc_delta_mount = angled__portafilter_mount_arc_cmd_by_port.get(str(port))"]
+  N54{"IF arc_delta_mount is None?"}
+  N55(["RETURN _fail()"])
+  N56{"IF not ok(_trace_run_skill('angled_mount', 'move_portafilter_arc_tool_angled', arc_delta_mount))?"}
+  N57(["RETURN _fail()"])
+  N58["Call: trace('sync after arc START')"]
+  N59{"IF not ok(_trace_run_skill('angled_mount', 'sync'))?"}
+  N60(["RETURN _fail()"])
+  N61["Call: trace('sync after arc DONE')"]
+  N62{"IF not ok(_trace_run_skill('angled_mount', 'release_tension'))?"}
+  N63(["RETURN _fail()"])
+  N64["Call: trace('sync after release_tension START')"]
+  N65{"IF not ok(_trace_run_skill('angled_mount', 'sync'))?"}
+  N66(["RETURN _fail()"])
+  N67["Call: trace('sync after release_tension DONE')"]
+  N68{"IF not _open_gripper_with_verify()?"}
+  N69(["RETURN _fail()"])
+  N70["State/cache: cup_detected = detect_cup_gripper()"]
+  N71{"IF not cup_detected?"}
+  N72(["RETURN _fail()"])
+  N73["Call: trace('sync after gripper open START')"]
+  N74{"IF not ok(_trace_run_skill('angled_mount', 'sync'))?"}
+  N75(["RETURN _fail()"])
+  N76["Call: trace('sync after gripper open DONE')"]
+  N77{"IF port in ('angled_portafilter_2',)?"}
+  N78{"IF not _run_cached_machine_approach( f'angled_unmount:(port):approach:(port_params('portafilter_number'))', 'three_gr..."}
+  N79(["RETURN _fail()"])
+  N80{"IF not ok(_trace_run_skill('angled_mount', 'gotoJ_deg', *port_params('home')))?"}
+  N81(["RETURN _fail()"])
+  N82(["RETURN True"])
+  N83(["END angled_mount"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 --> N21
+  N21 --> N22
+  N22 -- "yes" --> N23
+  N23 --> N24
+  N24 --> N25
+  N22 -- "no" --> N26
+  N25 --> N27
+  N26 --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 --> N32
+  N32 --> N33
+  N33 -- "yes" --> N34
+  N34 --> N35
+  N33 --> N36
+  N36 --> N37
+  N37 -- "yes" --> N38
+  N37 --> N39
+  N39 --> N40
+  N40 -- "yes" --> N41
+  N40 --> N42
+  N42 --> N43
+  N43 -- "yes" --> N44
+  N44 --> N45
+  N43 --> N46
+  N46 --> N47
+  N47 --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N50 --> N51
+  N51 -- "yes" --> N52
+  N51 --> N53
+  N53 --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 -- "yes" --> N57
+  N56 --> N58
+  N58 --> N59
+  N59 -- "yes" --> N60
+  N59 --> N61
+  N61 --> N62
+  N62 -- "yes" --> N63
+  N62 --> N64
+  N64 --> N65
+  N65 -- "yes" --> N66
+  N65 --> N67
+  N67 --> N68
+  N68 -- "yes" --> N69
+  N68 --> N70
+  N70 --> N71
+  N71 -- "yes" --> N72
+  N71 --> N73
+  N73 --> N74
+  N74 -- "yes" --> N75
+  N74 --> N76
+  N76 --> N77
+  N77 -- "yes" --> N78
+  N78 -- "yes" --> N79
+  N78 --> N80
+  N77 --> N80
+  N80 -- "yes" --> N81
+  N80 --> N82
+  N0 --> N83

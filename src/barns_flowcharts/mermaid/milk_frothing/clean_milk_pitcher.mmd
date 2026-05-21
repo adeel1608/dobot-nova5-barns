@@ -1,0 +1,41 @@
+flowchart TD
+  N0(["START clean_milk_pitcher(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('cleaning')('pose1')))?"}
+  N3(["RETURN False"])
+  N4{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('cleaning')('pose2')))?"}
+  N5(["RETURN False"])
+  N6{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('cleaning')('pose3')))?"}
+  N7(["RETURN False"])
+  N8{"IF _is_valid_angles(_clean_milk_pitcher_cache)?"}
+  N9{"IF not ok(run_skill('gotoJ_deg', *_clean_milk_pitcher_cache))?"}
+  N10(["RETURN False"])
+  N11["Robot call: run_skill('sync')"]
+  N12{"IF not ok(run_skill('moveEE_movJ', *MILK_FROTHER_MOVEMENT_OFFSETS('cleaning_motion')))?"}
+  N13(["RETURN False"])
+  N14["State/cache: clean_pose = _capture_current_angles()"]
+  N15{"IF not _is_valid_angles(clean_pose)?"}
+  N16(["RETURN False"])
+  N17["State/cache: _clean_milk_pitcher_cache = clean_pose"]
+  N18(["RETURN True"])
+  N19(["END clean_milk_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N8 -- "no" --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N11 --> N18
+  N17 --> N18
+  N0 --> N19

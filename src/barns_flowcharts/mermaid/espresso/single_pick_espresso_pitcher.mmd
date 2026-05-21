@@ -1,0 +1,8 @@
+flowchart TD
+  N0(["START single_pick_espresso_pitcher(**params)"])
+  N1["Call: _trace_step('single_pick_espresso_pitcher', 'START')"]
+  N2(["RETURN pick_espresso_pitcher(**params)"])
+  N3(["END single_pick_espresso_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N0 --> N3

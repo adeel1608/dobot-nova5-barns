@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START _capture_current_position(**params)"])
+  N1["State/cache: position = run_skill('current_pose')"]
+  N2{"IF not _is_valid_position(position)?"}
+  N3(["RETURN None"])
+  N4(["RETURN tuple(position)"])
+  N5(["END _capture_current_position"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N0 --> N5

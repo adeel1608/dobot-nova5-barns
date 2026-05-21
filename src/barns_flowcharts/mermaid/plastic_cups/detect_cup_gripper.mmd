@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START detect_cup_gripper(**params)"])
+  N1["Call: _trace_step('detect_cup_gripper', 'START')"]
+  N2["Call: result = _raw_detect_cup_gripper(*args, **kwargs)"]
+  N3["Call: _trace_step('detect_cup_gripper', f'DONE result=(_trace_format_value(result))')"]
+  N4(["RETURN result"])
+  N5(["END detect_cup_gripper"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N0 --> N5

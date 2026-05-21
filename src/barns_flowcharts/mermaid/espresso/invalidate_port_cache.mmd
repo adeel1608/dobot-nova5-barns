@@ -1,0 +1,32 @@
+flowchart TD
+  N0(["START invalidate_port_cache(**params)"])
+  N1["Call: _trace_step('invalidate_port_cache', 'START')"]
+  N2["Call: _port_angle_cache.clear()"]
+  N3["Call: _pitcher_clean_cache.clear()"]
+  N4["Call: _pitcher_pick_cache.clear()"]
+  N5["Call: _pitcher_return_cache.clear()"]
+  N6["Call: _tool_pick_pose_cache.clear()"]
+  N7["Call: _grinder_post_mount_cache.clear()"]
+  N8["Call: _mount_runtime_cache.clear()"]
+  N9["Call: _machine_approach_pose_cache.clear()"]
+  N10["Call: _machine_mount_pose_cache.clear()"]
+  N11["Call: _unmount_post_grab_joints_cache.clear()"]
+  N12["Call: _tamper_post_grab_joints_cache.clear()"]
+  N13["Call: _angled_tamper_post_grab_joints_cache.clear()"]
+  N14["Call: _portafilter_mount_arc_cmd_by_port.clear()"]
+  N15(["END invalidate_port_cache"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 --> N8
+  N8 --> N9
+  N9 --> N10
+  N10 --> N11
+  N11 --> N12
+  N12 --> N13
+  N13 --> N14
+  N14 --> N15

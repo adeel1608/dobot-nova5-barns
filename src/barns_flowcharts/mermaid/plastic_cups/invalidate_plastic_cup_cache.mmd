@@ -1,0 +1,18 @@
+flowchart TD
+  N0(["START invalidate_plastic_cup_cache(**params)"])
+  N1["Call: _trace_step('invalidate_plastic_cup_cache', 'START')"]
+  N2["Call: _go_home_with_ice_cache.clear()"]
+  N3["Call: _place_plastic_cup_station_cache.clear()"]
+  N4["Call: _pick_plastic_cup_station_cache.clear()"]
+  N5["State/cache: _place_plastic_cup_sauces_cache = None"]
+  N6["Call: _pick_plastic_cup_sauces_cache.clear()"]
+  N7["Call: _pick_plastic_cup_milk_cache.clear()"]
+  N8(["END invalidate_plastic_cup_cache"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 --> N8

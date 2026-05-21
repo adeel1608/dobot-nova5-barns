@@ -1,0 +1,100 @@
+flowchart TD
+  N0(["START place_plastic_cup_station(**params)"])
+  N1["Call: _trace_step('place_plastic_cup_station', 'START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N4["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N5["Parameter/normalization: cup_size = _normalize_plastic_cup_size(cups_dict)"]
+  N6{"IF not cup_size or cup_size not in ('7oz', '9oz', '12oz', '16oz')?"}
+  N7(["RETURN False"])
+  N8["Robot call: run_skill('set_speed_factor', SPEED_NORMAL)"]
+  N9{"IF not home(position='north_east')?"}
+  N10(["RETURN False"])
+  N11{"IF not home(position='east')?"}
+  N12(["RETURN False"])
+  N13{"IF stage == '1'?"}
+  N14["Robot call: stage_result = run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('staging')('place_1'))"]
+  N15{"IF stage == '2'?"}
+  N16["Robot call: stage_result = run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('staging')('place_2'))"]
+  N17{"IF stage == '3'?"}
+  N18["Robot call: home(position='south_east')"]
+  N19["Robot call: stage_result = run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('staging')('place_3'))"]
+  N20{"IF stage == '4'?"}
+  N21["Robot call: home(position='south_east')"]
+  N22["Robot call: stage_result = run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('staging')('place_4'))"]
+  N23(["RETURN False"])
+  N24{"IF not ok(stage_result)?"}
+  N25(["RETURN False"])
+  N26["Robot call: run_skill('sync')"]
+  N27{"IF not ok(run_skill('set_gripper_position', 25, 100, 25, verify_position=True))?"}
+  N28(["RETURN False"])
+  N29{"IF not ok(run_skill('set_gripper_position', 255, 0, 255, verify_position=True))?"}
+  N30(["RETURN False"])
+  N31["Robot call: run_skill('set_speed_factor', SPEED_FAST)"]
+  N32["State/cache: cached_up = _place_plastic_cup_station_cache.get(stage)"]
+  N33{"IF _is_valid_angles(cached_up)?"}
+  N34["Call: _trace_step('place_plastic_cup_station', f'return-up cache HIT stage=(stage)')"]
+  N35{"IF not ok(run_skill('gotoJ_deg', *cached_up))?"}
+  N36(["RETURN False"])
+  N37["Call: _trace_step('place_plastic_cup_station', f'return-up cache MISS stage=(stage); recording pose')"]
+  N38{"IF not ok(run_skill('moveEE', *PLASTIC_CUP_MOVEMENT_OFFSETS('place_return_up')))?"}
+  N39(["RETURN False"])
+  N40["State/cache: up_pose = _capture_current_angles()"]
+  N41{"IF not _is_valid_angles(up_pose)?"}
+  N42(["RETURN False"])
+  N43["State/cache: _place_plastic_cup_station_cache(stage) = up_pose"]
+  N44{"IF not home(position='east')?"}
+  N45(["RETURN False"])
+  N46(["RETURN True"])
+  N47(["END place_plastic_cup_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N13 -- "no" --> N15
+  N15 -- "yes" --> N16
+  N15 -- "no" --> N17
+  N17 -- "yes" --> N18
+  N18 --> N19
+  N17 -- "no" --> N20
+  N20 -- "yes" --> N21
+  N21 --> N22
+  N20 -- "no" --> N23
+  N14 --> N24
+  N16 --> N24
+  N19 --> N24
+  N22 --> N24
+  N24 -- "yes" --> N25
+  N24 --> N26
+  N26 --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 --> N32
+  N32 --> N33
+  N33 -- "yes" --> N34
+  N34 --> N35
+  N35 -- "yes" --> N36
+  N33 -- "no" --> N37
+  N37 --> N38
+  N38 -- "yes" --> N39
+  N38 --> N40
+  N40 --> N41
+  N41 -- "yes" --> N42
+  N41 --> N43
+  N35 --> N44
+  N43 --> N44
+  N44 -- "yes" --> N45
+  N44 --> N46
+  N0 --> N47

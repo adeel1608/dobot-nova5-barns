@@ -1,0 +1,88 @@
+flowchart TD
+  N0(["START return_back_to_home(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Robot call: release_result = run_skill('release_tension')"]
+  N3{"IF not ok(release_result)?"}
+  N4{"IF not ok(run_skill('toggle_drag_mode'))?"}
+  N5(["RETURN False"])
+  N6["Robot call: run_skill('set_speed_factor', 100)"]
+  N7["Robot call: run_skill('sync')"]
+  N8["Robot call: run_skill('set_gripper_position', 255,0,255)"]
+  N9["State/cache: angles = run_skill('current_angles')"]
+  N10{"IF not ok(angles) or len(angles) < 6?"}
+  N11(["RETURN False"])
+  N12{"IF -22.49 <= a1 <= 22.49?"}
+  N13{"IF 22.51 <= a1 <= 67.49?"}
+  N14{"IF 67.51 <= a1 <= 112.49?"}
+  N15{"IF 112.51 <= a1 <= 157.49?"}
+  N16{"IF 157.51 <= a1 <= 202.49?"}
+  N17{"IF 202.51 <= a1 <= 247.49?"}
+  N18{"IF 247.51 <= a1 <= 292.49?"}
+  N19{"IF 292.51 <= a1 <= 337.49?"}
+  N20{"IF 337.51 <= a1 <= 360.0?"}
+  N21{"IF -67.49 <= a1 <= -22.51?"}
+  N22{"IF -112.49 <= a1 <= -67.51?"}
+  N23{"IF -157.49 <= a1 <= -112.51?"}
+  N24{"IF -202.49 <= a1 <= -157.51?"}
+  N25{"IF -247.49 <= a1 <= -202.51?"}
+  N26{"IF -292.49 <= a1 <= -247.51?"}
+  N27{"IF -337.49 <= a1 <= -292.51?"}
+  N28{"IF -360.0 <= a1 <= -337.51?"}
+  N29{"IF j1_val is None?"}
+  N30(["RETURN _fail(f'current joint1 outside return-home compass ranges: (a1)')"])
+  N31{"IF not ok(run_skill('gotoJ_deg', j1_val, *home_j2_j6))?"}
+  N32(["RETURN False"])
+  N33(["RETURN True"])
+  N34(["END return_back_to_home"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N3 --> N6
+  N6 --> N7
+  N7 --> N8
+  N8 --> N9
+  N9 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "no" --> N13
+  N13 -- "no" --> N14
+  N14 -- "no" --> N15
+  N15 -- "no" --> N16
+  N16 -- "no" --> N17
+  N17 -- "no" --> N18
+  N18 -- "no" --> N19
+  N19 -- "no" --> N20
+  N20 -- "no" --> N21
+  N21 -- "no" --> N22
+  N22 -- "no" --> N23
+  N23 -- "no" --> N24
+  N24 -- "no" --> N25
+  N25 -- "no" --> N26
+  N26 -- "no" --> N27
+  N27 -- "no" --> N28
+  N12 --> N29
+  N13 --> N29
+  N14 --> N29
+  N15 --> N29
+  N16 --> N29
+  N17 --> N29
+  N18 --> N29
+  N19 --> N29
+  N20 --> N29
+  N21 --> N29
+  N22 --> N29
+  N23 --> N29
+  N24 --> N29
+  N25 --> N29
+  N26 --> N29
+  N27 --> N29
+  N28 --> N29
+  N28 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 -- "yes" --> N32
+  N31 --> N33
+  N0 --> N34

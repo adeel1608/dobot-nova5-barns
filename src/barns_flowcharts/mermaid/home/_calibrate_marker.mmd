@@ -1,0 +1,30 @@
+flowchart TD
+  N0(["START _calibrate_marker(**params)"])
+  N1{"LOOP attempt in range(1, MAX_CALIBRATION_RETRIES + 1)"}
+  N2{"IF not prep_fn()?"}
+  N3["Call: _log.warning(f'(CALIBRATION) (marker_name) prep failed (attempt (attempt)/(MAX_CALIBRATION_RETRIES))')"]
+  N4["Call: time.sleep(1.0)"]
+  N5["CONTINUE"]
+  N6["Robot call: result = run_skill('get_machine_position', marker_name)"]
+  N7{"IF ok(result)?"}
+  N8(["RETURN True"])
+  N9["Call: _log.warning(f'(CALIBRATION) (marker_name) failed (attempt (attempt)/(MAX_CALIBRATION_RETRIES))')"]
+  N10["Call: time.sleep(1.0)"]
+  N11["Call: _log.error(f'(CALIBRATION) (marker_name) failed after (MAX_CALIBRATION_RETRIES) attempts')"]
+  N12(["RETURN False"])
+  N13(["END _calibrate_marker"])
+  N0 --> N1
+  N1 -- "iterate" --> N2
+  N2 -- "yes" --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N2 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 --> N10
+  N10 -- "next/retry" --> N1
+  N1 --> N11
+  N11 --> N12
+  N0 --> N13

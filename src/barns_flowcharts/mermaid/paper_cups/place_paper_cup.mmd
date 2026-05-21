@@ -1,0 +1,65 @@
+flowchart TD
+  N0(["START place_paper_cup(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'place_paper_cup START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N4{"IF not stage_params?"}
+  N5(["RETURN _fail()"])
+  N6{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('intermediate')))?"}
+  N7(["RETURN _fail()"])
+  N8{"IF 'twist' in stage_params?"}
+  N9{"IF not ok(run_skill('moveJ_deg', *stage_params('twist')))?"}
+  N10(["RETURN _fail()"])
+  N11{"IF 'pose' not in stage_params?"}
+  N12(["RETURN _fail()"])
+  N13{"IF not ok(run_skill('gotoJ_deg', *stage_params('pose')))?"}
+  N14(["RETURN _fail()"])
+  N15{"IF not ok(run_skill('sync'))?"}
+  N16(["RETURN _fail()"])
+  N17{"IF not ok(run_skill('set_gripper_position', 25, 100, 255, verify_position=True))?"}
+  N18(["RETURN _fail()"])
+  N19{"IF not ok(run_skill('set_gripper_position', 255, 0, 255, verify_position=True))?"}
+  N20(["RETURN _fail()"])
+  N21{"IF not ok(run_skill('moveEE', *PAPER_CUP_MOVEMENT_OFFSETS('place_up')))?"}
+  N22(["RETURN _fail()"])
+  N23{"IF 'stage_home' in stage_params?"}
+  N24{"IF not ok(run_skill('gotoJ_deg', *stage_params('stage_home')))?"}
+  N25(["RETURN _fail()"])
+  N26{"IF 'twist_back' in stage_params?"}
+  N27{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('twist_back_machine')))?"}
+  N28(["RETURN _fail()"])
+  N29(["RETURN True"])
+  N30(["END place_paper_cup"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N8 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N17 -- "yes" --> N18
+  N17 --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 -- "yes" --> N22
+  N21 --> N23
+  N23 -- "yes" --> N24
+  N24 -- "yes" --> N25
+  N24 --> N26
+  N23 --> N26
+  N26 -- "yes" --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N26 --> N29
+  N0 --> N30

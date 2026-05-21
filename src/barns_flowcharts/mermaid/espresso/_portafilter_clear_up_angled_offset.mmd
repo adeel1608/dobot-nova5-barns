@@ -1,0 +1,10 @@
+flowchart TD
+  N0(["START _portafilter_clear_up_angled_offset(**params)"])
+  N1{"IF z is not None?"}
+  N2(["RETURN (float(base(0)), float(base(1)), float(z), float(base(3)), float(base(4)), float(base(5)))"])
+  N3(["RETURN tuple(float(x) for x in base)"])
+  N4(["END _portafilter_clear_up_angled_offset"])
+  N0 --> N1
+  N1 -- "yes" --> N2
+  N1 --> N3
+  N0 --> N4

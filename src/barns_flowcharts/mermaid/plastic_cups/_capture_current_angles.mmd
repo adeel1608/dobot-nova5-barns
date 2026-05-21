@@ -1,0 +1,14 @@
+flowchart TD
+  N0(["START _capture_current_angles(**params)"])
+  N1["Call: _trace_step('_capture_current_angles', 'START')"]
+  N2["State/cache: angles = run_skill('current_angles')"]
+  N3{"IF not _is_valid_angles(angles)?"}
+  N4(["RETURN None"])
+  N5(["RETURN tuple(angles)"])
+  N6(["END _capture_current_angles"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N0 --> N6

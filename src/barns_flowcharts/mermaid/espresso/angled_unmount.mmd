@@ -1,0 +1,197 @@
+flowchart TD
+  N0(["START angled_unmount(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = angled__normalize_espresso_shot(espresso_dict)"]
+  N4["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'angled_portafilter_2')"]
+  N5["Parameter/normalization: grab_tool_name = ( params.get('portafilter_tool') or (shot_cfg.get('portafilter_tool') if sh..."]
+  N6{"IF not port?"}
+  N7(["RETURN _fail()"])
+  N8{"IF not port_params?"}
+  N9(["RETURN _fail()"])
+  N10{"IF not ok(_trace_run_skill('angled_unmount', 'gotoJ_deg', *port_params('home')))?"}
+  N11(["RETURN _fail()"])
+  N12{"IF port == 'angled_portafilter_2'?"}
+  N13{"IF not _run_cached_machine_approach( f'angled_unmount:(port):approach:(port_params('portafilter_number'))', 'three_gr..."}
+  N14(["RETURN _fail()"])
+  N15["State/cache: grab_cache_key = f'angled_unmount:post_grab:(port)'"]
+  N16["State/cache: cached_grab_joints = _unmount_post_grab_joints_cache.get(grab_cache_key)"]
+  N17{"IF _is_valid_angles(cached_grab_joints)?"}
+  N18{"IF not ok(_trace_run_skill('angled_unmount', 'gotoJ_deg', *cached_grab_joints))?"}
+  N19(["RETURN _fail()"])
+  N20{"IF not ok(_trace_run_skill('angled_unmount', 'sync'))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not ok(_trace_run_skill('angled_unmount', 'set_gripper_position', 255, 255, 255))?"}
+  N23(["RETURN _fail()"])
+  N24["Nested helper defined: trace_grip()"]
+  N25["Nested helper defined: _close_and_verify_grip_angled()"]
+  N26["Nested helper defined: _grab_then_close_angled()"]
+  N27["Nested helper defined: _rerun_approach_for_retry()"]
+  N28{"LOOP attempt_idx in range(0, ANGLED_UNMOUNT_GRIP_RETRIES + 1)"}
+  N29["State/cache: display_attempt = attempt_idx + 1"]
+  N30["State/cache: total_attempts = ANGLED_UNMOUNT_GRIP_RETRIES + 1"]
+  N31["Call: trace_grip( f'full routine attempt (display_attempt)/(total_attempts) START ' f'tool=(grab_tool_name), port=(po..."]
+  N32{"IF attempt_idx > 0?"}
+  N33{"IF not _rerun_approach_for_retry(display_attempt)?"}
+  N34(["RETURN _fail()"])
+  N35{"IF grab_tool_name == 'single_portafilter_angled'?"}
+  N36["State/cache: this_num_samples = 9 + 3 * attempt_idx"]
+  N37["Call: trace_grip( f'full routine attempt (display_attempt): grab_then_close START ' f'num_samples=(this_num_samples) ..."]
+  N38["State/cache: gripped, pos = _grab_then_close_angled( num_samples=this_num_samples, max_wait=this_max_wait, )"]
+  N39["Call: trace_grip( f'full routine attempt (display_attempt): grab_then_close RESULT ' f'gripped=(gripped), pos=(pos)' )"]
+  N40{"IF not gripped?"}
+  N41["Call: _gripper_log.warning( f'(ANGLED-PORTAFILTER-GRIP) full routine attempt ' f'(display_attempt)/(total_attempts) f..."]
+  N42["CONTINUE"]
+  N43["Call: trace_grip( f'full routine attempt (display_attempt): initial grip OK pos=(pos); ' f'release_tension START' )"]
+  N44{"IF not ok(_trace_run_skill('angled_unmount', 'release_tension'))?"}
+  N45["Call: trace_grip(f'full routine attempt (display_attempt): FAIL release_tension')"]
+  N46(["RETURN _fail()"])
+  N47{"IF not ok(_trace_run_skill('angled_unmount', 'sync'))?"}
+  N48(["RETURN _fail()"])
+  N49["Call: trace_grip(f'full routine attempt (display_attempt): release_tension DONE')"]
+  N50["State/cache: pose_z = _trace_run_skill('angled_unmount', 'current_pose')"]
+  N51{"IF not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3?"}
+  N52["Call: trace_grip(f'full routine attempt (display_attempt): FAIL current_pose for Z check')"]
+  N53(["RETURN _fail()"])
+  N54["Call: trace_grip( f'full routine attempt (display_attempt): Z check ' f'z=(z_mm:.2f), target=(z_tgt:.2f), range=((z_l..."]
+  N55{"IF not (z_lo <= z_mm <= z_hi)?"}
+  N56["Call: _gripper_log.warning( f'(ANGLED-UNMOUNT-Z) attempt=(display_attempt) ' f'after release_tension z=(z_mm:.2f) mm ..."]
+  N57["Call: trace_grip( f'full routine attempt (display_attempt): Z correction START ' f'dx=(dx:.2f), dz=(dz:.2f)' )"]
+  N58{"IF not ok(_trace_run_skill('angled_unmount', 'set_gripper_position', 25, 100, 25))?"}
+  N59["Call: trace_grip(f'full routine attempt (display_attempt): FAIL loosen gripper before Z correction')"]
+  N60(["RETURN _fail()"])
+  N61{"IF not ok(_trace_run_skill('angled_unmount', 'moveEE_movJ', dx, 0, dz, 0, 0, 0))?"}
+  N62["Call: trace_grip(f'full routine attempt (display_attempt): FAIL moveEE_movJ Z correction')"]
+  N63(["RETURN _fail()"])
+  N64{"IF not ok(_trace_run_skill('angled_unmount', 'set_gripper_position', 255, 255, 255))?"}
+  N65["Call: trace_grip(f'full routine attempt (display_attempt): FAIL re-close gripper after Z correction')"]
+  N66(["RETURN _fail()"])
+  N67{"IF not ok(_trace_run_skill('angled_unmount', 'sync'))?"}
+  N68(["RETURN _fail()"])
+  N69{"IF not ok(_trace_run_skill('angled_unmount', 'release_tension'))?"}
+  N70["Call: trace_grip(f'full routine attempt (display_attempt): FAIL release_tension after Z correction')"]
+  N71(["RETURN _fail()"])
+  N72{"IF not ok(_trace_run_skill('angled_unmount', 'sync'))?"}
+  N73(["RETURN _fail()"])
+  N74["Call: trace_grip(f'full routine attempt (display_attempt): Z correction DONE')"]
+  N75["Call: trace_grip(f'full routine attempt (display_attempt): Z correction SKIPPED')"]
+  N76["Call: trace_grip( f'full routine attempt (display_attempt): final post-release grip verify START' )"]
+  N77["State/cache: final_gripped, final_pos = _close_and_verify_grip_angled()"]
+  N78["Call: trace_grip( f'full routine attempt (display_attempt): final post-release grip verify RESULT ' f'gripped=(final_..."]
+  N79{"IF not final_gripped?"}
+  N80["Call: _gripper_log.warning( f'(ANGLED-PORTAFILTER-GRIP) full routine attempt ' f'(display_attempt)/(total_attempts) f..."]
+  N81["CONTINUE"]
+  N82["State/cache: angles = _trace_run_skill('angled_unmount', 'current_angles')"]
+  N83{"IF not ok(angles) or not _is_valid_angles(angles)?"}
+  N84["Call: trace_grip(f'full routine attempt (display_attempt): FAIL current_angles after final verify')"]
+  N85(["RETURN _fail()"])
+  N86["Call: trace_grip( f'full routine attempt (display_attempt): SUCCESS final_pos=(final_pos); ' f'ready to cache post-gr..."]
+  N87["BREAK"]
+  N88{"IF not routine_success?"}
+  N89["Call: trace_grip( f'FINAL FAIL after (ANGLED_UNMOUNT_GRIP_RETRIES + 1) full routine attempts: ' f'tool=(grab_tool_nam..."]
+  N90["... diagram capped for readability; source has additional low-level steps"]
+  N91["... diagram capped for readability; source has additional low-level steps"]
+  N92["... diagram capped for readability; source has additional low-level steps"]
+  N93(["END angled_unmount"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "yes" --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N12 --> N15
+  N15 --> N16
+  N16 --> N17
+  N17 -- "yes" --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N17 -- "no" --> N24
+  N24 --> N25
+  N25 --> N26
+  N26 --> N27
+  N27 --> N28
+  N28 -- "iterate" --> N29
+  N29 --> N30
+  N30 --> N31
+  N31 --> N32
+  N32 -- "yes" --> N33
+  N33 -- "yes" --> N34
+  N33 --> N35
+  N32 --> N35
+  N35 -- "yes" --> N36
+  N36 --> N37
+  N35 --> N37
+  N37 --> N38
+  N38 --> N39
+  N39 --> N40
+  N40 -- "yes" --> N41
+  N41 --> N42
+  N42 --> N43
+  N40 --> N43
+  N43 --> N44
+  N44 -- "yes" --> N45
+  N45 --> N46
+  N44 --> N47
+  N47 -- "yes" --> N48
+  N47 --> N49
+  N49 --> N50
+  N50 --> N51
+  N51 -- "yes" --> N52
+  N52 --> N53
+  N51 --> N54
+  N54 --> N55
+  N55 -- "yes" --> N56
+  N56 --> N57
+  N57 --> N58
+  N58 -- "yes" --> N59
+  N59 --> N60
+  N58 --> N61
+  N61 -- "yes" --> N62
+  N62 --> N63
+  N61 --> N64
+  N64 -- "yes" --> N65
+  N65 --> N66
+  N64 --> N67
+  N67 -- "yes" --> N68
+  N67 --> N69
+  N69 -- "yes" --> N70
+  N70 --> N71
+  N69 --> N72
+  N72 -- "yes" --> N73
+  N72 --> N74
+  N55 -- "no" --> N75
+  N74 --> N76
+  N75 --> N76
+  N76 --> N77
+  N77 --> N78
+  N78 --> N79
+  N79 -- "yes" --> N80
+  N80 --> N81
+  N81 --> N82
+  N79 --> N82
+  N82 --> N83
+  N83 -- "yes" --> N84
+  N84 --> N85
+  N83 --> N86
+  N86 --> N87
+  N87 -- "next/retry" --> N28
+  N28 --> N88
+  N88 -- "yes" --> N89
+  N89 --> N90
+  N90 --> N91
+  N88 --> N91
+  N22 --> N92
+  N91 --> N92
+  N92 --> N93

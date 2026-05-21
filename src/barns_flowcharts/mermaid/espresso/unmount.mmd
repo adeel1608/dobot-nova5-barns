@@ -1,0 +1,197 @@
+flowchart TD
+  N0(["START unmount(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = _normalize_espresso_shot(espresso_dict)"]
+  N4{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N5(["RETURN angled_unmount(**params)"])
+  N6["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'port_1')"]
+  N7{"IF not port?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not port_params?"}
+  N10(["RETURN _fail()"])
+  N11{"IF not ok(_trace_run_skill('unmount', 'gotoJ_deg', *port_params('home')))?"}
+  N12(["RETURN _fail()"])
+  N13{"IF port in ('port_1', 'port_3')?"}
+  N14{"IF not _run_cached_machine_approach( f'unmount:(port):approach:(port_params('portafilter_number'))', 'three_group_esp..."}
+  N15(["RETURN _fail()"])
+  N16["State/cache: grab_cache_key = f'unmount:post_grab:(port)'"]
+  N17["State/cache: cached_grab_joints = _unmount_post_grab_joints_cache.get(grab_cache_key)"]
+  N18{"IF _is_valid_angles(cached_grab_joints)?"}
+  N19{"IF not ok(_trace_run_skill('unmount', 'gotoJ_deg', *cached_grab_joints))?"}
+  N20(["RETURN _fail()"])
+  N21{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N22(["RETURN _fail()"])
+  N23{"IF not ok(_trace_run_skill('unmount', 'set_gripper_position', 255, 255, 255))?"}
+  N24(["RETURN _fail()"])
+  N25["Nested helper defined: _close_and_verify_grip()"]
+  N26["Nested helper defined: _grab_then_close()"]
+  N27["State/cache: gripped, pos = _grab_then_close()"]
+  N28{"IF not gripped?"}
+  N29["Call: _gripper_log.warning( f'(PORTAFILTER-GRIP) attempt 1 pos=(pos) ' f'(want in ((_PORTAFILTER_GRIP_POS_MIN), (_POR..."]
+  N30{"IF not ok(_trace_run_skill('unmount', 'moveEE_movJ', 0, 0, -2.5, 0, 0, 0))?"}
+  N31(["RETURN _fail()"])
+  N32["State/cache: gripped, pos = _close_and_verify_grip()"]
+  N33{"IF not gripped?"}
+  N34["Call: _gripper_log.warning( f'(PORTAFILTER-GRIP) attempt 2 pos=(pos) ' f'(want in ((_PORTAFILTER_GRIP_POS_MIN), (_POR..."]
+  N35{"IF not ok(_trace_run_skill('unmount', 'moveEE_movJ', 0, 0, 5, 0, 0, 0))?"}
+  N36(["RETURN _fail()"])
+  N37["State/cache: gripped, pos = _close_and_verify_grip()"]
+  N38{"IF not gripped?"}
+  N39["Call: _gripper_log.warning( f'(PORTAFILTER-GRIP) attempt 3 pos=(pos) ' f'(want in ((_PORTAFILTER_GRIP_POS_MIN), (_POR..."]
+  N40{"IF not ok(_trace_run_skill('unmount', 'set_gripper_position', 255, 0, 255))?"}
+  N41(["RETURN _fail()"])
+  N42{"IF port in ('port_1', 'port_3')?"}
+  N43{"IF not _run_cached_machine_approach( f'unmount:(port):approach:(port_params('portafilter_number'))', 'three_group_esp..."}
+  N44(["RETURN _fail()"])
+  N45["State/cache: gripped, pos = _grab_then_close()"]
+  N46{"IF not gripped?"}
+  N47(["RETURN _fail()"])
+  N48{"IF not ok(_trace_run_skill('unmount', 'release_tension'))?"}
+  N49(["RETURN _fail()"])
+  N50{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N51(["RETURN _fail()"])
+  N52{"IF not ok(_trace_run_skill('unmount', 'enforce_rxry'))?"}
+  N53(["RETURN _fail()"])
+  N54{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N55(["RETURN _fail()"])
+  N56["State/cache: pose_z = _trace_run_skill('unmount', 'current_pose')"]
+  N57{"IF not ok(pose_z) or not isinstance(pose_z, (tuple, list)) or len(pose_z) < 3?"}
+  N58(["RETURN _fail()"])
+  N59{"IF not (z_lo <= z_mm <= z_hi)?"}
+  N60{"IF not ok(_trace_run_skill('unmount', 'set_gripper_position', 25, 100, 25))?"}
+  N61(["RETURN _fail()"])
+  N62{"IF not ok(_trace_run_skill('unmount', 'moveEE_movJ', -0.25, 0, dz, 0, 0, 0))?"}
+  N63(["RETURN _fail()"])
+  N64{"IF not ok(_trace_run_skill('unmount', 'set_gripper_position', 255, 255, 255))?"}
+  N65(["RETURN _fail()"])
+  N66{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N67(["RETURN _fail()"])
+  N68{"IF not ok(_trace_run_skill('unmount', 'release_tension'))?"}
+  N69(["RETURN _fail()"])
+  N70{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N71(["RETURN _fail()"])
+  N72["State/cache: angles = _trace_run_skill('unmount', 'current_angles')"]
+  N73{"IF not ok(angles) or not _is_valid_angles(angles)?"}
+  N74(["RETURN _fail()"])
+  N75["State/cache: _unmount_post_grab_joints_cache(grab_cache_key) = tuple(angles)"]
+  N76{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N77(["RETURN _fail()"])
+  N78{"IF not ok(_trace_run_skill('unmount', 'enforce_rxry'))?"}
+  N79(["RETURN _fail()"])
+  N80{"IF not ok(_trace_run_skill('unmount', 'sync'))?"}
+  N81(["RETURN _fail()"])
+  N82["State/cache: cached_port_angle = _port_angle_cache.get(port)"]
+  N83{"IF cached_port_angle?"}
+  N84{"IF arc_cmd is None?"}
+  N85(["RETURN _fail()"])
+  N86{"IF not ok(_trace_run_skill('unmount', 'move_portafilter_arc_movJ', arc_cmd))?"}
+  N87(["RETURN _fail()"])
+  N88["State/cache: pose_before_arc = _trace_run_skill('unmount', 'current_pose')"]
+  N89{"IF not ok(pose_before_arc) or not isinstance(pose_before_arc, (tuple, list)) or len(pose_before_arc) < 6?"}
+  N90["... diagram capped for readability; source has additional low-level steps"]
+  N91["... diagram capped for readability; source has additional low-level steps"]
+  N92["... diagram capped for readability; source has additional low-level steps"]
+  N93(["END unmount"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N13 --> N16
+  N16 --> N17
+  N17 --> N18
+  N18 -- "yes" --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 -- "yes" --> N22
+  N21 --> N23
+  N23 -- "yes" --> N24
+  N18 -- "no" --> N25
+  N25 --> N26
+  N26 --> N27
+  N27 --> N28
+  N28 -- "yes" --> N29
+  N29 --> N30
+  N30 -- "yes" --> N31
+  N30 --> N32
+  N32 --> N33
+  N28 --> N33
+  N33 -- "yes" --> N34
+  N34 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N37 --> N38
+  N33 --> N38
+  N38 -- "yes" --> N39
+  N39 --> N40
+  N40 -- "yes" --> N41
+  N40 --> N42
+  N42 -- "yes" --> N43
+  N43 -- "yes" --> N44
+  N43 --> N45
+  N42 --> N45
+  N45 --> N46
+  N38 --> N46
+  N46 -- "yes" --> N47
+  N46 --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N50 -- "yes" --> N51
+  N50 --> N52
+  N52 -- "yes" --> N53
+  N52 --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 --> N57
+  N57 -- "yes" --> N58
+  N57 --> N59
+  N59 -- "yes" --> N60
+  N60 -- "yes" --> N61
+  N60 --> N62
+  N62 -- "yes" --> N63
+  N62 --> N64
+  N64 -- "yes" --> N65
+  N64 --> N66
+  N66 -- "yes" --> N67
+  N66 --> N68
+  N68 -- "yes" --> N69
+  N68 --> N70
+  N70 -- "yes" --> N71
+  N70 --> N72
+  N59 --> N72
+  N72 --> N73
+  N73 -- "yes" --> N74
+  N73 --> N75
+  N75 --> N76
+  N76 -- "yes" --> N77
+  N23 --> N78
+  N76 --> N78
+  N78 -- "yes" --> N79
+  N78 --> N80
+  N80 -- "yes" --> N81
+  N80 --> N82
+  N82 --> N83
+  N83 -- "yes" --> N84
+  N84 -- "yes" --> N85
+  N84 --> N86
+  N86 -- "yes" --> N87
+  N83 -- "no" --> N88
+  N88 --> N89
+  N89 -- "yes" --> N90
+  N90 --> N91
+  N89 --> N91
+  N86 --> N92
+  N91 --> N92
+  N92 --> N93

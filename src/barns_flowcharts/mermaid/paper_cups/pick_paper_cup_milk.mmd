@@ -1,0 +1,39 @@
+flowchart TD
+  N0(["START pick_paper_cup_milk(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'pick_paper_cup_milk START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N4{"IF not cups_dict?"}
+  N5["Parameter/normalization: cup_size = _normalize_paper_cup_size(cups_dict)"]
+  N6{"IF cup_size not in valid_sizes?"}
+  N7(["RETURN _fail()"])
+  N8["State/cache: cup_detected = detect_cup_gripper()"]
+  N9{"IF not cup_detected?"}
+  N10(["RETURN _fail()"])
+  N11{"IF not ok(run_skill('moveEE', -1,0,-5,0,0,0))?"}
+  N12(["RETURN _fail()"])
+  N13{"IF not ok(run_skill('set_gripper_position', GRIPPER_FULL, gripper_positions(cup_size), verify_position=True))?"}
+  N14(["RETURN _fail()"])
+  N15{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_STATION_PARAMS('milk_station')('position1')))?"}
+  N16(["RETURN _fail()"])
+  N17(["RETURN True"])
+  N18(["END pick_paper_cup_milk"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N4 --> N5
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N0 --> N18

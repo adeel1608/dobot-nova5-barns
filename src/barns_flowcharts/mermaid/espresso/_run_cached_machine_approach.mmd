@@ -1,0 +1,38 @@
+flowchart TD
+  N0(["START _run_cached_machine_approach(**params)"])
+  N1["Call: _trace_step('_run_cached_machine_approach', 'START')"]
+  N2["State/cache: cached_angles = _machine_approach_pose_cache.get(cache_key)"]
+  N3{"IF _is_valid_angles(cached_angles)?"}
+  N4["Call: _trace_step('_run_cached_machine_approach', f'cache HIT key=(cache_key)')"]
+  N5{"IF _trace_run_skill('_run_cached_machine_approach', 'gotoJ_deg', *cached_angles) in (False, None)?"}
+  N6(["RETURN _fail()"])
+  N7(["RETURN True"])
+  N8["Call: _trace_step('_run_cached_machine_approach', f'cache MISS key=(cache_key); live approach (machine_name)/(target_..."]
+  N9{"IF _trace_run_skill('_run_cached_machine_approach', 'approach_machine', machine_name, target_name) in (False, None)?"}
+  N10(["RETURN _fail()"])
+  N11{"IF _trace_run_skill('_run_cached_machine_approach', 'sync') in (False, None)?"}
+  N12(["RETURN _fail()"])
+  N13["State/cache: captured_angles = _trace_run_skill('_run_cached_machine_approach', 'current_angles')"]
+  N14{"IF not _is_valid_angles(captured_angles)?"}
+  N15(["RETURN _fail()"])
+  N16["State/cache: _machine_approach_pose_cache(cache_key) = tuple(captured_angles)"]
+  N17(["RETURN True"])
+  N18(["END _run_cached_machine_approach"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N4 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N3 --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 --> N17
+  N0 --> N18

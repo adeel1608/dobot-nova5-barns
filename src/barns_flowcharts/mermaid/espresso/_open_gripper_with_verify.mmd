@@ -1,0 +1,30 @@
+flowchart TD
+  N0(["START _open_gripper_with_verify(**params)"])
+  N1{"LOOP attempt in range(1, _GRIPPER_OPEN_RETRIES + 1)"}
+  N2["Call: success, actual_pos = node.set_gripper_position(speed=speed, position=0, force=force)"]
+  N3{"IF not success?"}
+  N4["Call: _gripper_log.error(f'(GRIPPER-OPEN) command failed (attempt (attempt)/(_GRIPPER_OPEN_RETRIES))')"]
+  N5["Call: time.sleep(0.3)"]
+  N6["CONTINUE"]
+  N7{"IF actual_pos is not None and actual_pos <= _GRIPPER_OPEN_MAX_POS?"}
+  N8(["RETURN True"])
+  N9["Call: _gripper_log.warning( f'(GRIPPER-OPEN) position (actual_pos) > (_GRIPPER_OPEN_MAX_POS), ' f'retrying (attempt (..."]
+  N10["Call: time.sleep(0.3)"]
+  N11["Call: _gripper_log.error(f'(GRIPPER-OPEN) failed to open after (_GRIPPER_OPEN_RETRIES) attempts')"]
+  N12(["RETURN _fail()"])
+  N13(["END _open_gripper_with_verify"])
+  N0 --> N1
+  N1 -- "iterate" --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N3 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 --> N10
+  N10 -- "next/retry" --> N1
+  N1 --> N11
+  N11 --> N12
+  N0 --> N13

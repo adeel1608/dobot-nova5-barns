@@ -1,0 +1,10 @@
+flowchart TD
+  N0(["START angled_invalidate_cleaning_cache(**params)"])
+  N1["Call: _trace_step('CLEANING', 'angled_invalidate_cleaning_cache START')"]
+  N2["Call: angled__hard_brush_clean_cache.clear()"]
+  N3["Call: angled__soft_brush_clean_cache.clear()"]
+  N4(["END angled_invalidate_cleaning_cache"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4

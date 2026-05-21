@@ -1,0 +1,63 @@
+flowchart TD
+  N0(["START go_home_with_ice(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N3["Parameter/normalization: cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)"]
+  N4{"IF not cup_size or not validate_cup_size(cup_size)?"}
+  N5(["RETURN False"])
+  N6["State/cache: cached_retreat = _go_home_with_ice_cache.get(cup_size)"]
+  N7{"IF _is_valid_angles(cached_retreat)?"}
+  N8["Call: _trace_step('go_home_with_ice', f'retreat cache HIT size=(cup_size)')"]
+  N9{"IF not ok(run_skill('gotoJ_deg', *cached_retreat))?"}
+  N10(["RETURN False"])
+  N11["Robot call: run_skill('sync')"]
+  N12["Call: _trace_step('go_home_with_ice', f'retreat cache MISS size=(cup_size); recording current route')"]
+  N13{"IF not ok(run_skill('moveEE_movJ', -10, 0, 0, 0, 0, 0))?"}
+  N14(["RETURN False"])
+  N15["State/cache: retreat_pose = _capture_current_angles()"]
+  N16{"IF not _is_valid_angles(retreat_pose)?"}
+  N17(["RETURN False"])
+  N18["State/cache: _go_home_with_ice_cache(cup_size) = retreat_pose"]
+  N19{"IF gripper_position is None?"}
+  N20(["RETURN False"])
+  N21{"IF not ok(run_skill('set_gripper_position', GRIPPER_FULL, gripper_position, verify_position=True))?"}
+  N22(["RETURN False"])
+  N23{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('ice_positions')('position3')))?"}
+  N24(["RETURN False"])
+  N25{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('ice_positions')('position1')))?"}
+  N26(["RETURN False"])
+  N27{"IF not home(position='north')?"}
+  N28(["RETURN False"])
+  N29(["RETURN True"])
+  N30(["END go_home_with_ice"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N7 -- "no" --> N12
+  N12 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N11 --> N19
+  N18 --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 -- "yes" --> N22
+  N21 --> N23
+  N23 -- "yes" --> N24
+  N23 --> N25
+  N25 -- "yes" --> N26
+  N25 --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N0 --> N30

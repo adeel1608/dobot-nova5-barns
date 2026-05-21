@@ -1,0 +1,10 @@
+flowchart TD
+  N0(["START cleanup_motion_node(**params)"])
+  N1{"IF _global_motion_node is not None?"}
+  N2{"IF rclpy.ok()?"}
+  N3(["END cleanup_motion_node"])
+  N0 --> N1
+  N1 -- "yes" --> N2
+  N2 --> N3
+  N2 --> N3
+  N1 --> N3

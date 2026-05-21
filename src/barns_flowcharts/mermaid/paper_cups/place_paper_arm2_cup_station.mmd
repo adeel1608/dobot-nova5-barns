@@ -1,0 +1,58 @@
+flowchart TD
+  N0(["START place_paper_arm2_cup_station(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'place_paper_arm2_cup_station START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N4{"IF stage not in valid_stages?"}
+  N5(["RETURN _fail()"])
+  N6{"IF stage in ('1', '2')?"}
+  N7{"IF not ok(home(position='east'))?"}
+  N8(["RETURN _fail()"])
+  N9{"IF stage in ('3', '4')?"}
+  N10{"IF not ok(home(position='south_east'))?"}
+  N11(["RETURN _fail()"])
+  N12{"IF not ok(run_skill('gotoJ_deg', *stage_positions(stage)))?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(run_skill('sync'))?"}
+  N15(["RETURN _fail()"])
+  N16{"IF not ok(run_skill('set_gripper_position', 25, 100, 255, verify_position=True))?"}
+  N17(["RETURN _fail()"])
+  N18{"IF not ok(run_skill('set_gripper_position', 255, 0, 255, verify_position=True))?"}
+  N19(["RETURN _fail()"])
+  N20{"IF not ok(run_skill('moveEE', *PAPER_CUP_MOVEMENT_OFFSETS('place_up')))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not ok(run_skill('set_speed_factor', 100))?"}
+  N23(["RETURN _fail()"])
+  N24{"IF not ok(home(position=stage_home_map(stage)))?"}
+  N25(["RETURN _fail()"])
+  N26(["RETURN True"])
+  N27(["END place_paper_arm2_cup_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N6 --> N9
+  N9 -- "yes" --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N9 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N22 --> N24
+  N24 -- "yes" --> N25
+  N24 --> N26
+  N0 --> N27

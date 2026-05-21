@@ -1,0 +1,83 @@
+flowchart TD
+  N0(["START grab_paper_cup_arm1(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N3["Parameter/normalization: size = _normalize_paper_cup_size(cups_dict if cups_dict else '7oz')"]
+  N4{"IF not size?"}
+  N5(["RETURN _fail()"])
+  N6{"IF not cfg?"}
+  N7(["RETURN _fail()"])
+  N8{"IF not ok(home(position=cfg('home')))?"}
+  N9(["RETURN _fail()"])
+  N10{"IF not ok(run_skill('gotoJ_deg', *cfg('pose1')))?"}
+  N11(["RETURN _fail()"])
+  N12{"IF not ok(run_skill('gotoJ_deg', *cfg('pose2')))?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(run_skill('sync'))?"}
+  N15(["RETURN _fail()"])
+  N16["State/cache: attempt_count = 0"]
+  N17{"WHILE attempt_count < 15?"}
+  N18["Call: _trace_step('PAPER-CUPS', f'grab_paper_cup_arm1 attempt=(attempt_count + 1)/15 size=(size)')"]
+  N19{"IF attempt_count > 0?"}
+  N20{"IF not ok(run_skill('set_gripper_position', 255, 0, 255, verify_position=True))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not ok(run_skill('moveEE_movJ', 0, 0, cfg('up_down_z'), 0, 0, 0))?"}
+  N23(["RETURN _fail()"])
+  N24{"IF not ok(run_skill('set_gripper_position', 255, cfg('grip'), 255, verify_position=True))?"}
+  N25(["RETURN _fail()"])
+  N26{"IF not ok(run_skill('moveEE_movJ', 0, 0, -cfg('up_down_z'), 0, 0, 0))?"}
+  N27(["RETURN _fail()"])
+  N28["State/cache: cup_detected = detect_cup_gripper()"]
+  N29{"IF cup_detected?"}
+  N30["BREAK"]
+  N31["State/cache: attempt_count += 1"]
+  N32{"IF not ok(run_skill('sync'))?"}
+  N33(["RETURN _fail()"])
+  N34{"IF attempt_count == 15?"}
+  N35(["RETURN _fail()"])
+  N36{"IF not ok(home(position=cfg('home')))?"}
+  N37(["RETURN _fail()"])
+  N38(["RETURN True"])
+  N39(["END grab_paper_cup_arm1"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 --> N17
+  N17 -- "iterate" --> N18
+  N18 --> N19
+  N19 -- "yes" --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N22 --> N24
+  N19 --> N24
+  N24 -- "yes" --> N25
+  N24 --> N26
+  N26 -- "yes" --> N27
+  N26 --> N28
+  N28 --> N29
+  N29 -- "yes" --> N30
+  N30 --> N31
+  N29 --> N31
+  N31 --> N32
+  N32 -- "yes" --> N33
+  N32 --> N34
+  N34 -- "yes" --> N35
+  N34 -- "next/retry" --> N17
+  N17 --> N36
+  N36 -- "yes" --> N37
+  N36 --> N38
+  N0 --> N39

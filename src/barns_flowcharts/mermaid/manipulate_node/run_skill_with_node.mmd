@@ -1,0 +1,6 @@
+flowchart TD
+  N0(["START run_skill_with_node(**params)"])
+  N1["Robot call: try: # Check if we have too many consecutive failures and try recovery if hasattr(motion_node, '_consecut..."]
+  N2(["END run_skill_with_node"])
+  N0 --> N1
+  N1 --> N2

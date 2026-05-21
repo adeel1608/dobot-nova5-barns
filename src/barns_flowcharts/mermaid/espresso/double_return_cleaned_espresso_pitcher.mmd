@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START double_return_cleaned_espresso_pitcher(**params)"])
+  N1["Parameter/normalization: shot_cfg = _normalize_espresso_shot(params.get('espresso'))"]
+  N2{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N3(["RETURN angled_return_cleaned_espresso_pitcher(**params)"])
+  N4(["RETURN return_cleaned_espresso_pitcher(**params)"])
+  N5(["END double_return_cleaned_espresso_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N0 --> N5

@@ -1,0 +1,14 @@
+flowchart TD
+  N0(["START double_pick_espresso_pitcher(**params)"])
+  N1["Call: _trace_step('double_pick_espresso_pitcher', 'START')"]
+  N2["Parameter/normalization: shot_cfg = _normalize_espresso_shot(params.get('espresso'))"]
+  N3{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N4(["RETURN angled_pick_espresso_pitcher(**params)"])
+  N5(["RETURN pick_espresso_pitcher(**params)"])
+  N6(["END double_pick_espresso_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N0 --> N6

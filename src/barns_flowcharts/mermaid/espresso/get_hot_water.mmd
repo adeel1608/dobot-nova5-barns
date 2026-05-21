@@ -1,0 +1,20 @@
+flowchart TD
+  N0(["START get_hot_water(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2{"IF not _run_cached_machine_approach( 'get_hot_water:approach:hot_water', 'three_group_espresso', 'hot_water', )?"}
+  N3(["RETURN _fail()"])
+  N4{"IF not _run_cached_machine_mount( 'get_hot_water:mount:hot_water', 'three_group_espresso', 'hot_water', )?"}
+  N5(["RETURN _fail()"])
+  N6{"IF not ok(_trace_run_skill('get_hot_water', 'moveEE_movJ', *ESPRESSO_MOVEMENT_OFFSETS('hot_water_move')))?"}
+  N7(["RETURN _fail()"])
+  N8(["RETURN True"])
+  N9(["END get_hot_water"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N0 --> N9

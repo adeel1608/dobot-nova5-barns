@@ -1,0 +1,34 @@
+flowchart TD
+  N0(["START go_to_ice(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N3["Parameter/normalization: cup_size = _normalize_plastic_cup_size(cups_dict)"]
+  N4{"IF not cup_size?"}
+  N5(["RETURN False"])
+  N6{"IF cup_size not in ('16oz', '12oz', '9oz', '7oz')?"}
+  N7(["RETURN False"])
+  N8{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('ice_positions')('position1')))?"}
+  N9(["RETURN False"])
+  N10{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('ice_positions')('position2')))?"}
+  N11(["RETURN False"])
+  N12["Robot call: run_skill('sync')"]
+  N13{"IF not ok(run_skill('set_gripper_position', GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE, verify_position=True))?"}
+  N14(["RETURN False"])
+  N15(["RETURN True"])
+  N16(["END go_to_ice"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N0 --> N16

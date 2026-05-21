@@ -1,0 +1,81 @@
+flowchart TD
+  N0(["START pick_cup_for_hot_water(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'pick_cup_for_hot_water START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N4["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N5{"IF not cups_dict?"}
+  N6["Parameter/normalization: size_mapped = _normalize_paper_cup_size(cups_dict)"]
+  N7{"IF stage not in valid_stages or size_mapped not in valid_sizes?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not home(position='south_west')?"}
+  N10(["RETURN _fail()"])
+  N11{"IF stage in ('3', '4')?"}
+  N12{"IF not home(position='south')?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(run_skill('gotoJ_deg', *stage_positions(stage)))?"}
+  N15(["RETURN _fail()"])
+  N16{"IF not ok(run_skill('moveEE', *PAPER_CUP_MOVEMENT_OFFSETS('pickup_hot_water_down')))?"}
+  N17(["RETURN _fail()"])
+  N18{"IF size_mapped == '12oz'?"}
+  N19{"IF not ok(run_skill('set_gripper_position', 255,120,255, verify_position=True))?"}
+  N20(["RETURN _fail()"])
+  N21{"IF not ok(run_skill('set_gripper_position', 255,130,255, verify_position=True))?"}
+  N22(["RETURN _fail()"])
+  N23{"IF not ok(run_skill('sync'))?"}
+  N24(["RETURN _fail()"])
+  N25{"IF not ok(run_skill('set_speed_factor', 75))?"}
+  N26(["RETURN _fail()"])
+  N27{"IF not ok(run_skill('moveEE_movJ', *PAPER_CUP_MOVEMENT_OFFSETS('pickup_up')))?"}
+  N28(["RETURN _fail()"])
+  N29{"IF not home(position='west')?"}
+  N30(["RETURN _fail()"])
+  N31{"IF not ok(run_skill('approach_machine', 'three_group_espresso', 'hot_water'))?"}
+  N32(["RETURN _fail()"])
+  N33{"IF not ok(run_skill('mount_machine', 'three_group_espresso', 'hot_water'))?"}
+  N34(["RETURN _fail()"])
+  N35{"IF not ok(run_skill('sync'))?"}
+  N36(["RETURN _fail()"])
+  N37(["RETURN True"])
+  N38(["END pick_cup_for_hot_water"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N5 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N11 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N19 -- "yes" --> N20
+  N18 -- "no" --> N21
+  N21 -- "yes" --> N22
+  N19 --> N23
+  N21 --> N23
+  N23 -- "yes" --> N24
+  N23 --> N25
+  N25 -- "yes" --> N26
+  N25 --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 -- "yes" --> N32
+  N31 --> N33
+  N33 -- "yes" --> N34
+  N33 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N0 --> N38

@@ -1,0 +1,8 @@
+flowchart TD
+  N0(["START home(**params)"])
+  N1["Robot call: result = _raw_home(*args, **kwargs)"]
+  N2(["RETURN result"])
+  N3(["END home"])
+  N0 --> N1
+  N1 --> N2
+  N0 --> N3

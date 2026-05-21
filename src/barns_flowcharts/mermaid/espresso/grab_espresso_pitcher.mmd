@@ -1,0 +1,202 @@
+flowchart TD
+  N0(["START grab_espresso_pitcher(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = _normalize_espresso_shot(espresso_dict)"]
+  N4{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N5(["RETURN angled_grab_espresso_pitcher(**params)"])
+  N6["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'port_1')"]
+  N7{"IF not port or port not in ('port_1', 'port_2', 'port_3')?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *ESPRESSO_HOME))?"}
+  N10(["RETURN _fail()"])
+  N11["State/cache: cached = _pitcher_pick_cache.get(port)"]
+  N12["State/cache: pick2 = cached.get('pick2_approach') if cached else None"]
+  N13{"IF _is_valid_angles(pick2)?"}
+  N14{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *pick2))?"}
+  N15(["RETURN _fail()"])
+  N16{"IF not _run_cached_machine_approach( f'grab_pitcher:(port):approach:pick_pitcher_2', 'three_group_espresso', 'pick_pi..."}
+  N17(["RETURN _fail()"])
+  N18{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N19(["RETURN _fail()"])
+  N20["State/cache: pick2_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N21{"IF _is_valid_angles(pick2_angles)?"}
+  N22["State/cache: _pitcher_pick_cache.setdefault(port, ())('pick2_approach') = tuple(pick2_angles)"]
+  N23["State/cache: cached = _pitcher_pick_cache.get(port)"]
+  N24{"IF port == 'port_1'?"}
+  N25{"IF cached and cached.get('approach') and cached.get('mount')?"}
+  N26{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *cached('approach')))?"}
+  N27(["RETURN _fail()"])
+  N28{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *cached('mount')))?"}
+  N29(["RETURN _fail()"])
+  N30{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N31(["RETURN _fail()"])
+  N32{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'set_gripper_position', 255, 115, 255))?"}
+  N33(["RETURN _fail()"])
+  N34{"IF not _run_cached_machine_approach( f'grab_pitcher:(port):approach:pick_pitcher_1', 'three_group_espresso', 'pick_pi..."}
+  N35(["RETURN _fail()"])
+  N36{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N37(["RETURN _fail()"])
+  N38["State/cache: approach_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N39{"IF _is_valid_angles(approach_angles)?"}
+  N40["State/cache: _pitcher_pick_cache.setdefault(port, ())('approach') = tuple(approach_angles)"]
+  N41{"IF not _run_cached_machine_mount( f'grab_pitcher:(port):mount:pick_pitcher_1', 'three_group_espresso', 'pick_pitcher_..."}
+  N42(["RETURN _fail()"])
+  N43{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N44(["RETURN _fail()"])
+  N45{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'set_gripper_position', 255, 115, 255))?"}
+  N46(["RETURN _fail()"])
+  N47{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'release_tension'))?"}
+  N48(["RETURN _fail()"])
+  N49["State/cache: mount_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N50{"IF _is_valid_angles(mount_angles)?"}
+  N51["State/cache: _pitcher_pick_cache.setdefault(port, ())('mount') = tuple(mount_angles)"]
+  N52{"IF port == 'port_2'?"}
+  N53{"IF cached and cached.get('mount')?"}
+  N54{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *cached('mount')))?"}
+  N55(["RETURN _fail()"])
+  N56{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N57(["RETURN _fail()"])
+  N58{"IF not _run_cached_machine_mount( f'grab_pitcher:(port):mount:pick_pitcher_2', 'three_group_espresso', 'pick_pitcher_..."}
+  N59(["RETURN _fail()"])
+  N60{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N61(["RETURN _fail()"])
+  N62["State/cache: mount_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N63{"IF _is_valid_angles(mount_angles)?"}
+  N64["State/cache: _pitcher_pick_cache.setdefault(port, ())('mount') = tuple(mount_angles)"]
+  N65{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'set_gripper_position', 255, 115, 255))?"}
+  N66(["RETURN _fail()"])
+  N67{"IF port == 'port_3'?"}
+  N68{"IF cached and cached.get('approach') and cached.get('mount')?"}
+  N69{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *cached('approach')))?"}
+  N70(["RETURN _fail()"])
+  N71{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'gotoJ_deg', *cached('mount')))?"}
+  N72(["RETURN _fail()"])
+  N73{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N74(["RETURN _fail()"])
+  N75{"IF not _run_cached_machine_approach( f'grab_pitcher:(port):approach:pick_pitcher_3', 'three_group_espresso', 'pick_pi..."}
+  N76(["RETURN _fail()"])
+  N77{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N78(["RETURN _fail()"])
+  N79["State/cache: approach_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N80{"IF _is_valid_angles(approach_angles)?"}
+  N81["State/cache: _pitcher_pick_cache.setdefault(port, ())('approach') = tuple(approach_angles)"]
+  N82{"IF not _run_cached_machine_mount( f'grab_pitcher:(port):mount:pick_pitcher_3', 'three_group_espresso', 'pick_pitcher_..."}
+  N83(["RETURN _fail()"])
+  N84{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'sync'))?"}
+  N85(["RETURN _fail()"])
+  N86["State/cache: mount_angles = _trace_run_skill('grab_espresso_pitcher', 'current_angles')"]
+  N87{"IF _is_valid_angles(mount_angles)?"}
+  N88["State/cache: _pitcher_pick_cache.setdefault(port, ())('mount') = tuple(mount_angles)"]
+  N89{"IF not ok(_trace_run_skill('grab_espresso_pitcher', 'set_gripper_position', 255, 115, 255))?"}
+  N90["... diagram capped for readability; source has additional low-level steps"]
+  N91["... diagram capped for readability; source has additional low-level steps"]
+  N92["... diagram capped for readability; source has additional low-level steps"]
+  N93(["END grab_espresso_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 --> N12
+  N12 --> N13
+  N13 -- "yes" --> N14
+  N14 -- "yes" --> N15
+  N13 -- "no" --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 --> N21
+  N21 -- "yes" --> N22
+  N14 --> N23
+  N22 --> N23
+  N21 --> N23
+  N23 --> N24
+  N24 -- "yes" --> N25
+  N25 -- "yes" --> N26
+  N26 -- "yes" --> N27
+  N26 --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N30 -- "yes" --> N31
+  N30 --> N32
+  N32 -- "yes" --> N33
+  N25 -- "no" --> N34
+  N34 -- "yes" --> N35
+  N34 --> N36
+  N36 -- "yes" --> N37
+  N36 --> N38
+  N38 --> N39
+  N39 -- "yes" --> N40
+  N40 --> N41
+  N39 --> N41
+  N41 -- "yes" --> N42
+  N41 --> N43
+  N43 -- "yes" --> N44
+  N43 --> N45
+  N45 -- "yes" --> N46
+  N45 --> N47
+  N47 -- "yes" --> N48
+  N47 --> N49
+  N49 --> N50
+  N50 -- "yes" --> N51
+  N24 -- "no" --> N52
+  N52 -- "yes" --> N53
+  N53 -- "yes" --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 -- "yes" --> N57
+  N53 -- "no" --> N58
+  N58 -- "yes" --> N59
+  N58 --> N60
+  N60 -- "yes" --> N61
+  N60 --> N62
+  N62 --> N63
+  N63 -- "yes" --> N64
+  N56 --> N65
+  N64 --> N65
+  N63 --> N65
+  N65 -- "yes" --> N66
+  N52 -- "no" --> N67
+  N67 -- "yes" --> N68
+  N68 -- "yes" --> N69
+  N69 -- "yes" --> N70
+  N69 --> N71
+  N71 -- "yes" --> N72
+  N71 --> N73
+  N73 -- "yes" --> N74
+  N68 -- "no" --> N75
+  N75 -- "yes" --> N76
+  N75 --> N77
+  N77 -- "yes" --> N78
+  N77 --> N79
+  N79 --> N80
+  N80 -- "yes" --> N81
+  N81 --> N82
+  N80 --> N82
+  N82 -- "yes" --> N83
+  N82 --> N84
+  N84 -- "yes" --> N85
+  N84 --> N86
+  N86 --> N87
+  N87 -- "yes" --> N88
+  N73 --> N89
+  N88 --> N89
+  N87 --> N89
+  N89 -- "yes" --> N90
+  N67 -- "no" --> N91
+  N32 --> N92
+  N51 --> N92
+  N50 --> N92
+  N65 --> N92
+  N90 --> N92
+  N89 --> N92
+  N91 --> N92
+  N92 --> N93

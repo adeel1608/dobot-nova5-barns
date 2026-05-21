@@ -1,0 +1,8 @@
+flowchart TD
+  N0(["START angled_mount_single(**params)"])
+  N1["Call: _trace_step('angled_mount_single', 'START')"]
+  N2(["RETURN angled_mount(**params)"])
+  N3(["END angled_mount_single"])
+  N0 --> N1
+  N1 --> N2
+  N0 --> N3

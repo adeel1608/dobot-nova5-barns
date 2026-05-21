@@ -1,0 +1,59 @@
+flowchart TD
+  N0(["START pick_frother(**params)"])
+  N1["Call: _trace_step('pick_frother', 'START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Nested helper defined: _secure_gripper_and_verify()"]
+  N4["Nested helper defined: _refresh_milk_frother_position_only()"]
+  N5["Nested helper defined: _reverse_to_pickup_area_and_recalibrate()"]
+  N6["State/cache: total_attempts = PICK_FROTHER_GRIP_VERIFY_RETRIES + 1"]
+  N7{"LOOP attempt_idx in range(1, total_attempts + 1)"}
+  N8["Call: _log.info( f'(PICK-FROTHER-GRIP) pickup attempt (attempt_idx)/(total_attempts)' )"]
+  N9{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('pickup')('area')))?"}
+  N10(["RETURN False"])
+  N11{"IF not ok(run_skill('approach_machine', 'milk_frother_2', 'milk_frother_1'))?"}
+  N12(["RETURN False"])
+  N13["Robot call: run_skill('sync')"]
+  N14{"IF not ok(run_skill( 'set_gripper_position', GRIPPER_FULL, MILK_FROTHER_GRIPPER_POSITIONS('pickup_initial'), ))?"}
+  N15(["RETURN False"])
+  N16{"IF not ok(run_skill('mount_machine', 'milk_frother_2', 'milk_frother_1'))?"}
+  N17(["RETURN False"])
+  N18["Robot call: run_skill('sync')"]
+  N19{"IF gripper_verified?"}
+  N20(["RETURN True"])
+  N21["Call: _log.warning( f'(PICK-FROTHER-GRIP) secure grip verify failed on attempt ' f'(attempt_idx)/(total_attempts): po..."]
+  N22{"IF attempt_idx >= total_attempts?"}
+  N23["Call: _log.error( f'(PICK-FROTHER-GRIP) FINAL FAIL after (total_attempts) attempts: ' f'last_pos=(gripper_pos), requi..."]
+  N24(["RETURN False"])
+  N25{"IF not _reverse_to_pickup_area_and_recalibrate(attempt_idx)?"}
+  N26(["RETURN False"])
+  N27(["RETURN False"])
+  N28(["END pick_frother"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 -- "iterate" --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 --> N22
+  N22 -- "yes" --> N23
+  N23 --> N24
+  N22 --> N25
+  N25 -- "yes" --> N26
+  N25 -- "next/retry" --> N7
+  N7 --> N27
+  N0 --> N28

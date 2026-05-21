@@ -1,0 +1,72 @@
+flowchart TD
+  N0(["START dispense_plastic_cup(**params)"])
+  N1["Call: _trace_step('dispense_plastic_cup', 'START')"]
+  N2["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N3["Parameter/normalization: cup_size = _normalize_plastic_cup_size(cups_dict if cups_dict else DEFAULT_PLASTIC_CUP_SIZE)"]
+  N4{"IF not cup_size or not validate_cup_size(cup_size)?"}
+  N5(["RETURN False"])
+  N6{"IF cup_size not in CUP_CONFIG?"}
+  N7(["RETURN False"])
+  N8["State/cache: attempt_count = 0"]
+  N9{"WHILE attempt_count < 15?"}
+  N10["Call: _trace_step('dispense_plastic_cup', f'attempt=(attempt_count + 1)/15 size=(cup_size) home=(config('home'))')"]
+  N11["Robot call: home(position=config('home'))"]
+  N12["Robot call: run_skill('set_gripper_position', 255, 0, 255, verify_position=True)"]
+  N13["Robot call: run_skill('gotoJ_deg', *config('coords'))"]
+  N14["Robot call: run_skill('moveEE', 0.0, 328.0, 10.0, 0, 0, 0)"]
+  N15["Robot call: run_skill('set_gripper_position', 255, dp('gripper_pos'), 255, verify_position=True)"]
+  N16["Robot call: run_skill('sync')"]
+  N17["Robot call: run_skill('set_DO', dp('do_index'), 1)"]
+  N18["Call: time.sleep(1.5)"]
+  N19["Robot call: run_skill('set_DO', dp('do_index'), 0)"]
+  N20["Robot call: run_skill('moveEE', 0, 0, -150, 0, 0, 0)"]
+  N21["Robot call: run_skill('moveEE', 0, -328.0, 0, 0, 0, 0)"]
+  N22["Robot call: run_skill('gotoJ_deg', *config('coords'))"]
+  N23["Robot call: home(position=config('home'))"]
+  N24["Robot call: home(position='north')"]
+  N25["Robot call: run_skill('sync')"]
+  N26["State/cache: cup_detected = detect_cup_gripper()"]
+  N27["Call: _trace_step('dispense_plastic_cup', f'cup detection result=(cup_detected)')"]
+  N28{"IF cup_detected?"}
+  N29["BREAK"]
+  N30["State/cache: attempt_count += 1"]
+  N31{"IF attempt_count == 15?"}
+  N32(["RETURN False"])
+  N33(["RETURN True"])
+  N34(["END dispense_plastic_cup"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 --> N9
+  N9 -- "iterate" --> N10
+  N10 --> N11
+  N11 --> N12
+  N12 --> N13
+  N13 --> N14
+  N14 --> N15
+  N15 --> N16
+  N16 --> N17
+  N17 --> N18
+  N18 --> N19
+  N19 --> N20
+  N20 --> N21
+  N21 --> N22
+  N22 --> N23
+  N23 --> N24
+  N24 --> N25
+  N25 --> N26
+  N26 --> N27
+  N27 --> N28
+  N28 -- "yes" --> N29
+  N29 --> N30
+  N28 --> N30
+  N30 --> N31
+  N31 -- "yes" --> N32
+  N31 -- "next/retry" --> N9
+  N9 --> N33
+  N0 --> N34

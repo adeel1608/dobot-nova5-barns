@@ -1,0 +1,44 @@
+flowchart TD
+  N0(["START get_machine_position(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Call: invalidate_port_cache()"]
+  N3["Call: invalidate_cleaning_cache()"]
+  N4["Call: angled_invalidate_cleaning_cache()"]
+  N5["Call: angled_invalidate_port_cache()"]
+  N6["Robot call: run_skill('set_speed_factor', SPEED_FAST)"]
+  N7{"IF not return_back_to_home()?"}
+  N8(["RETURN False"])
+  N9["Nested helper defined: _prep_cleaner()"]
+  N10{"IF not _calibrate_marker('portafilter_cleaner', _prep_cleaner, ok)?"}
+  N11(["RETURN False"])
+  N12["Nested helper defined: _prep_grinder()"]
+  N13{"IF not _calibrate_marker('espresso_grinder', _prep_grinder, ok)?"}
+  N14(["RETURN False"])
+  N15["Nested helper defined: _prep_espresso()"]
+  N16{"IF not _calibrate_marker('three_group_espresso', _prep_espresso, ok)?"}
+  N17(["RETURN False"])
+  N18{"IF not ok(run_skill('gotoJ_deg', *ESPRESSO_HOME))?"}
+  N19(["RETURN False"])
+  N20(["RETURN True"])
+  N21(["END get_machine_position"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N0 --> N21

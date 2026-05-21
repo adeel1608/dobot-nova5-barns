@@ -1,0 +1,105 @@
+flowchart TD
+  N0(["START grab_paper_cup(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N3["Parameter/normalization: size = _normalize_paper_cup_size(cups_dict if cups_dict else '7oz')"]
+  N4{"IF not size?"}
+  N5(["RETURN _fail()"])
+  N6{"IF not cup_params?"}
+  N7{"IF not cup_params?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not ok(run_skill('gotoJ_deg', *ESPRESSO_HOME))?"}
+  N10(["RETURN _fail()"])
+  N11{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('espresso_avoid')))?"}
+  N12(["RETURN _fail()"])
+  N13{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('dispenser_area')))?"}
+  N14(["RETURN _fail()"])
+  N15["State/cache: attempt_count = 0"]
+  N16{"WHILE attempt_count < 15?"}
+  N17{"IF size == '7oz'?"}
+  N18{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('twist_7oz')))?"}
+  N19(["RETURN _fail()"])
+  N20{"IF size == '9oz'?"}
+  N21{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('twist_9oz')))?"}
+  N22(["RETURN _fail()"])
+  N23{"IF size == '12oz'?"}
+  N24{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_NAVIGATION_PARAMS('twist_12oz')))?"}
+  N25(["RETURN _fail()"])
+  N26(["RETURN _fail()"])
+  N27{"IF 'approach' in cup_params?"}
+  N28{"IF not ok(run_skill('moveEE', *cup_params('approach')))?"}
+  N29(["RETURN _fail()"])
+  N30{"IF 'grip_width' not in cup_params?"}
+  N31(["RETURN _fail()"])
+  N32{"IF not ok(run_skill('set_gripper_position', GRIPPER_FULL, cup_params('grip_width'), verify_position=True))?"}
+  N33(["RETURN _fail()"])
+  N34{"IF 'retreat' in cup_params?"}
+  N35{"IF not ok(run_skill('moveEE', *cup_params('retreat')))?"}
+  N36(["RETURN _fail()"])
+  N37["State/cache: cup_detected = detect_cup_gripper()"]
+  N38{"IF cup_detected?"}
+  N39["BREAK"]
+  N40["State/cache: attempt_count += 1"]
+  N41{"IF not ok(run_skill('sync'))?"}
+  N42(["RETURN _fail()"])
+  N43{"IF not ok(run_skill('set_gripper_position', GRIPPER_FULL, GRIPPER_OPEN, verify_position=True))?"}
+  N44(["RETURN _fail()"])
+  N45{"IF attempt_count == 15?"}
+  N46(["RETURN _fail()"])
+  N47(["RETURN True"])
+  N48(["END grab_paper_cup"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 -- "yes" --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N6 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 --> N16
+  N16 -- "iterate" --> N17
+  N17 -- "yes" --> N18
+  N18 -- "yes" --> N19
+  N17 -- "no" --> N20
+  N20 -- "yes" --> N21
+  N21 -- "yes" --> N22
+  N20 -- "no" --> N23
+  N23 -- "yes" --> N24
+  N24 -- "yes" --> N25
+  N23 -- "no" --> N26
+  N18 --> N27
+  N21 --> N27
+  N24 --> N27
+  N27 -- "yes" --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N27 --> N30
+  N30 -- "yes" --> N31
+  N30 --> N32
+  N32 -- "yes" --> N33
+  N32 --> N34
+  N34 -- "yes" --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N34 --> N37
+  N37 --> N38
+  N38 -- "yes" --> N39
+  N39 --> N40
+  N38 --> N40
+  N40 --> N41
+  N41 -- "yes" --> N42
+  N41 --> N43
+  N43 -- "yes" --> N44
+  N43 --> N45
+  N45 -- "yes" --> N46
+  N45 -- "next/retry" --> N16
+  N16 --> N47
+  N0 --> N48

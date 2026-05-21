@@ -1,0 +1,16 @@
+flowchart TD
+  N0(["START angled_with_hot_water(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2{"IF not ok(_trace_run_skill('angled_with_hot_water', 'set_speed_factor', ESPRESSO_SPEEDS('hot_water_pour')))?"}
+  N3(["RETURN _fail()"])
+  N4{"IF not ok(_trace_run_skill('angled_with_hot_water', 'moveEE_movJ', *ESPRESSO_MOVEMENT_OFFSETS('hot_water_retreat')))?"}
+  N5(["RETURN _fail()"])
+  N6(["RETURN True"])
+  N7(["END angled_with_hot_water"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N0 --> N7

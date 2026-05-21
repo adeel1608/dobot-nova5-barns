@@ -1,0 +1,22 @@
+flowchart TD
+  N0(["START home(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: position = params.get('position', 'north')"]
+  N3{"IF not position?"}
+  N4(["RETURN _fail('missing home position')"])
+  N5{"IF not angles?"}
+  N6(["RETURN _fail(f'unknown home position=(position)')"])
+  N7{"IF not ok(run_skill('gotoJ_deg', *angles))?"}
+  N8(["RETURN False"])
+  N9(["RETURN True"])
+  N10(["END home"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N0 --> N10

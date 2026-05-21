@@ -1,0 +1,62 @@
+flowchart TD
+  N0(["START place_plastic_cup_sauces(**params)"])
+  N1["Call: _trace_step('place_plastic_cup_sauces', 'START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N4["Parameter/normalization: cup_size = _normalize_plastic_cup_size(cups_dict) if cups_dict else None"]
+  N5{"IF not cup_size or cup_size not in ('7oz', '9oz', '12oz', '16oz')?"}
+  N6(["RETURN False"])
+  N7{"IF not after_dispense?"}
+  N8["Robot call: run_skill('set_speed_factor', SPEED_NORMAL)"]
+  N9{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('sauces_station')('position1')))?"}
+  N10(["RETURN False"])
+  N11{"IF not ok(run_skill('gotoJ_deg', *PLASTIC_CUPS_PARAMS('sauces_station')('position2')))?"}
+  N12(["RETURN False"])
+  N13{"IF _is_valid_angles(_place_plastic_cup_sauces_cache)?"}
+  N14{"IF not ok(run_skill('gotoJ_deg', *_place_plastic_cup_sauces_cache))?"}
+  N15(["RETURN False"])
+  N16["Robot call: run_skill('sync')"]
+  N17{"IF not ok(run_skill('moveEE', -5, 0, 0, 0, 0, 0))?"}
+  N18(["RETURN False"])
+  N19["State/cache: nudge_pose = _capture_current_angles()"]
+  N20{"IF not _is_valid_angles(nudge_pose)?"}
+  N21(["RETURN False"])
+  N22["State/cache: _place_plastic_cup_sauces_cache = nudge_pose"]
+  N23{"IF not ok(run_skill('set_gripper_position', GRIPPER_RELEASE_GENTLE, GRIPPER_HOLD_LOOSE, verify_position=True))?"}
+  N24(["RETURN False"])
+  N25["State/cache: cup_detected = detect_cup_gripper()"]
+  N26{"IF not cup_detected?"}
+  N27(["RETURN False"])
+  N28(["RETURN True"])
+  N29(["END place_plastic_cup_sauces"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N8 --> N9
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N13 -- "no" --> N17
+  N17 -- "yes" --> N18
+  N17 --> N19
+  N19 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N16 --> N23
+  N22 --> N23
+  N23 -- "yes" --> N24
+  N23 --> N25
+  N25 --> N26
+  N26 -- "yes" --> N27
+  N26 --> N28
+  N0 --> N29

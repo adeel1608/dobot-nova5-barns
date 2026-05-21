@@ -1,0 +1,28 @@
+flowchart TD
+  N0(["START unmount_and_swirl_milk(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Call: time.sleep(MILK_FROTHING_DELAYS('swirl_delay'))"]
+  N3{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_EXTRA_POSES('deep_froth_approach')))?"}
+  N4(["RETURN False"])
+  N5["Robot call: run_skill('set_speed_factor', MILK_FROTHER_SPEEDS('swirl'))"]
+  N6{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('swirling')('intermediate1')))?"}
+  N7(["RETURN False"])
+  N8{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('swirling')('swirl_pos')))?"}
+  N9(["RETURN False"])
+  N10["Robot call: run_skill('sync')"]
+  N11["Robot call: run_skill( 'move_circle', MILK_SWIRL_CIRCLE_PARAMS('cycles'), MILK_SWIRL_CIRCLE_PARAMS('point1_offset'), ..."]
+  N12(["RETURN True"])
+  N13(["END unmount_and_swirl_milk"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N6 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 --> N11
+  N11 --> N12
+  N0 --> N13

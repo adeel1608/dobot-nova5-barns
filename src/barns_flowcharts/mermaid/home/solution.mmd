@@ -1,0 +1,18 @@
+flowchart TD
+  N0(["START solution(**params)"])
+  N1["Robot call: pos_result = run_skill('positive_solution', j1, j2, j3, j4, j5, j6)"]
+  N2{"IF not pos_result or not hasattr(pos_result, 'pose')?"}
+  N3(["RETURN None"])
+  N4["Robot call: inv_result = run_skill('inverse_solution', new_x, new_y, new_z, new_rx, new_ry, new_rz)"]
+  N5{"IF inv_result and hasattr(inv_result, 'angle')?"}
+  N6(["RETURN None"])
+  N7(["RETURN inv_result"])
+  N8(["END solution"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N4 --> N5
+  N5 -- "no" --> N6
+  N5 --> N7
+  N0 --> N8

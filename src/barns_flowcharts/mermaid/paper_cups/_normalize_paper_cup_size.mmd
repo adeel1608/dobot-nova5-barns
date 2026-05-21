@@ -1,0 +1,41 @@
+flowchart TD
+  N0(["START _normalize_paper_cup_size(**params)"])
+  N1{"IF not cups_dict?"}
+  N2(["RETURN DEFAULT_PAPER_CUP_SIZE"])
+  N3{"IF isinstance(cups_dict, dict)?"}
+  N4{"IF cup_key?"}
+  N5{"IF 'CUP_' in cup_key_str?"}
+  N6{"IF cup_code and len(cup_code) >= 2?"}
+  N7{"IF cup_code(0) in ('H', 'C')?"}
+  N8{"IF size_num in ('7', '9', '12')?"}
+  N9(["RETURN f'(size_num)oz'"])
+  N10["Parameter/normalization: result = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')"]
+  N11{"IF result and result != ''?"}
+  N12(["RETURN result"])
+  N13["Parameter/normalization: result = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')"]
+  N14{"IF result and result != '' and result in ('7oz', '9oz', '12oz')?"}
+  N15(["RETURN result"])
+  N16(["RETURN DEFAULT_PAPER_CUP_SIZE"])
+  N17(["END _normalize_paper_cup_size"])
+  N0 --> N1
+  N1 -- "yes" --> N2
+  N1 --> N3
+  N3 -- "yes" --> N4
+  N4 -- "yes" --> N5
+  N5 --> N6
+  N5 --> N6
+  N6 -- "yes" --> N7
+  N7 --> N8
+  N7 --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N6 --> N10
+  N4 --> N10
+  N3 --> N10
+  N10 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N0 --> N17

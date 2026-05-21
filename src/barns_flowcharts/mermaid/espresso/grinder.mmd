@@ -1,0 +1,114 @@
+flowchart TD
+  N0(["START grinder(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = _normalize_espresso_shot(espresso_dict)"]
+  N4{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N5(["RETURN angled_grinder(**params)"])
+  N6["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'port_1')"]
+  N7["Parameter/normalization: positioning_time = params.get('positioning_time')"]
+  N8{"IF positioning_time is None?"}
+  N9["Parameter/normalization: portafilter_tool = ( params.get('portafilter_tool') or (shot_cfg.get('portafilter_tool') if ..."]
+  N10{"IF not port or portafilter_tool not in ('single_portafilter', 'double_portafilter')?"}
+  N11(["RETURN _fail()"])
+  N12{"IF port == 'port_1'?"}
+  N13{"IF not ok(_trace_run_skill('grinder', 'gotoJ_deg', *ESPRESSO_GRINDER_HOME))?"}
+  N14(["RETURN _fail()"])
+  N15{"IF not _run_cached_machine_approach( f'grinder:(port):approach:grinder', 'espresso_grinder', 'grinder', )?"}
+  N16(["RETURN _fail()"])
+  N17["State/cache: grinder_cache_key = f'(port)_grinder_post_mount'"]
+  N18["State/cache: cached_grinder_mount_pose = _grinder_post_mount_cache.get(grinder_cache_key)"]
+  N19{"IF _is_valid_angles(cached_grinder_mount_pose)?"}
+  N20{"IF not ok(_trace_run_skill('grinder', 'gotoJ_deg', *cached_grinder_mount_pose))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not _run_cached_machine_mount( f'grinder:(port):mount:grinder', 'espresso_grinder', 'grinder', )?"}
+  N23(["RETURN _fail()"])
+  N24["State/cache: grinder_mount_pose = _trace_run_skill('grinder', 'current_angles')"]
+  N25{"IF not _is_valid_angles(grinder_mount_pose)?"}
+  N26(["RETURN _fail()"])
+  N27["State/cache: _grinder_post_mount_cache(grinder_cache_key) = tuple(grinder_mount_pose)"]
+  N28{"IF not _run_cached_machine_approach( f'grinder:(port):approach:tamper', 'espresso_grinder', 'tamper', )?"}
+  N29(["RETURN _fail()"])
+  N30{"IF not ok(_trace_run_skill('grinder', 'sync'))?"}
+  N31(["RETURN _fail()"])
+  N32["Call: time.sleep(positioning_time)"]
+  N33{"IF not _run_cached_machine_mount( f'grinder:(port):mount:grinder:final', 'espresso_grinder', 'grinder', )?"}
+  N34(["RETURN _fail()"])
+  N35{"IF not _run_cached_machine_mount( f'grinder:(port):mount:tamper', 'espresso_grinder', 'tamper', )?"}
+  N36(["RETURN _fail()"])
+  N37{"IF not ok(_trace_run_skill('grinder', 'sync'))?"}
+  N38(["RETURN _fail()"])
+  N39{"IF not ok(_trace_run_skill('grinder', 'set_gripper_position', 255, 0, 255))?"}
+  N40(["RETURN _fail()"])
+  N41["State/cache: cached_tool_pick_pose = _tool_pick_pose_cache.get(portafilter_tool)"]
+  N42{"IF _is_valid_angles(cached_tool_pick_pose)?"}
+  N43{"IF not ok(_trace_run_skill('grinder', 'gotoJ_deg', *cached_tool_pick_pose))?"}
+  N44(["RETURN _fail()"])
+  N45{"IF not ok(_trace_run_skill('grinder', 'moveEE_movJ', -50, 50, 50, 15, 0, 0))?"}
+  N46(["RETURN _fail()"])
+  N47["State/cache: tool_pick_pose = _trace_run_skill('grinder', 'current_angles')"]
+  N48{"IF not _is_valid_angles(tool_pick_pose)?"}
+  N49(["RETURN _fail()"])
+  N50["State/cache: _tool_pick_pose_cache(portafilter_tool) = tuple(tool_pick_pose)"]
+  N51{"IF not ok(_trace_run_skill('grinder', 'gotoJ_deg', *ESPRESSO_GRINDER_HOME))?"}
+  N52(["RETURN _fail()"])
+  N53(["RETURN True"])
+  N54(["END grinder"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 -- "yes" --> N5
+  N4 --> N6
+  N6 --> N7
+  N7 --> N8
+  N8 --> N9
+  N8 --> N9
+  N9 --> N10
+  N10 -- "yes" --> N11
+  N10 --> N12
+  N12 -- "yes" --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N12 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N17 --> N18
+  N18 --> N19
+  N19 -- "yes" --> N20
+  N20 -- "yes" --> N21
+  N19 -- "no" --> N22
+  N22 -- "yes" --> N23
+  N22 --> N24
+  N24 --> N25
+  N25 -- "yes" --> N26
+  N25 --> N27
+  N20 --> N28
+  N27 --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N30 -- "yes" --> N31
+  N30 --> N32
+  N32 --> N33
+  N33 -- "yes" --> N34
+  N33 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N37 -- "yes" --> N38
+  N37 --> N39
+  N39 -- "yes" --> N40
+  N39 --> N41
+  N41 --> N42
+  N42 -- "yes" --> N43
+  N43 -- "yes" --> N44
+  N42 -- "no" --> N45
+  N45 -- "yes" --> N46
+  N45 --> N47
+  N47 --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N43 --> N51
+  N50 --> N51
+  N51 -- "yes" --> N52
+  N51 --> N53
+  N0 --> N54

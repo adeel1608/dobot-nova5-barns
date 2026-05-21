@@ -1,0 +1,20 @@
+flowchart TD
+  N0(["START invalidate_milk_frothing_cache(**params)"])
+  N1["Call: _trace_step('invalidate_milk_frothing_cache', 'START')"]
+  N2["Call: _place_frother_milk_station_cache.clear()"]
+  N3["State/cache: _pick_frother_milk_station_cache = None"]
+  N4["Call: _mount_frother_cache.clear()"]
+  N5["Call: _pour_milk_cup_station_cache.clear()"]
+  N6["State/cache: _clean_milk_pitcher_cache = None"]
+  N7["Call: _return_frother_cache.clear()"]
+  N8["Call: _pick_frother_cache.clear()"]
+  N9(["END invalidate_milk_frothing_cache"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 --> N8
+  N8 --> N9

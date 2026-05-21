@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START run_skill(**params)"])
+  N1["Robot call: _trace_step('run_skill', f'(skill_name) START args=(_trace_format_value(skill_args)) kwargs=(_trace_forma..."]
+  N2["Robot call: result = _raw_run_skill(*args, **kwargs)"]
+  N3["Robot call: _trace_step('run_skill', f'(skill_name) DONE result=(_trace_format_value(result))')"]
+  N4(["RETURN result"])
+  N5(["END run_skill"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N0 --> N5

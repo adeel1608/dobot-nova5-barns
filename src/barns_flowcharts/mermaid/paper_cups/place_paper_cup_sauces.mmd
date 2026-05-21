@@ -1,0 +1,36 @@
+flowchart TD
+  N0(["START place_paper_cup_sauces(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'place_paper_cup_sauces START')"]
+  N2["Nested helper defined: ok()"]
+  N3{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_STATION_PARAMS('sauces_station')('position1')))?"}
+  N4(["RETURN _fail()"])
+  N5{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_STATION_PARAMS('sauces_station')('position2')))?"}
+  N6(["RETURN _fail()"])
+  N7{"IF not ok(run_skill('gotoJ_deg', *PAPER_CUPS_STATION_PARAMS('sauces_station')('position3')))?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not ok(run_skill('sync'))?"}
+  N10(["RETURN _fail()"])
+  N11{"IF not ok(run_skill('set_gripper_position', 255, 75, 255, verify_position=True))?"}
+  N12(["RETURN _fail()"])
+  N13["State/cache: cup_detected = detect_cup_gripper()"]
+  N14{"IF not cup_detected?"}
+  N15(["RETURN _fail()"])
+  N16(["RETURN True"])
+  N17(["END place_paper_cup_sauces"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N0 --> N17

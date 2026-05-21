@@ -1,0 +1,13 @@
+flowchart TD
+  N0(["START detect_cup_gripper(**params)"])
+  N1["Call: _trace_step('detect_cup_gripper', 'START')"]
+  N2{"IF not rclpy.ok()?"}
+  N3["State/cache: cup_detected = False"]
+  N4["Call: try: # Wait for first depth image and camera info print('(CV) Waiting for depth camera topics...') while (node...."]
+  N5(["END detect_cup_gripper"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5

@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START return_back_to_home(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', f'return_back_to_home START args=(_trace_format_value(args)) kwargs=(_trace_format_va..."]
+  N2["Robot call: result = _raw_return_back_to_home(*args, **kwargs)"]
+  N3["Call: _trace_step('PAPER-CUPS', f'return_back_to_home DONE result=(_trace_format_value(result))')"]
+  N4(["RETURN result"])
+  N5(["END return_back_to_home"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N0 --> N5

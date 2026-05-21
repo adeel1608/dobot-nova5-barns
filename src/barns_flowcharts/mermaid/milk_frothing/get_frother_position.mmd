@@ -1,0 +1,122 @@
+flowchart TD
+  N0(["START get_frother_position(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Call: invalidate_plastic_cup_cache()"]
+  N3["Call: invalidate_milk_frothing_cache()"]
+  N4["Robot call: run_skill('set_speed_factor', 100)"]
+  N5{"IF not return_back_to_home()?"}
+  N6(["RETURN False"])
+  N7{"IF not home(position='north_east')?"}
+  N8(["RETURN False"])
+  N9{"IF not _get_frother_position_done?"}
+  N10["State/cache: steam_calibrated = False"]
+  N11{"LOOP attempt in range(1, MAX_FROTHER_CALIBRATION_RETRIES + 1)"}
+  N12{"LOOP _ in range(cycles)"}
+  N13["Call: time.sleep(CALIBRATION_SETTLE_TIME)"]
+  N14{"IF not ok(run_skill('move_to', 'left_steam_wand', 0.29))?"}
+  N15["BREAK"]
+  N16{"IF not prep_ok?"}
+  N17["Call: _log.warning(f'(CALIBRATION) left_steam_wand prep failed (attempt (attempt)/(MAX_FROTHER_CALIBRATION_RETRIES))')"]
+  N18["Call: time.sleep(1.0)"]
+  N19["CONTINUE"]
+  N20{"IF ok(run_skill('get_machine_position', 'left_steam_wand'))?"}
+  N21["State/cache: steam_calibrated = True"]
+  N22["BREAK"]
+  N23["Call: _log.warning(f'(CALIBRATION) left_steam_wand failed (attempt (attempt)/(MAX_FROTHER_CALIBRATION_RETRIES))')"]
+  N24["Call: time.sleep(1.0)"]
+  N25{"IF not steam_calibrated?"}
+  N26["Call: _log.error(f'(CALIBRATION) left_steam_wand failed after (MAX_FROTHER_CALIBRATION_RETRIES) attempts')"]
+  N27(["RETURN False"])
+  N28{"IF not home(position='north_east')?"}
+  N29(["RETURN False"])
+  N30{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_EXTRA_POSES('frother_calibration_transition')))?"}
+  N31(["RETURN False"])
+  N32{"IF not _milk_frother_position_done?"}
+  N33["State/cache: frother_calibrated = False"]
+  N34{"LOOP attempt in range(1, MAX_FROTHER_CALIBRATION_RETRIES + 1)"}
+  N35{"LOOP _ in range(cycles)"}
+  N36["Call: time.sleep(CALIBRATION_SETTLE_TIME)"]
+  N37{"IF not ok(run_skill('move_to', 'milk_frother_2', 0.29))?"}
+  N38["BREAK"]
+  N39{"IF not prep_ok?"}
+  N40["Call: _log.warning(f'(CALIBRATION) milk_frother_2 prep failed (attempt (attempt)/(MAX_FROTHER_CALIBRATION_RETRIES))')"]
+  N41["Call: time.sleep(1.0)"]
+  N42["CONTINUE"]
+  N43{"IF ok(run_skill('get_machine_position', 'milk_frother_2'))?"}
+  N44["State/cache: frother_calibrated = True"]
+  N45["BREAK"]
+  N46["Call: _log.warning(f'(CALIBRATION) milk_frother_2 failed (attempt (attempt)/(MAX_FROTHER_CALIBRATION_RETRIES))')"]
+  N47["Call: time.sleep(1.0)"]
+  N48{"IF not frother_calibrated?"}
+  N49["Call: _log.error(f'(CALIBRATION) milk_frother_2 failed after (MAX_FROTHER_CALIBRATION_RETRIES) attempts')"]
+  N50(["RETURN False"])
+  N51{"IF not home(position='north')?"}
+  N52(["RETURN False"])
+  N53(["RETURN True"])
+  N54(["END get_frother_position"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N10 --> N11
+  N11 -- "iterate" --> N12
+  N12 -- "iterate" --> N13
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N15 -- "next/retry" --> N12
+  N14 -- "next/retry" --> N12
+  N12 --> N16
+  N16 -- "yes" --> N17
+  N17 --> N18
+  N18 --> N19
+  N19 --> N20
+  N16 --> N20
+  N20 -- "yes" --> N21
+  N21 --> N22
+  N22 --> N23
+  N20 --> N23
+  N23 --> N24
+  N24 -- "next/retry" --> N11
+  N11 --> N25
+  N25 -- "yes" --> N26
+  N26 --> N27
+  N25 --> N28
+  N9 --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N30 -- "yes" --> N31
+  N30 --> N32
+  N32 -- "yes" --> N33
+  N33 --> N34
+  N34 -- "iterate" --> N35
+  N35 -- "iterate" --> N36
+  N36 --> N37
+  N37 -- "yes" --> N38
+  N38 -- "next/retry" --> N35
+  N37 -- "next/retry" --> N35
+  N35 --> N39
+  N39 -- "yes" --> N40
+  N40 --> N41
+  N41 --> N42
+  N42 --> N43
+  N39 --> N43
+  N43 -- "yes" --> N44
+  N44 --> N45
+  N45 --> N46
+  N43 --> N46
+  N46 --> N47
+  N47 -- "next/retry" --> N34
+  N34 --> N48
+  N48 -- "yes" --> N49
+  N49 --> N50
+  N48 --> N51
+  N32 --> N51
+  N51 -- "yes" --> N52
+  N51 --> N53
+  N0 --> N54

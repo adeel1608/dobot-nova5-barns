@@ -1,0 +1,74 @@
+flowchart TD
+  N0(["START place_frother_milk_station(**params)"])
+  N1["Call: _trace_step('place_frother_milk_station', 'START')"]
+  N2["Nested helper defined: ok()"]
+  N3["State/cache: cached_lift = _place_frother_milk_station_cache.get('lift_after_place')"]
+  N4["State/cache: cached_nudge = _place_frother_milk_station_cache.get('final_nudge')"]
+  N5{"IF _is_valid_position(cached_lift)?"}
+  N6{"IF not ok(run_skill('gotoEE', *cached_lift))?"}
+  N7(["RETURN False"])
+  N8{"IF not ok(run_skill('moveEE', *MILK_FROTHER_MOVEMENT_OFFSETS('lift_after_place')))?"}
+  N9(["RETURN False"])
+  N10["Call: lift_pose = _capture_current_position()"]
+  N11{"IF not _is_valid_position(lift_pose)?"}
+  N12(["RETURN False"])
+  N13["State/cache: _place_frother_milk_station_cache('lift_after_place') = lift_pose"]
+  N14{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('place_pre1')))?"}
+  N15(["RETURN False"])
+  N16{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('place_pre2')))?"}
+  N17(["RETURN False"])
+  N18{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('place_approach')))?"}
+  N19(["RETURN False"])
+  N20{"IF not ok(run_skill('gotoJ_deg', *MILK_FROTHING_PARAMS('milk_station')('place_final')))?"}
+  N21(["RETURN False"])
+  N22{"IF _is_valid_angles(cached_nudge)?"}
+  N23{"IF not ok(run_skill('gotoJ_deg', *cached_nudge))?"}
+  N24(["RETURN False"])
+  N25["Robot call: run_skill('sync')"]
+  N26{"IF not ok(run_skill('moveEE_movJ', 5, 0, 0, 0, 0, 0))?"}
+  N27(["RETURN False"])
+  N28["State/cache: nudge_pose = _capture_current_angles()"]
+  N29{"IF not _is_valid_angles(nudge_pose)?"}
+  N30(["RETURN False"])
+  N31["State/cache: _place_frother_milk_station_cache('final_nudge') = nudge_pose"]
+  N32{"IF not ok(run_skill('set_gripper_position', 25, 220, 255))?"}
+  N33(["RETURN False"])
+  N34(["RETURN True"])
+  N35(["END place_frother_milk_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 -- "yes" --> N6
+  N6 -- "yes" --> N7
+  N5 -- "no" --> N8
+  N8 -- "yes" --> N9
+  N8 --> N10
+  N10 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N6 --> N14
+  N13 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N23 -- "yes" --> N24
+  N23 --> N25
+  N22 -- "no" --> N26
+  N26 -- "yes" --> N27
+  N26 --> N28
+  N28 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N25 --> N32
+  N31 --> N32
+  N32 -- "yes" --> N33
+  N32 --> N34
+  N0 --> N35

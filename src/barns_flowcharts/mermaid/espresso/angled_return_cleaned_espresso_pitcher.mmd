@@ -1,0 +1,202 @@
+flowchart TD
+  N0(["START angled_return_cleaned_espresso_pitcher(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N3["Parameter/normalization: shot_cfg = angled__normalize_espresso_shot(espresso_dict)"]
+  N4["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else 'port_2')"]
+  N5{"IF not port or port not in ('port_1', 'port_2', 'port_3', 'angled_portafilter_1', 'angled_portafilter_2')?"}
+  N6(["RETURN _fail()"])
+  N7{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'gotoJ_deg', *ESPRESSO_HOME))?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not _run_cached_machine_approach( f'angled_return_clean_pitcher:(port):approach:pick_pitcher_2', 'three_group_espr..."}
+  N10(["RETURN _fail()"])
+  N11["State/cache: cached = angled__pitcher_clean_cache.get(port)"]
+  N12{"IF port in ('port_1', 'angled_portafilter_1')?"}
+  N13{"IF not _run_cached_machine_approach( f'angled_return_clean_pitcher:(port):approach:pick_pitcher_1', 'three_group_espr..."}
+  N14(["RETURN _fail()"])
+  N15{"IF not _run_cached_machine_mount( f'angled_return_clean_pitcher:(port):mount:pick_pitcher_1', 'three_group_espresso',..."}
+  N16(["RETURN _fail()"])
+  N17{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync'))?"}
+  N18(["RETURN _fail()"])
+  N19{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'set_gripper_position', 255,115,255))?"}
+  N20(["RETURN _fail()"])
+  N21{"IF cached?"}
+  N22{"LOOP angles in cached"}
+  N23{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'gotoJ_deg', *angles))?"}
+  N24(["RETURN _fail()"])
+  N25{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveEE_movJ', 0, 0, 20, 0, 0, 0))?"}
+  N26(["RETURN _fail()"])
+  N27["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N28{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveJ_deg', 0, 0, 0, 0, 0, -170))?"}
+  N29(["RETURN _fail()"])
+  N30["Robot call: _trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync')"]
+  N31["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N32{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveJ_deg', 0, 0, 0, 0, 0, 170))?"}
+  N33(["RETURN _fail()"])
+  N34["Robot call: _trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync')"]
+  N35["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N36{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveEE_movJ', 0, 0, -20, 0, 0, 0))?"}
+  N37(["RETURN _fail()"])
+  N38["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N39{"IF all(angled__is_valid_angles(w) for w in waypoints)?"}
+  N40["State/cache: angled__pitcher_clean_cache(port) = (tuple(w) for w in waypoints)"]
+  N41{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync'))?"}
+  N42(["RETURN _fail()"])
+  N43{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'set_gripper_position', 35,0,255))?"}
+  N44(["RETURN _fail()"])
+  N45{"IF not _run_cached_machine_approach( f'angled_return_clean_pitcher:(port):final_approach:pick_pitcher_1', 'three_grou..."}
+  N46(["RETURN _fail()"])
+  N47{"IF port in ('port_2', 'angled_portafilter_2')?"}
+  N48{"IF not _run_cached_machine_mount( f'angled_return_clean_pitcher:(port):mount:pick_pitcher_2', 'three_group_espresso',..."}
+  N49(["RETURN _fail()"])
+  N50{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync'))?"}
+  N51(["RETURN _fail()"])
+  N52{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'set_gripper_position', 255,115,255))?"}
+  N53(["RETURN _fail()"])
+  N54{"IF cached?"}
+  N55{"LOOP angles in cached"}
+  N56{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'gotoJ_deg', *angles))?"}
+  N57(["RETURN _fail()"])
+  N58{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveEE_movJ', 0, 0, 20, 0, 0, 0))?"}
+  N59(["RETURN _fail()"])
+  N60["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N61{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveJ_deg', 0, 0, 0, 0, 0, -170))?"}
+  N62(["RETURN _fail()"])
+  N63["Robot call: _trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync')"]
+  N64["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N65{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveJ_deg', 0, 0, 0, 0, 0, 170))?"}
+  N66(["RETURN _fail()"])
+  N67["Robot call: _trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync')"]
+  N68["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N69{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'moveEE_movJ', 0, 0, -20, 0, 0, 0))?"}
+  N70(["RETURN _fail()"])
+  N71["Robot call: waypoints.append(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'current_angles'))"]
+  N72{"IF all(angled__is_valid_angles(w) for w in waypoints)?"}
+  N73["State/cache: angled__pitcher_clean_cache(port) = (tuple(w) for w in waypoints)"]
+  N74{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync'))?"}
+  N75(["RETURN _fail()"])
+  N76{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'set_gripper_position', 35,0,255))?"}
+  N77(["RETURN _fail()"])
+  N78{"IF port == 'port_3'?"}
+  N79{"IF not _run_cached_machine_approach( f'angled_return_clean_pitcher:(port):approach:pick_pitcher_3', 'three_group_espr..."}
+  N80(["RETURN _fail()"])
+  N81{"IF not _run_cached_machine_mount( f'angled_return_clean_pitcher:(port):mount:pick_pitcher_3', 'three_group_espresso',..."}
+  N82(["RETURN _fail()"])
+  N83{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'sync'))?"}
+  N84(["RETURN _fail()"])
+  N85{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'set_gripper_position', 255,115,255))?"}
+  N86(["RETURN _fail()"])
+  N87{"IF cached?"}
+  N88{"LOOP angles in cached"}
+  N89{"IF not ok(_trace_run_skill('angled_return_cleaned_espresso_pitcher', 'gotoJ_deg', *angles))?"}
+  N90["... diagram capped for readability; source has additional low-level steps"]
+  N91["... diagram capped for readability; source has additional low-level steps"]
+  N92["... diagram capped for readability; source has additional low-level steps"]
+  N93["... diagram capped for readability; source has additional low-level steps"]
+  N94(["END angled_return_cleaned_espresso_pitcher"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 --> N12
+  N12 -- "yes" --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N17 -- "yes" --> N18
+  N17 --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 -- "yes" --> N22
+  N22 -- "iterate" --> N23
+  N23 -- "yes" --> N24
+  N23 -- "next/retry" --> N22
+  N21 -- "no" --> N25
+  N25 -- "yes" --> N26
+  N25 --> N27
+  N27 --> N28
+  N28 -- "yes" --> N29
+  N28 --> N30
+  N30 --> N31
+  N31 --> N32
+  N32 -- "yes" --> N33
+  N32 --> N34
+  N34 --> N35
+  N35 --> N36
+  N36 -- "yes" --> N37
+  N36 --> N38
+  N38 --> N39
+  N39 -- "yes" --> N40
+  N22 --> N41
+  N40 --> N41
+  N39 --> N41
+  N41 -- "yes" --> N42
+  N41 --> N43
+  N43 -- "yes" --> N44
+  N43 --> N45
+  N45 -- "yes" --> N46
+  N12 -- "no" --> N47
+  N47 -- "yes" --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N50 -- "yes" --> N51
+  N50 --> N52
+  N52 -- "yes" --> N53
+  N52 --> N54
+  N54 -- "yes" --> N55
+  N55 -- "iterate" --> N56
+  N56 -- "yes" --> N57
+  N56 -- "next/retry" --> N55
+  N54 -- "no" --> N58
+  N58 -- "yes" --> N59
+  N58 --> N60
+  N60 --> N61
+  N61 -- "yes" --> N62
+  N61 --> N63
+  N63 --> N64
+  N64 --> N65
+  N65 -- "yes" --> N66
+  N65 --> N67
+  N67 --> N68
+  N68 --> N69
+  N69 -- "yes" --> N70
+  N69 --> N71
+  N71 --> N72
+  N72 -- "yes" --> N73
+  N55 --> N74
+  N73 --> N74
+  N72 --> N74
+  N74 -- "yes" --> N75
+  N74 --> N76
+  N76 -- "yes" --> N77
+  N47 -- "no" --> N78
+  N78 -- "yes" --> N79
+  N79 -- "yes" --> N80
+  N79 --> N81
+  N81 -- "yes" --> N82
+  N81 --> N83
+  N83 -- "yes" --> N84
+  N83 --> N85
+  N85 -- "yes" --> N86
+  N85 --> N87
+  N87 -- "yes" --> N88
+  N88 -- "iterate" --> N89
+  N89 -- "yes" --> N90
+  N90 -- "next/retry" --> N88
+  N89 -- "next/retry" --> N88
+  N87 -- "no" --> N91
+  N88 --> N92
+  N91 --> N92
+  N45 --> N93
+  N76 --> N93
+  N92 --> N93
+  N78 --> N93
+  N93 --> N94

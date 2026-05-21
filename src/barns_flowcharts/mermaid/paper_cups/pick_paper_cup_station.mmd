@@ -1,0 +1,58 @@
+flowchart TD
+  N0(["START pick_paper_cup_station(**params)"])
+  N1["Call: _trace_step('PAPER-CUPS', 'pick_paper_cup_station START')"]
+  N2["Nested helper defined: ok()"]
+  N3["Parameter/normalization: cup_position = _extract_cup_position(params)"]
+  N4["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N5{"IF not cups_dict?"}
+  N6["Parameter/normalization: size_mapped = _normalize_paper_cup_size(cups_dict)"]
+  N7{"IF stage not in valid_stages or size_mapped not in valid_sizes?"}
+  N8(["RETURN _fail()"])
+  N9{"IF not home(position='east')?"}
+  N10(["RETURN _fail()"])
+  N11{"IF stage in ('3', '4')?"}
+  N12{"IF not home(position='south_east')?"}
+  N13(["RETURN _fail()"])
+  N14{"IF not ok(run_skill('gotoJ_deg', *stage_positions(stage)))?"}
+  N15(["RETURN _fail()"])
+  N16{"IF not ok(run_skill('moveEE', *PAPER_CUP_MOVEMENT_OFFSETS('pickup_down')))?"}
+  N17(["RETURN _fail()"])
+  N18{"IF not ok(run_skill('set_gripper_position', GRIPPER_FULL, gripper_positions(size_mapped)))?"}
+  N19(["RETURN _fail()"])
+  N20{"IF not ok(run_skill('moveEE_movJ', *PAPER_CUP_MOVEMENT_OFFSETS('pickup_up')))?"}
+  N21(["RETURN _fail()"])
+  N22{"IF not home(position='east')?"}
+  N23(["RETURN _fail()"])
+  N24{"IF not home(position='north_east')?"}
+  N25(["RETURN _fail()"])
+  N26(["RETURN True"])
+  N27(["END pick_paper_cup_station"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 --> N4
+  N4 --> N5
+  N5 --> N6
+  N5 --> N6
+  N6 --> N7
+  N7 -- "yes" --> N8
+  N7 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N12 -- "yes" --> N13
+  N12 --> N14
+  N11 --> N14
+  N14 -- "yes" --> N15
+  N14 --> N16
+  N16 -- "yes" --> N17
+  N16 --> N18
+  N18 -- "yes" --> N19
+  N18 --> N20
+  N20 -- "yes" --> N21
+  N20 --> N22
+  N22 -- "yes" --> N23
+  N22 --> N24
+  N24 -- "yes" --> N25
+  N24 --> N26
+  N0 --> N27

@@ -1,0 +1,188 @@
+flowchart TD
+  N0(["START clean_portafilter(**params)"])
+  N1["Parameter/normalization: espresso_dict = params.get('espresso')"]
+  N2["Parameter/normalization: shot_cfg = _normalize_espresso_shot(espresso_dict)"]
+  N3{"IF shot_cfg and shot_cfg.get('angled')?"}
+  N4(["RETURN angled_clean_portafilter(**params)"])
+  N5["Parameter/normalization: port = params.get('port') or (shot_cfg.get('port') if shot_cfg else DEFAULT_PORT)"]
+  N6["Nested helper defined: ok()"]
+  N7["State/cache: hard_cached = _hard_brush_clean_cache.get(port)"]
+  N8["State/cache: soft_cached = _soft_brush_clean_cache.get(port)"]
+  N9{"IF not ok(run_skill('gotoJ_deg', *CLEANING_POSES('pre_clean_home')))?"}
+  N10(["RETURN _fail()"])
+  N11{"IF not ok(run_skill('approach_machine', 'portafilter_cleaner', 'hard_brush'))?"}
+  N12(["RETURN _fail()"])
+  N13{"IF not ok(run_skill('gotoJ_deg', *CLEANING_PARAMS('hard_brush_adjust')))?"}
+  N14(["RETURN _fail()"])
+  N15{"IF not ok(run_skill('mount_machine', 'portafilter_cleaner', 'hard_brush'))?"}
+  N16(["RETURN _fail()"])
+  N17{"IF hard_cached?"}
+  N18["Call: _trace_step('CLEANING', f'hard brush cache HIT port=(port) len=(len(hard_cached))')"]
+  N19{"IF len(hard_cached) != 5?"}
+  N20(["RETURN _fail()"])
+  N21{"IF not ok(run_skill('sync'))?"}
+  N22(["RETURN _fail()"])
+  N23{"IF not ok(run_skill('gotoJ_deg', *hard_cached(0)))?"}
+  N24(["RETURN _fail()"])
+  N25{"IF not ok(run_skill('gotoJ_deg', *hard_cached(1)))?"}
+  N26(["RETURN _fail()"])
+  N27{"IF not ok(run_skill('sync'))?"}
+  N28(["RETURN _fail()"])
+  N29{"IF not ok(run_skill('gotoJ_deg', *hard_cached(2)))?"}
+  N30(["RETURN _fail()"])
+  N31{"IF not ok(run_skill('sync'))?"}
+  N32(["RETURN _fail()"])
+  N33{"IF not ok(run_skill('gotoJ_deg', *hard_cached(3)))?"}
+  N34(["RETURN _fail()"])
+  N35{"IF not ok(run_skill('sync'))?"}
+  N36(["RETURN _fail()"])
+  N37{"IF not ok(run_skill('gotoJ_deg', *hard_cached(4)))?"}
+  N38(["RETURN _fail()"])
+  N39["Call: _trace_step('CLEANING', f'hard brush cache MISS port=(port); recording live sequence')"]
+  N40{"IF not ok(run_skill('moveEE_movJ', 0, 0, 50, 0, 0, 0))?"}
+  N41(["RETURN _fail()"])
+  N42{"IF not _capture_and_cache_current_angles(hard_capture)?"}
+  N43(["RETURN _fail()"])
+  N44{"IF not ok(run_skill('moveEE_movJ', 0, 0, -30, -2.5, 0, 0))?"}
+  N45(["RETURN _fail()"])
+  N46{"IF not _capture_and_cache_current_angles(hard_capture)?"}
+  N47(["RETURN _fail()"])
+  N48{"IF not ok(run_skill('moveEE_movJ', -7.5, 7.5, 0, 0, 0, 0))?"}
+  N49(["RETURN _fail()"])
+  N50{"IF not _capture_and_cache_current_angles(hard_capture)?"}
+  N51(["RETURN _fail()"])
+  N52{"IF not ok(run_skill('moveEE_movJ', 15.0, -15.0, 0, 0, 0, 0))?"}
+  N53(["RETURN _fail()"])
+  N54{"IF not _capture_and_cache_current_angles(hard_capture)?"}
+  N55(["RETURN _fail()"])
+  N56{"IF not ok(run_skill('moveEE_movJ', *CLEANING_PARAMS('retreat_hard')))?"}
+  N57(["RETURN _fail()"])
+  N58{"IF not _capture_and_cache_current_angles(hard_capture)?"}
+  N59(["RETURN _fail()"])
+  N60["State/cache: _hard_brush_clean_cache(port) = hard_capture"]
+  N61{"IF not ok(run_skill('approach_machine', 'portafilter_cleaner', 'soft_brush'))?"}
+  N62(["RETURN _fail()"])
+  N63{"IF not ok(run_skill('mount_machine', 'portafilter_cleaner', 'soft_brush'))?"}
+  N64(["RETURN _fail()"])
+  N65{"IF soft_cached?"}
+  N66["Call: _trace_step('CLEANING', f'soft brush cache HIT port=(port) len=(len(soft_cached))')"]
+  N67{"IF len(soft_cached) != 6?"}
+  N68(["RETURN _fail()"])
+  N69{"IF not ok(run_skill('sync'))?"}
+  N70(["RETURN _fail()"])
+  N71{"IF not ok(run_skill('gotoJ_deg', *soft_cached(0)))?"}
+  N72(["RETURN _fail()"])
+  N73{"IF not ok(run_skill('gotoJ_deg', *soft_cached(1)))?"}
+  N74(["RETURN _fail()"])
+  N75{"IF not ok(run_skill('sync'))?"}
+  N76(["RETURN _fail()"])
+  N77{"IF not ok(run_skill('gotoJ_deg', *soft_cached(2)))?"}
+  N78(["RETURN _fail()"])
+  N79{"IF not ok(run_skill('sync'))?"}
+  N80(["RETURN _fail()"])
+  N81{"IF not ok(run_skill('gotoJ_deg', *soft_cached(3)))?"}
+  N82(["RETURN _fail()"])
+  N83{"IF not ok(run_skill('gotoJ_deg', *soft_cached(4)))?"}
+  N84(["RETURN _fail()"])
+  N85{"IF not ok(run_skill('gotoJ_deg', *soft_cached(5)))?"}
+  N86(["RETURN _fail()"])
+  N87["Call: _trace_step('CLEANING', f'soft brush cache MISS port=(port); recording live sequence')"]
+  N88{"IF not ok(run_skill('moveEE_movJ', 0, 0, 50, 0, 0, 0))?"}
+  N89(["RETURN _fail()"])
+  N90["... diagram capped for readability; source has additional low-level steps"]
+  N91["... diagram capped for readability; source has additional low-level steps"]
+  N92(["END clean_portafilter"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 --> N6
+  N6 --> N7
+  N7 --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N9 --> N11
+  N11 -- "yes" --> N12
+  N11 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N15 -- "yes" --> N16
+  N15 --> N17
+  N17 -- "yes" --> N18
+  N18 --> N19
+  N19 -- "yes" --> N20
+  N19 --> N21
+  N21 -- "yes" --> N22
+  N21 --> N23
+  N23 -- "yes" --> N24
+  N23 --> N25
+  N25 -- "yes" --> N26
+  N25 --> N27
+  N27 -- "yes" --> N28
+  N27 --> N29
+  N29 -- "yes" --> N30
+  N29 --> N31
+  N31 -- "yes" --> N32
+  N31 --> N33
+  N33 -- "yes" --> N34
+  N33 --> N35
+  N35 -- "yes" --> N36
+  N35 --> N37
+  N37 -- "yes" --> N38
+  N17 -- "no" --> N39
+  N39 --> N40
+  N40 -- "yes" --> N41
+  N40 --> N42
+  N42 -- "yes" --> N43
+  N42 --> N44
+  N44 -- "yes" --> N45
+  N44 --> N46
+  N46 -- "yes" --> N47
+  N46 --> N48
+  N48 -- "yes" --> N49
+  N48 --> N50
+  N50 -- "yes" --> N51
+  N50 --> N52
+  N52 -- "yes" --> N53
+  N52 --> N54
+  N54 -- "yes" --> N55
+  N54 --> N56
+  N56 -- "yes" --> N57
+  N56 --> N58
+  N58 -- "yes" --> N59
+  N58 --> N60
+  N37 --> N61
+  N60 --> N61
+  N61 -- "yes" --> N62
+  N61 --> N63
+  N63 -- "yes" --> N64
+  N63 --> N65
+  N65 -- "yes" --> N66
+  N66 --> N67
+  N67 -- "yes" --> N68
+  N67 --> N69
+  N69 -- "yes" --> N70
+  N69 --> N71
+  N71 -- "yes" --> N72
+  N71 --> N73
+  N73 -- "yes" --> N74
+  N73 --> N75
+  N75 -- "yes" --> N76
+  N75 --> N77
+  N77 -- "yes" --> N78
+  N77 --> N79
+  N79 -- "yes" --> N80
+  N79 --> N81
+  N81 -- "yes" --> N82
+  N81 --> N83
+  N83 -- "yes" --> N84
+  N83 --> N85
+  N85 -- "yes" --> N86
+  N65 -- "no" --> N87
+  N87 --> N88
+  N88 -- "yes" --> N89
+  N88 --> N90
+  N85 --> N91
+  N90 --> N91
+  N91 --> N92

@@ -1,0 +1,36 @@
+flowchart TD
+  N0(["START mount_frother(**params)"])
+  N1["Nested helper defined: ok()"]
+  N2["Robot call: run_skill('set_speed_factor', MILK_FROTHER_SPEEDS('mount'))"]
+  N3{"IF not ok(run_skill('approach_machine', 'left_steam_wand', 'deep_froth'))?"}
+  N4(["RETURN False"])
+  N5{"IF not ok(run_skill('mount_machine', 'left_steam_wand', 'deep_froth'))?"}
+  N6(["RETURN False"])
+  N7["Parameter/normalization: cups_dict = _extract_cups_dict(params)"]
+  N8["Parameter/normalization: cup_size = _normalize_cup_size(cups_dict, cup_type='paper', default_size='')"]
+  N9{"IF not cup_size?"}
+  N10["Parameter/normalization: cup_size = _normalize_cup_size(cups_dict, cup_type='plastic', default_size='')"]
+  N11{"IF not cup_size?"}
+  N12["Parameter/normalization: milk_data = params.get('milk') or params.get('ingredients', ()).get('milk', ()) or ()"]
+  N13{"IF not ok(run_skill('moveEE_movJ', 12.5, 12.5, -z_adjustment, 7.5, 0, 0))?"}
+  N14(["RETURN False"])
+  N15(["RETURN True"])
+  N16(["END mount_frother"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N3 -- "yes" --> N4
+  N3 --> N5
+  N5 -- "yes" --> N6
+  N5 --> N7
+  N7 --> N8
+  N8 --> N9
+  N9 -- "yes" --> N10
+  N10 --> N11
+  N9 --> N11
+  N11 --> N12
+  N11 --> N12
+  N12 --> N13
+  N13 -- "yes" --> N14
+  N13 --> N15
+  N0 --> N16

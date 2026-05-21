@@ -1,0 +1,12 @@
+flowchart TD
+  N0(["START _angled_unmount_grab_tool_name(**params)"])
+  N1["Call: _trace_step('_angled_unmount_grab_tool_name', 'START')"]
+  N2{"IF str(port) == 'angled_portafilter_2'?"}
+  N3(["RETURN 'single_portafilter_angled'"])
+  N4(["RETURN 'double_portafilter_angled'"])
+  N5(["END _angled_unmount_grab_tool_name"])
+  N0 --> N1
+  N1 --> N2
+  N2 -- "yes" --> N3
+  N2 --> N4
+  N0 --> N5

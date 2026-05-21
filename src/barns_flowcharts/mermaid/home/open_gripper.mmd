@@ -1,0 +1,10 @@
+flowchart TD
+  N0(["START open_gripper(**params)"])
+  N1["Robot call: run_skill('sync')"]
+  N2["Robot call: run_skill('set_gripper_position', 255, 0, 255)"]
+  N3(["RETURN True"])
+  N4(["END open_gripper"])
+  N0 --> N1
+  N1 --> N2
+  N2 --> N3
+  N0 --> N4
