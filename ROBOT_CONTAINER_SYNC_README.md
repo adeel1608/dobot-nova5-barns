@@ -42,7 +42,14 @@ This document tracks the staged sync from:
 | 8 | `951d458` | Pushed | Synced `oms_v1` paper cup, plastic cup, and slush sequence implementations. |
 | 9 | `73edf5a` | Pushed | Synced remaining `oms_v1` home, test, and computer vision sequence support modules. |
 | 10 | `6e885e0` | Pushed | Synced `pickn_place` perception, calibration, teach, and streamer updates while preserving target-only docs/helpers. |
-| 11 | Current stage | Ready | Final audit note and ignore rule for local `.bak_*` artifacts. |
+| 11 | `5914c38` | Pushed | Final audit note and ignore rule for local `.bak_*` artifacts. |
+
+## Final Verification Pass
+
+- A follow-up engineering verification pass found this README still marked
+  stage 11 as `Current stage` after it had already been pushed.
+- No runtime code changes were needed in the verification pass.
+- The README stage table was corrected in a separate README-only commit.
 
 ## Final Audit Notes
 
