@@ -41,7 +41,7 @@ DELAY_LONG = 2.5         # Long delay for pouring completion
 DELAY_FROTHER_PICKUP = 5.0  # Delay for frother pickup stabilization
 
 # ── Calibration Settings ──
-CALIBRATION_APPROACH_CYCLES = 5  # Number of approach cycles for machine calibration
+CALIBRATION_APPROACH_CYCLES = 3  # Number of approach cycles for machine calibration
 CALIBRATION_SETTLE_TIME = 1.0    # Settle time between calibration approaches
 
 # Common home positions used across multiple sequences
@@ -285,7 +285,7 @@ def log_info(message, indent=0):
 # ─── "HOME" POSE ANGLES ───────────────────────────────────────────────────────────
 # Main-home is straight ahead; the compass points are ±45° increments
 HOME_ANGLES = {
-    'north':       (   0, 30, -130, -90,  -90,    0),
+    'north':       (0, 30, -130, -90,  -90,    0),
     'north_east': ( -45, 30, -130, -90,  -90,    0),
     'east':       ( -90, 30, -130, -90,  -90,    0),
     'south_east': (-135, 30, -130, -90,  -90,    0),
@@ -340,8 +340,12 @@ ESPRESSO_PORTAFILTER_GRIPPER = {
 }
 
 ESPRESSO_MOVEMENT_OFFSETS = {
-    'portafilter_clear_down': (0, 0, -35, 0, 0, 0),  # Move down to clear portafilter after unmount
-    'portafilter_clear_up': (0, 0, 5, 0, 0, 0),      # Move up to fix portafilter during mount
+    'portafilter_clear_down': (0, 0, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
+    'portafilter_clear_down_angled': (0.25, 4.25, -30, 0, 0, 0),  # Move down to clear portafilter after unmount,
+    # Default Z (mm). testing_v1 learns per-port Z from first live unmount (ceil of Z drop
+    # arc -> post-tension) and mount() uses that cache when set.
+    'portafilter_clear_up': (0, 0, 7.5, 0, 0, 0),
+    'portafilter_clear_up_angled': (0, 0, 7.5, 0, 0, 0),      # Move up to fix portafilter during mount
     'hot_water_move': (-35, 0, 0, 0, 0, 0),          # Move for hot water positioning
     'hot_water_retreat': (-150, 0, 0, 0, 0, 0),      # Retreat after hot water
     'port_3_retreat': (-20, 0, 0, 0, 0, 0),          # Additional retreat for port 3
@@ -376,11 +380,42 @@ PULL_ESPRESSO_PARAMS = {
         'group_number':         "group_3",
         'move_back':   (88.717612,-29.575282,-135.766406,-12.283250,-5.212680,0.014052),
     },
+    # Angled toolhead path: same group/pose seeds as port_1 until tuned on the robot.
+    'angled_portafilter_1': {
+        'home':        ( 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379),
+        'portafilter_number':         "angled_portafilter_1",
+        'group_number':         "group_1",
+        'move_back':   (-5.932289,-9.177162,-138.612458,-46.645501,-94.418543,0.008893),
+    },
+    # Angled single / second station: tune joints on-robot if needed (seeded from port_2 move_back).
+    'angled_portafilter_2': {
+        'home':        ( 42.427441,13.883821,-133.648376,-81.024788,-49.533218,13.894379),
+        'portafilter_number':         "angled_portafilter_2",
+        'group_number':         "group_2",
+        'move_back':   (88.717612,-29.575282,-135.766406,-12.283250,-5.212680,0.014052),
+    },
 }
 
 ESPRESSO_GRINDER_PARAMS = {
     'nav1':         (57.162277, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360),
     'nav2':         (-32.837723, -2.957932, -128.257645, -89.085014, -79.229942, 9.602360),
+}
+
+
+# Additional espresso motion poses that are used as fixed joint waypoints.
+# These are kept separate from learned/cached poses so sequence files do not
+# hide direct numeric gotoJ_deg calls.
+ESPRESSO_PITCHER_FLOW_POSES = {
+    'cup_station_entry': (103.201965, -21.933174, -150.611664, -10.398072, -23.882843, 0.127716),  # Safe entry/exit pose for pitcher cup-station pouring
+}
+
+# Fixed transfer waypoints used by the angled portafilter path between the
+# espresso machine and grinder area. Order matters; do not reorder these poses
+# without re-testing the physical route.
+ESPRESSO_ANGLED_TRANSFER_POSES = {
+    'machine_exit_1': (41.352814, -59.951000, -116.487274, 72.716667, -14.247798, -75.843781),
+    'machine_exit_2': (59.183862, -61.661050, -115.736025, 72.719532, -13.555987, -74.867439),
+    'grinder_entry': (56.791147, -36.511041, -128.165316, -14.824074, -33.131641, -0.433359),
 }
 
 ESPRESSO_PITCHER_PARAMS = {
@@ -462,9 +497,17 @@ MILK_SWIRL_CIRCLE_PARAMS = {
 }
 
 MILK_VOLUME_Z_ADJUSTMENT_FACTOR_BY_CUP_SIZE = {
-    '9oz':  0.1866666667 * 0.3,
-    '12oz': 0.1866666667 * 0.5,
-    'default': 0.1866666667 * 0.1,
+    '9oz':  0.1866666667 * 0.25,
+    '12oz': 0.1866666667 * 0.25,
+    'default': 0.1866666667 * -2.0,
+}
+
+
+# Extra fixed milk-frothing joint waypoints pulled out of sequence code.
+# These are not learned caches; they are physical route anchors.
+MILK_FROTHING_EXTRA_POSES = {
+    'frother_calibration_transition': (27.975568, -34.583337, -124.996051, -68.785292, -70.522135, 20.578546),  # Move from steam wand calibration area toward frother calibration
+    'deep_froth_approach': (-42.145525, -86.603679, -32.009425, -57.409276, -74.353990, 2.000000),  # Fixed deep-froth approach before swirl path
 }
 
 # ─── MILK FROTHING PARAMETERS ─────────────────────────────────────────────────────
@@ -586,6 +629,7 @@ PLASTIC_CUPS_PARAMS = {
     'ice_positions': {
         'position1':    (48.733238,-49.616558,-113.214279,-27.820314,-40.595863,0),  # First ice position (approach)
         'position2':    (46.241162,-70.803957,-82.605716,-26.237127,-43.687160,-0.302443),  # Second ice position (dispense)
+        'position3':    (75.700497,-63.768081,-121.659449,6.578546,-14.212625,-1.138122),  # Third ice position (approach)
     },
     'staging': {
         # Staging positions for placing plastic cups
@@ -621,7 +665,7 @@ PAPER_CUP_MOVEMENT_OFFSETS = {
     'pickup_up': (0, 0, 200, 0, 0, 0),       # Move up after picking cup (using moveEE_movJ)
     'place_up': (0, 0, 150, 0, 0, 0),        # Move up after placing cup
     'place_return_up': (0, 100, 0, 0, 0, 0), # Move up when returning from placement
-    'pickup_hot_water_down': (0, 100, 30, 0, 0, 0),     # Move down to pickup cup from station
+    'pickup_hot_water_down': (0, 90, 20, 0, 0, 0),     # Move down to pickup cup from station
 }
 
 # ─── PAPER CUPS PARAMETERS ────────────────────────────────────────────────────────
@@ -646,6 +690,72 @@ GRAB_PAPER_CUP_PARAMS = {
     },
 }
 
+
+# Arm-1 paper cup dispenser poses. These were previously local hardcoded
+# dictionaries in paper_cups.py; keeping them here makes deployment calibration
+# easier and keeps all gotoJ_deg joint waypoints in one place.
+PAPER_CUP_ARM1_DISPENSER_PARAMS = {
+    '7oz': {
+        'home': 'south_west',
+        'grip': 165,
+        'up_down_z': 200,
+        'pose1': (191.646150, 74.117401, -112.223690, -142.814608, 11.629319, 0.888704),
+        'pose2': (191.667596, 49.107588, -70.637578, -159.483294, 11.665208, 0.983008),
+    },
+    '9oz': {
+        'home': 'south_west',
+        'grip': 165,
+        'up_down_z': 200,
+        'pose1': (181.710022, -5.584718, -88.052513, -93.715889, 1.744494, 7.348929),
+        'pose2': (181.232376, -15.066946, -40.633915, -135.281052, 1.234581, 10.979085),
+    },
+    '12oz': {
+        'home': 'south_west',
+        'grip': 165,
+        'up_down_z': 200,
+        'pose1': (175.946579, 32.215965, -120.514900, -88.941734, -4.002728, -2.748568),
+        'pose2': (175.906542, 23.482150, -80.123117, -120.455698, -4.057709, -2.892895),
+    },
+}
+
+PAPER_CUP_ARM1_NAVIGATION_POSES = {
+    'stage_1_entry': (112.5, 30, -130, -90, -90, 0),  # Arm-1 stage-1 entry pose before placing/returning hot water cup
+}
+
+# Arm-2 paper cup dispenser poses. These were previously local hardcoded
+# dictionaries in paper_cups.py; keeping them here makes deployment calibration
+# easier and keeps all gotoJ_deg joint waypoints in one place.
+PAPER_CUP_ARM2_DISPENSER_PARAMS = {
+    "7oz": {
+        "home": "north_east",
+        "grip": 155,
+        "up_down_z": 200,
+        "pose1": (-52.257668,-36.013535,-91.807312,127.588043,52.159515,180.128571),
+        "pose2": (-52.257133,-24.955849,-72.251076,96.955688,52.174652,180.158661),
+        "visitfix":(0,0,-2,0,0,0),
+    },
+    "9oz": {
+        "home": "south_east",
+        "grip": 150,
+        "up_down_z": 200,
+        "pose1": (-108.257324,-43.628250,-75.009590,118.425400,108.173233,179.912598),
+        "pose2": (-108.804665,-33.570080,-58.057186,91.419846,108.733475,179.928848),
+        "visitfix":(0,8.5,-4.75,0,0,0),
+    },
+    "12oz": {
+        "home": "east",
+        "grip": 139,
+        "up_down_z": 200,
+        "pose1": (-82.175354,-30.120581,-95.428894,125.354034,82.074257,180.017426),
+        "pose2": (-82.143822,-21.311819,-81.286293,102.399956,82.054932,180.037231),
+        "visitfix":(0,0,-1.5,0,0,0),
+    },
+}
+
+PAPER_CUP_ARM1_NAVIGATION_POSES = {
+    'stage_1_entry': (112.5, 30, -130, -90, -90, 0),  # Arm-1 stage-1 entry pose before placing/returning hot water cup
+}
+
 PAPER_CUPS_NAVIGATION_PARAMS = {
     'espresso_avoid':   (106.17209, 16.269149, -135.156441, -81.822150, -49.784457, 13.771214),  # Position to avoid hitting espresso machine
     'dispenser_area':   (120.389030, 22.860609, -73.526848, -39.810959, 90.144394, -154.586288),  # Paper cup dispenser area
@@ -659,7 +769,7 @@ PAPER_CUPS_NAVIGATION_PARAMS = {
 PLACE_PAPER_CUP_PARAMS = {
     'stage_1': {
         'twist':        (  66,   0,   0,   0,    0,    0),
-        'pose':         (143.124736,-49.011046,-131.961019,1.450719,-36.804551,-0.410724),
+        'pose':         (145.519331,-49.122599,-134.451153,4.085635,-34.410026,-0.449189),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -669,7 +779,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_2': {
         'twist':        (  76,   0,   0,   0,    0,    0),
-        'pose':         (154.109817,-50.383447,-117.491155,-11.470211,-25.821872,-0.600735),
+        'pose':         (156.205423,-50.021970,-119.582491,-9.684561,-23.724585,-0.666733),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -679,7 +789,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_3': {
         'twist':        (  82,   0,   0,   0,    0,    0),
-        'pose':         (160.521276,-55.378845,-97.891073,-25.884111,-19.420150,-0.799664),
+        'pose':         (162.248889,-54.806036,-99.772471,-24.494967,-17.686915,-0.892773),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -689,7 +799,7 @@ PLACE_PAPER_CUP_PARAMS = {
     },
     'stage_4': {
         'twist':        (  86,   0,   0,   0,    0,    0),
-        'pose':         (164.537400,-64.400606,-72.277886,-42.277243,-15.423310,-1.003312),
+        'pose':         (165.969198,-63.656202,-74.239775,-40.954808,-13.978733,-1.122057),
         'stage_home':   (106.460129,  13.883821, -133.648376, -81.024788,  -49.533218,  13.894379),
         'twist_back':   (-64.032688,   0,        0,         0,         0,         0),
         'twist_serve':  ( 31.983258,   0,        0,         0,         0,         0),
@@ -718,15 +828,21 @@ PAPER_CUPS_STATION_PARAMS = {
         'pickup_hot_water_4':     (174.428, -60.166, -83.684, -33.228, -5.521, -2.896),  # Stage 4 pickup position
     },
     'milk_station': {
-        'position1':    (-53.449154,-67.421219,-92.044746,-16.125631,-142.249084,0.477525),  # First position at milk station
+        'position1':    (-53.585015,-63.419602,-92.050609,-24.290683,-143.503328,0.153389),  # First position at milk station
         'position2':    (-38.513183,-75.295421,-64.619235,-39.884508,-128.454664,0.077704),  # Second position at milk station
-        'position3':    (-38.663202,-74.192391,-67.777961,-37.829308,-128.602018,0.077164),  # Third position at milk station (place/pick)
+        'position3':    (-38.663084,-72.984283,-68.457681,-38.357017,-128.600485,0.078250),  # Third position at milk station (place/pick)
     },
     'sauces_station': {
         'position1':    (-38.902538,-62.473824,-116.293251,1.105230,-129.698776,-1.780196),  # First position at sauces station
         'position2':    (-27.222216,-64.822159,-96.371883,-18.623413,-117.140324,0.020276),  # Second position at sauces station
         'position3':    (-27.222835,-66.184373,-95.733343,-17.900463,-117.142562,0.018696),  # Third position at sauces station (place/pick)
     },
+}
+
+
+# Fixed cleaning route poses used before engaging the hard/soft brush station.
+CLEANING_POSES = {
+    'pre_clean_home': (-35.223076, -2.939468, -128.314575, -47.896400, -73.999352, 1.973845),  # Safe pose before cleaner approach
 }
 
 # ─── CLEANING PARAMETERS ──────────────────────────────────────────────────────────
@@ -744,3 +860,28 @@ TEST_PARAMS = {
     'settling_delay': 0.25,
     'operational_delay': 0.6,
 }
+
+# ─── GRIPPER VERIFICATION CONSTANTS ──────────────────────────────────────────
+# Commanded gripper range is 0..255, but decoded readback clips at the extremes:
+#   command 0   -> readback about 3
+#   command 255 -> readback about 230
+# Middle values are direct, e.g. command 130 -> readback about 130.
+# Verification therefore clamps only the extremes; it does not scale the range.
+GRIPPER_READBACK_MIN = 3
+GRIPPER_READBACK_MAX = 230
+
+# Default verification tolerance for normal position moves.
+GRIPPER_VERIFY_DEFAULT_TOLERANCE = 5
+
+# Stabilization/readback settings.
+GRIPPER_VERIFY_STABLE_READS = 3
+GRIPPER_VERIFY_TIMEOUT_SEC = 10.0
+GRIPPER_VERIFY_POLL_INTERVAL_SEC = 0.1
+GRIPPER_VERIFY_POLL_SERVICE_TIMEOUT_SEC = 3.0
+
+# Command retry settings. These preserve previous set_gripper_position behavior
+# while moving magic numbers into params.py.
+GRIPPER_COMMAND_RETRY_PAUSE_SEC = 0.25
+GRIPPER_COMMAND_MAX_ATTEMPTS = 20
+GRIPPER_COMMAND_SERVICE_TIMEOUT_SEC = 5.0
+GRIPPER_COMMAND_SETTLE_DELAY_SEC = 0.15
