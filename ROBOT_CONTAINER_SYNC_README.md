@@ -34,7 +34,8 @@ This document tracks the staged sync from:
 | 0 | `1f302ad` | Pushed | Baseline DI service fix pushed before sync work. |
 | 1 | `2266f0c` | Pushed | Added this sync README and comparison trail. |
 | 2 | `0254b6f` | Pushed | Merged `dobot_bringup_v3` communication hardening while preserving the target DI fix. |
-| 3 | Current stage | Ready | Add the `oms_v1` production GUI package, docs, and ROS console entry point. |
+| 3 | `a1c1873` | Pushed | Added the `oms_v1` production GUI package, docs, and ROS console entry point. |
+| 4 | Current stage | Ready | Add source `shared` RabbitMQ/logging helpers used by `oms_v1.app` and GUI fallback mode. |
 
 ## Verification Log
 
@@ -44,3 +45,5 @@ This document tracks the staged sync from:
   passed after merging the bringup hardening stage.
 - `python3 -m py_compile src/oms_v1/setup.py src/oms_v1/oms_v1/gui/*.py`
   passed after adding the `oms_v1` GUI stage.
+- `python3 -m py_compile src/shared/__init__.py src/shared/logger.py src/shared/rabbitmq_client.py`
+  passed after adding the shared helper stage.
