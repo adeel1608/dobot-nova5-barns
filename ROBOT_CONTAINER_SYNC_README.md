@@ -33,7 +33,8 @@ This document tracks the staged sync from:
 | --- | --- | --- | --- |
 | 0 | `1f302ad` | Pushed | Baseline DI service fix pushed before sync work. |
 | 1 | `2266f0c` | Pushed | Added this sync README and comparison trail. |
-| 2 | Current stage | Ready | Merge `dobot_bringup_v3` communication hardening while preserving the target DI fix. |
+| 2 | `0254b6f` | Pushed | Merged `dobot_bringup_v3` communication hardening while preserving the target DI fix. |
+| 3 | Current stage | Ready | Add the `oms_v1` production GUI package, docs, and ROS console entry point. |
 
 ## Verification Log
 
@@ -41,3 +42,5 @@ This document tracks the staged sync from:
   passed before the baseline push.
 - `python3 -m py_compile src/dobot_bringup_v3/dobot_bringup_v3/dobot_api.py src/dobot_bringup_v3/dobot_bringup_v3/dobot_bringup.py src/dobot_bringup_v3/dobot_bringup_v3/feedback.py`
   passed after merging the bringup hardening stage.
+- `python3 -m py_compile src/oms_v1/setup.py src/oms_v1/oms_v1/gui/*.py`
+  passed after adding the `oms_v1` GUI stage.

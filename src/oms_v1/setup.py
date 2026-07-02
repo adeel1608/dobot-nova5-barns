@@ -18,10 +18,17 @@ setup(
     description='Basic ROS2 Humble Python package for oms_v1',
     license='Apache License 2.0',
     tests_require=['pytest'],
+    extras_require={
+        # Streamlit GUI for production-point and marker teach updates.
+        # Kept optional so the production runtime does not pull in streamlit
+        # unless the operator workstation explicitly installs it:
+        #   pip install -e .[gui]
+        'gui': ['streamlit>=1.30'],
+    },
     entry_points={
         'console_scripts': [
             'cli = oms_v1.cli:main',
+            'oms_v1_gui = oms_v1.gui.streamlit_app:cli_main',
         ],
     },
 )
-
