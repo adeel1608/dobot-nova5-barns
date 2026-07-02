@@ -92,6 +92,7 @@ def test(**params) -> bool:
         
         # Step 4: Close gripper to secure portafilter
         print("🤏 Securing portafilter with gripper...")
+        run_skill("sync")
         grip_result = run_skill("set_gripper_position", 255, 255)
         if grip_result is False:
             print("[ERROR] Failed to close gripper")
@@ -142,6 +143,7 @@ def test(**params) -> bool:
         
         # Step 10: Open gripper to release portafilter
         print("🤏 Opening gripper to release portafilter...")
+        run_skill("sync")
         release_result = run_skill("set_gripper_position", 255, 0)
         if release_result is False:
             print("[ERROR] Failed to open gripper")
@@ -265,6 +267,7 @@ def test_1(**params) -> bool:
             
             # Step 6: Engage gripper at maximum force
             print("🤏 Step 6: Engaging gripper at maximum force...")
+            run_skill("sync")
             grip_result = run_skill("set_gripper_position", 255, 255)
             
             if grip_result is False:
@@ -317,6 +320,7 @@ def test_1(**params) -> bool:
             
             # Step 11: Release gripper completely
             print("🤏 Step 11: Releasing gripper...")
+            run_skill("sync")
             release_result = run_skill("set_gripper_position", 255, 0)
             
             if release_result is False:
