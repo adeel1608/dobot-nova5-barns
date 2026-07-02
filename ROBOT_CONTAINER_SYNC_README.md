@@ -36,7 +36,8 @@ This document tracks the staged sync from:
 | 2 | `0254b6f` | Pushed | Merged `dobot_bringup_v3` communication hardening while preserving the target DI fix. |
 | 3 | `a1c1873` | Pushed | Added the `oms_v1` production GUI package, docs, and ROS console entry point. |
 | 4 | `92b7cd1` | Pushed | Added source `shared` RabbitMQ/logging helpers used by `oms_v1.app` and GUI fallback mode. |
-| 5 | Current stage | Ready | Sync `oms_v1` motion core and parameters from the robot container. |
+| 5 | `c159046` | Pushed | Synced `oms_v1` motion core and parameters from the robot container. |
+| 6 | Current stage | Ready | Sync `oms_v1` espresso sequence implementation from the robot container. |
 
 ## Verification Log
 
@@ -50,3 +51,5 @@ This document tracks the staged sync from:
   passed after adding the shared helper stage.
 - `python3 -m py_compile src/oms_v1/oms_v1/params.py src/oms_v1/oms_v1/manipulate_node.py`
   passed after syncing the `oms_v1` motion core stage.
+- `python3 -m py_compile src/oms_v1/oms_v1/sequences/espresso.py`
+  passed after syncing the espresso sequence stage.
