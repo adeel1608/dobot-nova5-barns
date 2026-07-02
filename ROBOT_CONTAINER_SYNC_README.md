@@ -38,7 +38,8 @@ This document tracks the staged sync from:
 | 4 | `92b7cd1` | Pushed | Added source `shared` RabbitMQ/logging helpers used by `oms_v1.app` and GUI fallback mode. |
 | 5 | `c159046` | Pushed | Synced `oms_v1` motion core and parameters from the robot container. |
 | 6 | `ea4edb7` | Pushed | Synced `oms_v1` espresso sequence implementation from the robot container. |
-| 7 | Current stage | Ready | Sync `oms_v1` milk frothing and cleaning sequence implementations. |
+| 7 | `1060416` | Pushed | Synced `oms_v1` milk frothing and cleaning sequence implementations. |
+| 8 | Current stage | Ready | Sync `oms_v1` paper cup, plastic cup, and slush sequence implementations. |
 
 ## Verification Log
 
@@ -56,3 +57,5 @@ This document tracks the staged sync from:
   passed after syncing the espresso sequence stage.
 - `python3 -m py_compile src/oms_v1/oms_v1/sequences/milk_frothing.py src/oms_v1/oms_v1/sequences/cleaning.py`
   passed after syncing the milk frothing and cleaning sequence stage.
+- `python3 -m py_compile src/oms_v1/oms_v1/sequences/paper_cups.py src/oms_v1/oms_v1/sequences/plastic_cups.py src/oms_v1/oms_v1/sequences/slush.py`
+  passed after syncing the cup and slush sequence stage.
