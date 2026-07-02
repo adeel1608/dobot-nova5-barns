@@ -583,11 +583,24 @@ class adderServer(Node):
         return response 
     
     def DI(self, request, response):                                       
-        return_t = self.execute_with_retry(self.dashboard.ToolDO, request.index, 0)
+        return_t = self.execute_with_retry(self.dashboard.DI, request.index)
         success, response_code = self.safe_parse_response(return_t)
+
+        # Dobot syntax example:
+        # 0,{1},DI(1);
+        # response.res    = command result code, 0 means success
+        # response.status = actual DI state, 0 OFF / 1 ON
         response.res = response_code
+        response.status = 0
+
         if success:
             self.get_logger().info(return_t)
+            try:
+                value_part = str(return_t).split("{", 1)[1].split("}", 1)[0]
+                response.status = int(value_part.split(",")[0].strip())
+            except Exception as e:
+                self.get_logger().warning(f"Could not parse DI status from: {return_t} ({e})")
+
         return response 
     
     def ToolDO(self, request, response):                                       

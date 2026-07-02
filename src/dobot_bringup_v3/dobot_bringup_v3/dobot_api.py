@@ -488,7 +488,7 @@ class DobotApiDashboard(DobotApi):
 
     def ToolDI(self,offset1):
         try:
-            string = "DI({:d})".format(int(offset1))
+            string = "ToolDI({:d})".format(int(offset1))
             return self.sendRecvMsg(string)
         except ValueError as e:
             error_msg = f"ToolDI ValueError: {e}"
