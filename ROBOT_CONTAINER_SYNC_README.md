@@ -37,7 +37,8 @@ This document tracks the staged sync from:
 | 3 | `a1c1873` | Pushed | Added the `oms_v1` production GUI package, docs, and ROS console entry point. |
 | 4 | `92b7cd1` | Pushed | Added source `shared` RabbitMQ/logging helpers used by `oms_v1.app` and GUI fallback mode. |
 | 5 | `c159046` | Pushed | Synced `oms_v1` motion core and parameters from the robot container. |
-| 6 | Current stage | Ready | Sync `oms_v1` espresso sequence implementation from the robot container. |
+| 6 | `ea4edb7` | Pushed | Synced `oms_v1` espresso sequence implementation from the robot container. |
+| 7 | Current stage | Ready | Sync `oms_v1` milk frothing and cleaning sequence implementations. |
 
 ## Verification Log
 
@@ -53,3 +54,5 @@ This document tracks the staged sync from:
   passed after syncing the `oms_v1` motion core stage.
 - `python3 -m py_compile src/oms_v1/oms_v1/sequences/espresso.py`
   passed after syncing the espresso sequence stage.
+- `python3 -m py_compile src/oms_v1/oms_v1/sequences/milk_frothing.py src/oms_v1/oms_v1/sequences/cleaning.py`
+  passed after syncing the milk frothing and cleaning sequence stage.
