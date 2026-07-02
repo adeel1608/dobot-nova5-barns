@@ -41,7 +41,30 @@ This document tracks the staged sync from:
 | 7 | `1060416` | Pushed | Synced `oms_v1` milk frothing and cleaning sequence implementations. |
 | 8 | `951d458` | Pushed | Synced `oms_v1` paper cup, plastic cup, and slush sequence implementations. |
 | 9 | `73edf5a` | Pushed | Synced remaining `oms_v1` home, test, and computer vision sequence support modules. |
-| 10 | Current stage | Ready | Sync `pickn_place` perception, calibration, teach, and streamer updates while preserving target-only docs/helpers. |
+| 10 | `6e885e0` | Pushed | Synced `pickn_place` perception, calibration, teach, and streamer updates while preserving target-only docs/helpers. |
+| 11 | Current stage | Ready | Final audit note and ignore rule for local `.bak_*` artifacts. |
+
+## Final Audit Notes
+
+- `dobot_moveit`, `dobot_rviz`, `nova5_moveit`, `pymoveit2`, and `servo_action`
+  were already aligned with the source.
+- `dobot_bringup_v3` intentionally differs from the source because the target
+  keeps the corrected DI/ToolDI behavior and DI `status` response field from
+  the baseline fix.
+- `oms_v1` now matches the source for runtime modules and sequences. Remaining
+  differences are target-only wrapper files, the local `scripts/` directory, and
+  documentation/packaging edits needed for this repository layout.
+- `pickn_place` now matches the source for shared runtime files. Remaining
+  differences are target-only docs and the local `computer_vision.py` helper.
+- `shared` was added because both `oms_v1.app` service mode and the GUI fallback
+  import `shared.rabbitmq_client`.
+- `OrbbecSDK_ROS2` was not copied. The source copy is a 710 MB vendored upstream
+  driver bundle with SDK binaries and a nested `.git`; this target already keeps
+  Orbbec as an external ROS package documented in `src/Orbbec.md`.
+- Source container root files such as Dockerfiles and `compose.yaml` were not
+  copied because they assume a `ros_ws/` subdirectory and the vendored Orbbec
+  tree. Copying them directly into this root-workspace repo would produce broken
+  container paths.
 
 ## Verification Log
 
@@ -65,3 +88,7 @@ This document tracks the staged sync from:
   passed after syncing the remaining `oms_v1` sequence support stage.
 - `python3 -m py_compile src/pickn_place/pickn_place/*.py src/pickn_place/setup.py`
   passed after syncing the `pickn_place` stage.
+- `python3 -m compileall -q src/dobot_bringup_v3/dobot_bringup_v3 src/oms_v1/oms_v1 src/pickn_place/pickn_place src/shared`
+  passed after all code sync stages.
+- `bash -lc 'source /opt/ros/humble/setup.bash && colcon build --packages-select dobot_msgs_v3 dobot_bringup_v3 oms_v1 pickn_place --symlink-install --event-handlers console_direct+'`
+  passed. Colcon emitted the standard overlay warning for rebuilding an already-built `dobot_msgs_v3`, then built all four selected packages successfully.
