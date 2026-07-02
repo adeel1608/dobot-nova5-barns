@@ -32,9 +32,12 @@ This document tracks the staged sync from:
 | Stage | Commit | Status | Notes |
 | --- | --- | --- | --- |
 | 0 | `1f302ad` | Pushed | Baseline DI service fix pushed before sync work. |
-| 1 | Pending | In progress | Add this sync README and comparison trail. |
+| 1 | `2266f0c` | Pushed | Added this sync README and comparison trail. |
+| 2 | Current stage | Ready | Merge `dobot_bringup_v3` communication hardening while preserving the target DI fix. |
 
 ## Verification Log
 
 - `python3 -m py_compile src/dobot_bringup_v3/dobot_bringup_v3/dobot_api.py src/dobot_bringup_v3/dobot_bringup_v3/dobot_bringup.py`
   passed before the baseline push.
+- `python3 -m py_compile src/dobot_bringup_v3/dobot_bringup_v3/dobot_api.py src/dobot_bringup_v3/dobot_bringup_v3/dobot_bringup.py src/dobot_bringup_v3/dobot_bringup_v3/feedback.py`
+  passed after merging the bringup hardening stage.

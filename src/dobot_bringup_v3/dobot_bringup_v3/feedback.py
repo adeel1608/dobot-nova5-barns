@@ -156,7 +156,6 @@ class PublisherNode(Node):
 
             actual = self.feed_v.feed()
             if actual == ["NG"]:
-                self.get_logger().warn("Failed to get valid feedback data.")
                 return
 
             # actual[0]: tool_v, actual[1]: tool_j
@@ -194,4 +193,3 @@ def main(args=None):
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
-
