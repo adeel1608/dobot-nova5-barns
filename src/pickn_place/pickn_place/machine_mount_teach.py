@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
+import time
 import yaml
 import numpy as np
 import threading
@@ -26,16 +28,82 @@ def to_python(obj):
         return obj.item()
     return obj
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Define explicit file paths for merging/saving offsets
-SRC_OFFSET_FILEPATH = os.path.expanduser(
+# Save-path resolution mirrors tool_mount_teach. See that file's resolver
+# docstring for details. Both scripts intentionally use the same env var
+# (BARNS_PICKN_PLACE_SHARE) and BARNS-repo discovery walk so a single
+# environment override covers tool + machine teach.
+MACHINE_OFFSET_FILENAME = "machine_offset_points.yaml"
+LEGACY_MACHINE_OFFSET_FILEPATH = os.path.expanduser(
     "~/barns_ws/src/pickn_place/share/machine_offset_points.yaml"
 )
-INSTALL_OFFSET_FILEPATH = os.path.join(
-    get_package_share_directory("pickn_place"),
-    "machine_offset_points.yaml"
-)
-# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _resolve_src_share_dir(logger=None):
+    env = os.environ.get("BARNS_PICKN_PLACE_SHARE", "").strip()
+    if env:
+        if os.path.isdir(env):
+            return env
+        if logger is not None:
+            logger.warn(f"BARNS_PICKN_PLACE_SHARE set to {env!r} but does not exist")
+
+    here = os.path.abspath(__file__)
+    parent = os.path.dirname(here)
+    for _ in range(8):
+        candidate = os.path.join(
+            parent,
+            "services",
+            "robot_container",
+            "ros_ws",
+            "src",
+            "pickn_place",
+            "share",
+        )
+        if os.path.isdir(candidate):
+            return candidate
+        new_parent = os.path.dirname(parent)
+        if new_parent == parent:
+            break
+        parent = new_parent
+
+    legacy_dir = os.path.dirname(LEGACY_MACHINE_OFFSET_FILEPATH)
+    if logger is not None:
+        logger.warn(
+            "Falling back to legacy share path "
+            f"{legacy_dir} (BARNS repo share not found)."
+        )
+    return legacy_dir
+
+
+def _resolve_save_paths(logger=None):
+    src_dir = _resolve_src_share_dir(logger=logger)
+    src_file = os.path.join(src_dir, MACHINE_OFFSET_FILENAME)
+    install_dir = get_package_share_directory("pickn_place")
+    install_file = os.path.join(install_dir, MACHINE_OFFSET_FILENAME)
+    return [src_file, install_file]
+
+
+def _backup_file(path, logger=None):
+    if not os.path.exists(path):
+        return None
+    bak_dir = os.path.join(
+        os.path.dirname(path), "machine_offset_points.yaml.bak"
+    )
+    os.makedirs(bak_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    target = os.path.join(bak_dir, f"{stamp}.yaml")
+    counter = 0
+    while os.path.exists(target):
+        counter += 1
+        target = os.path.join(bak_dir, f"{stamp}_{counter}.yaml")
+    try:
+        shutil.copy2(path, target)
+        if logger is not None:
+            logger.info(f"Backup written -> {target}")
+        return target
+    except Exception as exc:
+        if logger is not None:
+            logger.warn(f"Backup failed for {path}: {exc}")
+        return None
 
 class MachineMountTeach(Node):
     MARKER_SAMPLES  = 100
@@ -321,7 +389,7 @@ class MachineMountTeach(Node):
             self.get_logger().warn("No points recorded.")
             return
 
-        # persist to YAML with non-destructive merge
+        # persist to YAML with non-destructive merge + backup
         def merge_write(path):
             try:
                 with open(path) as f:
@@ -331,6 +399,8 @@ class MachineMountTeach(Node):
 
             if not isinstance(data, dict):
                 data = {}
+
+            _backup_file(path, logger=self.get_logger())
 
             machine_name = machine
             existing = data.get(machine_name, {})
@@ -347,11 +417,12 @@ class MachineMountTeach(Node):
             data = to_python(data)
             with open(path, "w") as f:
                 yaml.safe_dump(data, f)
-            self.get_logger().info(f"Offsets saved → {path}")
+            self.get_logger().info(f"Offsets saved -> {path}")
 
-        # Write to both the source and install locations
-        merge_write(SRC_OFFSET_FILEPATH)
-        merge_write(INSTALL_OFFSET_FILEPATH)
+        save_paths = _resolve_save_paths(logger=self.get_logger())
+        for resolved in save_paths:
+            self.get_logger().info(f"Machine offset save target: {resolved}")
+            merge_write(resolved)
 
         self.get_logger().info("Teaching complete.")
 

@@ -40,7 +40,8 @@ This document tracks the staged sync from:
 | 6 | `ea4edb7` | Pushed | Synced `oms_v1` espresso sequence implementation from the robot container. |
 | 7 | `1060416` | Pushed | Synced `oms_v1` milk frothing and cleaning sequence implementations. |
 | 8 | `951d458` | Pushed | Synced `oms_v1` paper cup, plastic cup, and slush sequence implementations. |
-| 9 | Current stage | Ready | Sync remaining `oms_v1` home, test, and computer vision sequence support modules. |
+| 9 | `73edf5a` | Pushed | Synced remaining `oms_v1` home, test, and computer vision sequence support modules. |
+| 10 | Current stage | Ready | Sync `pickn_place` perception, calibration, teach, and streamer updates while preserving target-only docs/helpers. |
 
 ## Verification Log
 
@@ -62,3 +63,5 @@ This document tracks the staged sync from:
   passed after syncing the cup and slush sequence stage.
 - `python3 -m py_compile src/oms_v1/oms_v1/sequences/home.py src/oms_v1/oms_v1/sequences/test.py src/oms_v1/oms_v1/sequences/computer_vision.py`
   passed after syncing the remaining `oms_v1` sequence support stage.
+- `python3 -m py_compile src/pickn_place/pickn_place/*.py src/pickn_place/setup.py`
+  passed after syncing the `pickn_place` stage.

@@ -7,8 +7,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import TransformStamped
 import tf2_ros
-import tf_transformations
-from tf_transformations import (
+from transformations import (
     quaternion_from_matrix,
     euler_from_quaternion,
     quaternion_from_euler,
@@ -216,9 +215,8 @@ class ArucoPerceptionNode(Node):
         self.create_subscription(Image, self.DEPTH_IMAGE_TOPIC, self.depth_callback, 10)
 
         self.create_timer(3.0, self.check_input_topics)
-        # Create an independent timer for the support warning message (once at startup)
-        self.support_warning_shown = False
-        self.create_timer(5.0, self.support_warning_callback)
+        # Create an independent timer for the support warning message.
+        self.create_timer(3.0, self.support_warning_callback)
 
         self.add_on_set_parameters_callback(self.parameter_callback)
 
@@ -281,10 +279,9 @@ class ArucoPerceptionNode(Node):
             self.throttled_log("No depth image received. Ensure /camera/depth/image_raw is publishing.", "warn")
 
     def support_warning_callback(self):
-        # This independent timer logs the support warning once at startup if not initialized.
-        if not self.INITIALIZED and not self.support_warning_shown:
+        # This independent timer logs the support warning every 3 seconds if not initialized.
+        if not self.INITIALIZED:
             self.get_logger().warn("this is support node for axxb_calibration, run 'ros2 run pickn_place axxb_calibration' instead.")
-            self.support_warning_shown = True
 
     def crop_center(self, frame):
         if self.image_width is None or self.image_height is None:
@@ -498,18 +495,18 @@ class ArucoPerceptionNode(Node):
                     if MIN_DISTANCE_TOLERANCE <= distance <= MAX_DISTANCE_TOLERANCE:
                         roi_color = (0, 255, 0)  # Green if within tolerance
                     else:
-                        roi_color = (0, 0, 255)  # Red if out of tolerance
+                        roi_color = (255, 0, 0)  # Default blue otherwise
 
                 except Exception as e:
-                    self.throttled_log(f"TF lookup failed: {e}", "warn")
-                    roi_color = (0, 0, 255)  # Red ROI color if no distance
+                    self.get_logger().warn(f"TF lookup failed: {e}")
+                    roi_color = (255, 0, 0)  # Default ROI color if no distance
 
             else:
                 self.throttled_log("Not all 4 markers detected for board pose estimation.", "warn")
-                roi_color = (0, 0, 255)
+                roi_color = (255, 0, 0)
         else:
             self.throttled_log("Not all 4 markers detected for board pose estimation.", "warn")
-            roi_color = (0, 0, 255)
+            roi_color = (255, 0, 0)
 
         # --- Composite visualization ---
         if self.VISUALIZE:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import time
 import yaml
 import numpy as np
@@ -15,16 +16,91 @@ import tf2_ros
 from geometry_msgs.msg import TransformStamped
 from ament_index_python.packages import get_package_share_directory
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Explicit paths for saving the tool offsets in both src and install locations
-SRC_TOOL_OFFSET_FILEPATH = os.path.expanduser(
+# Save-path resolution
+#
+# The teach output must land in two places:
+#   1. The BARNS source share folder so the change survives a clean rebuild
+#      and is committed back to the repo.
+#   2. The active install share so the running ROS2 stack picks it up.
+#
+# Resolution order for the source share folder:
+#   - $BARNS_PICKN_PLACE_SHARE if set (must exist)
+#   - walk up from this file looking for the canonical
+#     services/robot_container/ros_ws/src/pickn_place/share folder under
+#     the BARNS repo root
+#   - finally fall back to the legacy ~/barns_ws/src/pickn_place/share path
+#     (kept only so this script works on developer machines that still use
+#     the old layout; logged as a warning when used).
+TOOL_OFFSET_FILENAME = "tool_offset_points.yaml"
+LEGACY_TOOL_OFFSET_FILEPATH = os.path.expanduser(
     "~/barns_ws/src/pickn_place/share/tool_offset_points.yaml"
 )
-INSTALL_TOOL_OFFSET_FILEPATH = os.path.join(
-    get_package_share_directory("pickn_place"),
-    "tool_offset_points.yaml"
-)
-# ──────────────────────────────────────────────────────────────────────────────
+
+
+def _resolve_src_share_dir(logger=None):
+    env = os.environ.get("BARNS_PICKN_PLACE_SHARE", "").strip()
+    if env:
+        if os.path.isdir(env):
+            return env
+        if logger is not None:
+            logger.warn(f"BARNS_PICKN_PLACE_SHARE set to {env!r} but does not exist")
+
+    here = os.path.abspath(__file__)
+    parent = os.path.dirname(here)
+    for _ in range(8):
+        candidate = os.path.join(
+            parent,
+            "services",
+            "robot_container",
+            "ros_ws",
+            "src",
+            "pickn_place",
+            "share",
+        )
+        if os.path.isdir(candidate):
+            return candidate
+        new_parent = os.path.dirname(parent)
+        if new_parent == parent:
+            break
+        parent = new_parent
+
+    legacy_dir = os.path.dirname(LEGACY_TOOL_OFFSET_FILEPATH)
+    if logger is not None:
+        logger.warn(
+            "Falling back to legacy share path "
+            f"{legacy_dir} (BARNS repo share not found)."
+        )
+    return legacy_dir
+
+
+def _resolve_save_paths(logger=None):
+    src_dir = _resolve_src_share_dir(logger=logger)
+    src_file = os.path.join(src_dir, TOOL_OFFSET_FILENAME)
+    install_dir = get_package_share_directory("pickn_place")
+    install_file = os.path.join(install_dir, TOOL_OFFSET_FILENAME)
+    return [src_file, install_file]
+
+
+def _backup_file(path, logger=None):
+    if not os.path.exists(path):
+        return None
+    bak_dir = os.path.join(os.path.dirname(path), "tool_offset_points.yaml.bak")
+    os.makedirs(bak_dir, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    target = os.path.join(bak_dir, f"{stamp}.yaml")
+    counter = 0
+    while os.path.exists(target):
+        counter += 1
+        target = os.path.join(bak_dir, f"{stamp}_{counter}.yaml")
+    try:
+        shutil.copy2(path, target)
+        if logger is not None:
+            logger.info(f"Backup written -> {target}")
+        return target
+    except Exception as exc:
+        if logger is not None:
+            logger.warn(f"Backup failed for {path}: {exc}")
+        return None
 
 # Offsets for approach_pose (if all zero, no change)
 OFFSET_X = 0.0
@@ -110,7 +186,7 @@ class ToolMountTeach(Node):
         filtered_translations = [translations[i] for i in valid_indices]
         return filtered_translations, valid_indices
 
-    def average_transform(self, target_frame, source_frame, sample_count=100, sample_interval=0.1):
+    def average_transform(self, target_frame, source_frame, sample_count=50, sample_interval=0.1):
         """
         Collect and average multiple samples of the transform.
         Returns (avg_translation, avg_quaternion) or (None, None) on failure.
@@ -236,7 +312,7 @@ class ToolMountTeach(Node):
                                 z=grab_quaternion[3]),
         }
 
-        # ── Persist to both source & install locations ────────────────────────────
+        # Persist to both source & install locations with backup
         def merge_write(path):
             try:
                 with open(path, 'r') as f:
@@ -245,15 +321,17 @@ class ToolMountTeach(Node):
                 data = {}
             if not isinstance(data, dict):
                 data = {}
+            _backup_file(path, logger=self.get_logger())
             data[tool_name] = {"approach_pose": approach_offset, "grab_pose": grab_offset}
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w') as f:
                 yaml.safe_dump(data, f, default_flow_style=False)
-            self.get_logger().info(f"Tool offset points saved → {path}")
+            self.get_logger().info(f"Tool offset points saved -> {path}")
 
-        merge_write(SRC_TOOL_OFFSET_FILEPATH)
-        merge_write(INSTALL_TOOL_OFFSET_FILEPATH)
-        # ──────────────────────────────────────────────────────────────────────────
+        save_paths = _resolve_save_paths(logger=self.get_logger())
+        for resolved in save_paths:
+            self.get_logger().info(f"Tool offset save target: {resolved}")
+            merge_write(resolved)
 
         # Start dynamic TF broadcast
         self.setup_dynamic_broadcast(tool_name, approach_offset, grab_offset)
@@ -272,10 +350,7 @@ def main(args=None):
         pass
     finally:
         node.shutdown()
-        try:
-            rclpy.shutdown()
-        except Exception:
-            pass  # Already shut down, ignore
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

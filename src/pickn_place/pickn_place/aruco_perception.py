@@ -1,31 +1,69 @@
 #!/usr/bin/env python3
 """
-Aruco perception node with sliding-window averaging and immediate TF publish:
-- Configurable sample window size (default 3)
-- Use deque(maxlen=N) per marker for sliding-buffer
-- On each new detection, append and broadcast running average immediately
-- Calibration TF still broadcast at 100 Hz
+ArUco perception node with sliding-window averaging and immediate TF publish.
+
+Detection / TF behaviour
+------------------------
+- Configurable sample window size (default 6).
+- Use deque(maxlen=N) per marker for sliding-buffer.
+- On each new detection, append and broadcast the running average immediately.
+- Calibration TF still broadcast at 100 Hz.
+
+Visualization (control-plane / data-plane split)
+------------------------------------------------
+The previous version popped up a local OpenCV window (cv2.imshow) which was
+useless headless and ran 24/7 even when nobody was watching. The headless,
+on-demand replacement is:
+
+  Control plane:
+    - std_srvs/srv/SetBool service at  ~/set_visualization
+    - std_msgs/Bool status topic at    ~/visualization/active   (TRANSIENT_LOCAL)
+
+  Data plane:
+    - sensor_msgs/CompressedImage at   ~/visualization/compressed (BEST_EFFORT)
+
+While the visualization is disabled (the default), the node skips every
+render-only operation: depth normalization / colormap, polylines, axis draw,
+label text, vstack and JPEG encoding. It keeps detecting markers and
+broadcasting TFs as before. When SetBool(true) is received, the node renders
+each subsequent frame, JPEG-encodes it, and publishes a CompressedImage.
+
+A companion perception_streamer node subscribes to the CompressedImage topic
+and serves it as MJPEG to the video-stream backend / dashboard. That keeps the
+heavy data path entirely inside the robot pod (intra-host shared-memory DDS
+transport) and avoids piping raw frames through any non-ROS bridges.
 """
-import rclpy
-from rclpy.node import Node
-import cv2
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import TransformStamped
-import numpy as np
-from time import time
-import tf2_ros
 import os
+from collections import deque
+from time import time
+
+import cv2
+import numpy as np
+import rclpy
+import tf2_ros
 import yaml
 from ament_index_python.packages import get_package_share_directory
+from cv_bridge import CvBridge
+from geometry_msgs.msg import TransformStamped
+from rclpy.node import Node
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+)
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
+from std_msgs.msg import Bool
+from std_srvs.srv import SetBool
 from transformations import quaternion_from_matrix
-from collections import deque
 
 # ---- Constants ---------------------------------------------------------------
-DEFAULT_VISUALIZE       = True
+DEFAULT_VISUALIZE       = False
 DEFAULT_SAMPLE_WINDOW   = 6
 DEFAULT_LOG_INTERVAL    = 5.0
 DEPTH_MEDIAN_HALF       = 1      # 3x3 median patch for depth sampling
+DEFAULT_VIZ_JPEG_QUALITY = 70
+DEFAULT_VIZ_FRAME_SKIP   = 1     # publish every N+1-th frame (1 -> ~half rate)
 
 DEFAULT_IMAGE_TOPIC         = '/camera/color/image_raw'
 DEFAULT_CAMERA_INFO_TOPIC   = '/camera/color/camera_info'
@@ -83,13 +121,41 @@ class ArucoPerceptionNode(Node):
         super().__init__('aruco_perception_node')
         self.get_logger().info("Initializing ArucoPerceptionNode...")
 
-        # Params
-        self.declare_parameter('visualize', DEFAULT_VISUALIZE)
+        # --- Parameters ------------------------------------------------------
+        # Topic names are exposed so robot1/robot2 (or tests) can rewire them
+        # without touching code. Defaults preserve the historical behaviour.
+        self.declare_parameter('visualize',          DEFAULT_VISUALIZE)
         self.declare_parameter('sample_window_size', DEFAULT_SAMPLE_WINDOW)
-        self.VISUALIZE     = self.get_parameter('visualize').get_parameter_value().bool_value
-        self.sample_window = self.get_parameter('sample_window_size').get_parameter_value().integer_value
-        self.get_logger().info(f"Visualization: {'Enabled' if self.VISUALIZE else 'Disabled'}")
+        self.declare_parameter('image_topic',         DEFAULT_IMAGE_TOPIC)
+        self.declare_parameter('camera_info_topic',   DEFAULT_CAMERA_INFO_TOPIC)
+        self.declare_parameter('depth_image_topic',   DEFAULT_DEPTH_IMAGE_TOPIC)
+        self.declare_parameter('depth_info_topic',    DEFAULT_DEPTH_INFO_TOPIC)
+        self.declare_parameter('extrinsics_topic',    DEFAULT_EXTRINSICS_TOPIC)
+        self.declare_parameter('viz_jpeg_quality',    DEFAULT_VIZ_JPEG_QUALITY)
+        self.declare_parameter('viz_frame_skip',      DEFAULT_VIZ_FRAME_SKIP)
+
+        self._viz_enabled = bool(self.get_parameter('visualize').value)
+        self.sample_window = int(self.get_parameter('sample_window_size').value)
+        self._viz_quality = int(self.get_parameter('viz_jpeg_quality').value)
+        self._viz_skip_n = max(0, int(self.get_parameter('viz_frame_skip').value))
+        self._viz_skip_counter = 0
+
+        image_topic       = self.get_parameter('image_topic').value
+        camera_info_topic = self.get_parameter('camera_info_topic').value
+        depth_image_topic = self.get_parameter('depth_image_topic').value
+        depth_info_topic  = self.get_parameter('depth_info_topic').value
+        extrinsics_topic  = self.get_parameter('extrinsics_topic').value
+
+        self.get_logger().info(
+            f"Visualization initial state: {'Enabled' if self._viz_enabled else 'Disabled'} "
+            f"(toggle with /aruco_perception_node/set_visualization)"
+        )
         self.get_logger().info(f"Sample window size: {self.sample_window}")
+        self.get_logger().info(
+            f"Topics: color={image_topic}, color_info={camera_info_topic}, "
+            f"depth={depth_image_topic}, depth_info={depth_info_topic}, "
+            f"extrinsics={extrinsics_topic}"
+        )
 
         # Logging throttle
         self.last_log_time = 0.0
@@ -112,6 +178,37 @@ class ArucoPerceptionNode(Node):
         self.get_logger().info("TF broadcaster initialized.")
         self.last_marker_transforms = {}  # id -> TransformStamped
         self.marker_samples         = {}  # id -> {'positions': deque, 'orientations': deque}
+
+        # --- Visualization control plane / data plane ------------------------
+        # Created once; cheap to keep around even when disabled. Subscribers
+        # only start receiving frames once SetBool(true) has been received.
+        viz_pub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        viz_status_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+        self._viz_pub = self.create_publisher(
+            CompressedImage, '~/visualization/compressed', viz_pub_qos
+        )
+        self._viz_status_pub = self.create_publisher(
+            Bool, '~/visualization/active', viz_status_qos
+        )
+        self._publish_viz_status()
+
+        self._set_viz_srv = self.create_service(
+            SetBool, '~/set_visualization', self._on_set_visualization
+        )
+        self.get_logger().info(
+            "Visualization control plane ready: service "
+            "~/set_visualization (std_srvs/SetBool), publisher "
+            "~/visualization/compressed (sensor_msgs/CompressedImage)."
+        )
 
         # Timers
         self.create_timer(CALIBRATION_TF_INT, self.publish_calibration_tf)
@@ -149,20 +246,37 @@ class ArucoPerceptionNode(Node):
 
         # Subscriptions
         self.get_logger().info("Creating subscriptions...")
-        self.create_subscription(CameraInfo, DEFAULT_CAMERA_INFO_TOPIC, self.camera_info_callback, 10)
-        self.create_subscription(Image,      DEFAULT_IMAGE_TOPIC,      self.image_callback,      10)
-        self.create_subscription(CameraInfo, DEFAULT_DEPTH_INFO_TOPIC, self.depth_info_callback,10)
-        self.create_subscription(Image,      DEFAULT_DEPTH_IMAGE_TOPIC,self.depth_callback,     10)
-        self.create_subscription(TransformStamped, DEFAULT_EXTRINSICS_TOPIC, self.extrinsics_callback,10)
+        self.create_subscription(CameraInfo, camera_info_topic, self.camera_info_callback, 10)
+        self.create_subscription(Image,      image_topic,       self.image_callback,       10)
+        self.create_subscription(CameraInfo, depth_info_topic,  self.depth_info_callback,  10)
+        self.create_subscription(Image,      depth_image_topic, self.depth_callback,       10)
+        self.create_subscription(TransformStamped, extrinsics_topic, self.extrinsics_callback, 10)
         self.get_logger().info("Subscriptions created.")
 
-        # Visualization
-        if self.VISUALIZE:
-            self.get_logger().info("Initializing visualization window...")
-            cv2.namedWindow("Aruco Detection - RGB (top) and Depth (bottom)", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("Aruco Detection - RGB (top) and Depth (bottom)", 900, 1000)
-
         self.get_logger().info("ArucoPerceptionNode initialized successfully.")
+
+    # ---- Visualization service -----------------------------------------------
+    def _on_set_visualization(self, request: SetBool.Request, response: SetBool.Response):
+        new_state = bool(request.data)
+        if new_state == self._viz_enabled:
+            response.success = True
+            response.message = f"Visualization already {'enabled' if new_state else 'disabled'}"
+            return response
+
+        self._viz_enabled = new_state
+        self._viz_skip_counter = 0
+        self._publish_viz_status()
+        self.get_logger().info(
+            f"Visualization {'enabled' if new_state else 'disabled'} via SetBool"
+        )
+        response.success = True
+        response.message = f"Visualization {'enabled' if new_state else 'disabled'}"
+        return response
+
+    def _publish_viz_status(self):
+        msg = Bool()
+        msg.data = bool(self._viz_enabled)
+        self._viz_status_pub.publish(msg)
 
     # ---- Logging helper ------------------------------------------------------
     def throttled_log(self, msg, level="info"):
@@ -245,8 +359,11 @@ class ArucoPerceptionNode(Node):
             return
         frame = self.crop_center(frame)
 
+        # Visualization-only render buffers; never produced when disabled so
+        # that idle CPU stays at "detection-only" levels.
+        viz_active = self._viz_enabled
         depth_vis = None
-        if self.VISUALIZE:
+        if viz_active:
             depth_vis = cv2.normalize(self.latest_depth_image, None, 0, 255, cv2.NORM_MINMAX)
             depth_vis = cv2.applyColorMap(depth_vis.astype(np.uint8), cv2.COLORMAP_JET)
             depth_vis = cv2.resize(depth_vis, (frame.shape[1], frame.shape[0]))
@@ -330,7 +447,7 @@ class ArucoPerceptionNode(Node):
                     self.tf_broadcaster.sendTransform(tfm)
                     self.last_marker_transforms[mid] = tfm
 
-                if self.VISUALIZE:
+                if viz_active:
                     pts2d = corners[i][0].astype(int)
                     cv2.polylines(frame, [pts2d], True, (0,255,0), 2)
                     cv2.polylines(depth_vis, [pts2d], True, (0,255,0), 2)
@@ -345,14 +462,28 @@ class ArucoPerceptionNode(Node):
                     cv2.putText(frame, label, (c[0],c[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
                     cv2.putText(depth_vis, label, (c[0],c[1]-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
 
-        # Show combined view
-        if self.VISUALIZE:
-            h, w = frame.shape[:2]
-            if depth_vis.shape[1] != w:
-                depth_vis = cv2.resize(depth_vis, (w, depth_vis.shape[0]))
-            vis = np.vstack((frame, depth_vis))
-            cv2.imshow("Aruco Detection - RGB (top) and Depth (bottom)", vis)
-            cv2.waitKey(1)
+        # Compose + publish the visualization frame only if (a) viz is enabled
+        # and (b) we are on a frame the skip-counter wants to publish. This is
+        # the headless replacement for the legacy cv2.imshow window.
+        if viz_active and depth_vis is not None:
+            if self._viz_skip_n > 0 and self._viz_skip_counter < self._viz_skip_n:
+                self._viz_skip_counter += 1
+            else:
+                self._viz_skip_counter = 0
+                h, w = frame.shape[:2]
+                if depth_vis.shape[1] != w:
+                    depth_vis = cv2.resize(depth_vis, (w, depth_vis.shape[0]))
+                vis = np.vstack((frame, depth_vis))
+                ok, jpg = cv2.imencode(
+                    '.jpg', vis, [cv2.IMWRITE_JPEG_QUALITY, self._viz_quality]
+                )
+                if ok:
+                    out = CompressedImage()
+                    out.header.stamp = self.get_clock().now().to_msg()
+                    out.header.frame_id = 'aruco_visualization'
+                    out.format = 'jpeg'
+                    out.data = jpg.tobytes()
+                    self._viz_pub.publish(out)
 
     def crop_center(self, frame):
         if not getattr(self, 'image_width', None):
@@ -380,9 +511,8 @@ class ArucoPerceptionNode(Node):
 
     def destroy_node(self):
         self.get_logger().info("Shutting down ArucoPerceptionNode...")
-        if self.VISUALIZE:
-            cv2.destroyAllWindows()
-            self.get_logger().info("Visualization window destroyed.")
+        # No GUI windows are owned by this process anymore; nothing extra to
+        # release. The publishers/services are cleaned up by Node.destroy_node.
         super().destroy_node()
 
 

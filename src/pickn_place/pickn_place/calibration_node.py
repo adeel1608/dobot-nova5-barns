@@ -32,11 +32,10 @@ from ament_index_python.packages import get_package_share_directory
 # =============================================================================
 # Sampling and stability settings
 SAMPLES = 51                        # Total number of samples to collect
-NUM_CONSECUTIVE_TF = 10              # Number of consecutive transforms for marker stability check (reduced for faster capture)
-TRANSLATION_THRESHOLD = 0.0005       # Translation threshold in meters (0.4mm - relaxed for robot vibrations)
-ROTATION_THRESHOLD = 1.0             # Rotation threshold in degrees (relaxed for real-world noise)
+NUM_CONSECUTIVE_TF = 10              # Number of consecutive transforms for marker stability check
+TRANSLATION_THRESHOLD = 0.0005        # Translation threshold in meters
+ROTATION_THRESHOLD = 0.4            # Rotation threshold in degrees
 LOOKUP_TIME_OFFSET = 2.0            # Seconds offset for transform lookup
-MIN_SAMPLES_FOR_CALIBRATION = 10    # Minimum samples before starting incremental validation
 
 # Frame names
 DEFAULT_TRACKING_BASE_FRAME = "camera_depth_optical_frame"
@@ -239,80 +238,30 @@ class HandEyeCalibrationNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        # Create services for capturing data and saving final calibration
+        # Create service for capturing data
         self.capture_service = self.create_service(
             Trigger,
             'capture_point',
             self.capture_callback
         )
-        
-        self.save_calibration_service = self.create_service(
-            Trigger,
-            'save_calibration',
-            self.save_calibration_callback
-        )
 
         # Store samples in memory (cleared after each calibration cycle).
         self.robot_samples = []
         self.tracking_samples = []
-        
-        # Store calibration history for incremental validation
-        self.calibration_history = []  # List of calibration transforms
-        self.current_calibration = None  # Current best calibration [tx, ty, tz, qx, qy, qz, qw]
-        self.calibration_error_history = []  # List of errors between consecutive calibrations
 
         self.get_logger().info("Hand-Eye Calibration Node Started.")
 
-        # Create an independent timer for the support warning message (once at startup)
-        self.support_warning_shown = False
-        self.create_timer(5.0, self.support_warning_callback)
+        # Create an independent timer for the support warning message.
+        self.create_timer(3.0, self.support_warning_callback)
 
         # Add a parameter callback to update the 'initialized' parameter.
         self.add_on_set_parameters_callback(self.parameter_callback)
 
     def support_warning_callback(self):
-        # This independent timer logs the support warning once at startup if not initialized.
-        if not self.INITIALIZED and not self.support_warning_shown:
+        # This independent timer logs the support warning every 3 seconds if not initialized.
+        if not self.INITIALIZED:
             self.get_logger().warn("this is support node for axxb_calibration, run 'ros2 run pickn_place axxb_calibration' instead.")
-            self.support_warning_shown = True
 
-    def save_calibration_callback(self, req, resp):
-        """
-        Service to save current calibration and raw data on demand.
-        Called when user types 'done'.
-        """
-        current_count = len(self.robot_samples)
-        
-        if current_count < MIN_SAMPLES_FOR_CALIBRATION:
-            resp.success = False
-            resp.message = f"Not enough samples ({current_count}/{MIN_SAMPLES_FOR_CALIBRATION})"
-            return resp
-        
-        if self.current_calibration is None:
-            resp.success = False
-            resp.message = "No calibration computed yet"
-            return resp
-        
-        self.get_logger().info("="*70)
-        self.get_logger().info(f"💾 SAVING FINAL CALIBRATION")
-        self.get_logger().info("="*70)
-        self.get_logger().info(f"✅ Total samples used: {current_count}")
-        self.get_logger().info(f"✅ Final calibration error: {self.calibration_error_history[-1]:.4f}mm")
-        
-        # Write raw data
-        self.write_raw_data_file()
-        
-        # Write final calibration
-        self.write_final_calibration_file(self.current_calibration)
-        
-        self.get_logger().info("="*70)
-        self.get_logger().info("🎉 CALIBRATION SAVED SUCCESSFULLY!")
-        self.get_logger().info("="*70)
-        
-        resp.success = True
-        resp.message = f"Calibration saved with {current_count} samples"
-        return resp
-    
     def parameter_callback(self, params):
         for param in params:
             if param.name == 'initialized':
@@ -355,8 +304,7 @@ class HandEyeCalibrationNode(Node):
         # 2) Check stability
         max_tdiff, max_rdiff = compute_max_spread(tracker_samples)
         if max_tdiff > TRANSLATION_THRESHOLD or max_rdiff > ROTATION_THRESHOLD:
-            msg = (f"⚠️ Marker not stable. Max diff: {max_tdiff:.6f}m, {max_rdiff:.6f}°. "
-                   f"Thresholds: {TRANSLATION_THRESHOLD}m, {ROTATION_THRESHOLD}°")
+            msg = (f"Marker not stable. Max diff: {max_tdiff:.6f}m, {max_rdiff:.6f}deg")
             self.get_logger().warn(msg)
             resp.success = False
             resp.message = msg
@@ -384,131 +332,40 @@ class HandEyeCalibrationNode(Node):
             resp.message = error_msg
             return resp
 
-        # 4) TENTATIVELY store the sample
-        temp_robot_sample = get_transform(robot_tf_stamped.transform)
-        temp_tracking_sample = final_tracker
-        
+        # 4) Store the sample
+        self.robot_samples.append(get_transform(robot_tf_stamped.transform))
+        self.tracking_samples.append(final_tracker)
+
         current_count = len(self.robot_samples)
-        
-        # 5) Incremental calibration validation (after MIN_SAMPLES_FOR_CALIBRATION samples)
-        
-        if current_count < MIN_SAMPLES_FOR_CALIBRATION:
-            # Just accept the sample (not enough for calibration yet)
-            self.robot_samples.append(temp_robot_sample)
-            self.tracking_samples.append(temp_tracking_sample)
-            current_count = len(self.robot_samples)
-            
-            progress_bar = "█" * current_count + "░" * (MIN_SAMPLES_FOR_CALIBRATION - current_count)
-            self.get_logger().info(f"✓ Sample {current_count}/{MIN_SAMPLES_FOR_CALIBRATION} [{progress_bar}] {int(100*current_count/MIN_SAMPLES_FOR_CALIBRATION)}% (building initial set)")
-            
-            resp.success = True
-            resp.message = f"Sample {current_count} captured. Need {MIN_SAMPLES_FOR_CALIBRATION} for initial calibration."
-            return resp
-        
-        elif current_count == MIN_SAMPLES_FOR_CALIBRATION:
-            # First calibration computation (10 samples)
-            self.robot_samples.append(temp_robot_sample)
-            self.tracking_samples.append(temp_tracking_sample)
-            current_count = len(self.robot_samples)
-            
-            self.get_logger().info("="*70)
-            self.get_logger().info(f"🎯 INITIAL CALIBRATION (10 samples)")
-            self.get_logger().info("="*70)
-            
-            new_calibration = CalibrationBackend.compute_calibration(
-                self.robot_samples,
-                self.tracking_samples,
+        self.get_logger().info(f"Captured sample {current_count}/{SAMPLES}.")
+
+        # 5) If we've reached the required total samples, save raw data and compute final calibration.
+        if current_count >= SAMPLES:
+            self.get_logger().info("Reached final sample count. Saving raw data...")
+            self.write_raw_data_file()
+            raw_data = self.read_raw_data_file()
+            if raw_data is None:
+                resp.success = False
+                resp.message = "Failed to read raw data."
+                return resp
+
+            self.get_logger().info("Computing final calibration based on saved raw data...")
+            final_cal_quat = CalibrationBackend.compute_calibration(
+                raw_data['raw_robot_samples'],
+                raw_data['raw_tracking_samples'],
                 algorithm=CALIBRATION_ALGORITHM
             )
-            
-            self.current_calibration = new_calibration
-            self.calibration_history.append(new_calibration)
-            
-            self.get_logger().info(f"✅ Initial calibration computed!")
-            self.get_logger().info(f"   Translation: [{new_calibration[0]:.4f}, {new_calibration[1]:.4f}, {new_calibration[2]:.4f}]m")
-            self.get_logger().info(f"   Rotation: [{new_calibration[3]:.4f}, {new_calibration[4]:.4f}, {new_calibration[5]:.4f}, {new_calibration[6]:.4f}]")
-            self.get_logger().info("="*70)
-            
+            self.write_final_calibration_file(final_cal_quat)
+            self.get_logger().info("Final calibration computed and saved.")
+            # Reset the node state to loop as if just launched.
+            self.reset_calibration_cycle()
             resp.success = True
-            resp.message = f"Sample {current_count} - Initial calibration complete! Continue for refinement."
+            resp.message = "Final calibration complete and calibration cycle reset."
             return resp
-        
-        else:
-            # Incremental validation (11+ samples)
-            # Temporarily add sample and recompute
-            temp_robot_samples = self.robot_samples + [temp_robot_sample]
-            temp_tracking_samples = self.tracking_samples + [temp_tracking_sample]
-            
-            new_calibration = CalibrationBackend.compute_calibration(
-                temp_robot_samples,
-                temp_tracking_samples,
-                algorithm=CALIBRATION_ALGORITHM
-            )
-            
-            # Compute error between new and current calibration
-            trans_error = np.linalg.norm(np.array(new_calibration[:3]) - np.array(self.current_calibration[:3]))
-            
-            # Quaternion distance
-            q1 = np.array(new_calibration[3:])
-            q2 = np.array(self.current_calibration[3:])
-            dot_product = abs(np.dot(q1, q2))
-            dot_product = min(1.0, dot_product)  # Clamp to [0, 1]
-            rot_error = math.degrees(2 * math.acos(dot_product))
-            
-            total_error = trans_error * 1000  # Convert to mm for readability
-            
-            # Decide whether to accept the sample
-            if len(self.calibration_error_history) == 0:
-                # First refinement sample - accept it as baseline
-                accept_sample = True
-                comparison = "BASELINE"
-            else:
-                # Compare to trend
-                previous_error = self.calibration_error_history[-1]
-                if total_error <= previous_error * 1.5:  # Allow 50% tolerance for noise
-                    accept_sample = True
-                    if total_error < previous_error:
-                        comparison = "IMPROVED ✓"
-                    else:
-                        comparison = "SIMILAR ≈"
-                else:
-                    accept_sample = False
-                    comparison = "WORSE ✗"
-            
-            if accept_sample:
-                # Accept sample
-                self.robot_samples.append(temp_robot_sample)
-                self.tracking_samples.append(temp_tracking_sample)
-                self.current_calibration = new_calibration
-                self.calibration_history.append(new_calibration)
-                self.calibration_error_history.append(total_error)
-                
-                current_count = len(self.robot_samples)
-                
-                self.get_logger().info("─"*70)
-                self.get_logger().info(f"✅ Sample {current_count} ACCEPTED - {comparison}")
-                self.get_logger().info(f"   Δ Translation: {trans_error*1000:.4f}mm, Δ Rotation: {rot_error:.4f}°")
-                self.get_logger().info(f"   Total Error: {total_error:.4f}mm")
-                if len(self.calibration_error_history) > 1:
-                    self.get_logger().info(f"   Previous Error: {self.calibration_error_history[-2]:.4f}mm")
-                self.get_logger().info("─"*70)
-                
-                resp.success = True
-                resp.message = f"Sample {current_count} accepted - {comparison}"
-            else:
-                # Reject sample
-                prev_error = self.calibration_error_history[-1]
-                self.get_logger().warn("─"*70)
-                self.get_logger().warn(f"⚠️ Sample REJECTED - {comparison}")
-                self.get_logger().warn(f"   New Error: {total_error:.4f}mm vs Previous: {prev_error:.4f}mm")
-                self.get_logger().warn(f"   Δ Translation: {trans_error*1000:.4f}mm, Δ Rotation: {rot_error:.4f}°")
-                self.get_logger().warn(f"   Sample discarded - current count remains {len(self.robot_samples)}")
-                self.get_logger().warn("─"*70)
-                
-                resp.success = True
-                resp.message = f"Sample rejected (error increased). Try a different pose. Current: {len(self.robot_samples)} samples"
-            
-            return resp
+
+        resp.success = True
+        resp.message = f"Sample {current_count} captured. Need {SAMPLES} total."
+        return resp
 
     def reset_calibration_cycle(self):
         """
@@ -522,12 +379,9 @@ class HandEyeCalibrationNode(Node):
                 self.get_logger().info(f"Removed old file: {RAW_DATA_FILEPATH}")
             except Exception as e:
                 self.get_logger().warn(f"Failed to remove old file {RAW_DATA_FILEPATH}: {e}")
-        # Clear stored samples and history
+        # Clear stored samples.
         self.robot_samples.clear()
         self.tracking_samples.clear()
-        self.calibration_history.clear()
-        self.calibration_error_history.clear()
-        self.current_calibration = None
         self.get_logger().info("Calibration cycle reset. Ready for new samples.")
 
     def write_raw_data_file(self):
@@ -764,12 +618,8 @@ def main(args=None):
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
-    finally:
-        node.destroy_node()
-        try:
-            rclpy.shutdown()
-        except Exception:
-            pass  # Already shutdown, ignore
+    node.destroy_node()
+    rclpy.shutdown()
 
     # Close any OpenCV windows if used
     cv2.destroyAllWindows()

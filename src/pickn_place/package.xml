@@ -18,14 +18,12 @@
   <depend>sensor_msgs</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
-  <depend>tf-transformations</depend>
+
   <depend>launch</depend>
   <depend>launch_ros</depend>
-
   <!-- rosidl_default_generators is no longer needed here since the .srv files have moved. -->
   <!-- <build_depend>rosidl_default_generators</build_depend> -->
   <!-- <exec_depend>rosidl_default_runtime</exec_depend> -->
-
   <test_depend>python3-pytest</test_depend>
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

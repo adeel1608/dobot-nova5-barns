@@ -100,12 +100,7 @@ class robot_perception(Node):
         self._percep_exec = None
         self._executor_thread = None
         self._shutdown_requested = False
-
-        from tf2_ros import Buffer, TransformListener
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
-        self._tf_ready = True
-
+        
         try:
             self._percep_exec = SingleThreadedExecutor()
             self._percep_exec.add_node(self)
@@ -198,25 +193,29 @@ class robot_perception(Node):
         trans_thresh: float = 0.001,
         rot_thresh: float = 2.5,
         num_samples: int = 10,
-        warmup_sec: float = 0.3,
     ) -> list[float] | None:
         """
-        Obtain one *stable* transform for `target_frame`. Samples until `num_samples`
-        unique poses are collected; if the max spread across the window is within
-        thresholds, return the averaged pose. Otherwise clear and retry until
+        Obtain one *stable* transform for `target_frame`. Samples until `num_samples` 
+        unique poses are collected; if the max spread (ΔT, ΔR) across the window is 
+        within thresholds, return the averaged pose. Otherwise clear and retry until 
         `max_wait` elapses.
         """
         import time, math, numpy as np
         from scipy.spatial.transform import Rotation as Rot
 
         log = self.get_logger()
-        SAMPLE_DELAY = 0.04
+        SAMPLE_DELAY = 0.035 #for 30 FPS
 
+        # Lazy‐initialize TF listener
         if not hasattr(self, "_tf_ready"):
             from tf2_ros import Buffer, TransformListener
             self.tf_buffer = Buffer()
             self.tf_listener = TransformListener(self.tf_buffer, self)
             self._tf_ready = True
+
+        def get_pose_and_stamp():
+            pose, stamp = self.get_tf(target_frame, max_retries=3)
+            return pose
 
         def spread(a, b):
             d_pos = np.linalg.norm(np.array(a[:3]) - np.array(b[:3]))
@@ -233,66 +232,61 @@ class robot_perception(Node):
             arr = np.asarray(buf)
             pos = arr[:, :3].mean(axis=0)
             Q = arr[:, 3:]
+            # align quaternion hemisphere
             Q[np.sum(Q * Q[0], axis=1) < 0] *= -1
             M = (Q[:, :, None] * Q[:, None, :]).mean(axis=0)
             quat = np.linalg.eigh(M)[1][:, -1]
             quat /= np.linalg.norm(quat)
             return np.concatenate([pos, quat]).tolist()
 
-        # Discard initial stale TF data from before the node was ready
-        warmup_end = time.monotonic() + warmup_sec
-        while time.monotonic() < warmup_end:
-            self.get_tf(target_frame, max_retries=1)
-            time.sleep(SAMPLE_DELAY)
-
         samples = []
-        last_stamp = 0.0
         start_time = time.monotonic()
         last_dT = last_dR = None
 
         while (time.monotonic() - start_time) < max_wait:
-            pose, stamp = self.get_tf(target_frame, max_retries=3)
+            pose = get_pose_and_stamp()
             if pose is None:
                 time.sleep(SAMPLE_DELAY)
                 continue
 
-            # Timestamp-based dedup: only accept poses from new TF frames
-            if stamp is not None and stamp <= last_stamp:
+            # Discard duplicates against *all* previous samples
+            if pose in samples:
                 time.sleep(SAMPLE_DELAY)
                 continue
-            if stamp is not None:
-                last_stamp = stamp
 
             samples.append(pose)
             if len(samples) > num_samples:
                 samples.pop(0)
 
+            # Only check stability once the window is full
             if len(samples) < num_samples:
                 time.sleep(SAMPLE_DELAY)
                 continue
 
+            # Compute max spread over the window
             dT, dR = max_spread(samples)
             last_dT, last_dR = dT, dR
-            log.info(f"[acqTF] max dT={dT:.6f} m, dR={dR:.4f} "
-                    f"(tol <={trans_thresh:.6f} m / {rot_thresh:.4f}) "
-                    f"[{len(samples)} samples]")
+            log.info(f"[acqTF] max dT={dT:.4f} m, dR={dR:.2f}° "
+                    f"(tol ≤{trans_thresh:.4f} m / {rot_thresh:.2f}°)")
 
             if dT <= trans_thresh and dR <= rot_thresh:
-                log.info("[acqTF] stable -> returning averaged pose")
+                log.info("[acqTF] stable → returning averaged pose")
                 return average_pose(samples)
 
+            # Unstable: clear buffer and retry
             log.warn(
-                f"[acqTF] unstable window -> reset buffer "
-                f"(dT={dT:.6f}m > {trans_thresh:.6f}m OR dR={dR:.4f} > {rot_thresh:.4f})"
+                f"[acqTF] unstable window → reset buffer "
+                f"(dT={dT:.4f}m > {trans_thresh:.4f}m OR dR={dR:.2f}° > {rot_thresh:.2f}°)"
             )
             samples.clear()
             time.sleep(SAMPLE_DELAY)
 
+        # Timeout
         if last_dT is not None:
             log.error(
                 f"acquire_target_transform({target_frame}): TIMEOUT after {max_wait:.1f}s; "
-                f"last dT={last_dT:.6f} m (required <={trans_thresh:.6f}), "
-                f"dR={last_dR:.4f} (required <={rot_thresh:.4f}), "
+                f"last dT={last_dT:.4f} m (required ≤{trans_thresh:.4f}), "
+                f"dR={last_dR:.2f}° (required ≤{rot_thresh:.2f}°), "
                 f"collected {len(samples)}/{num_samples} samples"
             )
         else:
@@ -608,7 +602,7 @@ class robot_motion(Node):
             target_tf: str,
             required_samples: int = 10,
             *,
-            acq_timeout: float = 10.0,
+            acq_timeout: float = 5.0,
             debug: bool = False
     ) -> tuple[dict, dict] | None:
         """
@@ -622,18 +616,8 @@ class robot_motion(Node):
         from ament_index_python.packages import get_package_share_directory
 
         log = self.get_logger()
-        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "three_group_espresso" else 2.0
-        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "three_group_espresso" else 0.001
-        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "left_steam_wand" else 2.0
-        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "left_steam_wand" else 0.001
-        rot_thresh_deg = 0.1 if target_tf.strip().lower() == "milk_frother_2" else 2.0
-        trans_thresh_m = 0.0001 if target_tf.strip().lower() == "milk_frother_2" else 0.001
-        rot_thresh_deg = 0.45 if target_tf.strip().lower() == "espresso_grinder" else 2.0
-        trans_thresh_m = 0.00020 if target_tf.strip().lower() == "espresso_grinder" else 0.001
+        rot_thresh_deg = 0.2 if target_tf.strip().lower() == "three_group_espresso" else 2.0
         num_samples = required_samples + 5
-
-        log.info(f"[GMP] {target_tf}: trans_thresh={trans_thresh_m:.6f} m, "
-                f"rot_thresh={rot_thresh_deg:.4f} deg, num_samples={num_samples}")
 
         dl = {
             "start_time":   time.time(),
@@ -653,7 +637,7 @@ class robot_motion(Node):
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=acq_timeout,
-                trans_thresh=trans_thresh_m,
+                trans_thresh=0.001,
                 rot_thresh=rot_thresh_deg,
                 num_samples=num_samples,
             )
@@ -677,8 +661,8 @@ class robot_motion(Node):
             "translation": {"x": float(tx), "y": float(ty), "z": float(tz)},
             "rotation":    {"x": float(qx), "y": float(qy), "z": float(qz), "w": float(qw)},
         }
-        log.info(f"[GMP] mean XYZ = ({tx:.6f}, {ty:.6f}, {tz:.6f})  "
-                f"quat = ({qx:.6f}, {qy:.6f}, {qz:.6f}, {qw:.6f})")
+        log.info(f"[GMP] mean XYZ = ({tx:.4f}, {ty:.4f}, {tz:.4f})  "
+                f"quat = ({qx:.4f}, {qy:.4f}, {qz:.4f}, {qw:.4f})")
 
         # ── 3) write YAML once ────────────────────────────────────────────────
         pkg_share = get_package_share_directory("pickn_place")
@@ -767,7 +751,7 @@ class robot_motion(Node):
                 return False
             if res == 0:
                 log.info("StopDrag OK – tension released ✔️")
-                time.sleep(0.2)
+                time.sleep(0.5)
                 return True
             log.warn(f"StopDrag driver res={res}; retrying ({attempt}/{max_attempts})")
             time.sleep(retry_pause)
@@ -882,8 +866,9 @@ class robot_motion(Node):
                         raise SyncFailureError(final_msg) from e
                     return False
             
+            # Short pause between retries
             import time
-            time.sleep(0.25)
+            time.sleep(0.5)
 
         if raise_on_failure:
             raise SyncFailureError(last_error_msg or 'sync: Failed for unknown reason')
@@ -902,6 +887,8 @@ class robot_motion(Node):
 
         Returns (True, final_position) on success; (False, None) otherwise.
         """
+        self.sync()
+
         import time, rclpy
 
         # ── clamp & build request ───────────────────────────────────────────────
@@ -937,13 +924,13 @@ class robot_motion(Node):
             log.error("set_gripper_position: exceeded max_attempts")
             return False, None
         
-        time.sleep(0.15)
+        time.sleep(0.5)
 
         # ── 2) optionally wait until position stabilises ───────────────────────
         if not wait_finish:
             return True, position
 
-        identical_required = 5                    # how many consecutive identical reads
+        identical_required = 3                    # how many consecutive identical reads
         consecutive_ok     = 0
         latest_reading     = None
         start_time         = time.monotonic()
@@ -968,7 +955,7 @@ class robot_motion(Node):
                 consecutive_ok = 1
                 latest_reading = current
 
-            time.sleep(0.1)
+            time.sleep(0.2)
 
         log.error("set_gripper_position: did not stabilise within 3 s")
 
@@ -998,19 +985,27 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) acquire a fresh, stable TF via a temp perception node ────────────
-        import contextlib
         perception = robot_perception()
+        perc_exec  = SingleThreadedExecutor()
+        perc_exec.add_node(perception)
+
+        # start the TF listener in the background while we work
+        import threading, contextlib
+        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
+        tf_thread.start()
+
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.002,
-                rot_thresh=180.0,
+                trans_thresh=0.002,    #2 mm accuracy
+                rot_thresh=180.0,      #ignore orientation
                 num_samples=6,
             )
         finally:
             with contextlib.suppress(Exception):
-                perception.destroy_node()
+                perc_exec.shutdown()
+            perception.destroy_node()
 
         if pose is None:
             log.error("move_to: failed to obtain stable TF")
@@ -1089,7 +1084,7 @@ class robot_motion(Node):
         import rclpy
 
         # ── 1) fixed offset from Link6 origin → portafilter_link origin (m)
-        d_rel = np.array([0.0, 0.0, 0.2875])
+        d_rel = np.array([0.0, 0.0, 0.2825])
 
         retry_pause = 0.25
         max_attempts = 20
@@ -1204,216 +1199,6 @@ class robot_motion(Node):
         self.get_logger().info("enforce_rxry(): Completed successfully.")
         return True
 
-    def enforce_rxry_angled(self) -> bool:
-        """
-        Keep the attached tool origin fixed in world space while forcing
-        Link6 to a known-good grasp orientation.
-
-        Tool definition:
-            0.0, 0.0, 275.0, -17.5, 0.0, 0.0
-
-        Known-good pose orientation:
-            Rx = 74.452705
-            Ry = 0.328027
-            Rz = 84.781235
-
-        Uses MovJ to move the flange while compensating XYZ so the tool origin
-        stays in the same world position.
-
-        Tolerances:
-            Position: 1 mm
-            Rotation: 0.1 deg
-        """
-        from tf_transformations import euler_matrix
-        from dobot_msgs_v3.srv import GetPose, MovJ
-        import numpy as np
-        import time
-        import rclpy
-
-        retry_pause = 0.25
-        max_attempts = 20
-
-        # Tolerances
-        pos_tol_m = 0.001   # 1 mm
-        rot_tol_deg = 0.1   # 0.1 degree
-
-        # Tool origin offset from Link6 origin (m)
-        # For preserving the tool origin position, only the translation is used here.
-        d_rel = np.array([0.0, 0.0, 0.2750], dtype=float)
-
-        # Known-good target orientation
-        rx_t = 74.452705
-        ry_t = 0.328027
-        rz_t = 84.781235
-
-        # Get current pose
-        gp_req = GetPose.Request()
-        gp_req.user = 0
-        gp_req.tool = 0
-
-        resp = None
-        for attempt in range(1, max_attempts + 1):
-            self.get_logger().info(
-                f"enforce_rxry_angled(): GetPose attempt {attempt}/{max_attempts}"
-            )
-
-            future = self.get_pose_cli.call_async(gp_req)
-            start = self.get_clock().now().nanoseconds * 1e-9
-
-            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
-                rclpy.spin_once(self, timeout_sec=0.01)
-                if future.done():
-                    try:
-                        result = future.result()
-                        if result is not None and hasattr(result, "pose"):
-                            resp = result
-                            break
-                    except Exception:
-                        pass
-
-            if resp is not None:
-                break
-
-            self.get_logger().warn(
-                "enforce_rxry_angled(): GetPose failed or timed out, retrying..."
-            )
-            time.sleep(retry_pause)
-
-        if resp is None or not hasattr(resp, "pose"):
-            self.get_logger().error(
-                "enforce_rxry_angled(): Failed to retrieve pose after retries."
-            )
-            return False
-
-        parts = resp.pose.strip("{}").split(",")
-        if len(parts) < 6:
-            self.get_logger().error(
-                f"enforce_rxry_angled(): Invalid pose string: {resp.pose}"
-            )
-            return False
-
-        try:
-            tx_mm, ty_mm, tz_mm, rx_curr, ry_curr, rz_curr = [float(p) for p in parts[:6]]
-        except Exception as e:
-            self.get_logger().error(
-                f"enforce_rxry_angled(): Failed parsing pose: {e}"
-            )
-            return False
-
-        # Current Link6 pose
-        p_link6 = np.array([tx_mm, ty_mm, tz_mm], dtype=float) * 1e-3
-        R6_curr = euler_matrix(*np.radians([rx_curr, ry_curr, rz_curr]))[:3, :3]
-
-        # Current world position of tool origin
-        p_tool_world = p_link6 + R6_curr.dot(d_rel)
-
-        # Desired Link6 rotation
-        R6_goal = euler_matrix(*np.radians([rx_t, ry_t, rz_t]))[:3, :3]
-
-        # Solve for new Link6 origin so tool origin stays fixed
-        p6_goal = p_tool_world - R6_goal.dot(d_rel)
-
-        # Check tolerance against target Link6 pose
-        pos_error_m = np.linalg.norm(p6_goal - p_link6)
-
-        rot_error = np.array([
-            abs(rx_curr - rx_t),
-            abs(ry_curr - ry_t),
-            abs(rz_curr - rz_t)
-        ], dtype=float)
-
-        # Handle angle wrap-around
-        rot_error = np.minimum(rot_error, 360.0 - rot_error)
-        max_rot_error_deg = float(np.max(rot_error))
-
-        self.get_logger().info(
-            "enforce_rxry_angled(): errors -> "
-            f"position={pos_error_m * 1000.0:.3f} mm, "
-            f"rotation=[{rot_error[0]:.6f}, {rot_error[1]:.6f}, {rot_error[2]:.6f}] deg"
-        )
-
-        if pos_error_m <= pos_tol_m and np.all(rot_error <= rot_tol_deg):
-            self.get_logger().info(
-                "enforce_rxry_angled(): Pose already within tolerance, skipping move."
-            )
-            return True
-
-        x_goal_mm = float(p6_goal[0] * 1000.0)
-        y_goal_mm = float(p6_goal[1] * 1000.0)
-        z_goal_mm = float(p6_goal[2] * 1000.0)
-
-        self.get_logger().info(
-            "enforce_rxry_angled(): current pose = "
-            f"{tx_mm:.3f}, {ty_mm:.3f}, {tz_mm:.3f}, "
-            f"{rx_curr:.6f}, {ry_curr:.6f}, {rz_curr:.6f}"
-        )
-        self.get_logger().info(
-            "enforce_rxry_angled(): target pose = "
-            f"{x_goal_mm:.3f}, {y_goal_mm:.3f}, {z_goal_mm:.3f}, "
-            f"{rx_t:.6f}, {ry_t:.6f}, {rz_t:.6f}"
-        )
-
-        # Create MovJ client if needed
-        self.movj_cli = getattr(
-            self,
-            "movj_cli",
-            self.create_client(MovJ, "/dobot_bringup_v3/srv/MovJ")
-        )
-
-        movj_req = MovJ.Request()
-        movj_req.x = x_goal_mm
-        movj_req.y = y_goal_mm
-        movj_req.z = z_goal_mm
-        movj_req.rx = rx_t
-        movj_req.ry = ry_t
-        movj_req.rz = rz_t
-        movj_req.param_value = ["SpeedJ=100,AccJ=100"]
-
-        movj_resp = None
-        for attempt in range(1, max_attempts + 1):
-            self.get_logger().info(
-                f"enforce_rxry_angled(): MovJ attempt {attempt}/{max_attempts}"
-            )
-
-            if not self.movj_cli.wait_for_service(timeout_sec=2.0):
-                self.get_logger().warn(
-                    "enforce_rxry_angled(): MovJ service unavailable, retrying..."
-                )
-                time.sleep(retry_pause)
-                continue
-
-            movj_future = self.movj_cli.call_async(movj_req)
-            start = self.get_clock().now().nanoseconds * 1e-9
-
-            while (self.get_clock().now().nanoseconds * 1e-9 - start) < 2.0:
-                rclpy.spin_once(self, timeout_sec=0.01)
-                if movj_future.done():
-                    try:
-                        movj_resp = movj_future.result()
-                        break
-                    except Exception:
-                        movj_resp = None
-                        break
-
-            if movj_resp is not None:
-                break
-
-            self.get_logger().warn(
-                "enforce_rxry_angled(): MovJ failed or timed out, retrying..."
-            )
-            time.sleep(retry_pause)
-
-        if movj_resp is None:
-            self.get_logger().error(
-                "enforce_rxry_angled(): Failed to execute MovJ after retries."
-            )
-            return False
-
-        self.get_logger().info(
-            "enforce_rxry_angled(): Completed successfully."
-        )
-        return True
-    
     def _get_link6_pose_with_retries(self, max_attempts: int = 3) -> tuple | None:
         """Get current Link6 pose with retry logic."""
         if not self.get_pose_cli.wait_for_service(timeout_sec=2.0):
@@ -2281,19 +2066,27 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) fresh TF via temp perception node ──────────────────────────────
-        import contextlib
-        perception = robot_perception()
+        perception, exec_ = robot_perception(), SingleThreadedExecutor()
+        exec_.add_node(perception)
+
+        # ── start TF listener in a helper thread ───────────────────────────
+        import threading, contextlib
+        tf_thread = threading.Thread(target=exec_.spin, daemon=True)
+        tf_thread.start()
+
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.002,
-                rot_thresh=2.0,
+                trans_thresh=0.002,    #2 mm accuracy
+                rot_thresh=2.0,        #2 deg error
                 num_samples=3,
             )
         finally:
+            # shut down executor and destroy the node
             with contextlib.suppress(Exception):
-                perception.destroy_node()
+                exec_.shutdown()
+            perception.destroy_node()
 
         if pose is None:
             log.error("approach_tool: stable TF not found")
@@ -2509,24 +2302,33 @@ class robot_motion(Node):
         log = self.get_logger()
 
         # ── 1) stable transform for the object ────────────────────────────────
-        import contextlib
         perception = robot_perception()
+        perc_exec  = SingleThreadedExecutor()
+        perc_exec.add_node(perception)
+
+        # ── start TF listener in a helper thread ───────────────────────────
+        import threading, contextlib
+        tf_thread = threading.Thread(target=perc_exec.spin, daemon=True)
+        tf_thread.start()
+
         try:
             pose = perception.acquire_target_transform(
                 target_tf,
                 max_wait=25.0,
-                trans_thresh=0.0005,
-                rot_thresh=1.0,
-                num_samples=9,
+                trans_thresh=0.0005,    #1 mm accuracy
+                rot_thresh=1,        #1.5 deg error
+                num_samples=6,
             )
         finally:
+            # shut down executor and destroy the node
             with contextlib.suppress(Exception):
-                perception.destroy_node()
+                perc_exec.shutdown()
+            perception.destroy_node()
 
         if pose is None:
             log.error(
                 f"grab_tool: no stable TF for '{target_tf}' - "
-                f"Required: pos +/-{0.0005*1000:.2f}mm, rot +/-1.0, {6} samples. "
+                f"Required: pos ±{0.0005*1000:.2f}mm, rot ±1.0°, {9} samples. "
                 f"Consider relaxing tolerances if marker is detected but unstable."
             )
             return False
@@ -2797,7 +2599,7 @@ class robot_motion(Node):
 
         req = SpeedFactor.Request()
         req.ratio = ratio
-        retry_pause, max_attempts = 0.5, 20
+        retry_pause, max_attempts = 1.0, 20
         
         for attempt in range(1, max_attempts + 1):
             self.safe_log("info", f"set_speed_factor: attempt {attempt}/{max_attempts}")
@@ -3410,235 +3212,12 @@ class robot_motion(Node):
 
         log.info("move_portafilter_arc_movJ: completed all chunks ✓")
         return True
-    
-    def move_portafilter_arc_movJ_angled(
-        self,
-        angle_deg: float,
-        d_rel_z: float = 287.5,     # mm from Link-6 flange to TCP along tool local Z
-        tcp_rx_deg: float = -17.5,  # angled TCP rotation
-        tcp_ry_deg: float = 0.0,
-        tcp_rz_deg: float = 0.0,
-        velocity: int = 100,
-        acceleration: int = 100,
-    ) -> bool:
-        """
-        Rotate the ANGLED portafilter about its own local Y axis by `angle_deg`
-        while keeping its TCP pivot fixed.
-
-        This treats the angled tool as having TCP:
-            (0, 0, d_rel_z, tcp_rx_deg, tcp_ry_deg, tcp_rz_deg)
-
-        So compared to the normal function, the TCP orientation is built into:
-        - pivot computation
-        - rotation axis selection
-        - flange goal orientation solving
-
-        Returns True only if every MovJ succeeds.
-        """
-        import math, numpy as np, rclpy, tf_transformations
-        from scipy.spatial.transform import Rotation as Rot
-        from dobot_msgs_v3.srv import GetPose, MovJ
-
-        log = self.get_logger()
-
-        # ── 0) trivial no-op ────────────────────────────────────────────────
-        if abs(angle_deg) <= 0.1:
-            log.info("move_portafilter_arc_movJ_angled: |angle| <= 0.1 deg, nothing to do")
-            return True
-
-        # ── 1) chunk the requested angle ────────────────────────────────────
-        seg = 5.0
-        n_full = int(abs(angle_deg) // seg)
-        remainder = abs(angle_deg) % seg
-        chunks = [seg] * n_full
-        if remainder > 0.1:
-            chunks.append(remainder)
-        sign = 1 if angle_deg > 0 else -1
-        chunks = [c * sign for c in chunks]
-
-        # ── 2) single GetPose at the start ──────────────────────────────────
-        gp_future = self.get_pose_cli.call_async(GetPose.Request(user=0, tool=0))
-        rclpy.spin_until_future_complete(self, gp_future, timeout_sec=5.0)
-        if not gp_future.done() or gp_future.result() is None or not hasattr(gp_future.result(), "pose"):
-            log.error("move_portafilter_arc_movJ_angled: initial GetPose failed")
-            return False
-
-        try:
-            tx_mm, ty_mm, tz_mm, rx_deg, ry_deg, rz_deg = \
-                map(float, gp_future.result().pose.strip("{}").split(",")[:6])
-        except ValueError as exc:
-            log.error(f"move_portafilter_arc_movJ_angled: bad pose string - {exc}")
-            return False
-
-        # Current flange pose in world
-        p6 = np.array([tx_mm, ty_mm, tz_mm]) * 1e-3
-        R6 = tf_transformations.euler_matrix(
-            *np.radians([rx_deg, ry_deg, rz_deg])
-        )[:3, :3]
-
-        # TCP rotation relative to flange
-        R_tcp = tf_transformations.euler_matrix(
-            *np.radians([tcp_rx_deg, tcp_ry_deg, tcp_rz_deg])
-        )[:3, :3]
-
-        if not self.movj_cli.wait_for_service(timeout_sec=5.0):
-            log.error("move_portafilter_arc_movJ_angled: MovJ service unavailable")
-            return False
-
-        # ── 3) iterate over chunks ──────────────────────────────────────────
-        for idx, delta in enumerate(chunks, 1):
-            # Current TCP orientation in world
-            R_tool = R6 @ R_tcp
-
-            # TCP pivot point in world
-            pivot = p6 + R_tool @ (np.array([0.0, 0.0, d_rel_z]) * 1e-3)
-
-            # Vector from pivot back to flange origin
-            v0 = p6 - pivot
-
-            # Rotate around TOOL local Y axis (in world frame)
-            axis_w = R_tool[:, 1]
-            rot_w = Rot.from_rotvec(axis_w * math.radians(delta))
-
-            # New flange position after rotating around pivot
-            p6_goal = pivot + rot_w.apply(v0)
-
-            # New TOOL orientation after chunk rotation
-            R_tool_goal = rot_w.as_matrix() @ R_tool
-
-            # Solve required flange orientation:
-            # R6_goal @ R_tcp = R_tool_goal
-            # => R6_goal = R_tool_goal @ inv(R_tcp)
-            R6_goal = R_tool_goal @ R_tcp.T
-
-            # Convert goal flange orientation to Euler XYZ
-            M_goal = np.eye(4)
-            M_goal[:3, :3] = R6_goal
-            rx_g, ry_g, rz_g = np.degrees(
-                tf_transformations.euler_from_matrix(M_goal, 'sxyz')
-            )
-
-            # Queue MovJ
-            req = MovJ.Request()
-            req.x = float(p6_goal[0] * 1000.0)
-            req.y = float(p6_goal[1] * 1000.0)
-            req.z = float(p6_goal[2] * 1000.0)
-            req.rx = float(rx_g)
-            req.ry = float(ry_g)
-            req.rz = float(rz_g)
-            req.param_value = [f"SpeedJ={velocity},AccJ={acceleration}"]
-
-            log.info(
-                f"[arc angled] chunk {idx}/{len(chunks)} -> {delta:+.2f} deg | "
-                f"tcp=({0.0}, {0.0}, {d_rel_z}, {tcp_rx_deg}, {tcp_ry_deg}, {tcp_rz_deg})"
-            )
-
-            fut = self.movj_cli.call_async(req)
-            rclpy.spin_until_future_complete(self, fut, timeout_sec=10.0)
-
-            if not fut.done() or fut.result() is None:
-                log.error("move_portafilter_arc_movJ_angled: MovJ call timed out")
-                return False
-            if getattr(fut.result(), "res", 1) != 0:
-                log.error(f"move_portafilter_arc_movJ_angled: driver res={fut.result().res}")
-                return False
-
-            # Update cached flange pose for next chunk
-            p6, R6 = p6_goal, R6_goal
-
-        # ── 4) optional final sync ──────────────────────────────────────────
-        self.sync()
-
-        log.info("move_portafilter_arc_movJ_angled: completed all chunks")
-        return True
 
     def move_portafilter_arc_tool(
         self,
         arc_size_deg: float = 45.0,
         axis: str = "z",
         tcp_table: str = "{0,0,287.5,0,0,0}",
-    ) -> bool:
-        """
-        1) Configure TCP via SetTool (tool index 1, tcp_table)
-        2) Pivot the portafilter_link by arc_size_deg around the given axis
-           via RelMovL (relative linear move) using Tool=1
-        3) Reset TCP to default (tool 0, zero table)
-        Returns True on success, False otherwise.
-        """
-        from dobot_msgs_v3.srv import SetTool, RelMovL
-        import rclpy
-        import time
-
-        time.sleep(0.2) #stability settling
-    
-        log = self.get_logger()
-        retry_pause = 0.25
-        max_attempts = 20
-
-        # ── 1) SetTool to configure the TCP for tool 1 ─────────────────────────
-        set_req = SetTool.Request()
-        set_req.index = 1
-        set_req.table = tcp_table
-
-        if not self.set_tool_cli.wait_for_service(timeout_sec=5.0):
-            log.error("move_portafilter_arc_tool: SetTool service unavailable")
-            return False
-        fut = self.set_tool_cli.call_async(set_req)
-        rclpy.spin_until_future_complete(self, fut, timeout_sec=5.0)
-        if not fut.done() or fut.result() is None or fut.result().res != 0:
-            log.error(f"move_portafilter_arc_tool: SetTool failed (res={getattr(fut.result(), 'res', None)})")
-            return False
-
-        # ── 2) Build the RelMovL request for the arc around the specified axis ─
-        off1 = off2 = off3 = off4 = off5 = off6 = 0.0
-        axis = axis.lower()
-        if axis == "x":
-            off4 = arc_size_deg
-        elif axis == "y":
-            off5 = arc_size_deg
-        elif axis == "z":
-            off6 = arc_size_deg
-        else:
-            log.error(f"move_portafilter_arc_tool: invalid axis '{axis}'")
-            return False
-
-        rel_req = RelMovL.Request()
-        rel_req.offset1 = off1
-        rel_req.offset2 = off2
-        rel_req.offset3 = off3
-        rel_req.offset4 = off4
-        rel_req.offset5 = off5
-        rel_req.offset6 = off6
-        rel_req.param_value = ["Tool=1"]
-
-        for attempt in range(1, max_attempts + 1):
-            if not self.relmov_l_cli.wait_for_service(timeout_sec=5.0):
-                log.warn(f"move_portafilter_arc_tool: RelMovL unavailable, retry {attempt}/{max_attempts}")
-                time.sleep(retry_pause)
-                continue
-
-            fut2 = self.relmov_l_cli.call_async(rel_req)
-            rclpy.spin_until_future_complete(self, fut2, timeout_sec=5.0)
-            if fut2.done() and fut2.result() is not None and fut2.result().res == 0:
-                log.info("move_portafilter_arc_tool: RelMovL succeeded ✓")
-                break
-
-            log.warn(f"move_portafilter_arc_tool: RelMovL attempt {attempt} failed (res={getattr(fut2.result(), 'res', None)})")
-            time.sleep(retry_pause)
-        else:
-            log.error("move_portafilter_arc_tool: RelMovL failed after retries")
-            return False
-        
-        self.use_tool(index=0)
-
-        log.info("move_portafilter_arc_tool: completed successfully")
-        return True
-
-    def move_portafilter_arc_tool_angled(
-        self,
-        arc_size_deg: float = 30.0,
-        axis: str = "z",
-        tcp_table: str = "{0,0,275.0,-17.5,0,0}",
     ) -> bool:
         """
         1) Configure TCP via SetTool (tool index 1, tcp_table)
